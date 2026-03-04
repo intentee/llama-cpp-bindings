@@ -1,7 +1,7 @@
 //! Minimal OpenAI-compatible chat completion server using Actix Web.
 //!
 //! Usage:
-//!   cargo run -p openai-server -- <model_path>
+//!   cargo run -p openai-server -- <`model_path`>
 //!   cargo run -p openai-server -- hf-model <repo> <model>
 use actix_web::{App, HttpResponse, HttpServer, http::StatusCode, web};
 use hf_hub::api::sync::ApiBuilder;
@@ -46,7 +46,7 @@ fn internal_error(message: impl Into<String>) -> HttpError {
     }
 }
 
-fn error_response(err: HttpError) -> HttpResponse {
+fn error_response(err: &HttpError) -> HttpResponse {
     let body = json!({
         "error": {
             "message": err.message,
@@ -54,6 +54,7 @@ fn error_response(err: HttpError) -> HttpResponse {
         }
     })
     .to_string();
+
     HttpResponse::build(err.status)
         .content_type("application/json")
         .body(body)
@@ -114,9 +115,8 @@ fn anchor_pattern(pattern: &str) -> String {
 }
 
 fn parse_stop_sequences(request: &Value) -> Result<Vec<String>, HttpError> {
-    let stop_value = match request.get("stop") {
-        Some(value) => value,
-        None => return Ok(Vec::new()),
+    let Some(stop_value) = request.get("stop") else {
+        return Ok(Vec::new());
     };
 
     match stop_value {
@@ -302,7 +302,7 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
     }
     let messages_json = messages.to_string();
 
-    let tools_json = request.get("tools").map(|value| value.to_string());
+    let tools_json = request.get("tools").map(std::string::ToString::to_string);
     let tool_choice = match request.get("tool_choice") {
         Some(Value::String(value)) => Some(value.clone()),
         Some(Value::Null) | None => None,
@@ -324,7 +324,7 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
     };
 
     let chat_template_kwargs = match request.get("chat_template_kwargs") {
-        Some(Value::Object(_)) | Some(Value::Array(_)) => {
+        Some(Value::Object(_) | Value::Array(_)) => {
             Some(request["chat_template_kwargs"].to_string())
         }
         Some(Value::Null) | None => None,
@@ -541,16 +541,15 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
 }
 
 async fn chat_completions(state: web::Data<AppState>, body: web::Bytes) -> HttpResponse {
-    let body_str = match std::str::from_utf8(&body) {
-        Ok(value) => value,
-        Err(_) => return error_response(bad_request("body must be valid UTF-8")),
+    let Ok(body_str) = std::str::from_utf8(&body) else {
+        return error_response(&bad_request("body must be valid UTF-8"));
     };
 
     match run_chat_completion(&state, body_str) {
         Ok(body) => HttpResponse::Ok()
             .content_type("application/json")
             .body(body),
-        Err(err) => error_response(err),
+        Err(err) => error_response(&err),
     }
 }
 
@@ -564,11 +563,10 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or("llama.cpp")
         .to_string();
 
-    let backend = LlamaBackend::init()
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
+    let backend = LlamaBackend::init().map_err(|err| std::io::Error::other(err.to_string()))?;
     let params = LlamaModelParams::default();
     let model = LlamaModel::load_from_file(&backend, model_path, &params)
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
+        .map_err(|err| std::io::Error::other(err.to_string()))?;
     let default_template = model.chat_template(None).ok();
 
     let state = web::Data::new(AppState {

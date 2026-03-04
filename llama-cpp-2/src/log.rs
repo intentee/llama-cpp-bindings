@@ -75,10 +75,10 @@ pub enum Module {
 }
 
 impl Module {
-    const fn name(&self) -> &'static str {
+    const fn name(self) -> &'static str {
         match self {
-            Module::GGML => "ggml",
-            Module::LlamaCpp => "llama.cpp",
+            Self::GGML => "ggml",
+            Self::LlamaCpp => "llama.cpp",
         }
     }
 }
@@ -110,9 +110,9 @@ impl State {
         Self {
             options,
             module,
-            buffered: Default::default(),
-            previous_level: Default::default(),
-            is_buffering: Default::default(),
+            buffered: std::sync::Mutex::default(),
+            previous_level: std::sync::atomic::AtomicI32::default(),
+            is_buffering: std::sync::atomic::AtomicBool::default(),
         }
     }
 
@@ -200,7 +200,7 @@ impl State {
                 origin = "crate",
                 "Message buffered unnnecessarily due to missing newline and not followed by a CONT"
             );
-            Self::generate_log(self.module, previous_log_level, buffer.as_str())
+            Self::generate_log(self.module, previous_log_level, buffer.as_str());
         }
 
         self.is_buffering
@@ -217,17 +217,16 @@ impl State {
         if self
             .is_buffering
             .swap(false, std::sync::atomic::Ordering::Acquire)
+            && let Some((buf_level, buf_text)) = self.buffered.lock().unwrap().take()
         {
-            if let Some((buf_level, buf_text)) = self.buffered.lock().unwrap().take() {
-                // This warning indicates a bug within llama.cpp
-                tracing::warn!(
-                    level = buf_level,
-                    text = buf_text,
-                    origin = "crate",
-                    "llama.cpp message buffered spuriously due to missing \\n and being followed by a non-CONT message!"
-                );
-                Self::generate_log(self.module, buf_level, buf_text.as_str());
-            }
+            // This warning indicates a bug within llama.cpp
+            tracing::warn!(
+                level = buf_level,
+                text = buf_text,
+                origin = "crate",
+                "llama.cpp message buffered spuriously due to missing \\n and being followed by a non-CONT message!"
+            );
+            Self::generate_log(self.module, buf_level, buf_text.as_str());
         }
 
         self.previous_level
@@ -252,7 +251,7 @@ impl State {
                     text = text,
                     origin = "crate",
                     "Unknown llama.cpp log level"
-                )
+                );
             }
         }
     }

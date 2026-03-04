@@ -13,6 +13,7 @@ use crate::{GrammarError, SamplerAcceptError, status_is_ok, status_to_i32};
 
 /// A safe wrapper around `llama_sampler`.
 pub struct LlamaSampler {
+    /// Raw pointer to the underlying `llama_sampler`.
     pub sampler: *mut llama_cpp_sys_2::llama_sampler,
 }
 
@@ -86,7 +87,7 @@ impl LlamaSampler {
     /// Gets the random seed used by this sampler.
     ///
     /// Returns:
-    /// - For random samplers (dist, mirostat, mirostat_v2): returns their current seed
+    /// - For random samplers (dist, mirostat, `mirostat_v2)`: returns their current seed
     /// - For sampler chains: returns the first non-default seed found in reverse order
     /// - For all other samplers: returns 0xFFFFFFFF
     #[must_use]
@@ -286,7 +287,6 @@ impl LlamaSampler {
     }
 
     /// Grammar sampler
-    #[must_use]
     pub fn grammar(
         model: &LlamaModel,
         grammar_str: &str,
@@ -313,7 +313,6 @@ impl LlamaSampler {
     /// Lazy grammar sampler, introduced in <https://github.com/ggerganov/llama.cpp/pull/9639>
     ///
     /// This sampler enforces grammar rules only when specific trigger words or tokens are encountered.
-    #[must_use]
     pub fn grammar_lazy(
         model: &LlamaModel,
         grammar_str: &str,
@@ -352,7 +351,6 @@ impl LlamaSampler {
     /// Trigger patterns are regular expressions matched from the start of the
     /// generation output. The grammar sampler will be fed content starting from
     /// the first match group.
-    #[must_use]
     pub fn grammar_lazy_patterns(
         model: &LlamaModel,
         grammar_str: &str,

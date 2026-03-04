@@ -1,4 +1,4 @@
-//! OpenAI Specific Utility methods.
+//! `OpenAI` Specific Utility methods.
 use crate::{ChatParseError, status_is_ok, status_to_i32};
 use std::ffi::{CStr, CString, c_char};
 use std::mem;
@@ -41,6 +41,7 @@ pub struct OpenAIChatTemplateParams<'params> {
 /// Streaming OpenAI-compatible parser state.
 #[derive(Debug)]
 pub struct ChatParseStateOaicompat {
+    /// Raw pointer to the underlying FFI parser state.
     pub state: NonNull<llama_cpp_sys_2::llama_rs_chat_parse_state_oaicompat>,
 }
 
@@ -60,9 +61,9 @@ impl ChatParseStateOaicompat {
                 self.state.as_ptr(),
                 text_cstr.as_ptr(),
                 is_partial,
-                &mut out_msg,
-                &mut out_diffs,
-                &mut out_diffs_count,
+                &raw mut out_msg,
+                &raw mut out_diffs,
+                &raw mut out_diffs_count,
             )
         };
 
@@ -82,7 +83,10 @@ impl ChatParseStateOaicompat {
             for diff in diffs {
                 let mut out_json: *mut c_char = ptr::null_mut();
                 let rc = unsafe {
-                    llama_cpp_sys_2::llama_rs_chat_msg_diff_to_oaicompat_json(diff, &mut out_json)
+                    llama_cpp_sys_2::llama_rs_chat_msg_diff_to_oaicompat_json(
+                        diff,
+                        &raw mut out_json,
+                    )
                 };
                 if !status_is_ok(rc) {
                     if !out_json.is_null() {
@@ -100,9 +104,9 @@ impl ChatParseStateOaicompat {
             Ok(deltas)
         };
 
-        unsafe { llama_cpp_sys_2::llama_rs_chat_msg_free_oaicompat(&mut out_msg) };
+        unsafe { llama_cpp_sys_2::llama_rs_chat_msg_free_oaicompat(&raw mut out_msg) };
         unsafe {
-            llama_cpp_sys_2::llama_rs_chat_msg_diff_free_oaicompat(out_diffs, out_diffs_count)
+            llama_cpp_sys_2::llama_rs_chat_msg_diff_free_oaicompat(out_diffs, out_diffs_count);
         };
         result
     }

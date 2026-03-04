@@ -200,7 +200,7 @@ impl<'tokens> LlamaBatch<'tokens> {
     }
 }
 
-impl<'tokens> Drop for LlamaBatch<'tokens> {
+impl Drop for LlamaBatch<'_> {
     /// Drops the `LlamaBatch`.
     ///
     /// ```

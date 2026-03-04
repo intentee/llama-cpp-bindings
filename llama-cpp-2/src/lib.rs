@@ -37,12 +37,16 @@ pub mod timing;
 pub mod token;
 pub mod token_type;
 
+/// Returns true if the given status indicates success.
+#[must_use]
 pub fn status_is_ok(status: llama_cpp_sys_2::llama_rs_status) -> bool {
     status == llama_cpp_sys_2::LLAMA_RS_STATUS_OK
 }
 
+/// Converts a status code to its underlying `i32` representation.
+#[must_use]
 pub fn status_to_i32(status: llama_cpp_sys_2::llama_rs_status) -> i32 {
-    status as i32
+    status
 }
 
 /// A failable result from a llama.cpp function.
@@ -309,7 +313,7 @@ pub fn json_schema_to_grammar(schema_json: &str) -> Result<String> {
         .map_err(|err| LlamaCppError::JsonSchemaToGrammarError(err.to_string()))?;
     let mut out = std::ptr::null_mut();
     let rc = unsafe {
-        llama_cpp_sys_2::llama_rs_json_schema_to_grammar(schema_cstr.as_ptr(), false, &mut out)
+        llama_cpp_sys_2::llama_rs_json_schema_to_grammar(schema_cstr.as_ptr(), false, &raw mut out)
     };
 
     let result = {
@@ -472,7 +476,7 @@ pub struct LlamaBackendDevice {
     pub index: usize,
     /// The name of the device (e.g. "Vulkan0")
     pub name: String,
-    /// A description of the device (e.g. "NVIDIA GeForce RTX 3080")
+    /// A description of the device (e.g. "NVIDIA `GeForce` RTX 3080")
     pub description: String,
     /// The backend of the device (e.g. "Vulkan", "CUDA", "CPU")
     pub backend: String,

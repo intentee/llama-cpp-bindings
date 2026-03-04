@@ -23,6 +23,7 @@ pub mod session;
 /// Safe wrapper around `llama_context`.
 #[allow(clippy::module_name_repetitions)]
 pub struct LlamaContext<'model> {
+    /// Raw pointer to the underlying `llama_context`.
     pub context: NonNull<llama_cpp_sys_2::llama_context>,
     /// a reference to the contexts model.
     pub model: &'model LlamaModel,
@@ -39,6 +40,8 @@ impl Debug for LlamaContext<'_> {
 }
 
 impl<'model> LlamaContext<'model> {
+    /// Wraps existing raw pointers into a new `LlamaContext`.
+    #[must_use]
     pub fn new(
         llama_model: &'model LlamaModel,
         llama_context: NonNull<llama_cpp_sys_2::llama_context>,

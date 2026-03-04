@@ -4,6 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 /// A wrapper around `llama_timings`.
 #[derive(Clone, Copy, Debug)]
 pub struct LlamaTimings {
+    /// The underlying `llama_perf_context_data` from the C API.
     pub timings: llama_cpp_sys_2::llama_perf_context_data,
 }
 

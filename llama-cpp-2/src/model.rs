@@ -27,6 +27,7 @@ pub mod params;
 #[repr(transparent)]
 #[allow(clippy::module_name_repetitions)]
 pub struct LlamaModel {
+    /// Raw pointer to the underlying `llama_model`.
     pub model: NonNull<llama_cpp_sys_2::llama_model>,
 }
 
@@ -35,6 +36,7 @@ pub struct LlamaModel {
 #[repr(transparent)]
 #[allow(clippy::module_name_repetitions)]
 pub struct LlamaLoraAdapter {
+    /// Raw pointer to the underlying `llama_adapter_lora`.
     pub lora_adapter: NonNull<llama_cpp_sys_2::llama_adapter_lora>,
 }
 
@@ -53,6 +55,7 @@ impl LlamaChatTemplate {
     }
 
     /// Accesses the template as a c string reference.
+    #[must_use]
     pub fn as_c_str(&self) -> &CStr {
         &self.0
     }
@@ -146,9 +149,13 @@ pub struct ChatTemplateResult {
 /// The Rope type that's used within the model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RopeType {
+    /// Standard rotary positional encoding.
     Norm,
+    /// GPT-NeoX style rotary positional encoding.
     NeoX,
+    /// Multi-dimensional rotary positional encoding.
     MRope,
+    /// Vision model rotary positional encoding.
     Vision,
 }
 
@@ -179,6 +186,8 @@ unsafe impl Send for LlamaModel {}
 unsafe impl Sync for LlamaModel {}
 
 impl LlamaModel {
+    /// Returns a raw pointer to the model's vocabulary.
+    #[must_use]
     pub fn vocab_ptr(&self) -> *const llama_cpp_sys_2::llama_vocab {
         unsafe { llama_cpp_sys_2::llama_model_get_vocab(self.model.as_ptr()) }
     }
@@ -266,12 +275,12 @@ impl LlamaModel {
     ) -> Result<String, TokenToStringError> {
         // TODO lsptrip None is acutally not quite the origignal behavior of this function,
         let mut decoder = encoding_rs::UTF_8.new_decoder();
-        Ok(self.token_to_piece(
+        self.token_to_piece(
             token,
             &mut decoder,
             matches!(special, Special::Tokenize),
             None,
-        )?)
+        )
     }
 
     /// Convert single token to bytes.
@@ -639,21 +648,25 @@ impl LlamaModel {
     }
 
     /// Returns the total size of all the tensors in the model in bytes.
+    #[must_use]
     pub fn size(&self) -> u64 {
         unsafe { llama_cpp_sys_2::llama_model_size(self.model.as_ptr()) }
     }
 
     /// Returns the number of parameters in the model.
+    #[must_use]
     pub fn n_params(&self) -> u64 {
         unsafe { llama_cpp_sys_2::llama_model_n_params(self.model.as_ptr()) }
     }
 
     /// Returns whether the model is a recurrent network (Mamba, RWKV, etc)
+    #[must_use]
     pub fn is_recurrent(&self) -> bool {
         unsafe { llama_cpp_sys_2::llama_model_is_recurrent(self.model.as_ptr()) }
     }
 
     /// Returns the number of layers within the model.
+    #[must_use]
     pub fn n_layer(&self) -> u32 {
         // It's never possible for this to panic because while the API interface is defined as an int32_t,
         // the field it's accessing is a uint32_t.
@@ -661,6 +674,7 @@ impl LlamaModel {
     }
 
     /// Returns the number of attention heads within the model.
+    #[must_use]
     pub fn n_head(&self) -> u32 {
         // It's never possible for this to panic because while the API interface is defined as an int32_t,
         // the field it's accessing is a uint32_t.
@@ -668,6 +682,7 @@ impl LlamaModel {
     }
 
     /// Returns the number of KV attention heads.
+    #[must_use]
     pub fn n_head_kv(&self) -> u32 {
         // It's never possible for this to panic because while the API interface is defined as an int32_t,
         // the field it's accessing is a uint32_t.
@@ -694,6 +709,7 @@ impl LlamaModel {
     }
 
     /// Get the number of metadata key/value pairs
+    #[must_use]
     pub fn meta_count(&self) -> i32 {
         unsafe { llama_cpp_sys_2::llama_model_meta_count(self.model.as_ptr()) }
     }
@@ -790,7 +806,11 @@ impl LlamaModel {
         params: &LlamaModelParams,
     ) -> Result<Self, LlamaModelLoadError> {
         let path = path.as_ref();
-        debug_assert!(Path::new(path).exists(), "{path:?} does not exist");
+        debug_assert!(
+            Path::new(path).exists(),
+            "{} does not exist",
+            path.display()
+        );
         let path = path
             .to_str()
             .ok_or(LlamaModelLoadError::PathToStrError(path.to_path_buf()))?;
@@ -815,7 +835,11 @@ impl LlamaModel {
         path: impl AsRef<Path>,
     ) -> Result<LlamaLoraAdapter, LlamaLoraAdapterInitError> {
         let path = path.as_ref();
-        debug_assert!(Path::new(path).exists(), "{path:?} does not exist");
+        debug_assert!(
+            Path::new(path).exists(),
+            "{} does not exist",
+            path.display()
+        );
 
         let path = path
             .to_str()
@@ -859,7 +883,7 @@ impl LlamaModel {
     /// Apply the models chat template to some messages.
     /// See <https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template>
     ///
-    /// Unlike the llama.cpp `apply_chat_template` which just randomly uses the ChatML template when given
+    /// Unlike the llama.cpp `apply_chat_template` which just randomly uses the `ChatML` template when given
     /// a null pointer for the template, this requires an explicit template to be specified. If you want to
     /// use "chatml", then just do `LlamaChatTemplate::new("chatml")` or any other model name or template
     /// string.
@@ -978,7 +1002,7 @@ impl LlamaModel {
                     .as_ref()
                     .map_or(ptr::null(), |cstr| cstr.as_ptr()),
                 add_generation_prompt,
-                &mut raw_result,
+                &raw mut raw_result,
             )
         };
 
@@ -1091,7 +1115,7 @@ impl LlamaModel {
                 }
                 parsed
             };
-            let parse_tool_calls = tools_json.map_or(false, |tools| !tools.is_empty());
+            let parse_tool_calls = tools_json.is_some_and(|tools| !tools.is_empty());
             Ok(ChatTemplateResult {
                 prompt,
                 grammar,
@@ -1106,7 +1130,7 @@ impl LlamaModel {
             })
         })();
 
-        unsafe { llama_cpp_sys_2::llama_rs_chat_template_result_free(&mut raw_result) };
+        unsafe { llama_cpp_sys_2::llama_rs_chat_template_result_free(&raw mut raw_result) };
         result
     }
 
@@ -1173,8 +1197,8 @@ impl LlamaModel {
             llama_cpp_sys_2::llama_rs_apply_chat_template_oaicompat(
                 self.model.as_ptr(),
                 tmpl.0.as_ptr(),
-                &ffi_params,
-                &mut raw_result,
+                &raw const ffi_params,
+                &raw mut raw_result,
             )
         };
 
@@ -1302,7 +1326,7 @@ impl LlamaModel {
             })
         })();
 
-        unsafe { llama_cpp_sys_2::llama_rs_chat_template_result_free(&mut raw_result) };
+        unsafe { llama_cpp_sys_2::llama_rs_chat_template_result_free(&raw mut raw_result) };
         result
     }
 }
@@ -1327,7 +1351,7 @@ impl ChatTemplateResult {
                     .as_ref()
                     .map_or(ptr::null(), |cstr| cstr.as_ptr()),
                 self.thinking_forced_open,
-                &mut out_json,
+                &raw mut out_json,
             )
         };
 

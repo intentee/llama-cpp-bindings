@@ -160,7 +160,7 @@ impl LlamaContext<'_> {
                 cstr.as_ptr(),
                 tokens_out,
                 max_tokens,
-                &mut n_out,
+                &raw mut n_out,
             )
         };
         if load_session_success {
@@ -258,7 +258,7 @@ impl LlamaContext<'_> {
                 cstr.as_ptr(),
                 tokens_out,
                 max_tokens,
-                &mut n_out,
+                &raw mut n_out,
             )
         };
         if success {
@@ -368,7 +368,7 @@ impl LlamaContext<'_> {
                 dest_seq_id,
                 tokens_out,
                 max_tokens,
-                &mut n_out,
+                &raw mut n_out,
             )
         };
 

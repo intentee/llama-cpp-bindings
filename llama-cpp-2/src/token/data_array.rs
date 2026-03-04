@@ -73,11 +73,12 @@ impl LlamaTokenDataArray {
     /// Panics if some of the safety conditions are not met. (we cannot check all of them at
     /// runtime so breaking them is UB)
     ///
-    /// SAFETY:
+    /// # Safety
+    ///
     /// The returned array formed by the data pointer and the length must entirely consist of
     /// initialized token data and the length must be less than the capacity of this array's data
     /// buffer.
-    /// if the data is not sorted, sorted must be false.
+    /// If the data is not sorted, sorted must be false.
     pub unsafe fn modify_as_c_llama_token_data_array<TResult>(
         &mut self,
         modify: impl FnOnce(&mut llama_cpp_sys_2::llama_token_data_array) -> TResult,

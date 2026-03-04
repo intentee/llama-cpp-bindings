@@ -18,6 +18,8 @@ pub enum ParamOverrideValue {
 }
 
 impl ParamOverrideValue {
+    /// Returns the FFI tag corresponding to this override value variant.
+    #[must_use]
     pub fn tag(&self) -> llama_cpp_sys_2::llama_model_kv_override_type {
         match self {
             ParamOverrideValue::Bool(_) => llama_cpp_sys_2::LLAMA_KV_OVERRIDE_TYPE_BOOL,
@@ -27,6 +29,8 @@ impl ParamOverrideValue {
         }
     }
 
+    /// Returns the FFI union value for this override.
+    #[must_use]
     pub fn value(&self) -> llama_cpp_sys_2::llama_model_kv_override__bindgen_ty_1 {
         match self {
             ParamOverrideValue::Bool(value) => {
@@ -78,9 +82,9 @@ pub struct KvOverrides<'model_params> {
 }
 
 impl KvOverrides<'_> {
-    pub fn new<'model_params>(
-        model_params: &'model_params LlamaModelParams,
-    ) -> KvOverrides<'model_params> {
+    /// Creates a new `KvOverrides` view over the given model parameters.
+    #[must_use]
+    pub fn new(model_params: &LlamaModelParams) -> KvOverrides<'_> {
         KvOverrides { model_params }
     }
 }

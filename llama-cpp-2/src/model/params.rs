@@ -115,6 +115,7 @@ pub const LLAMA_CPP_MAX_DEVICES: usize = 16;
 /// A safe wrapper around `llama_model_params`.
 #[allow(clippy::module_name_repetitions)]
 pub struct LlamaModelParams {
+    /// The underlying `llama_model_params` from the C API.
     pub params: llama_cpp_sys_2::llama_model_params,
     kv_overrides: Vec<llama_cpp_sys_2::llama_model_kv_override>,
     buft_overrides: Vec<llama_cpp_sys_2::llama_model_tensor_buft_override>,
@@ -149,7 +150,7 @@ impl LlamaModelParams {
     /// assert_eq!(count, 0);
     /// ```
     #[must_use]
-    pub fn kv_overrides<'model_params>(&'model_params self) -> KvOverrides<'model_params> {
+    pub fn kv_overrides(&self) -> KvOverrides<'_> {
         KvOverrides::new(self)
     }
 
@@ -235,7 +236,7 @@ impl LlamaModelParams {
         );
 
         // There should be some way to do this without iterating over everything.
-        for &c in key.to_bytes_with_nul().iter() {
+        for &c in key.to_bytes_with_nul() {
             c_char::try_from(c).expect("invalid character in key");
         }
 

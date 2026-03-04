@@ -48,4 +48,22 @@ missing_docs = { level = "warn" }
 missing_debug_implementations = { level = "warn" }
 
 [workspace.lints.clippy]
-pedantic = { level = "warn" }
+pedantic = { level = "warn", priority = -1 }
+
+# FFI casts are unavoidable when bridging C and Rust types
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+
+# Doc sections for every fallible/panicking function add noise without value
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+# Pedantic lints that conflict with FFI wrapper patterns
+doc_markdown = "allow"
+missing_fields_in_debug = "allow"
+similar_names = "allow"
+struct_excessive_bools = "allow"
+too_many_lines = "allow"
+upper_case_acronyms = "allow"
