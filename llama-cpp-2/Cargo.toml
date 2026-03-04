@@ -6,8 +6,6 @@ edition.workspace = true
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/utilityai/llama-cpp-rs"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 encoding_rs = { workspace = true }
 enumflags2 = { workspace = true }
@@ -41,25 +39,7 @@ android-static-stdcxx = ["llama-cpp-sys-2/static-stdcxx"]
 mtmd = ["llama-cpp-sys-2/mtmd"]
 system-ggml = ["llama-cpp-sys-2/system-ggml"]
 llguidance = ["dep:llguidance", "dep:toktrie"]
-
+llm-tests = []
 
 [target.'cfg(all(target_os = "macos", any(target_arch = "aarch64", target_arch = "arm64")))'.dependencies]
 llama-cpp-sys-2 = { workspace = true, features = ["metal"] }
-
-[[example]]
-name = "usage"
-path = "../examples/usage.rs"
-
-[[example]]
-name = "tools"
-path = "../examples/tools.rs"
-
-
-[[example]]
-name = "openai_stream"
-path = "../examples/openai_stream.rs"
-
-[[example]]
-name = "llguidance"
-path = "../examples/llguidance.rs"
-required-features = ["llguidance"]

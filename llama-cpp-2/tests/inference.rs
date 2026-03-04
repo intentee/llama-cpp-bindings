@@ -1,33 +1,31 @@
-//! # Usage
-//!
-//! Minimal inference example using llama-cpp-2. Downloads a model from
-//! HuggingFace on first run:
-//!
-//! ```console
-//! cargo run --example usage -- "What is the meaning of life?"
-//! ```
+#![cfg(feature = "llm-tests")]
 
+use std::io::Write;
+
+use anyhow::Result;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
-use std::io::Write;
 
 const HF_REPO: &str = "unsloth/Qwen3.5-0.8B-GGUF";
 const HF_MODEL: &str = "Qwen3.5-0.8B-Q4_K_M.gguf";
 
-fn main() -> anyhow::Result<()> {
-    let user_prompt = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "Hello! How are you?".to_string());
-
-    let model_path = hf_hub::api::sync::ApiBuilder::new()
+fn download_model() -> Result<std::path::PathBuf> {
+    let path = hf_hub::api::sync::ApiBuilder::new()
         .with_progress(true)
         .build()?
         .model(HF_REPO.to_string())
         .get(HF_MODEL)?;
+
+    Ok(path)
+}
+
+#[test]
+fn chat_inference_produces_coherent_output() -> Result<()> {
+    let model_path = download_model()?;
 
     let backend = LlamaBackend::init()?;
     let model_params = LlamaModelParams::default();
@@ -36,7 +34,10 @@ fn main() -> anyhow::Result<()> {
     let mut context = model.new_context(&backend, context_params)?;
 
     let chat_template = model.chat_template(None)?;
-    let messages = vec![LlamaChatMessage::new("user".to_string(), user_prompt)?];
+    let messages = vec![LlamaChatMessage::new(
+        "user".to_string(),
+        "Hello! How are you?".to_string(),
+    )?];
     let prompt = model.apply_chat_template(&chat_template, &messages, true)?;
 
     let tokens = model.str_to_token(&prompt, AddBos::Always)?;
@@ -53,6 +54,7 @@ fn main() -> anyhow::Result<()> {
     let mut sampler = LlamaSampler::greedy();
     let mut position = batch.n_tokens();
     let max_tokens = 1024;
+    let mut generated = String::new();
 
     while position <= max_tokens {
         let token = sampler.sample(&context, batch.n_tokens() - 1);
@@ -63,6 +65,7 @@ fn main() -> anyhow::Result<()> {
         }
 
         let piece = model.token_to_piece(token, &mut decoder, true, None)?;
+        generated.push_str(&piece);
         print!("{piece}");
         std::io::stdout().flush()?;
 
@@ -74,6 +77,11 @@ fn main() -> anyhow::Result<()> {
     }
 
     println!();
+
+    assert!(
+        !generated.is_empty(),
+        "model should generate at least one token"
+    );
 
     Ok(())
 }

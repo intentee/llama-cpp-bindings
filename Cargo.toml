@@ -4,11 +4,6 @@ members = [
   "llama-cpp-build",
   "llama-cpp-sys-2",
   "llama-cpp-2",
-  "examples/simple",
-  "examples/embeddings",
-  "examples/server",
-  "examples/reranker",
-  "examples/mtmd",
 ]
 
 [workspace.package]
@@ -34,7 +29,6 @@ llama-cpp-build = { path = "llama-cpp-build", version = "0.1.138" }
 walkdir = "2"
 
 # dev and examples
-actix-web = "4.13.0"
 anyhow = "1.0.102"
 clap = "4.5.60"
 criterion = "0.5.1"

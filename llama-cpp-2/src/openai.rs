@@ -1,9 +1,153 @@
 //! `OpenAI` Specific Utility methods.
-use crate::{ChatParseError, status_is_ok, status_to_i32};
+use std::collections::HashSet;
 use std::ffi::{CStr, CString, c_char};
 use std::mem;
 use std::ptr::{self, NonNull};
 use std::slice;
+
+use crate::model::{AddBos, ChatTemplateResult, GrammarTriggerType, LlamaModel};
+use crate::sampling::LlamaSampler;
+use crate::token::LlamaToken;
+use crate::{ChatParseError, GrammarError, status_is_ok, status_to_i32};
+
+fn regex_escape(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+
+    for character in value.chars() {
+        match character {
+            '.' | '^' | '$' | '|' | '(' | ')' | '*' | '+' | '?' | '[' | ']' | '{' | '}' | '\\' => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
+            _ => escaped.push(character),
+        }
+    }
+
+    escaped
+}
+
+fn anchor_pattern(pattern: &str) -> String {
+    if pattern.is_empty() {
+        return "^$".to_string();
+    }
+
+    let mut anchored = String::new();
+
+    if !pattern.starts_with('^') {
+        anchored.push('^');
+    }
+
+    anchored.push_str(pattern);
+
+    if !pattern.ends_with('$') {
+        anchored.push('$');
+    }
+
+    anchored
+}
+
+/// Error type for grammar sampler construction.
+#[derive(Debug, thiserror::Error)]
+pub enum GrammarSamplerError {
+    /// Lazy grammar mode is enabled but no triggers were provided.
+    #[error("grammar_lazy enabled but no triggers provided")]
+    MissingTriggers,
+    /// A trigger word is not in the preserved tokens set.
+    #[error("grammar trigger word should be a preserved token: {0}")]
+    TriggerWordNotPreserved(String),
+    /// Failed to tokenize a trigger or preserved token.
+    #[error("tokenization failed: {0}")]
+    TokenizationFailed(String),
+    /// Failed to initialize the grammar sampler.
+    #[error("grammar sampler init failed: {0}")]
+    GrammarInitFailed(#[from] GrammarError),
+}
+
+impl ChatTemplateResult {
+    /// Builds a grammar sampler from this template result's grammar and trigger configuration.
+    ///
+    /// Returns `None` if no grammar is present. The returned `HashSet` contains preserved
+    /// token IDs that should be decoded with special token handling.
+    ///
+    /// # Errors
+    /// Returns an error if trigger processing or grammar sampler initialization fails.
+    pub fn build_grammar_sampler(
+        &self,
+        model: &LlamaModel,
+    ) -> Result<(Option<LlamaSampler>, HashSet<LlamaToken>), GrammarSamplerError> {
+        let mut preserved = HashSet::new();
+
+        for token_str in &self.preserved_tokens {
+            let tokens = model
+                .str_to_token(token_str, AddBos::Never)
+                .map_err(|error| GrammarSamplerError::TokenizationFailed(error.to_string()))?;
+
+            if tokens.len() == 1 {
+                preserved.insert(tokens[0]);
+            }
+        }
+
+        let Some(grammar) = self.grammar.as_deref() else {
+            return Ok((None, preserved));
+        };
+
+        let grammar_sampler = if self.grammar_lazy {
+            if self.grammar_triggers.is_empty() {
+                return Err(GrammarSamplerError::MissingTriggers);
+            }
+
+            let mut trigger_patterns = Vec::new();
+            let mut trigger_tokens = Vec::new();
+
+            for trigger in &self.grammar_triggers {
+                match trigger.trigger_type {
+                    GrammarTriggerType::Token => {
+                        if let Some(token) = trigger.token {
+                            trigger_tokens.push(token);
+                        }
+                    }
+                    GrammarTriggerType::Word => {
+                        let tokens =
+                            model
+                                .str_to_token(&trigger.value, AddBos::Never)
+                                .map_err(|error| {
+                                    GrammarSamplerError::TokenizationFailed(error.to_string())
+                                })?;
+
+                        if tokens.len() == 1 {
+                            if !preserved.contains(&tokens[0]) {
+                                return Err(GrammarSamplerError::TriggerWordNotPreserved(
+                                    trigger.value.clone(),
+                                ));
+                            }
+                            trigger_tokens.push(tokens[0]);
+                        } else {
+                            trigger_patterns.push(regex_escape(&trigger.value));
+                        }
+                    }
+                    GrammarTriggerType::Pattern => {
+                        trigger_patterns.push(trigger.value.clone());
+                    }
+                    GrammarTriggerType::PatternFull => {
+                        trigger_patterns.push(anchor_pattern(&trigger.value));
+                    }
+                }
+            }
+
+            LlamaSampler::grammar_lazy_patterns(
+                model,
+                grammar,
+                "root",
+                &trigger_patterns,
+                &trigger_tokens,
+            )?
+        } else {
+            LlamaSampler::grammar(model, grammar, "root")?
+        };
+
+        Ok((Some(grammar_sampler), preserved))
+    }
+}
 
 /// Parameters for applying OpenAI-compatible chat templates.
 #[derive(Debug, Clone, PartialEq)]
