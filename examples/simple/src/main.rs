@@ -142,10 +142,6 @@ impl Model {
     }
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "main function orchestrates the full inference pipeline"
-)]
 fn main() -> Result<()> {
     let Args {
         n_len,

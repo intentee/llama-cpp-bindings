@@ -608,7 +608,7 @@ pub fn send_logs_to_tracing(options: LogOptions) {
             .get_or_init(|| Box::new(log::State::new(log::Module::LlamaCpp, options.clone()))),
     ) as *const _;
     let ggml_heap_state = Box::as_ref(
-        log::GGML_STATE.get_or_init(|| Box::new(log::State::new(log::Module::GGML, options))),
+        log::GGML_STATE.get_or_init(|| Box::new(log::State::new(log::Module::Ggml, options))),
     ) as *const _;
 
     unsafe {

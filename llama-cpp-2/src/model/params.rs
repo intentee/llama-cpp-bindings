@@ -9,20 +9,8 @@ use std::ptr::null;
 
 pub mod kv_overrides;
 
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "C API split mode constants are small non-negative values that fit in i8"
-)]
 const LLAMA_SPLIT_MODE_NONE: i8 = llama_cpp_sys_2::LLAMA_SPLIT_MODE_NONE as i8;
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "C API split mode constants are small non-negative values that fit in i8"
-)]
 const LLAMA_SPLIT_MODE_LAYER: i8 = llama_cpp_sys_2::LLAMA_SPLIT_MODE_LAYER as i8;
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "C API split mode constants are small non-negative values that fit in i8"
-)]
 const LLAMA_SPLIT_MODE_ROW: i8 = llama_cpp_sys_2::LLAMA_SPLIT_MODE_ROW as i8;
 
 /// A rusty wrapper around `llama_split_mode`.
@@ -119,10 +107,6 @@ impl Default for LlamaSplitMode {
 pub const LLAMA_CPP_MAX_DEVICES: usize = 16;
 
 /// A safe wrapper around `llama_model_params`.
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "public API benefits from explicit naming"
-)]
 pub struct LlamaModelParams {
     /// The underlying `llama_model_params` from the C API.
     pub params: llama_cpp_sys_2::llama_model_params,
@@ -131,10 +115,6 @@ pub struct LlamaModelParams {
     devices: Pin<Box<[llama_cpp_sys_2::ggml_backend_dev_t; LLAMA_CPP_MAX_DEVICES]>>,
 }
 
-#[expect(
-    clippy::missing_fields_in_debug,
-    reason = "raw FFI pointer is not useful in debug output"
-)]
 impl Debug for LlamaModelParams {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LlamaModelParams")
@@ -188,10 +168,6 @@ impl LlamaModelParams {
     ///
     /// assert_eq!(k.to_bytes(), b"key", "expected key to be 'key', was {:?}", k);
     /// ```
-    #[expect(
-        clippy::missing_panics_doc,
-        reason = "panics enforce internal invariants, not user errors"
-    )]
     pub fn append_kv_override(
         mut self: Pin<&mut Self>,
         key: &CStr,

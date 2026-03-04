@@ -6,10 +6,6 @@ use std::ptr::{self, NonNull};
 use std::slice;
 
 /// Parameters for applying OpenAI-compatible chat templates.
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "mirrors the C API parameter structure"
-)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpenAIChatTemplateParams<'params> {
     /// OpenAI-compatible messages JSON array.

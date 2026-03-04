@@ -51,10 +51,6 @@ struct Args {
     disable_gpu: bool,
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "main function orchestrates the full reranking pipeline"
-)]
 fn main() -> Result<()> {
     let Args {
         model_path,

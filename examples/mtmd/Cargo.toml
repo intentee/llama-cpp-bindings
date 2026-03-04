@@ -14,9 +14,6 @@ cuda = ["llama-cpp-2/cuda"]
 metal = ["llama-cpp-2/metal"]
 vulkan = ["llama-cpp-2/vulkan"]
 
-[lints]
-workspace = true
-
 [[example]]
 name = "mtmd"
 path = "src/mtmd.rs"

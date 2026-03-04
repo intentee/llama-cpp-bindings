@@ -276,14 +276,6 @@ fn build_sampler(
     Ok((LlamaSampler::chain_simple(chain), preserved))
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "run_chat_completion orchestrates the full chat completion pipeline"
-)]
-#[expect(
-    clippy::similar_names,
-    reason = "n_cur and n_ctx are established llama.cpp naming conventions"
-)]
 fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError> {
     let request: Value =
         serde_json::from_str(body).map_err(|e| bad_request(format!("invalid JSON: {e}")))?;
@@ -383,10 +375,6 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
         return Err(bad_request("max_tokens must be greater than zero"));
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "f32 precision is sufficient for temperature"
-    )]
     let temperature = request
         .get("temperature")
         .and_then(Value::as_f64)
@@ -394,10 +382,6 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
     if temperature < 0.0 {
         return Err(bad_request("temperature must be >= 0"));
     }
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "f32 precision is sufficient for top_p"
-    )]
     let top_p = request.get("top_p").and_then(Value::as_f64).unwrap_or(1.0) as f32;
     if !(0.0 < top_p && top_p <= 1.0) {
         return Err(bad_request("top_p must be within (0, 1]"));

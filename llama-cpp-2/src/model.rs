@@ -25,10 +25,6 @@ pub mod params;
 /// A safe wrapper around `llama_model`.
 #[derive(Debug)]
 #[repr(transparent)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "public API benefits from explicit naming"
-)]
 pub struct LlamaModel {
     /// Raw pointer to the underlying `llama_model`.
     pub model: NonNull<llama_cpp_sys_2::llama_model>,
@@ -1051,10 +1047,6 @@ impl LlamaModel {
     ///
     /// There is many ways this can fail. See [`LlamaContextLoadError`] for more information.
     // we intentionally do not derive Copy on `LlamaContextParams` to allow llama.cpp to change the type to be non-trivially copyable.
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "LlamaContextParams is intentionally not Copy to allow future non-trivial fields"
-    )]
     pub fn new_context<'model>(
         &'model self,
         _: &LlamaBackend,
@@ -1336,10 +1328,6 @@ where
     }
 
     // check if the response fit in our buffer
-    #[expect(
-        clippy::cast_sign_loss,
-        reason = "C API returns i32; negative values are handled above"
-    )]
     let returned_len = result as usize;
     if returned_len >= capacity {
         // buffer wasn't large enough, try again with the correct capacity.

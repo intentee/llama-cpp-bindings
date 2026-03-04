@@ -26,10 +26,3 @@ shared-stdcxx = []
 static-stdcxx = []
 system-ggml = []
 mtmd = []
-
-[lints.rust]
-missing_docs = "allow"
-missing_debug_implementations = { level = "warn" }
-
-[lints.clippy]
-pedantic = { level = "warn" }

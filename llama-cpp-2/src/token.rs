@@ -10,10 +10,6 @@ pub mod logit_bias;
 /// A safe wrapper for `llama_token`.
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "public API benefits from explicit naming"
-)]
 pub struct LlamaToken(pub llama_cpp_sys_2::llama_token);
 
 impl Display for LlamaToken {

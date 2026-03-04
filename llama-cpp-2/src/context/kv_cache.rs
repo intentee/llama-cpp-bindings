@@ -6,10 +6,6 @@ use std::num::{NonZeroU8, TryFromIntError};
 
 /// Errors that can occur when attempting to prepare values for the kv cache
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "public API benefits from explicit naming"
-)]
 pub enum KvCacheConversionError {
     /// Sequence id conversion to i32 failed
     #[error("Provided sequence id is too large for a i32")]

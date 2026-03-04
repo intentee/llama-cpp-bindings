@@ -7,10 +7,6 @@ use crate::token::LlamaToken;
 /// detail and may change across minor versions.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(transparent)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "public API benefits from explicit naming"
-)]
 pub struct LlamaTokenData {
     data: llama_cpp_sys_2::llama_token_data,
 }

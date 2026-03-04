@@ -43,9 +43,3 @@ pprof = "0.13.0"
 serde_json = "1.0"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 
-[workspace.lints.rust]
-missing_docs = { level = "warn" }
-missing_debug_implementations = { level = "warn" }
-
-[workspace.lints.clippy]
-pedantic = { level = "warn" }
