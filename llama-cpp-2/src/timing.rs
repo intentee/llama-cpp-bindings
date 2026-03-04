@@ -18,7 +18,6 @@ impl LlamaTimings {
     /// eval time = 4.00 ms / 6 runs (0.67 ms per token, 1500.00 tokens per second)\n";
     /// assert_eq!(timings_str, format!("{}", timings));
     /// ```
-    #[allow(clippy::too_many_arguments)]
     #[must_use]
     pub fn new(
         t_start_ms: f64,

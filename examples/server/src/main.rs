@@ -276,12 +276,13 @@ fn build_sampler(
     Ok((LlamaSampler::chain_simple(chain), preserved))
 }
 
-#[allow(
+#[expect(
     clippy::too_many_lines,
+    reason = "run_chat_completion orchestrates the full chat completion pipeline"
+)]
+#[expect(
     clippy::similar_names,
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss
+    reason = "n_cur and n_ctx are established llama.cpp naming conventions"
 )]
 fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError> {
     let request: Value =
@@ -371,14 +372,21 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
-    let max_tokens = request
-        .get("max_tokens")
-        .and_then(Value::as_u64)
-        .unwrap_or(1024) as u32;
+    let max_tokens = u32::try_from(
+        request
+            .get("max_tokens")
+            .and_then(Value::as_u64)
+            .unwrap_or(1024),
+    )
+    .map_err(|_| bad_request("max_tokens value out of range"))?;
     if max_tokens == 0 {
         return Err(bad_request("max_tokens must be greater than zero"));
     }
 
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "f32 precision is sufficient for temperature"
+    )]
     let temperature = request
         .get("temperature")
         .and_then(Value::as_f64)
@@ -386,15 +394,21 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
     if temperature < 0.0 {
         return Err(bad_request("temperature must be >= 0"));
     }
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "f32 precision is sufficient for top_p"
+    )]
     let top_p = request.get("top_p").and_then(Value::as_f64).unwrap_or(1.0) as f32;
     if !(0.0 < top_p && top_p <= 1.0) {
         return Err(bad_request("top_p must be within (0, 1]"));
     }
-    let top_k = request.get("top_k").and_then(Value::as_i64).unwrap_or(0) as i32;
+    let top_k = i32::try_from(request.get("top_k").and_then(Value::as_i64).unwrap_or(0))
+        .map_err(|_| bad_request("top_k value out of range"))?;
     if top_k < 0 {
         return Err(bad_request("top_k must be >= 0"));
     }
-    let seed = request.get("seed").and_then(Value::as_u64).unwrap_or(0) as u32;
+    let seed = u32::try_from(request.get("seed").and_then(Value::as_u64).unwrap_or(0))
+        .map_err(|_| bad_request("seed value out of range"))?;
 
     let parse_tool_calls = tools_json.is_some()
         && tool_choice.as_deref() != Some("none")
@@ -427,10 +441,9 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
         .model
         .str_to_token(&result.prompt, AddBos::Always)
         .map_err(|e| internal_error(format!("tokenization failed: {e}")))?;
-    let n_ctx = state
-        .model
-        .n_ctx_train()
-        .max(tokens.len() as u32 + max_tokens);
+    let tokens_len_u32 =
+        u32::try_from(tokens.len()).map_err(|_| internal_error("token count exceeds u32"))?;
+    let n_ctx = state.model.n_ctx_train().max(tokens_len_u32 + max_tokens);
     let ctx_params = LlamaContextParams::default()
         .with_n_ctx(NonZeroU32::new(n_ctx))
         .with_n_batch(n_ctx);
@@ -440,7 +453,8 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
         .map_err(|e| internal_error(format!("context init failed: {e}")))?;
 
     let mut batch = LlamaBatch::new(n_ctx as usize, 1);
-    let last_index = tokens.len().saturating_sub(1) as i32;
+    let last_index = i32::try_from(tokens.len().saturating_sub(1))
+        .map_err(|_| internal_error("token count exceeds i32"))?;
     for (i, token) in (0_i32..).zip(tokens.iter().copied()) {
         let is_last = i == last_index;
         batch
@@ -452,7 +466,9 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
         .map_err(|e| internal_error(format!("decode failed: {e}")))?;
 
     let mut n_cur = batch.n_tokens();
-    let max_tokens_total = n_cur + max_tokens as i32;
+    let max_tokens_i32 =
+        i32::try_from(max_tokens).map_err(|_| internal_error("max_tokens exceeds i32"))?;
+    let max_tokens_total = n_cur + max_tokens_i32;
     let mut generated_text = String::new();
     let mut completion_tokens = 0u32;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
@@ -538,9 +554,9 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
             "finish_reason": finish_reason
         }],
         "usage": {
-            "prompt_tokens": tokens.len(),
+            "prompt_tokens": tokens_len_u32,
             "completion_tokens": completion_tokens,
-            "total_tokens": tokens.len() as u32 + completion_tokens
+            "total_tokens": tokens_len_u32 + completion_tokens
         }
     });
 

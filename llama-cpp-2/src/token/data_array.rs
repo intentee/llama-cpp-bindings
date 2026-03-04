@@ -7,7 +7,10 @@ use super::LlamaToken;
 
 /// a safe wrapper around `llama_token_data_array`.
 #[derive(Debug, Clone, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "public API benefits from explicit naming"
+)]
 pub struct LlamaTokenDataArray {
     /// the underlying data
     pub data: Vec<LlamaTokenData>,

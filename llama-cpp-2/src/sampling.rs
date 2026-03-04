@@ -159,8 +159,7 @@ impl LlamaSampler {
         Self::chain(samplers, false)
     }
 
-    #[allow(clippy::doc_markdown)]
-    /// Updates the logits l_i' = l_i/t. When t <= 0.0f, the maximum logit is kept at it's original
+    /// Updates the logits `l_i' = l_i/t`. When `t <= 0.0`, the maximum logit is kept at its original
     /// value, the rest are set to -inf
     ///
     /// # Example:
@@ -508,7 +507,6 @@ impl LlamaSampler {
     /// - ``penalty_repeat``: 1.0 = disabled
     /// - ``penalty_freq``: 0.0 = disabled
     /// - ``penalty_present``: 0.0 = disabled
-    #[allow(clippy::too_many_arguments)]
     #[must_use]
     pub fn penalties(
         penalty_last_n: i32,
@@ -605,6 +603,10 @@ impl LlamaSampler {
     /// - ``n_vocab``: [`LlamaModel::n_vocab`]
     /// - ``biases``: Slice of [`LlamaLogitBias`] values specifying token-bias pairs
     ///
+    /// # Panics
+    ///
+    /// Panics if `biases.len()` exceeds `i32::MAX`.
+    ///
     /// # Example
     /// ```rust
     /// use llama_cpp_2::token::{LlamaToken, logit_bias::LlamaLogitBias};
@@ -622,9 +624,12 @@ impl LlamaSampler {
     pub fn logit_bias(n_vocab: i32, biases: &[LlamaLogitBias]) -> Self {
         let data = biases.as_ptr().cast::<llama_cpp_sys_2::llama_logit_bias>();
 
-        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let sampler = unsafe {
-            llama_cpp_sys_2::llama_sampler_init_logit_bias(n_vocab, biases.len() as i32, data)
+            llama_cpp_sys_2::llama_sampler_init_logit_bias(
+                n_vocab,
+                i32::try_from(biases.len()).expect("bias count exceeds i32::MAX"),
+                data,
+            )
         };
 
         Self { sampler }

@@ -70,7 +70,7 @@ log_cs!(
 
 #[derive(Clone, Copy)]
 pub enum Module {
-    #[allow(clippy::upper_case_acronyms)]
+    #[expect(clippy::upper_case_acronyms, reason = "GGML is the library name")]
     GGML,
     LlamaCpp,
 }
@@ -170,7 +170,10 @@ impl State {
                 *lock = Some((previous_log_level, buffer));
             }
         } else {
-            #[allow(clippy::cast_sign_loss)]
+            #[expect(
+                clippy::cast_sign_loss,
+                reason = "C API log level is stored as i32 but represents a non-negative enum"
+            )]
             let level = self
                 .previous_level
                 .load(std::sync::atomic::Ordering::Acquire)
@@ -207,7 +210,10 @@ impl State {
 
         self.is_buffering
             .store(true, std::sync::atomic::Ordering::Release);
-        #[allow(clippy::cast_possible_wrap)]
+        #[expect(
+            clippy::cast_possible_wrap,
+            reason = "C API log level u32 values are small enough to fit in i32"
+        )]
         self.previous_level
             .store(level as i32, std::sync::atomic::Ordering::Release);
     }
@@ -232,7 +238,10 @@ impl State {
             Self::generate_log(self.module, buf_level, buf_text.as_str());
         }
 
-        #[allow(clippy::cast_possible_wrap)]
+        #[expect(
+            clippy::cast_possible_wrap,
+            reason = "C API log level u32 values are small enough to fit in i32"
+        )]
         self.previous_level
             .store(level as i32, std::sync::atomic::Ordering::Release);
 
@@ -262,7 +271,10 @@ impl State {
 
     pub fn update_previous_level_for_disabled_log(&self, level: llama_cpp_sys_2::ggml_log_level) {
         if level != llama_cpp_sys_2::GGML_LOG_LEVEL_CONT {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(
+                clippy::cast_possible_wrap,
+                reason = "C API log level u32 values are small enough to fit in i32"
+            )]
             self.previous_level
                 .store(level as i32, std::sync::atomic::Ordering::Release);
         }
@@ -271,7 +283,10 @@ impl State {
     /// Checks whether the given log level is enabled by the current tracing subscriber.
     pub fn is_enabled_for_level(&self, level: llama_cpp_sys_2::ggml_log_level) -> bool {
         // CONT logs do not need to check if they are enabled.
-        #[allow(clippy::cast_sign_loss)]
+        #[expect(
+            clippy::cast_sign_loss,
+            reason = "C API log level is stored as i32 but represents a non-negative enum"
+        )]
         let level = if level == llama_cpp_sys_2::GGML_LOG_LEVEL_CONT {
             self.previous_level
                 .load(std::sync::atomic::Ordering::Relaxed)

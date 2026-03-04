@@ -21,7 +21,10 @@ pub mod params;
 pub mod session;
 
 /// Safe wrapper around `llama_context`.
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "public API benefits from explicit naming"
+)]
 pub struct LlamaContext<'model> {
     /// Raw pointer to the underlying `llama_context`.
     pub context: NonNull<llama_cpp_sys_2::llama_context>,

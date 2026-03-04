@@ -10,7 +10,10 @@ use crate::token::LlamaToken;
 /// detail and may change across minor versions.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(transparent)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "public API benefits from explicit naming"
+)]
 pub struct LlamaLogitBias {
     logit_bias: llama_cpp_sys_2::llama_logit_bias,
 }

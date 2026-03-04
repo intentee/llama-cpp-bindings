@@ -11,8 +11,7 @@ pub struct LlamaBatch<'tokens> {
     allocated: usize,
     /// The logits that are initialized. Used by [`LlamaContext`] to ensure that only initialized logits are accessed.
     pub initialized_logits: Vec<i32>,
-    #[allow(clippy::doc_markdown)]
-    /// The llama_cpp batch. always initialize by `llama_cpp_sys_2::llama_batch_init(allocated, <unknown>, <unknown>)`
+    /// The underlying `llama_batch` from the C API.
     pub llama_batch: llama_batch,
     phantom: PhantomData<&'tokens [LlamaToken]>,
 }
