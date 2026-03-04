@@ -276,6 +276,13 @@ fn build_sampler(
     Ok((LlamaSampler::chain_simple(chain), preserved))
 }
 
+#[allow(
+    clippy::too_many_lines,
+    clippy::similar_names,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
 fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError> {
     let request: Value =
         serde_json::from_str(body).map_err(|e| bad_request(format!("invalid JSON: {e}")))?;

@@ -51,6 +51,7 @@ struct Args {
     disable_gpu: bool,
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     let Args {
         model_path,

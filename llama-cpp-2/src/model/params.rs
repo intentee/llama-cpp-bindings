@@ -122,6 +122,7 @@ pub struct LlamaModelParams {
     devices: Pin<Box<[llama_cpp_sys_2::ggml_backend_dev_t; LLAMA_CPP_MAX_DEVICES]>>,
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl Debug for LlamaModelParams {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LlamaModelParams")
@@ -224,6 +225,9 @@ impl LlamaModelParams {
 
     /// Appends a buffer type override to the model parameters, to move layers matching pattern to CPU.
     /// It must be pinned as this creates a self-referential struct.
+    ///
+    /// # Panics
+    /// Panics if the internal buffer type overrides vector is empty or the last entry is not empty.
     pub fn add_cpu_buft_override(mut self: Pin<&mut Self>, key: &CStr) {
         let buft_override = self
             .buft_overrides

@@ -6,6 +6,7 @@ use std::ptr::{self, NonNull};
 use std::slice;
 
 /// Parameters for applying OpenAI-compatible chat templates.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpenAIChatTemplateParams<'params> {
     /// OpenAI-compatible messages JSON array.
@@ -47,6 +48,9 @@ pub struct ChatParseStateOaicompat {
 
 impl ChatParseStateOaicompat {
     /// Update the parser with additional text and return OpenAI-compatible deltas as JSON strings.
+    ///
+    /// # Errors
+    /// Returns an error if the FFI call fails or the result is null.
     pub fn update(
         &mut self,
         text_added: &str,

@@ -142,7 +142,7 @@ pub struct MtmdInputText {
 /// text, images, and audio through llama.cpp's multimodal interface.
 #[derive(Debug)]
 pub struct MtmdContext {
-    /// Raw pointer to the underlying mtmd_context.
+    /// Raw pointer to the underlying `mtmd_context`.
     pub context: NonNull<llama_cpp_sys_2::mtmd_context>,
 }
 
@@ -338,7 +338,7 @@ impl Drop for MtmdContext {
 /// For audio, data is stored as PCM F32 samples.
 #[derive(Debug, Clone)]
 pub struct MtmdBitmap {
-    /// Raw pointer to the underlying mtmd_bitmap.
+    /// Raw pointer to the underlying `mtmd_bitmap`.
     pub bitmap: NonNull<llama_cpp_sys_2::mtmd_bitmap>,
 }
 
@@ -584,7 +584,7 @@ impl Drop for MtmdBitmap {
 /// with text chunks containing tokens and media chunks containing embeddings.
 #[derive(Debug)]
 pub struct MtmdInputChunks {
-    /// Raw pointer to the underlying mtmd_input_chunks.
+    /// Raw pointer to the underlying `mtmd_input_chunks`.
     pub chunks: NonNull<llama_cpp_sys_2::mtmd_input_chunks>,
 }
 
@@ -734,7 +734,7 @@ impl Drop for MtmdInputChunks {
 /// data and operations are available.
 #[derive(Debug)]
 pub struct MtmdInputChunk {
-    /// Raw pointer to the underlying mtmd_input_chunk.
+    /// Raw pointer to the underlying `mtmd_input_chunk`.
     pub chunk: NonNull<llama_cpp_sys_2::mtmd_input_chunk>,
     owned: bool,
 }

@@ -65,6 +65,9 @@ impl LlamaSampler {
     }
 
     /// Try accepting a token from the sampler. Returns an error if the sampler throws.
+    ///
+    /// # Errors
+    /// Returns an error if the underlying sampler rejects the token.
     pub fn try_accept(&mut self, token: LlamaToken) -> Result<(), SamplerAcceptError> {
         let sampler_result =
             unsafe { llama_cpp_sys_2::llama_rs_sampler_accept(self.sampler, token.0) };
@@ -287,6 +290,9 @@ impl LlamaSampler {
     }
 
     /// Grammar sampler
+    ///
+    /// # Errors
+    /// Returns an error if the grammar is invalid or the sampler cannot be initialized.
     pub fn grammar(
         model: &LlamaModel,
         grammar_str: &str,
@@ -313,6 +319,9 @@ impl LlamaSampler {
     /// Lazy grammar sampler, introduced in <https://github.com/ggerganov/llama.cpp/pull/9639>
     ///
     /// This sampler enforces grammar rules only when specific trigger words or tokens are encountered.
+    ///
+    /// # Errors
+    /// Returns an error if the grammar or trigger words are invalid.
     pub fn grammar_lazy(
         model: &LlamaModel,
         grammar_str: &str,
@@ -351,6 +360,9 @@ impl LlamaSampler {
     /// Trigger patterns are regular expressions matched from the start of the
     /// generation output. The grammar sampler will be fed content starting from
     /// the first match group.
+    ///
+    /// # Errors
+    /// Returns an error if the grammar or trigger patterns are invalid.
     pub fn grammar_lazy_patterns(
         model: &LlamaModel,
         grammar_str: &str,
@@ -610,6 +622,7 @@ impl LlamaSampler {
     pub fn logit_bias(n_vocab: i32, biases: &[LlamaLogitBias]) -> Self {
         let data = biases.as_ptr().cast::<llama_cpp_sys_2::llama_logit_bias>();
 
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let sampler = unsafe {
             llama_cpp_sys_2::llama_sampler_init_logit_bias(n_vocab, biases.len() as i32, data)
         };

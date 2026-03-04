@@ -50,6 +50,9 @@ pub struct LlamaChatTemplate(CString);
 impl LlamaChatTemplate {
     /// Create a new template from a string. This can either be the name of a llama.cpp [chat template](https://github.com/ggerganov/llama.cpp/blob/8a8c4ceb6050bd9392609114ca56ae6d26f5b8f5/src/llama-chat.cpp#L27-L61)
     /// like "chatml" or "llama3" or an actual Jinja template for llama.cpp to interpret.
+    ///
+    /// # Errors
+    /// Returns an error if the template string contains null bytes.
     pub fn new(template: &str) -> Result<Self, std::ffi::NulError> {
         Ok(Self(CString::new(template)?))
     }
@@ -61,11 +64,17 @@ impl LlamaChatTemplate {
     }
 
     /// Attempts to convert the `CString` into a Rust str reference.
+    ///
+    /// # Errors
+    /// Returns an error if the template is not valid UTF-8.
     pub fn to_str(&self) -> Result<&str, Utf8Error> {
         self.0.to_str()
     }
 
     /// Convenience method to create an owned String.
+    ///
+    /// # Errors
+    /// Returns an error if the template is not valid UTF-8.
     pub fn to_string(&self) -> Result<String, Utf8Error> {
         self.to_str().map(str::to_string)
     }
@@ -666,6 +675,9 @@ impl LlamaModel {
     }
 
     /// Returns the number of layers within the model.
+    ///
+    /// # Panics
+    /// Panics if the layer count returned by llama.cpp is negative.
     #[must_use]
     pub fn n_layer(&self) -> u32 {
         // It's never possible for this to panic because while the API interface is defined as an int32_t,
@@ -674,6 +686,9 @@ impl LlamaModel {
     }
 
     /// Returns the number of attention heads within the model.
+    ///
+    /// # Panics
+    /// Panics if the head count returned by llama.cpp is negative.
     #[must_use]
     pub fn n_head(&self) -> u32 {
         // It's never possible for this to panic because while the API interface is defined as an int32_t,
@@ -682,6 +697,9 @@ impl LlamaModel {
     }
 
     /// Returns the number of KV attention heads.
+    ///
+    /// # Panics
+    /// Panics if the KV head count returned by llama.cpp is negative.
     #[must_use]
     pub fn n_head_kv(&self) -> u32 {
         // It's never possible for this to panic because while the API interface is defined as an int32_t,
@@ -691,6 +709,9 @@ impl LlamaModel {
     }
 
     /// Get metadata value as a string by key name
+    ///
+    /// # Errors
+    /// Returns an error if the key is not found or the value is not valid UTF-8.
     pub fn meta_val_str(&self, key: &str) -> Result<String, MetaValError> {
         let key_cstring = CString::new(key)?;
         let key_ptr = key_cstring.as_ptr();
@@ -715,6 +736,9 @@ impl LlamaModel {
     }
 
     /// Get metadata key name by index
+    ///
+    /// # Errors
+    /// Returns an error if the index is out of range or the key is not valid UTF-8.
     pub fn meta_key_by_index(&self, index: i32) -> Result<String, MetaValError> {
         extract_meta_string(
             |buf_ptr, buf_len| unsafe {
@@ -730,6 +754,9 @@ impl LlamaModel {
     }
 
     /// Get metadata value as a string by index
+    ///
+    /// # Errors
+    /// Returns an error if the index is out of range or the value is not valid UTF-8.
     pub fn meta_val_str_by_index(&self, index: i32) -> Result<String, MetaValError> {
         extract_meta_string(
             |buf_ptr, buf_len| unsafe {
@@ -897,6 +924,9 @@ impl LlamaModel {
     ///
     /// # Errors
     /// There are many ways this can fail. See [`ApplyChatTemplateError`] for more information.
+    ///
+    /// # Panics
+    /// Panics if the buffer size exceeds `i32::MAX`.
     #[tracing::instrument(skip_all)]
     pub fn apply_chat_template(
         &self,
@@ -954,6 +984,10 @@ impl LlamaModel {
     /// Apply the models chat template to some messages and return an optional tool grammar.
     /// `tools_json` should be an OpenAI-compatible tool definition JSON array string.
     /// `json_schema` should be a JSON schema string.
+    ///
+    /// # Errors
+    /// Returns an error if the FFI call fails or the result contains invalid data.
+    #[allow(clippy::too_many_lines)]
     #[tracing::instrument(skip_all)]
     pub fn apply_chat_template_with_tools_oaicompat(
         &self,
@@ -1135,6 +1169,10 @@ impl LlamaModel {
     }
 
     /// Apply the model chat template using OpenAI-compatible JSON messages.
+    ///
+    /// # Errors
+    /// Returns an error if the FFI call fails or the result contains invalid data.
+    #[allow(clippy::too_many_lines)]
     #[tracing::instrument(skip_all)]
     pub fn apply_chat_template_oaicompat(
         &self,
@@ -1333,6 +1371,9 @@ impl LlamaModel {
 
 impl ChatTemplateResult {
     /// Parse a generated response into an OpenAI-compatible message JSON string.
+    ///
+    /// # Errors
+    /// Returns an error if the FFI call fails or the result is null.
     pub fn parse_response_oaicompat(
         &self,
         text: &str,
@@ -1371,6 +1412,9 @@ impl ChatTemplateResult {
     }
 
     /// Initialize a streaming parser for OpenAI-compatible chat deltas.
+    ///
+    /// # Errors
+    /// Returns an error if the parser state cannot be initialized.
     pub fn streaming_state_oaicompat(&self) -> Result<ChatParseStateOaicompat, ChatParseError> {
         let parser_cstr = self.parser.as_deref().map(CString::new).transpose()?;
         let state = unsafe {
@@ -1406,6 +1450,7 @@ where
     }
 
     // check if the response fit in our buffer
+    #[allow(clippy::cast_sign_loss)]
     let returned_len = result as usize;
     if returned_len >= capacity {
         // buffer wasn't large enough, try again with the correct capacity.

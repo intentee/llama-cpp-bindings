@@ -308,6 +308,9 @@ pub fn mlock_supported() -> bool {
 }
 
 /// Convert a JSON schema string into a llama.cpp grammar string.
+///
+/// # Errors
+/// Returns an error if the schema contains null bytes or the conversion fails.
 pub fn json_schema_to_grammar(schema_json: &str) -> Result<String> {
     let schema_cstr = CString::new(schema_json)
         .map_err(|err| LlamaCppError::JsonSchemaToGrammarError(err.to_string()))?;
