@@ -10,8 +10,7 @@ use crate::sampling::LlamaSampler;
 use crate::token::LlamaToken;
 use crate::{ChatParseError, GrammarError, status_is_ok, status_to_i32};
 
-/// Escapes regex metacharacters in a string so it can be used as a literal pattern.
-pub fn regex_escape(value: &str) -> String {
+fn regex_escape(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
 
     for character in value.chars() {
@@ -27,8 +26,7 @@ pub fn regex_escape(value: &str) -> String {
     escaped
 }
 
-/// Ensures a regex pattern is anchored with `^` and `$`.
-pub fn anchor_pattern(pattern: &str) -> String {
+fn anchor_pattern(pattern: &str) -> String {
     if pattern.is_empty() {
         return "^$".to_string();
     }

@@ -66,7 +66,7 @@ fn json_schema_constrains_output() -> Result<()> {
     while n_cur <= 128 {
         let token = sampler.sample(&ctx, batch.n_tokens() - 1);
 
-        if token == model.token_eos() {
+        if model.is_eog_token(token) {
             break;
         }
 
