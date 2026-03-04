@@ -9,7 +9,7 @@ use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::{AddBos, GrammarTriggerType, LlamaChatTemplate, LlamaModel, Special};
+use llama_cpp_2::model::{AddBos, GrammarTriggerType, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
@@ -470,17 +470,11 @@ fn run_chat_completion(state: &AppState, body: &str) -> Result<String, HttpError
         }
         // sampler.accept(token);
 
-        let special = if preserved.contains(&token) {
-            Special::Tokenize
-        } else {
-            Special::Plaintext
-        };
-        let output_bytes = state
+        let decode_special = preserved.contains(&token);
+        let output_string = state
             .model
-            .token_to_bytes(token, special)
+            .token_to_piece(token, &mut decoder, decode_special, None)
             .map_err(|e| internal_error(format!("token decode failed: {e}")))?;
-        let mut output_string = String::with_capacity(32);
-        let _ = decoder.decode_to_string(&output_bytes, &mut output_string, false);
         generated_text.push_str(&output_string);
         completion_tokens += 1;
 

@@ -6,7 +6,6 @@ use hf_hub::api::sync::ApiBuilder;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::Special;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{
     AddBos, GrammarTriggerType, LlamaChatMessage, LlamaChatTemplate, LlamaModel,
@@ -240,14 +239,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
 
-        let special = if preserved.contains(&token) {
-            Special::Tokenize
-        } else {
-            Special::Plaintext
-        };
-        let output_bytes = model.token_to_bytes(token, special)?;
-        let mut output_string = String::with_capacity(32);
-        let _ = decoder.decode_to_string(&output_bytes, &mut output_string, false);
+        let decode_special = preserved.contains(&token);
+        let output_string = model.token_to_piece(token, &mut decoder, decode_special, None)?;
         generated_text.push_str(&output_string);
 
         batch.clear();
@@ -295,7 +288,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else if parsed_value
         .get("tool_calls")
         .and_then(|value| value.as_array())
-        .map_or(false, |tools| !tools.is_empty())
+        .is_some_and(|tools| !tools.is_empty())
     {
         "tool_calls"
     } else {

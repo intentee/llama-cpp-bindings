@@ -6,7 +6,6 @@ use hf_hub::api::sync::ApiBuilder;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::Special;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{
     AddBos, GrammarTriggerType, LlamaChatMessage, LlamaChatTemplate, LlamaModel,
@@ -245,16 +244,10 @@ fn main() {
             break;
         }
 
-        let special = if preserved.contains(&token) {
-            Special::Tokenize
-        } else {
-            Special::Plaintext
-        };
-        let output_bytes = model
-            .token_to_bytes(token, special)
+        let decode_special = preserved.contains(&token);
+        let output_string = model
+            .token_to_piece(token, &mut decoder, decode_special, None)
             .expect("Failed to decode token");
-        let mut output_string = String::with_capacity(32);
-        let _ = decoder.decode_to_string(&output_bytes, &mut output_string, false);
         generated_text.push_str(&output_string);
         print!("{output_string}");
         std::io::stdout().flush().expect("stdout flush failed");
