@@ -16,8 +16,8 @@ use llama_cpp_2::model::{LlamaChatMessage, LlamaModel};
 use llama_cpp_2::mtmd::{MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText};
 use llama_cpp_2::sampling::LlamaSampler;
 
-const HF_REPO: &str = "unsloth/Qwen3.5-0.8B-GGUF";
-const HF_MODEL: &str = "Qwen3.5-0.8B-Q4_K_M.gguf";
+const HF_REPO: &str = "unsloth/Qwen3.5-2B-GGUF";
+const HF_MODEL: &str = "Qwen3.5-2B-Q4_K_M.gguf";
 const HF_MMPROJ: &str = "mmproj-F16.gguf";
 
 fn download_file(filename: &str) -> Result<std::path::PathBuf> {
