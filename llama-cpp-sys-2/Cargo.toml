@@ -2,7 +2,7 @@
 name = "llama-cpp-sys-2"
 description = "Low Level Bindings to llama.cpp"
 version = "0.1.138"
-edition = "2021"
+edition.workspace = true
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/utilityai/llama-cpp-rs"
 links = "llama"

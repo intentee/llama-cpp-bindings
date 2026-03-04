@@ -1,6 +1,6 @@
 use super::LogOptions;
 use std::sync::OnceLock;
-use tracing_core::{callsite, field, identify_callsite, Interest, Kind, Metadata};
+use tracing_core::{Interest, Kind, Metadata, callsite, field, identify_callsite};
 
 static FIELD_NAMES: &[&str] = &["message", "module"];
 
@@ -220,7 +220,12 @@ impl State {
         {
             if let Some((buf_level, buf_text)) = self.buffered.lock().unwrap().take() {
                 // This warning indicates a bug within llama.cpp
-                tracing::warn!(level = buf_level, text = buf_text, origin = "crate", "llama.cpp message buffered spuriously due to missing \\n and being followed by a non-CONT message!");
+                tracing::warn!(
+                    level = buf_level,
+                    text = buf_text,
+                    origin = "crate",
+                    "llama.cpp message buffered spuriously due to missing \\n and being followed by a non-CONT message!"
+                );
                 Self::generate_log(self.module, buf_level, buf_text.as_str());
             }
         }

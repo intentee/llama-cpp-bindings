@@ -8,9 +8,9 @@ use std::slice;
 use crate::llama_batch::LlamaBatch;
 use crate::model::{LlamaLoraAdapter, LlamaModel};
 use crate::timing::LlamaTimings;
+use crate::token::LlamaToken;
 use crate::token::data::LlamaTokenData;
 use crate::token::data_array::LlamaTokenDataArray;
-use crate::token::LlamaToken;
 use crate::{
     DecodeError, EmbeddingsError, EncodeError, LlamaLoraAdapterRemoveError,
     LlamaLoraAdapterSetError,

@@ -74,11 +74,7 @@ fn extract_lib_names(out_dir: &Path, build_shared_libs: bool) -> Vec<String> {
     let lib_pattern = if cfg!(windows) {
         "*.lib"
     } else if cfg!(target_os = "macos") {
-        if build_shared_libs {
-            "*.dylib"
-        } else {
-            "*.a"
-        }
+        if build_shared_libs { "*.dylib" } else { "*.a" }
     } else if build_shared_libs {
         "*.so"
     } else {
@@ -252,13 +248,16 @@ fn main() {
     }
 
     // Speed up build
-    env::set_var(
-        "CMAKE_BUILD_PARALLEL_LEVEL",
-        std::thread::available_parallelism()
-            .unwrap()
-            .get()
-            .to_string(),
-    );
+    // SAFETY: build scripts are single-threaded, so modifying env is safe.
+    unsafe {
+        env::set_var(
+            "CMAKE_BUILD_PARALLEL_LEVEL",
+            std::thread::available_parallelism()
+                .unwrap()
+                .get()
+                .to_string(),
+        );
+    }
 
     // Bindings
     let mut bindings_builder = bindgen::Builder::default()
@@ -415,10 +414,13 @@ fn main() {
 
         // Set additional clang args for cargo ndk compatibility
         if env::var("CARGO_SUBCOMMAND").as_deref() == Ok("ndk") {
-            std::env::set_var(
-                "BINDGEN_EXTRA_CLANG_ARGS",
-                format!("--target={}", target_triple),
-            );
+            // SAFETY: build scripts are single-threaded, so modifying env is safe.
+            unsafe {
+                std::env::set_var(
+                    "BINDGEN_EXTRA_CLANG_ARGS",
+                    format!("--target={}", target_triple),
+                );
+            }
         }
     }
 
@@ -750,7 +752,8 @@ fn main() {
                 // limit configuration set in the windows registry.
                 // I'm not sure why that's a thing, but this makes my builds work.
                 // (crates that depend on llama-cpp-rs w/ vulkan easily exceed the default PATH_MAX on windows)
-                env::set_var("TrackFileAccess", "false");
+                // SAFETY: build scripts are single-threaded, so modifying env is safe.
+                unsafe { env::set_var("TrackFileAccess", "false") };
                 // since we disabled TrackFileAccess, we can now run into problems with parallel
                 // access to pdb files. /FS solves this.
                 config.cflag("/FS");
@@ -958,7 +961,7 @@ fn main() {
     } else {
         "static"
     };
-    let mut llama_libs = extract_lib_names(&out_dir, build_shared_libs);
+    let llama_libs = extract_lib_names(&out_dir, build_shared_libs);
 
     assert_ne!(llama_libs.len(), 0);
 

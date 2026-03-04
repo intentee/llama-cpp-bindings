@@ -13,7 +13,7 @@
 //!
 //! - `cuda` enables CUDA gpu support.
 //! - `sampler` adds the [`context::sample::sampler`] struct for a more rusty way of sampling.
-use std::ffi::{c_char, CStr, CString, NulError};
+use std::ffi::{CStr, CString, NulError, c_char};
 use std::fmt::Debug;
 use std::num::NonZeroI32;
 

@@ -1,5 +1,5 @@
 //! A safe wrapper around `llama_model`.
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CStr, CString, c_char};
 use std::num::NonZeroU16;
 use std::os::raw::c_int;
 use std::path::Path;
@@ -7,17 +7,17 @@ use std::ptr::{self, NonNull};
 use std::slice;
 use std::str::Utf8Error;
 
-use crate::context::params::LlamaContextParams;
 use crate::context::LlamaContext;
+use crate::context::params::LlamaContextParams;
 use crate::llama_backend::LlamaBackend;
 use crate::model::params::LlamaModelParams;
 use crate::openai::{ChatParseStateOaicompat, OpenAIChatTemplateParams};
 use crate::token::LlamaToken;
 use crate::token_type::{LlamaTokenAttr, LlamaTokenAttrs};
 use crate::{
-    status_is_ok, status_to_i32, ApplyChatTemplateError, ChatParseError, ChatTemplateError,
-    LlamaContextLoadError, LlamaLoraAdapterInitError, LlamaModelLoadError, MetaValError,
-    NewLlamaChatMessageError, StringToTokenError, TokenToStringError,
+    ApplyChatTemplateError, ChatParseError, ChatTemplateError, LlamaContextLoadError,
+    LlamaLoraAdapterInitError, LlamaModelLoadError, MetaValError, NewLlamaChatMessageError,
+    StringToTokenError, TokenToStringError, status_is_ok, status_to_i32,
 };
 
 pub mod params;

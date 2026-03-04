@@ -1,6 +1,6 @@
 //! OpenAI Specific Utility methods.
-use crate::{status_is_ok, status_to_i32, ChatParseError};
-use std::ffi::{c_char, CStr, CString};
+use crate::{ChatParseError, status_is_ok, status_to_i32};
+use std::ffi::{CStr, CString, c_char};
 use std::mem;
 use std::ptr::{self, NonNull};
 use std::slice;

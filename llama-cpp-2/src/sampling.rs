@@ -1,15 +1,15 @@
 //! Safe wrapper around `llama_sampler`.
 
 use std::borrow::Borrow;
-use std::ffi::{c_char, CString};
+use std::ffi::{CString, c_char};
 use std::fmt::{Debug, Formatter};
 
 use crate::context::LlamaContext;
 use crate::model::LlamaModel;
+use crate::token::LlamaToken;
 use crate::token::data_array::LlamaTokenDataArray;
 use crate::token::logit_bias::LlamaLogitBias;
-use crate::token::LlamaToken;
-use crate::{status_is_ok, status_to_i32, GrammarError, SamplerAcceptError};
+use crate::{GrammarError, SamplerAcceptError, status_is_ok, status_to_i32};
 
 /// A safe wrapper around `llama_sampler`.
 pub struct LlamaSampler {

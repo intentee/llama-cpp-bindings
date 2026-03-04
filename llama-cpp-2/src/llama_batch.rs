@@ -182,9 +182,11 @@ impl<'a> LlamaBatch<'a> {
         };
         let batch = Self {
             allocated: 0,
-            initialized_logits: vec![(tokens.len() - 1)
-                .try_into()
-                .expect("number of tokens exceeds i32::MAX + 1")],
+            initialized_logits: vec![
+                (tokens.len() - 1)
+                    .try_into()
+                    .expect("number of tokens exceeds i32::MAX + 1"),
+            ],
             llama_batch: batch,
             phantom: PhantomData,
         };

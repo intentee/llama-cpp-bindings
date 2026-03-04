@@ -1,8 +1,8 @@
 //! A safe wrapper around `llama_model_params`.
 
-use crate::model::params::kv_overrides::KvOverrides;
 use crate::LlamaCppError;
-use std::ffi::{c_char, CStr};
+use crate::model::params::kv_overrides::KvOverrides;
+use std::ffi::{CStr, c_char};
 use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
 use std::ptr::null;

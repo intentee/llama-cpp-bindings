@@ -9,10 +9,10 @@ use std::sync::Arc;
 use llguidance::Matcher;
 use toktrie::{ApproximateTokEnv, TokRxInfo, TokTrie};
 
+use crate::GrammarError;
 use crate::model::LlamaModel;
 use crate::sampling::LlamaSampler;
 use crate::token::LlamaToken;
-use crate::GrammarError;
 
 /// Internal state for the llguidance sampler.
 struct LlgContext {

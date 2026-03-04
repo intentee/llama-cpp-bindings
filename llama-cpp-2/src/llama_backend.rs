@@ -173,7 +173,9 @@ impl Drop for LlamaBackend {
         match LLAMA_BACKEND_INITIALIZED.compare_exchange(true, false, SeqCst, SeqCst) {
             Ok(_) => {}
             Err(_) => {
-                unreachable!("This should not be reachable as the only ways to obtain a llama backend involve marking the backend as initialized.")
+                unreachable!(
+                    "This should not be reachable as the only ways to obtain a llama backend involve marking the backend as initialized."
+                )
             }
         }
         unsafe { llama_cpp_sys_2::llama_backend_free() }
