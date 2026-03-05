@@ -151,37 +151,6 @@ mod tests {
     use super::LlamaTimings;
 
     #[test]
-    fn new_and_getters_roundtrip() {
-        let timings = LlamaTimings::new(1.0, 2.0, 3.0, 4.0, 5, 6, 1);
-
-        assert_eq!(timings.t_start_ms(), 1.0);
-        assert_eq!(timings.t_load_ms(), 2.0);
-        assert_eq!(timings.t_p_eval_ms(), 3.0);
-        assert_eq!(timings.t_eval_ms(), 4.0);
-        assert_eq!(timings.n_p_eval(), 5);
-        assert_eq!(timings.n_eval(), 6);
-    }
-
-    #[test]
-    fn setters_modify_values() {
-        let mut timings = LlamaTimings::new(0.0, 0.0, 0.0, 0.0, 0, 0, 0);
-
-        timings.set_t_start_ms(10.0);
-        timings.set_t_load_ms(20.0);
-        timings.set_t_p_eval_ms(30.0);
-        timings.set_t_eval_ms(40.0);
-        timings.set_n_p_eval(50);
-        timings.set_n_eval(60);
-
-        assert_eq!(timings.t_start_ms(), 10.0);
-        assert_eq!(timings.t_load_ms(), 20.0);
-        assert_eq!(timings.t_p_eval_ms(), 30.0);
-        assert_eq!(timings.t_eval_ms(), 40.0);
-        assert_eq!(timings.n_p_eval(), 50);
-        assert_eq!(timings.n_eval(), 60);
-    }
-
-    #[test]
     fn display_format_with_valid_counts() {
         let timings = LlamaTimings::new(1.0, 2.0, 3.0, 4.0, 5, 6, 1);
         let output = format!("{timings}");

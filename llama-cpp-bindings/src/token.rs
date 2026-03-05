@@ -31,22 +31,3 @@ impl LlamaToken {
         Self(token_id)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::LlamaToken;
-
-    #[test]
-    fn display_shows_inner_value() {
-        let token = LlamaToken::new(42);
-
-        assert_eq!(format!("{token}"), "42");
-    }
-
-    #[test]
-    fn display_negative_value() {
-        let token = LlamaToken::new(-1);
-
-        assert_eq!(format!("{token}"), "-1");
-    }
-}

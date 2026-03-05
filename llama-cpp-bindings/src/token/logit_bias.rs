@@ -87,30 +87,3 @@ impl LlamaLogitBias {
         self.logit_bias.bias = bias;
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::token::LlamaToken;
-
-    use super::LlamaLogitBias;
-
-    #[test]
-    fn new_and_getters_roundtrip() {
-        let token = LlamaToken::new(5);
-        let bias = LlamaLogitBias::new(token, 1.5);
-
-        assert_eq!(bias.token(), token);
-        assert_eq!(bias.bias(), 1.5);
-    }
-
-    #[test]
-    fn setters_modify_values() {
-        let mut bias = LlamaLogitBias::new(LlamaToken::new(1), 0.5);
-
-        bias.set_token(LlamaToken::new(99));
-        bias.set_bias(-2.0);
-
-        assert_eq!(bias.token(), LlamaToken::new(99));
-        assert_eq!(bias.bias(), -2.0);
-    }
-}

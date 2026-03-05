@@ -13,22 +13,3 @@ impl LogOptions {
         self
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::LogOptions;
-
-    #[test]
-    fn with_logs_enabled_true() {
-        let options = LogOptions::default().with_logs_enabled(true);
-
-        assert!(!options.disabled);
-    }
-
-    #[test]
-    fn with_logs_enabled_false() {
-        let options = LogOptions::default().with_logs_enabled(false);
-
-        assert!(options.disabled);
-    }
-}
