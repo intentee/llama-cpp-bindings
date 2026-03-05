@@ -111,22 +111,95 @@ impl LlamaTimings {
 impl Display for LlamaTimings {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "load time = {:.2} ms", self.t_load_ms())?;
-        writeln!(
-            f,
-            "prompt eval time = {:.2} ms / {} tokens ({:.2} ms per token, {:.2} tokens per second)",
-            self.t_p_eval_ms(),
-            self.n_p_eval(),
-            self.t_p_eval_ms() / f64::from(self.n_p_eval()),
-            1e3 / self.t_p_eval_ms() * f64::from(self.n_p_eval())
-        )?;
-        writeln!(
-            f,
-            "eval time = {:.2} ms / {} runs ({:.2} ms per token, {:.2} tokens per second)",
-            self.t_eval_ms(),
-            self.n_eval(),
-            self.t_eval_ms() / f64::from(self.n_eval()),
-            1e3 / self.t_eval_ms() * f64::from(self.n_eval())
-        )?;
+
+        if self.n_p_eval() > 0 {
+            writeln!(
+                f,
+                "prompt eval time = {:.2} ms / {} tokens ({:.2} ms per token, {:.2} tokens per second)",
+                self.t_p_eval_ms(),
+                self.n_p_eval(),
+                self.t_p_eval_ms() / f64::from(self.n_p_eval()),
+                1e3 / self.t_p_eval_ms() * f64::from(self.n_p_eval())
+            )?;
+        } else {
+            writeln!(
+                f,
+                "prompt eval time = {:.2} ms / 0 tokens",
+                self.t_p_eval_ms(),
+            )?;
+        }
+
+        if self.n_eval() > 0 {
+            writeln!(
+                f,
+                "eval time = {:.2} ms / {} runs ({:.2} ms per token, {:.2} tokens per second)",
+                self.t_eval_ms(),
+                self.n_eval(),
+                self.t_eval_ms() / f64::from(self.n_eval()),
+                1e3 / self.t_eval_ms() * f64::from(self.n_eval())
+            )?;
+        } else {
+            writeln!(f, "eval time = {:.2} ms / 0 runs", self.t_eval_ms(),)?;
+        }
+
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LlamaTimings;
+
+    #[test]
+    fn new_and_getters_roundtrip() {
+        let timings = LlamaTimings::new(1.0, 2.0, 3.0, 4.0, 5, 6, 1);
+
+        assert_eq!(timings.t_start_ms(), 1.0);
+        assert_eq!(timings.t_load_ms(), 2.0);
+        assert_eq!(timings.t_p_eval_ms(), 3.0);
+        assert_eq!(timings.t_eval_ms(), 4.0);
+        assert_eq!(timings.n_p_eval(), 5);
+        assert_eq!(timings.n_eval(), 6);
+    }
+
+    #[test]
+    fn setters_modify_values() {
+        let mut timings = LlamaTimings::new(0.0, 0.0, 0.0, 0.0, 0, 0, 0);
+
+        timings.set_t_start_ms(10.0);
+        timings.set_t_load_ms(20.0);
+        timings.set_t_p_eval_ms(30.0);
+        timings.set_t_eval_ms(40.0);
+        timings.set_n_p_eval(50);
+        timings.set_n_eval(60);
+
+        assert_eq!(timings.t_start_ms(), 10.0);
+        assert_eq!(timings.t_load_ms(), 20.0);
+        assert_eq!(timings.t_p_eval_ms(), 30.0);
+        assert_eq!(timings.t_eval_ms(), 40.0);
+        assert_eq!(timings.n_p_eval(), 50);
+        assert_eq!(timings.n_eval(), 60);
+    }
+
+    #[test]
+    fn display_format_with_valid_counts() {
+        let timings = LlamaTimings::new(1.0, 2.0, 3.0, 4.0, 5, 6, 1);
+        let output = format!("{timings}");
+
+        assert!(output.contains("load time = 2.00 ms"));
+        assert!(output.contains("prompt eval time = 3.00 ms / 5 tokens"));
+        assert!(output.contains("eval time = 4.00 ms / 6 runs"));
+    }
+
+    #[test]
+    fn display_format_handles_zero_eval_counts() {
+        let timings = LlamaTimings::new(0.0, 1.0, 2.0, 3.0, 0, 0, 0);
+        let output = format!("{timings}");
+
+        assert!(output.contains("load time = 1.00 ms"));
+        assert!(output.contains("prompt eval time = 2.00 ms / 0 tokens"));
+        assert!(output.contains("eval time = 3.00 ms / 0 runs"));
+        assert!(!output.contains("NaN"));
+        assert!(!output.contains("inf"));
     }
 }

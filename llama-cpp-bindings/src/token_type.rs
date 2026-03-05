@@ -64,3 +64,60 @@ pub enum LlamaTokenTypeFromIntError {
     #[error("Unknown Value {0}")]
     UnknownValue(std::ffi::c_uint),
 }
+
+#[cfg(test)]
+mod tests {
+    use enumflags2::BitFlags;
+
+    use super::{LlamaTokenAttr, LlamaTokenAttrs, LlamaTokenTypeFromIntError};
+
+    #[test]
+    fn try_from_valid_single_attribute() {
+        let attrs =
+            LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_NORMAL as u32);
+
+        assert!(attrs.is_ok());
+        assert!(
+            attrs
+                .expect("valid attribute")
+                .contains(LlamaTokenAttr::Normal)
+        );
+    }
+
+    #[test]
+    fn try_from_zero_produces_empty_flags() {
+        let attrs = LlamaTokenAttrs::try_from(0u32);
+
+        assert!(attrs.is_ok());
+        assert!(attrs.expect("valid attribute").is_empty());
+    }
+
+    #[test]
+    fn try_from_invalid_bits_returns_error() {
+        let invalid_value = 0xFFFF_FFFFu32;
+        let result = LlamaTokenAttrs::try_from(invalid_value);
+
+        assert!(result.is_err());
+        matches!(
+            result.expect_err("should fail"),
+            LlamaTokenTypeFromIntError::UnknownValue(_)
+        );
+    }
+
+    #[test]
+    fn deref_exposes_bitflags_methods() {
+        let attrs = LlamaTokenAttrs(BitFlags::from_flag(LlamaTokenAttr::Control));
+
+        assert!(attrs.contains(LlamaTokenAttr::Control));
+        assert!(!attrs.contains(LlamaTokenAttr::Normal));
+    }
+
+    #[test]
+    fn deref_mut_allows_modification() {
+        let mut attrs = LlamaTokenAttrs(BitFlags::empty());
+
+        attrs.insert(LlamaTokenAttr::Byte);
+
+        assert!(attrs.contains(LlamaTokenAttr::Byte));
+    }
+}

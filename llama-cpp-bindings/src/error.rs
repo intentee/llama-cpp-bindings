@@ -295,3 +295,58 @@ pub enum SamplerAcceptError {
     #[error("ffi error {0}")]
     FfiError(i32),
 }
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroI32;
+
+    use super::{DecodeError, EncodeError};
+
+    #[test]
+    fn decode_error_no_kv_cache_slot() {
+        let error = DecodeError::from(NonZeroI32::new(1).expect("1 is non-zero"));
+
+        assert_eq!(error, DecodeError::NoKvCacheSlot);
+        assert_eq!(error.to_string(), "Decode Error 1: NoKvCacheSlot");
+    }
+
+    #[test]
+    fn decode_error_n_tokens_zero() {
+        let error = DecodeError::from(NonZeroI32::new(-1).expect("-1 is non-zero"));
+
+        assert_eq!(error, DecodeError::NTokensZero);
+        assert_eq!(error.to_string(), "Decode Error -1: n_tokens == 0");
+    }
+
+    #[test]
+    fn decode_error_unknown() {
+        let error = DecodeError::from(NonZeroI32::new(42).expect("42 is non-zero"));
+
+        assert_eq!(error, DecodeError::Unknown(42));
+        assert_eq!(error.to_string(), "Decode Error 42: unknown");
+    }
+
+    #[test]
+    fn encode_error_no_kv_cache_slot() {
+        let error = EncodeError::from(NonZeroI32::new(1).expect("1 is non-zero"));
+
+        assert_eq!(error, EncodeError::NoKvCacheSlot);
+        assert_eq!(error.to_string(), "Encode Error 1: NoKvCacheSlot");
+    }
+
+    #[test]
+    fn encode_error_n_tokens_zero() {
+        let error = EncodeError::from(NonZeroI32::new(-1).expect("-1 is non-zero"));
+
+        assert_eq!(error, EncodeError::NTokensZero);
+        assert_eq!(error.to_string(), "Encode Error -1: n_tokens == 0");
+    }
+
+    #[test]
+    fn encode_error_unknown() {
+        let error = EncodeError::from(NonZeroI32::new(99).expect("99 is non-zero"));
+
+        assert_eq!(error, EncodeError::Unknown(99));
+        assert_eq!(error.to_string(), "Encode Error 99: unknown");
+    }
+}

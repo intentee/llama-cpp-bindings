@@ -27,3 +27,29 @@ impl TryFrom<llama_cpp_bindings_sys::llama_vocab_type> for VocabType {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{LlamaTokenTypeFromIntError, VocabType};
+
+    #[test]
+    fn try_from_bpe() {
+        let result = VocabType::try_from(llama_cpp_bindings_sys::LLAMA_VOCAB_TYPE_BPE);
+
+        assert_eq!(result, Ok(VocabType::BPE));
+    }
+
+    #[test]
+    fn try_from_spm() {
+        let result = VocabType::try_from(llama_cpp_bindings_sys::LLAMA_VOCAB_TYPE_SPM);
+
+        assert_eq!(result, Ok(VocabType::SPM));
+    }
+
+    #[test]
+    fn try_from_unknown_value() {
+        let result = VocabType::try_from(99999);
+
+        assert_eq!(result, Err(LlamaTokenTypeFromIntError::UnknownValue(99999)));
+    }
+}

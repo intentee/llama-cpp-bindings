@@ -162,3 +162,79 @@ impl LlamaTokenDataArray {
             .expect("Greedy sampler failed to select a token!")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::token::LlamaToken;
+    use crate::token::data::LlamaTokenData;
+
+    use super::LlamaTokenDataArray;
+
+    #[test]
+    fn new_empty() {
+        let array = LlamaTokenDataArray::new(vec![], false);
+
+        assert!(array.data.is_empty());
+        assert!(!array.sorted);
+        assert_eq!(array.selected, None);
+    }
+
+    #[test]
+    fn new_with_sorted_flag() {
+        let array = LlamaTokenDataArray::new(
+            vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
+            true,
+        );
+
+        assert!(array.sorted);
+    }
+
+    #[test]
+    fn from_iter_collects_all_elements() {
+        let items = [
+            LlamaTokenData::new(LlamaToken::new(0), 0.0, 0.0),
+            LlamaTokenData::new(LlamaToken::new(1), 1.0, 0.0),
+            LlamaTokenData::new(LlamaToken::new(2), 2.0, 0.0),
+        ];
+        let array = LlamaTokenDataArray::from_iter(items, false);
+
+        assert_eq!(array.data.len(), 3);
+        assert_eq!(array.data[0].id(), LlamaToken::new(0));
+        assert_eq!(array.data[2].id(), LlamaToken::new(2));
+    }
+
+    #[test]
+    fn selected_token_none_when_no_selection() {
+        let array = LlamaTokenDataArray::new(
+            vec![LlamaTokenData::new(LlamaToken::new(5), 1.0, 0.0)],
+            false,
+        );
+
+        assert_eq!(array.selected_token(), None);
+    }
+
+    #[test]
+    fn selected_token_returns_correct_token_when_selected() {
+        let mut array = LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LlamaToken::new(10), 0.0, 0.0),
+                LlamaTokenData::new(LlamaToken::new(20), 1.0, 0.0),
+            ],
+            false,
+        );
+        array.selected = Some(1);
+
+        assert_eq!(array.selected_token(), Some(LlamaToken::new(20)));
+    }
+
+    #[test]
+    fn selected_token_none_when_index_out_of_bounds() {
+        let mut array = LlamaTokenDataArray::new(
+            vec![LlamaTokenData::new(LlamaToken::new(0), 0.0, 0.0)],
+            false,
+        );
+        array.selected = Some(5);
+
+        assert_eq!(array.selected_token(), None);
+    }
+}

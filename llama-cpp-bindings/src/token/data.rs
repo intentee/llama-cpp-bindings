@@ -102,3 +102,51 @@ impl LlamaTokenData {
         self.data.p = p;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::token::LlamaToken;
+
+    use super::LlamaTokenData;
+
+    #[test]
+    fn new_and_getters_roundtrip() {
+        let token = LlamaToken::new(7);
+        let data = LlamaTokenData::new(token, 0.5, 0.25);
+
+        assert_eq!(data.id(), token);
+        assert_eq!(data.logit(), 0.5);
+        assert_eq!(data.p(), 0.25);
+    }
+
+    #[test]
+    fn setters_modify_values() {
+        let mut data = LlamaTokenData::new(LlamaToken::new(0), 0.0, 0.0);
+
+        data.set_id(LlamaToken::new(42));
+        data.set_logit(3.14);
+        data.set_p(0.99);
+
+        assert_eq!(data.id(), LlamaToken::new(42));
+        assert_eq!(data.logit(), 3.14);
+        assert_eq!(data.p(), 0.99);
+    }
+
+    #[test]
+    fn boundary_values() {
+        let data = LlamaTokenData::new(LlamaToken::new(i32::MAX), f32::MAX, f32::MIN);
+
+        assert_eq!(data.id(), LlamaToken::new(i32::MAX));
+        assert_eq!(data.logit(), f32::MAX);
+        assert_eq!(data.p(), f32::MIN);
+    }
+
+    #[test]
+    fn zero_values() {
+        let data = LlamaTokenData::new(LlamaToken::new(0), 0.0, 0.0);
+
+        assert_eq!(data.id(), LlamaToken::new(0));
+        assert_eq!(data.logit(), 0.0);
+        assert_eq!(data.p(), 0.0);
+    }
+}
