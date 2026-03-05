@@ -152,6 +152,9 @@ pub enum GrammarError {
     /// An integer value exceeded the allowed range
     #[error("Integer overflow: {0}")]
     IntegerOverflow(String),
+    /// An error from the llguidance library
+    #[error("llguidance error: {0}")]
+    LlguidanceError(String),
 }
 
 /// Errors that can occur when creating a sampling configuration.
@@ -317,8 +320,13 @@ pub enum ModelParamsError {
     #[error("Override slot is not empty")]
     SlotNotEmpty,
     /// A character in the key is not a valid C char.
-    #[error("Invalid character in key: {0}")]
-    InvalidCharacterInKey(u8),
+    #[error("Invalid character in key: byte {byte}, {reason}")]
+    InvalidCharacterInKey {
+        /// The byte value that failed conversion.
+        byte: u8,
+        /// The reason the conversion failed.
+        reason: String,
+    },
 }
 
 /// Failed to sample a token from the data array.

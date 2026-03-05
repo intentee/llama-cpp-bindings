@@ -27,8 +27,13 @@ pub enum LlamaSplitMode {
 }
 
 /// An error that occurs when unknown split mode is encountered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LlamaSplitModeParseError(pub i32);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LlamaSplitModeParseError {
+    /// The value that could not be parsed as a split mode.
+    pub value: i32,
+    /// Additional context about why the parse failed.
+    pub context: String,
+}
 
 /// Create a `LlamaSplitMode` from a `i32`.
 ///
@@ -40,12 +45,18 @@ impl TryFrom<i32> for LlamaSplitMode {
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         let i8_value = value
             .try_into()
-            .map_err(|_| LlamaSplitModeParseError(value))?;
+            .map_err(|convert_error| LlamaSplitModeParseError {
+                value,
+                context: format!("i32 to i8 conversion failed: {convert_error}"),
+            })?;
         match i8_value {
             LLAMA_SPLIT_MODE_NONE => Ok(Self::None),
             LLAMA_SPLIT_MODE_LAYER => Ok(Self::Layer),
             LLAMA_SPLIT_MODE_ROW => Ok(Self::Row),
-            _ => Err(LlamaSplitModeParseError(value)),
+            _ => Err(LlamaSplitModeParseError {
+                value,
+                context: format!("unknown split mode value: {value}"),
+            }),
         }
     }
 }
@@ -58,16 +69,21 @@ impl TryFrom<u32> for LlamaSplitMode {
     type Error = LlamaSplitModeParseError;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
+        let clamped_value = i32::try_from(value).unwrap_or(i32::MAX);
         let i8_value = value
             .try_into()
-            .map_err(|_| LlamaSplitModeParseError(value.try_into().unwrap_or(i32::MAX)))?;
+            .map_err(|convert_error| LlamaSplitModeParseError {
+                value: clamped_value,
+                context: format!("u32 to i8 conversion failed: {convert_error}"),
+            })?;
         match i8_value {
             LLAMA_SPLIT_MODE_NONE => Ok(Self::None),
             LLAMA_SPLIT_MODE_LAYER => Ok(Self::Layer),
             LLAMA_SPLIT_MODE_ROW => Ok(Self::Row),
-            _ => Err(LlamaSplitModeParseError(
-                value.try_into().unwrap_or(i32::MAX),
-            )),
+            _ => Err(LlamaSplitModeParseError {
+                value: clamped_value,
+                context: format!("unknown split mode value: {value}"),
+            }),
         }
     }
 }
@@ -188,8 +204,12 @@ impl LlamaModelParams {
         }
 
         for (i, &byte) in key.to_bytes_with_nul().iter().enumerate() {
-            kv_override.key[i] = c_char::try_from(byte)
-                .map_err(|_| ModelParamsError::InvalidCharacterInKey(byte))?;
+            kv_override.key[i] = c_char::try_from(byte).map_err(|convert_error| {
+                ModelParamsError::InvalidCharacterInKey {
+                    byte,
+                    reason: convert_error.to_string(),
+                }
+            })?;
         }
 
         kv_override.tag = value.tag();
@@ -245,7 +265,12 @@ impl LlamaModelParams {
         }
 
         for &byte in key.to_bytes_with_nul() {
-            c_char::try_from(byte).map_err(|_| ModelParamsError::InvalidCharacterInKey(byte))?;
+            c_char::try_from(byte).map_err(|convert_error| {
+                ModelParamsError::InvalidCharacterInKey {
+                    byte,
+                    reason: convert_error.to_string(),
+                }
+            })?;
         }
 
         buft_override.pattern = key.as_ptr();
@@ -449,7 +474,7 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
-    use super::{LlamaModelParams, LlamaSplitMode, LlamaSplitModeParseError};
+    use super::{LlamaModelParams, LlamaSplitMode};
 
     #[test]
     fn split_mode_try_from_i32_none() {
@@ -468,10 +493,11 @@ mod tests {
 
     #[test]
     fn split_mode_try_from_i32_invalid() {
-        assert_eq!(
-            LlamaSplitMode::try_from(99_i32),
-            Err(LlamaSplitModeParseError(99))
-        );
+        let result = LlamaSplitMode::try_from(99_i32);
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert_eq!(error.value, 99);
     }
 
     #[test]

@@ -454,8 +454,8 @@ mod tests {
 
     impl std::io::Write for VecWriter {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            let log_line = String::from_utf8(buf.to_vec()).map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8")
+            let log_line = String::from_utf8(buf.to_vec()).map_err(|utf8_error| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, utf8_error)
             })?;
             self.0.lock().unwrap().push(log_line);
 

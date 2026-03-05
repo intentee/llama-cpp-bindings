@@ -494,8 +494,8 @@ impl LlamaSampler {
         let mut seq_breaker_pointers: Vec<*const c_char> =
             seq_breakers.iter().map(|s| s.as_ptr()).collect();
 
-        let n_ctx_train = model.n_ctx_train().try_into().map_err(|_| {
-            GrammarError::IntegerOverflow("n_ctx_train exceeds i32::MAX".to_string())
+        let n_ctx_train = model.n_ctx_train().try_into().map_err(|convert_error| {
+            GrammarError::IntegerOverflow(format!("n_ctx_train exceeds i32::MAX: {convert_error}"))
         })?;
         let sampler = unsafe {
             llama_cpp_bindings_sys::llama_sampler_init_dry(
@@ -635,8 +635,8 @@ impl LlamaSampler {
     /// let sampler = LlamaSampler::logit_bias(32000, &biases).unwrap();
     /// ```
     pub fn logit_bias(n_vocab: i32, biases: &[LlamaLogitBias]) -> Result<Self, SamplingError> {
-        let bias_count = i32::try_from(biases.len()).map_err(|_| {
-            SamplingError::IntegerOverflow("bias count exceeds i32::MAX".to_string())
+        let bias_count = i32::try_from(biases.len()).map_err(|convert_error| {
+            SamplingError::IntegerOverflow(format!("bias count exceeds i32::MAX: {convert_error}"))
         })?;
         let data = biases
             .as_ptr()
