@@ -57,7 +57,7 @@ fn embedding_generation_produces_vectors() -> Result<()> {
 
     let t_main_start = ggml_time_us();
 
-    let mut batch = LlamaBatch::new(n_ctx, 1);
+    let mut batch = LlamaBatch::new(n_ctx, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
 
     ctx.clear_kv_cache();

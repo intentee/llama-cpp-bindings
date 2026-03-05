@@ -41,7 +41,7 @@ fn chat_inference_produces_coherent_output() -> Result<()> {
     let prompt = model.apply_chat_template(&chat_template, &messages, true)?;
 
     let tokens = model.str_to_token(&prompt, AddBos::Always)?;
-    let mut batch = LlamaBatch::new(512, 1);
+    let mut batch = LlamaBatch::new(512, 1)?;
 
     let last_index = i32::try_from(tokens.len())? - 1;
     for (position, token) in (0_i32..).zip(tokens.into_iter()) {

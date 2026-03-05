@@ -108,7 +108,7 @@ fn multimodal_vision_inference_produces_output() -> Result<()> {
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let max_tokens = 512;
 
-    let mut batch = llama_cpp_bindings::llama_batch::LlamaBatch::new(512, 1);
+    let mut batch = llama_cpp_bindings::llama_batch::LlamaBatch::new(512, 1)?;
     let mut current_position = n_past;
 
     for _ in 0..max_tokens {

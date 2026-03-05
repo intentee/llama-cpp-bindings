@@ -81,7 +81,7 @@ fn reranking_produces_scores() -> Result<()> {
         bail!("one of the provided prompts exceeds the size of the context window");
     }
 
-    let mut batch = LlamaBatch::new(2048, i32::try_from(document_count)?);
+    let mut batch = LlamaBatch::new(2048, i32::try_from(document_count)?)?;
     let t_main_start = ggml_time_us();
 
     for (sequence_index, tokens) in tokens_lines_list.iter().enumerate() {

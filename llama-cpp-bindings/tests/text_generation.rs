@@ -55,7 +55,7 @@ fn raw_prompt_completion_with_timing() -> Result<()> {
     }
     std::io::stderr().flush()?;
 
-    let mut batch = LlamaBatch::new(512, 1);
+    let mut batch = LlamaBatch::new(512, 1)?;
     let last_index = i32::try_from(tokens_list.len() - 1)?;
 
     for (index, token) in (0_i32..).zip(tokens_list.into_iter()) {

@@ -38,7 +38,7 @@ fn json_schema_constrains_output() -> Result<()> {
 
     let tokens_list = model.str_to_token(prompt, AddBos::Always)?;
 
-    let mut batch = LlamaBatch::new(512, 1);
+    let mut batch = LlamaBatch::new(512, 1)?;
     let last_index = i32::try_from(tokens_list.len())? - 1;
 
     for (index, token) in (0_i32..).zip(&tokens_list) {

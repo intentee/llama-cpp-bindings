@@ -62,7 +62,7 @@ fn run_chat_completion(
         .with_n_batch(n_ctx);
     let mut ctx = model.new_context(backend, ctx_params)?;
 
-    let mut batch = LlamaBatch::new(n_ctx as usize, 1);
+    let mut batch = LlamaBatch::new(n_ctx as usize, 1)?;
     let last_index = i32::try_from(tokens.len().saturating_sub(1))?;
 
     for (index, token) in (0_i32..).zip(tokens.iter().copied()) {

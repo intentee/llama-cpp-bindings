@@ -86,7 +86,7 @@ fn tool_calling_generates_grammar_and_prompt() -> Result<()> {
         .with_n_batch(n_ctx);
     let mut ctx = model.new_context(&backend, ctx_params)?;
 
-    let mut batch = LlamaBatch::new(n_ctx as usize, 1);
+    let mut batch = LlamaBatch::new(n_ctx as usize, 1)?;
     let last_index = tokens.len().saturating_sub(1) as i32;
 
     for (index, token) in (0_i32..).zip(tokens.into_iter()) {

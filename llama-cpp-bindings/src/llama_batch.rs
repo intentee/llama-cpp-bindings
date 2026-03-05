@@ -30,6 +30,9 @@ pub enum BatchAddError {
     /// Empty buffer is provided for [`LlamaBatch::get_one`]
     #[error("Empty buffer")]
     EmptyBuffer,
+    /// An integer value exceeded the allowed range.
+    #[error("Integer overflow: {0}")]
+    IntegerOverflow(String),
 }
 
 impl<'tokens> LlamaBatch<'tokens> {
@@ -43,14 +46,9 @@ impl<'tokens> LlamaBatch<'tokens> {
     /// add a token to the batch for sequences `seq_ids` at position `pos`. If `logits` is true, the
     /// token will be initialized and can be read from after the next decode.
     ///
-    /// # Panics
-    ///
-    /// - [`self.llama_batch.n_tokens`] does not fit into a usize
-    /// - [`seq_ids.len()`] does not fit into a [`llama_seq_id`]
-    ///
     /// # Errors
     ///
-    /// returns a error if there is insufficient space in the buffer
+    /// Returns an error if there is insufficient space in the buffer or if integer conversions fail.
     pub fn add(
         &mut self,
         LlamaToken(id): LlamaToken,
@@ -58,23 +56,36 @@ impl<'tokens> LlamaBatch<'tokens> {
         seq_ids: &[i32],
         logits: bool,
     ) -> Result<(), BatchAddError> {
-        if self.allocated
-            < usize::try_from(self.n_tokens() + 1).expect("cannot fit n_tokens into a usize")
-        {
+        let required = usize::try_from(self.n_tokens() + 1).map_err(|convert_error| {
+            BatchAddError::IntegerOverflow(format!(
+                "cannot fit n_tokens into a usize: {convert_error}"
+            ))
+        })?;
+
+        if self.allocated < required {
             return Err(BatchAddError::InsufficientSpace(self.allocated));
         }
+
         let offset = self.llama_batch.n_tokens;
-        let offset_usize = usize::try_from(offset).expect("cannot fit n_tokens into a usize");
+        let offset_usize = usize::try_from(offset).map_err(|convert_error| {
+            BatchAddError::IntegerOverflow(format!(
+                "cannot fit n_tokens into a usize: {convert_error}"
+            ))
+        })?;
+
+        let n_seq_id = llama_seq_id::try_from(seq_ids.len()).map_err(|convert_error| {
+            BatchAddError::IntegerOverflow(format!(
+                "cannot fit seq_ids.len() into a llama_seq_id: {convert_error}"
+            ))
+        })?;
+
         unsafe {
             // batch.token   [batch.n_tokens] = id;
             self.llama_batch.token.add(offset_usize).write(id);
             // batch.pos     [batch.n_tokens] = pos,
             self.llama_batch.pos.add(offset_usize).write(pos);
             // batch.n_seq_id[batch.n_tokens] = seq_ids.size();
-            self.llama_batch.n_seq_id.add(offset_usize).write(
-                llama_seq_id::try_from(seq_ids.len())
-                    .expect("cannot fit seq_ids.len() into a llama_seq_id"),
-            );
+            self.llama_batch.n_seq_id.add(offset_usize).write(n_seq_id);
             // for (size_t i = 0; i < seq_ids.size(); ++i) {
             //     batch.seq_id[batch.n_tokens][i] = seq_ids[i];
             // }
@@ -108,28 +119,31 @@ impl<'tokens> LlamaBatch<'tokens> {
     ///
     /// # Errors
     ///
-    /// Returns an error if there is insufficient space in the buffer
-    ///
-    /// # Panics
-    ///
-    /// - [`self.llama_batch.n_tokens`] does not fit into a [`usize`]
-    /// - [`n_tokens - 1`] does not fit into a [`llama_pos`]
+    /// Returns an error if there is insufficient space in the buffer or if integer conversions fail.
     pub fn add_sequence(
         &mut self,
         tokens: &[LlamaToken],
         seq_id: i32,
         logits_all: bool,
     ) -> Result<(), BatchAddError> {
-        let n_tokens_0 =
-            usize::try_from(self.llama_batch.n_tokens).expect("cannot fit n_tokens into a usize");
+        let n_tokens_0 = usize::try_from(self.llama_batch.n_tokens).map_err(|convert_error| {
+            BatchAddError::IntegerOverflow(format!(
+                "cannot fit n_tokens into a usize: {convert_error}"
+            ))
+        })?;
         let n_tokens = tokens.len();
 
         if self.allocated < n_tokens_0 + n_tokens {
             return Err(BatchAddError::InsufficientSpace(self.allocated));
         }
 
-        let last_index = llama_pos::try_from(n_tokens.saturating_sub(1))
-            .expect("cannot fit n_tokens into a llama_pos");
+        let last_index =
+            llama_pos::try_from(n_tokens.saturating_sub(1)).map_err(|convert_error| {
+                BatchAddError::IntegerOverflow(format!(
+                    "cannot fit n_tokens into a llama_pos: {convert_error}"
+                ))
+            })?;
+
         for (i, token) in (0..).zip(tokens.iter()) {
             self.add(*token, i, &[seq_id], logits_all || i == last_index)?;
         }
@@ -144,20 +158,23 @@ impl<'tokens> LlamaBatch<'tokens> {
     /// - `n_tokens`: the maximum number of tokens that can be added to the batch
     /// - `n_seq_max`: the maximum number of sequences that can be added to the batch (generally 1 unless you know what you are doing)
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `n_tokens` is greater than `i32::MAX`.
-    #[must_use]
-    pub fn new(n_tokens: usize, n_seq_max: i32) -> Self {
-        let n_tokens_i32 = i32::try_from(n_tokens).expect("cannot fit n_tokens into a i32");
+    /// Returns an error if `n_tokens` exceeds `i32::MAX`.
+    pub fn new(n_tokens: usize, n_seq_max: i32) -> Result<Self, BatchAddError> {
+        let n_tokens_i32 = i32::try_from(n_tokens).map_err(|convert_error| {
+            BatchAddError::IntegerOverflow(format!(
+                "cannot fit n_tokens into a i32: {convert_error}"
+            ))
+        })?;
         let batch = unsafe { llama_batch_init(n_tokens_i32, 0, n_seq_max) };
 
-        LlamaBatch {
+        Ok(LlamaBatch {
             allocated: n_tokens,
             initialized_logits: vec![],
             llama_batch: batch,
             phantom: PhantomData,
-        }
+        })
     }
 
     /// ``llama_batch_get_one``
@@ -166,35 +183,36 @@ impl<'tokens> LlamaBatch<'tokens> {
     /// NOTE: this is a helper function to facilitate transition to the new batch API
     ///
     /// # Errors
-    /// If the provided token buffer is empty.
     ///
-    /// # Panics
-    /// If the number of tokens in ``tokens`` exceeds [`i32::MAX`].
+    /// Returns an error if the provided token buffer is empty or if integer conversions fail.
     pub fn get_one(tokens: &'tokens [LlamaToken]) -> Result<Self, BatchAddError> {
         if tokens.is_empty() {
             return Err(BatchAddError::EmptyBuffer);
         }
+
+        let token_count = tokens.len().try_into().map_err(|convert_error| {
+            BatchAddError::IntegerOverflow(format!(
+                "number of tokens exceeds i32::MAX: {convert_error}"
+            ))
+        })?;
+
         let batch = unsafe {
             let ptr = tokens.as_ptr() as *mut i32;
-            llama_cpp_bindings_sys::llama_batch_get_one(
-                ptr,
-                tokens
-                    .len()
-                    .try_into()
-                    .expect("number of tokens exceeds i32::MAX"),
-            )
+            llama_cpp_bindings_sys::llama_batch_get_one(ptr, token_count)
         };
-        let batch = Self {
+
+        let last_token_index = (tokens.len() - 1).try_into().map_err(|convert_error| {
+            BatchAddError::IntegerOverflow(format!(
+                "number of tokens exceeds i32::MAX: {convert_error}"
+            ))
+        })?;
+
+        Ok(Self {
             allocated: 0,
-            initialized_logits: vec![
-                (tokens.len() - 1)
-                    .try_into()
-                    .expect("number of tokens exceeds i32::MAX + 1"),
-            ],
+            initialized_logits: vec![last_token_index],
             llama_batch: batch,
             phantom: PhantomData,
-        };
-        Ok(batch)
+        })
     }
 
     /// Returns the number of tokens in the batch.
@@ -211,7 +229,7 @@ impl Drop for LlamaBatch<'_> {
     /// # use llama_cpp_bindings::llama_batch::LlamaBatch;
     /// # use std::error::Error;
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// let batch = LlamaBatch::new(512, 1);
+    /// let batch = LlamaBatch::new(512, 1)?;
     /// // frees the memory associated with the batch. (allocated by llama.cpp)
     /// drop(batch);
     /// # Ok(())
@@ -232,104 +250,102 @@ mod tests {
     use super::{BatchAddError, LlamaBatch};
 
     #[test]
-    fn new_creates_empty_batch() {
-        let batch = LlamaBatch::new(16, 1);
+    fn new_creates_empty_batch() -> Result<(), BatchAddError> {
+        let batch = LlamaBatch::new(16, 1)?;
 
         assert_eq!(batch.n_tokens(), 0);
         assert!(batch.initialized_logits.is_empty());
+
+        Ok(())
     }
 
     #[test]
-    fn clear_resets_batch() {
-        let mut batch = LlamaBatch::new(16, 1);
-        batch
-            .add(LlamaToken::new(1), 0, &[0], true)
-            .expect("add should succeed");
+    fn clear_resets_batch() -> Result<(), BatchAddError> {
+        let mut batch = LlamaBatch::new(16, 1)?;
+        batch.add(LlamaToken::new(1), 0, &[0], true)?;
         assert_eq!(batch.n_tokens(), 1);
 
         batch.clear();
 
         assert_eq!(batch.n_tokens(), 0);
         assert!(batch.initialized_logits.is_empty());
+
+        Ok(())
     }
 
     #[test]
-    fn add_increments_token_count() {
-        let mut batch = LlamaBatch::new(16, 1);
+    fn add_increments_token_count() -> Result<(), BatchAddError> {
+        let mut batch = LlamaBatch::new(16, 1)?;
 
-        batch
-            .add(LlamaToken::new(1), 0, &[0], false)
-            .expect("add should succeed");
+        batch.add(LlamaToken::new(1), 0, &[0], false)?;
         assert_eq!(batch.n_tokens(), 1);
 
-        batch
-            .add(LlamaToken::new(2), 1, &[0], false)
-            .expect("add should succeed");
+        batch.add(LlamaToken::new(2), 1, &[0], false)?;
         assert_eq!(batch.n_tokens(), 2);
+
+        Ok(())
     }
 
     #[test]
-    fn add_tracks_logits() {
-        let mut batch = LlamaBatch::new(16, 1);
+    fn add_tracks_logits() -> Result<(), BatchAddError> {
+        let mut batch = LlamaBatch::new(16, 1)?;
 
-        batch
-            .add(LlamaToken::new(1), 0, &[0], false)
-            .expect("add should succeed");
+        batch.add(LlamaToken::new(1), 0, &[0], false)?;
         assert!(batch.initialized_logits.is_empty());
 
-        batch
-            .add(LlamaToken::new(2), 1, &[0], true)
-            .expect("add should succeed");
+        batch.add(LlamaToken::new(2), 1, &[0], true)?;
         assert_eq!(batch.initialized_logits, vec![1]);
+
+        Ok(())
     }
 
     #[test]
-    fn add_returns_insufficient_space_when_full() {
-        let mut batch = LlamaBatch::new(1, 1);
-        batch
-            .add(LlamaToken::new(1), 0, &[0], false)
-            .expect("first add should succeed");
+    fn add_returns_insufficient_space_when_full() -> Result<(), BatchAddError> {
+        let mut batch = LlamaBatch::new(1, 1)?;
+        batch.add(LlamaToken::new(1), 0, &[0], false)?;
 
         let result = batch.add(LlamaToken::new(2), 1, &[0], false);
 
         assert_eq!(result, Err(BatchAddError::InsufficientSpace(1)));
+
+        Ok(())
     }
 
     #[test]
-    fn add_sequence_adds_all_tokens() {
-        let mut batch = LlamaBatch::new(16, 1);
+    fn add_sequence_adds_all_tokens() -> Result<(), BatchAddError> {
+        let mut batch = LlamaBatch::new(16, 1)?;
         let tokens = vec![
             LlamaToken::new(10),
             LlamaToken::new(20),
             LlamaToken::new(30),
         ];
 
-        batch
-            .add_sequence(&tokens, 0, false)
-            .expect("add_sequence should succeed");
+        batch.add_sequence(&tokens, 0, false)?;
 
         assert_eq!(batch.n_tokens(), 3);
+
+        Ok(())
     }
 
     #[test]
-    fn add_sequence_sets_logits_on_last_token() {
-        let mut batch = LlamaBatch::new(16, 1);
+    fn add_sequence_sets_logits_on_last_token() -> Result<(), BatchAddError> {
+        let mut batch = LlamaBatch::new(16, 1)?;
         let tokens = vec![
             LlamaToken::new(10),
             LlamaToken::new(20),
             LlamaToken::new(30),
         ];
 
-        batch
-            .add_sequence(&tokens, 0, false)
-            .expect("add_sequence should succeed");
+        batch.add_sequence(&tokens, 0, false)?;
 
         assert_eq!(batch.initialized_logits, vec![2]);
+
+        Ok(())
     }
 
     #[test]
-    fn add_sequence_insufficient_space() {
-        let mut batch = LlamaBatch::new(2, 1);
+    fn add_sequence_insufficient_space() -> Result<(), BatchAddError> {
+        let mut batch = LlamaBatch::new(2, 1)?;
         let tokens = vec![
             LlamaToken::new(10),
             LlamaToken::new(20),
@@ -339,12 +355,14 @@ mod tests {
         let result = batch.add_sequence(&tokens, 0, false);
 
         assert!(result.is_err());
+
+        Ok(())
     }
 
     #[test]
     fn get_one_with_valid_tokens() {
         let tokens = vec![LlamaToken::new(1), LlamaToken::new(2)];
-        let batch = LlamaBatch::get_one(&tokens).expect("get_one should succeed");
+        let batch = LlamaBatch::get_one(&tokens).expect("test: get_one should succeed");
 
         assert_eq!(batch.n_tokens(), 2);
         assert_eq!(batch.initialized_logits, vec![1]);
@@ -364,7 +382,7 @@ mod tests {
     #[test]
     fn get_one_single_token() {
         let tokens = vec![LlamaToken::new(42)];
-        let batch = LlamaBatch::get_one(&tokens).expect("get_one should succeed");
+        let batch = LlamaBatch::get_one(&tokens).expect("test: get_one should succeed");
 
         assert_eq!(batch.n_tokens(), 1);
         assert_eq!(batch.initialized_logits, vec![0]);
