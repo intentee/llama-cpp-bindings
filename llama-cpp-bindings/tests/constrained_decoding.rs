@@ -75,7 +75,7 @@ fn json_schema_constrains_output() -> Result<()> {
         print!("{output_string}");
         std::io::stdout().flush()?;
 
-        sampler.accept(token);
+        sampler.accept(token)?;
 
         batch.clear();
         batch.add(token, n_cur, &[0], true)?;

@@ -77,7 +77,7 @@ fn raw_prompt_completion_with_timing() -> Result<()> {
 
     while n_cur <= n_len {
         let token = sampler.sample(&ctx, batch.n_tokens() - 1);
-        sampler.accept(token);
+        sampler.accept(token)?;
 
         if model.is_eog_token(token) {
             break;

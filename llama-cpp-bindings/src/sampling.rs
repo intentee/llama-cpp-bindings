@@ -41,27 +41,41 @@ impl LlamaSampler {
 
     /// Accepts a token from the sampler, possibly updating the internal state of certain samplers
     /// (e.g. grammar, repetition, etc.)
-    pub fn accept(&mut self, token: LlamaToken) {
-        let _ = self.try_accept(token);
+    ///
+    /// # Errors
+    /// Returns [`SamplerAcceptError`] if the underlying sampler rejects the token.
+    pub fn accept(&mut self, token: LlamaToken) -> Result<(), SamplerAcceptError> {
+        self.try_accept(token)
     }
 
     /// Accepts several tokens from the sampler or context, possibly updating the internal state of
     /// certain samplers (e.g. grammar, repetition, etc.)
-    pub fn accept_many(&mut self, tokens: impl IntoIterator<Item = impl Borrow<LlamaToken>>) {
+    ///
+    /// # Errors
+    /// Returns [`SamplerAcceptError`] if the underlying sampler rejects any token.
+    pub fn accept_many(
+        &mut self,
+        tokens: impl IntoIterator<Item = impl Borrow<LlamaToken>>,
+    ) -> Result<(), SamplerAcceptError> {
         for token in tokens {
-            let _ = self.try_accept(*token.borrow());
+            self.try_accept(*token.borrow())?;
         }
+
+        Ok(())
     }
 
     /// Accepts several tokens from the sampler or context, possibly updating the internal state of
     /// certain samplers (e.g. grammar, repetition, etc.)
-    #[must_use]
+    ///
+    /// # Errors
+    /// Returns [`SamplerAcceptError`] if the underlying sampler rejects any token.
     pub fn with_tokens(
         mut self,
         tokens: impl IntoIterator<Item = impl Borrow<LlamaToken>>,
-    ) -> Self {
-        self.accept_many(tokens);
-        self
+    ) -> Result<Self, SamplerAcceptError> {
+        self.accept_many(tokens)?;
+
+        Ok(self)
     }
 
     /// Try accepting a token from the sampler. Returns an error if the sampler throws.
@@ -871,13 +885,15 @@ mod tests {
     }
 
     #[test]
-    fn accept_does_not_panic() {
+    fn accept_succeeds() {
         let mut sampler = LlamaSampler::chain_simple([
             LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
             LlamaSampler::greedy(),
         ]);
 
-        sampler.accept(crate::token::LlamaToken::new(1));
+        sampler
+            .accept(crate::token::LlamaToken::new(1))
+            .expect("test: accept should succeed");
     }
 
     #[test]
@@ -901,7 +917,9 @@ mod tests {
             LlamaSampler::greedy(),
         ]);
 
-        sampler.accept_many([LlamaToken::new(1), LlamaToken::new(2), LlamaToken::new(3)]);
+        sampler
+            .accept_many([LlamaToken::new(1), LlamaToken::new(2), LlamaToken::new(3)])
+            .expect("test: accept_many should succeed");
     }
 
     #[test]
@@ -912,6 +930,7 @@ mod tests {
             LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
             LlamaSampler::greedy(),
         ])
-        .with_tokens([LlamaToken::new(10), LlamaToken::new(20)]);
+        .with_tokens([LlamaToken::new(10), LlamaToken::new(20)])
+        .expect("test: with_tokens should succeed");
     }
 }

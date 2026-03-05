@@ -79,7 +79,14 @@ unsafe extern "C" fn llg_accept(
     token: llama_cpp_bindings_sys::llama_token,
 ) {
     let ctx = unsafe { &mut *(*smpl).ctx.cast::<LlgContext>() };
-    let _ = ctx.matcher.consume_token(token.cast_unsigned());
+
+    if let Err(consume_error) = ctx.matcher.consume_token(token.cast_unsigned()) {
+        tracing::warn!(
+            token = token,
+            error = %consume_error,
+            "llguidance sampler failed to consume token"
+        );
+    }
 }
 
 unsafe extern "C" fn llg_apply(
@@ -89,8 +96,16 @@ unsafe extern "C" fn llg_apply(
     let ctx = unsafe { &mut *(*smpl).ctx.cast::<LlgContext>() };
     let cur_p = unsafe { &mut *cur_p };
 
-    let Ok(mask) = ctx.matcher.compute_mask() else {
-        return;
+    let mask = match ctx.matcher.compute_mask() {
+        Ok(mask) => mask,
+        Err(compute_error) => {
+            tracing::warn!(
+                error = %compute_error,
+                "llguidance sampler failed to compute mask, skipping constraint application"
+            );
+
+            return;
+        }
     };
 
     let data = unsafe { std::slice::from_raw_parts_mut(cur_p.data, cur_p.size) };
@@ -103,7 +118,13 @@ unsafe extern "C" fn llg_apply(
 
 unsafe extern "C" fn llg_reset(smpl: *mut llama_cpp_bindings_sys::llama_sampler) {
     let ctx = unsafe { &mut *(*smpl).ctx.cast::<LlgContext>() };
-    let _ = ctx.matcher.reset();
+
+    if let Err(reset_error) = ctx.matcher.reset() {
+        tracing::warn!(
+            error = %reset_error,
+            "llguidance sampler failed to reset"
+        );
+    }
 }
 
 unsafe extern "C" fn llg_clone(
