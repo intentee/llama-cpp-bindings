@@ -1,4 +1,4 @@
-#![cfg(feature = "llm-tests")]
+#![cfg(feature = "tests_that_use_llms")]
 
 use std::num::NonZeroU32;
 use std::time::{SystemTime, UNIX_EPOCH};

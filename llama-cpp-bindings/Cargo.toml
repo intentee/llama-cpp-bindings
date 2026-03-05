@@ -39,7 +39,7 @@ android-static-stdcxx = ["llama-cpp-bindings-sys/static-stdcxx"]
 mtmd = ["llama-cpp-bindings-sys/mtmd"]
 system-ggml = ["llama-cpp-bindings-sys/system-ggml"]
 llguidance = ["dep:llguidance", "dep:toktrie"]
-llm-tests = []
+tests_that_use_llms = []
 
 [target.'cfg(all(target_os = "macos", any(target_arch = "aarch64", target_arch = "arm64")))'.dependencies]
 llama-cpp-bindings-sys = { workspace = true, features = ["metal"] }

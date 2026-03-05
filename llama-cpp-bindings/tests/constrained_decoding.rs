@@ -1,4 +1,4 @@
-#![cfg(all(feature = "llm-tests", feature = "llguidance"))]
+#![cfg(all(feature = "tests_that_use_llms", feature = "llguidance"))]
 
 use std::io::Write;
 

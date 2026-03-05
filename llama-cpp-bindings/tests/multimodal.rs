@@ -1,4 +1,4 @@
-#![cfg(all(feature = "llm-tests", feature = "mtmd"))]
+#![cfg(all(feature = "tests_that_use_llms", feature = "mtmd"))]
 
 use std::num::NonZeroU32;
 use std::path::PathBuf;
