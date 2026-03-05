@@ -241,7 +241,6 @@ impl State {
 
         match level {
             llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE => {
-                // TODO: Support logging this to stdout directly via options?
                 tracing::info!(no_log_level = true, text);
             }
             llama_cpp_bindings_sys::GGML_LOG_LEVEL_DEBUG

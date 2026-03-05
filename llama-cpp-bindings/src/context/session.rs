@@ -88,102 +88,7 @@ pub enum LoadSessionError {
 }
 
 impl LlamaContext<'_> {
-    /// Save the current session to a file.
-    ///
-    /// # Parameters
-    ///
-    /// * `path_session` - The file to save to.
-    /// * `tokens` - The tokens to associate the session with. This should be a prefix of a sequence of tokens that the context has processed, so that the relevant KV caches are already filled.
-    ///
-    /// # Errors
-    ///
-    /// Fails if the path is not a valid utf8, is not a valid c string, or llama.cpp fails to save the session file.
-    #[deprecated(since = "0.1.136", note = "Use `state_save_file` instead")]
-    pub fn save_session_file(
-        &self,
-        path_session: impl AsRef<Path>,
-        tokens: &[LlamaToken],
-    ) -> Result<(), SaveSessionError> {
-        let path = path_session.as_ref();
-        let path = path
-            .to_str()
-            .ok_or_else(|| SaveSessionError::PathToStrError(path.to_path_buf()))?;
-
-        let cstr = CString::new(path)?;
-
-        if unsafe {
-            llama_cpp_bindings_sys::llama_save_session_file(
-                self.context.as_ptr(),
-                cstr.as_ptr(),
-                tokens
-                    .as_ptr()
-                    .cast::<llama_cpp_bindings_sys::llama_token>(),
-                tokens.len(),
-            )
-        } {
-            Ok(())
-        } else {
-            Err(SaveSessionError::FailedToSave)
-        }
-    }
-    /// Load a session file into the current context.
-    ///
-    /// You still need to pass the returned tokens to the context for inference to work. What this function buys you is that the KV caches are already filled with the relevant data.
-    ///
-    /// # Parameters
-    ///
-    /// * `path_session` - The file to load from. It must be a session file from a compatible context, otherwise the function will error.
-    /// * `max_tokens` - The maximum token length of the loaded session. If the session was saved with a longer length, the function will error.
-    ///
-    /// # Errors
-    ///
-    /// Fails if the path is not a valid utf8, is not a valid c string, or llama.cpp fails to load the session file. (e.g. the file does not exist, is not a session file, etc.)
-    #[deprecated(since = "0.1.136", note = "Use `state_load_file` instead")]
-    pub fn load_session_file(
-        &mut self,
-        path_session: impl AsRef<Path>,
-        max_tokens: usize,
-    ) -> Result<Vec<LlamaToken>, LoadSessionError> {
-        let path = path_session.as_ref();
-        let path = path
-            .to_str()
-            .ok_or(LoadSessionError::PathToStrError(path.to_path_buf()))?;
-
-        let cstr = CString::new(path)?;
-        let mut tokens: Vec<LlamaToken> = Vec::with_capacity(max_tokens);
-        let mut n_out = 0;
-
-        // SAFETY: cast is valid as LlamaToken is repr(transparent)
-        let tokens_out = tokens
-            .as_mut_ptr()
-            .cast::<llama_cpp_bindings_sys::llama_token>();
-
-        let load_session_success = unsafe {
-            llama_cpp_bindings_sys::llama_load_session_file(
-                self.context.as_ptr(),
-                cstr.as_ptr(),
-                tokens_out,
-                max_tokens,
-                &raw mut n_out,
-            )
-        };
-        if load_session_success {
-            if n_out > max_tokens {
-                return Err(LoadSessionError::InsufficientMaxLength { n_out, max_tokens });
-            }
-            // SAFETY: we checked that n_out <= max_tokens and llama.cpp promises that n_out tokens will be written
-            unsafe {
-                tokens.set_len(n_out);
-            }
-            Ok(tokens)
-        } else {
-            Err(LoadSessionError::FailedToLoad)
-        }
-    }
-
     /// Save the full state to a file.
-    ///
-    /// This is the non-deprecated replacement for [`save_session_file`](Self::save_session_file).
     ///
     /// # Parameters
     ///
@@ -224,8 +129,6 @@ impl LlamaContext<'_> {
     }
 
     /// Load a state file into the current context.
-    ///
-    /// This is the non-deprecated replacement for [`load_session_file`](Self::load_session_file).
     ///
     /// You still need to pass the returned tokens to the context for inference to work. What this
     /// function buys you is that the KV caches are already filled with the relevant data.

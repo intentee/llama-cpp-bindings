@@ -58,8 +58,6 @@ extern "C" fn logs_to_trace(
 
 /// Redirect llama.cpp logs into tracing.
 pub fn send_logs_to_tracing(options: LogOptions) {
-    // TODO: Reinitialize the state to support calling send_logs_to_tracing multiple times.
-
     // We set up separate log states for llama.cpp and ggml to make sure that CONT logs between the two
     // can't possibly interfere with each other. In other words, if llama.cpp emits a log without a trailing
     // newline and calls a GGML function, the logs won't be weirdly intermixed and instead we'll llama.cpp logs
