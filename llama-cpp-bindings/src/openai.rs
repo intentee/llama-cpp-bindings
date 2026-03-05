@@ -1,0 +1,273 @@
+//! `OpenAI` Specific Utility methods.
+use std::collections::HashSet;
+use std::ffi::{CStr, CString, c_char};
+use std::mem;
+use std::ptr::{self, NonNull};
+use std::slice;
+
+use crate::model::{AddBos, ChatTemplateResult, GrammarTriggerType, LlamaModel};
+use crate::sampling::LlamaSampler;
+use crate::token::LlamaToken;
+use crate::{ChatParseError, GrammarError, status_is_ok, status_to_i32};
+
+fn regex_escape(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+
+    for character in value.chars() {
+        match character {
+            '.' | '^' | '$' | '|' | '(' | ')' | '*' | '+' | '?' | '[' | ']' | '{' | '}' | '\\' => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
+            _ => escaped.push(character),
+        }
+    }
+
+    escaped
+}
+
+fn anchor_pattern(pattern: &str) -> String {
+    if pattern.is_empty() {
+        return "^$".to_string();
+    }
+
+    let mut anchored = String::new();
+
+    if !pattern.starts_with('^') {
+        anchored.push('^');
+    }
+
+    anchored.push_str(pattern);
+
+    if !pattern.ends_with('$') {
+        anchored.push('$');
+    }
+
+    anchored
+}
+
+/// Error type for grammar sampler construction.
+#[derive(Debug, thiserror::Error)]
+pub enum GrammarSamplerError {
+    /// Lazy grammar mode is enabled but no triggers were provided.
+    #[error("grammar_lazy enabled but no triggers provided")]
+    MissingTriggers,
+    /// A trigger word is not in the preserved tokens set.
+    #[error("grammar trigger word should be a preserved token: {0}")]
+    TriggerWordNotPreserved(String),
+    /// Failed to tokenize a trigger or preserved token.
+    #[error("tokenization failed: {0}")]
+    TokenizationFailed(String),
+    /// Failed to initialize the grammar sampler.
+    #[error("grammar sampler init failed: {0}")]
+    GrammarInitFailed(#[from] GrammarError),
+}
+
+impl ChatTemplateResult {
+    /// Builds a grammar sampler from this template result's grammar and trigger configuration.
+    ///
+    /// Returns `None` if no grammar is present. The returned `HashSet` contains preserved
+    /// token IDs that should be decoded with special token handling.
+    ///
+    /// # Errors
+    /// Returns an error if trigger processing or grammar sampler initialization fails.
+    pub fn build_grammar_sampler(
+        &self,
+        model: &LlamaModel,
+    ) -> Result<(Option<LlamaSampler>, HashSet<LlamaToken>), GrammarSamplerError> {
+        let mut preserved = HashSet::new();
+
+        for token_str in &self.preserved_tokens {
+            let tokens = model
+                .str_to_token(token_str, AddBos::Never)
+                .map_err(|error| GrammarSamplerError::TokenizationFailed(error.to_string()))?;
+
+            if tokens.len() == 1 {
+                preserved.insert(tokens[0]);
+            }
+        }
+
+        let Some(grammar) = self.grammar.as_deref() else {
+            return Ok((None, preserved));
+        };
+
+        let grammar_sampler = if self.grammar_lazy {
+            if self.grammar_triggers.is_empty() {
+                return Err(GrammarSamplerError::MissingTriggers);
+            }
+
+            let mut trigger_patterns = Vec::new();
+            let mut trigger_tokens = Vec::new();
+
+            for trigger in &self.grammar_triggers {
+                match trigger.trigger_type {
+                    GrammarTriggerType::Token => {
+                        if let Some(token) = trigger.token {
+                            trigger_tokens.push(token);
+                        }
+                    }
+                    GrammarTriggerType::Word => {
+                        let tokens =
+                            model
+                                .str_to_token(&trigger.value, AddBos::Never)
+                                .map_err(|error| {
+                                    GrammarSamplerError::TokenizationFailed(error.to_string())
+                                })?;
+
+                        if tokens.len() == 1 {
+                            if !preserved.contains(&tokens[0]) {
+                                return Err(GrammarSamplerError::TriggerWordNotPreserved(
+                                    trigger.value.clone(),
+                                ));
+                            }
+                            trigger_tokens.push(tokens[0]);
+                        } else {
+                            trigger_patterns.push(regex_escape(&trigger.value));
+                        }
+                    }
+                    GrammarTriggerType::Pattern => {
+                        trigger_patterns.push(trigger.value.clone());
+                    }
+                    GrammarTriggerType::PatternFull => {
+                        trigger_patterns.push(anchor_pattern(&trigger.value));
+                    }
+                }
+            }
+
+            LlamaSampler::grammar_lazy_patterns(
+                model,
+                grammar,
+                "root",
+                &trigger_patterns,
+                &trigger_tokens,
+            )?
+        } else {
+            LlamaSampler::grammar(model, grammar, "root")?
+        };
+
+        Ok((Some(grammar_sampler), preserved))
+    }
+}
+
+/// Parameters for applying OpenAI-compatible chat templates.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenAIChatTemplateParams<'params> {
+    /// OpenAI-compatible messages JSON array.
+    pub messages_json: &'params str,
+    /// Optional OpenAI-compatible tools JSON array.
+    pub tools_json: Option<&'params str>,
+    /// Optional tool choice string.
+    pub tool_choice: Option<&'params str>,
+    /// Optional JSON schema string for tool grammar generation.
+    pub json_schema: Option<&'params str>,
+    /// Optional custom grammar string.
+    pub grammar: Option<&'params str>,
+    /// Optional reasoning format string.
+    pub reasoning_format: Option<&'params str>,
+    /// Optional chat template kwargs JSON object.
+    pub chat_template_kwargs: Option<&'params str>,
+    /// Whether to add the assistant generation prompt.
+    pub add_generation_prompt: bool,
+    /// Whether to render templates with Jinja.
+    pub use_jinja: bool,
+    /// Whether to allow parallel tool calls.
+    pub parallel_tool_calls: bool,
+    /// Whether thinking blocks are enabled.
+    pub enable_thinking: bool,
+    /// Whether to add BOS.
+    pub add_bos: bool,
+    /// Whether to add EOS.
+    pub add_eos: bool,
+    /// Whether to parse tool calls in responses.
+    pub parse_tool_calls: bool,
+}
+
+/// Streaming OpenAI-compatible parser state.
+#[derive(Debug)]
+pub struct ChatParseStateOaicompat {
+    /// Raw pointer to the underlying FFI parser state.
+    pub state: NonNull<llama_cpp_bindings_sys::llama_rs_chat_parse_state_oaicompat>,
+}
+
+impl ChatParseStateOaicompat {
+    /// Update the parser with additional text and return OpenAI-compatible deltas as JSON strings.
+    ///
+    /// # Errors
+    /// Returns an error if the FFI call fails or the result is null.
+    pub fn update(
+        &mut self,
+        text_added: &str,
+        is_partial: bool,
+    ) -> Result<Vec<String>, ChatParseError> {
+        let text_cstr = CString::new(text_added)?;
+        let mut out_msg: llama_cpp_bindings_sys::llama_rs_chat_msg_oaicompat =
+            unsafe { mem::zeroed() };
+        let mut out_diffs: *mut llama_cpp_bindings_sys::llama_rs_chat_msg_diff_oaicompat =
+            ptr::null_mut();
+        let mut out_diffs_count: usize = 0;
+        let rc = unsafe {
+            llama_cpp_bindings_sys::llama_rs_chat_parse_state_update_oaicompat(
+                self.state.as_ptr(),
+                text_cstr.as_ptr(),
+                is_partial,
+                &raw mut out_msg,
+                &raw mut out_diffs,
+                &raw mut out_diffs_count,
+            )
+        };
+
+        let result = {
+            if !status_is_ok(rc) {
+                return Err(ChatParseError::FfiError(status_to_i32(rc)));
+            }
+            if out_diffs_count > 0 && out_diffs.is_null() {
+                return Err(ChatParseError::NullResult);
+            }
+            let diffs = if out_diffs_count == 0 {
+                &[]
+            } else {
+                unsafe { slice::from_raw_parts(out_diffs, out_diffs_count) }
+            };
+            let mut deltas = Vec::with_capacity(diffs.len());
+            for diff in diffs {
+                let mut out_json: *mut c_char = ptr::null_mut();
+                let rc = unsafe {
+                    llama_cpp_bindings_sys::llama_rs_chat_msg_diff_to_oaicompat_json(
+                        diff,
+                        &raw mut out_json,
+                    )
+                };
+                if !status_is_ok(rc) {
+                    if !out_json.is_null() {
+                        unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_json) };
+                    }
+                    return Err(ChatParseError::FfiError(status_to_i32(rc)));
+                }
+                if out_json.is_null() {
+                    return Err(ChatParseError::NullResult);
+                }
+                let bytes = unsafe { CStr::from_ptr(out_json) }.to_bytes().to_vec();
+                unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_json) };
+                deltas.push(String::from_utf8(bytes)?);
+            }
+            Ok(deltas)
+        };
+
+        unsafe { llama_cpp_bindings_sys::llama_rs_chat_msg_free_oaicompat(&raw mut out_msg) };
+        unsafe {
+            llama_cpp_bindings_sys::llama_rs_chat_msg_diff_free_oaicompat(
+                out_diffs,
+                out_diffs_count,
+            );
+        };
+        result
+    }
+}
+
+impl Drop for ChatParseStateOaicompat {
+    fn drop(&mut self) {
+        unsafe {
+            llama_cpp_bindings_sys::llama_rs_chat_parse_state_free_oaicompat(self.state.as_ptr())
+        };
+    }
+}

@@ -5,9 +5,9 @@ Rust bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp). Minimal, 
 ## Quick start
 
 ```bash
-git clone --recursive https://github.com/utilityai/llama-cpp-rs
+git clone --recursive https://github.com/intentee/llama-cpp-bindings
 cd llama-cpp-rs
-cargo run --release --example usage -- "Hello, how are you?"
+cargo build --release
 ```
 
 Add `--features cuda` for GPU acceleration.
@@ -16,6 +16,6 @@ Add `--features cuda` for GPU acceleration.
 
 | Crate | Description |
 |---|---|
-| `llama-cpp-2` | Safe Rust API |
-| `llama-cpp-sys-2` | Raw FFI bindings |
-| `llama-cpp-build` | Build system |
+| `llama-cpp-bindings` | Safe Rust API |
+| `llama-cpp-bindings-sys` | Raw FFI bindings |
+| `llama-cpp-bindings-build` | Build system |

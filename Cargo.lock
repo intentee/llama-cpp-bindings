@@ -971,14 +971,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
 
 [[package]]
-name = "llama-cpp-2"
+name = "llama-cpp-bindings"
 version = "0.1.138"
 dependencies = [
  "anyhow",
  "encoding_rs",
  "enumflags2",
  "hf-hub",
- "llama-cpp-sys-2",
+ "llama-cpp-bindings-sys",
  "llguidance",
  "serde_json",
  "thiserror",
@@ -989,7 +989,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "llama-cpp-build"
+name = "llama-cpp-bindings-build"
 version = "0.1.138"
 dependencies = [
  "bindgen",
@@ -1001,10 +1001,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "llama-cpp-sys-2"
+name = "llama-cpp-bindings-sys"
 version = "0.1.138"
 dependencies = [
- "llama-cpp-build",
+ "llama-cpp-bindings-build",
 ]
 
 [[package]]

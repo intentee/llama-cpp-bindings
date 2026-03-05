@@ -1,0 +1,45 @@
+[package]
+name = "llama-cpp-bindings"
+description = "llama.cpp bindings for Rust"
+version = "0.1.138"
+edition.workspace = true
+license = "Apache-2.0"
+repository = "https://github.com/intentee/llama-cpp-bindings"
+
+[dependencies]
+encoding_rs = { workspace = true }
+enumflags2 = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-core = { workspace = true }
+llguidance = { version = "1.6.1", optional = true }
+toktrie = { version = "1.6.1", optional = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+encoding_rs = { workspace = true }
+hf-hub = { workspace = true }
+serde_json = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[features]
+default = ["openmp", "android-shared-stdcxx"]
+cuda = ["llama-cpp-bindings-sys/cuda"]
+cuda-no-vmm = ["cuda", "llama-cpp-bindings-sys/cuda-no-vmm"]
+metal = ["llama-cpp-bindings-sys/metal"]
+dynamic-link = ["llama-cpp-bindings-sys/dynamic-link"]
+vulkan = ["llama-cpp-bindings-sys/vulkan"]
+openmp = ["llama-cpp-bindings-sys/openmp"]
+rocm = ["llama-cpp-bindings-sys/rocm"]
+sampler = []
+# Only has an impact on Android.
+android-shared-stdcxx = ["llama-cpp-bindings-sys/shared-stdcxx"]
+android-static-stdcxx = ["llama-cpp-bindings-sys/static-stdcxx"]
+mtmd = ["llama-cpp-bindings-sys/mtmd"]
+system-ggml = ["llama-cpp-bindings-sys/system-ggml"]
+llguidance = ["dep:llguidance", "dep:toktrie"]
+llm-tests = []
+
+[target.'cfg(all(target_os = "macos", any(target_arch = "aarch64", target_arch = "arm64")))'.dependencies]
+llama-cpp-bindings-sys = { workspace = true, features = ["metal"] }
