@@ -1,10 +1,4 @@
 #![cfg(feature = "llm-tests")]
-#![allow(
-    clippy::cast_possible_wrap,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss
-)]
 
 use std::time::Duration;
 
@@ -32,10 +26,10 @@ fn download_model() -> Result<std::path::PathBuf> {
 fn normalize(input: &[f32]) -> Vec<f32> {
     let magnitude = input
         .iter()
-        .fold(0.0, |acc, &val| val.mul_add(val, acc))
+        .fold(0.0, |accumulator, &value| value.mul_add(value, accumulator))
         .sqrt();
 
-    input.iter().map(|&val| val / magnitude).collect()
+    input.iter().map(|&value| value / magnitude).collect()
 }
 
 #[test]
@@ -58,7 +52,7 @@ fn embedding_generation_produces_vectors() -> Result<()> {
         .str_to_token(prompt, AddBos::Always)
         .with_context(|| format!("failed to tokenize {prompt}"))?;
 
-    let n_ctx = ctx.n_ctx() as usize;
+    let n_ctx = usize::try_from(ctx.n_ctx())?;
     assert!(tokens.len() <= n_ctx, "prompt exceeds context window size");
 
     let t_main_start = ggml_time_us();
@@ -76,7 +70,7 @@ fn embedding_generation_produces_vectors() -> Result<()> {
     let normalized = normalize(embedding);
 
     let t_main_end = ggml_time_us();
-    let duration = Duration::from_micros((t_main_end - t_main_start) as u64);
+    let duration = Duration::from_micros(u64::try_from(t_main_end - t_main_start)?);
 
     eprintln!(
         "created embedding with {} dimensions in {:.2} s",

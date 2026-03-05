@@ -1128,9 +1128,12 @@ impl ChatTemplateResult {
 /// to be populated by a string, not yet knowing if the buffer is large enough.
 /// If the buffer was not large enough, we get the correct length back, which can be used to
 /// construct a buffer of appropriate size.
-fn extract_meta_string<F>(c_function: F, capacity: usize) -> Result<String, MetaValError>
+fn extract_meta_string<TCFunction>(
+    c_function: TCFunction,
+    capacity: usize,
+) -> Result<String, MetaValError>
 where
-    F: Fn(*mut c_char, usize) -> i32,
+    TCFunction: Fn(*mut c_char, usize) -> i32,
 {
     let mut buffer = vec![0u8; capacity];
 

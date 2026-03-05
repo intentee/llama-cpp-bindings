@@ -1,10 +1,4 @@
 #![cfg(feature = "llm-tests")]
-#![allow(
-    clippy::cast_possible_wrap,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss
-)]
 
 use std::io::Write;
 use std::time::Duration;
@@ -62,7 +56,7 @@ fn raw_prompt_completion_with_timing() -> Result<()> {
     std::io::stderr().flush()?;
 
     let mut batch = LlamaBatch::new(512, 1);
-    let last_index: i32 = (tokens_list.len() - 1) as i32;
+    let last_index = i32::try_from(tokens_list.len() - 1)?;
 
     for (index, token) in (0_i32..).zip(tokens_list.into_iter()) {
         let is_last = index == last_index;
@@ -73,7 +67,7 @@ fn raw_prompt_completion_with_timing() -> Result<()> {
         .with_context(|| "llama_decode() failed")?;
 
     let mut n_cur = batch.n_tokens();
-    let mut n_decode = 0;
+    let mut n_decode: i32 = 0;
     let t_main_start = ggml_time_us();
 
     let mut sampler =
@@ -103,13 +97,14 @@ fn raw_prompt_completion_with_timing() -> Result<()> {
     }
 
     let t_main_end = ggml_time_us();
-    let duration = Duration::from_micros((t_main_end - t_main_start) as u64);
+    let duration = Duration::from_micros(u64::try_from(t_main_end - t_main_start)?);
+
+    #[allow(clippy::cast_precision_loss)]
+    let tokens_per_second = n_decode as f32 / duration.as_secs_f32();
 
     eprintln!(
-        "\ndecoded {} tokens in {:.2} s, speed {:.2} t/s",
-        n_decode,
+        "\ndecoded {n_decode} tokens in {:.2} s, speed {tokens_per_second:.2} t/s",
         duration.as_secs_f32(),
-        n_decode as f32 / duration.as_secs_f32()
     );
 
     assert!(

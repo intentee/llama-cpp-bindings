@@ -28,12 +28,9 @@ glob = "0.3.3"
 llama-cpp-build = { path = "llama-cpp-build", version = "0.1.138" }
 walkdir = "2"
 
-# dev and examples
+# dev
 anyhow = "1.0.102"
-clap = "4.5.60"
-criterion = "0.5.1"
 hf-hub = "0.4.3"
-pprof = "0.13.0"
 serde_json = "1.0"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 

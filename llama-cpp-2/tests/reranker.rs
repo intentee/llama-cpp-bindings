@@ -1,10 +1,4 @@
 #![cfg(feature = "llm-tests")]
-#![allow(
-    clippy::cast_possible_wrap,
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss
-)]
 
 use std::time::Duration;
 
@@ -42,7 +36,7 @@ fn cosine_similarity(vec_a: &[f32], vec_b: &[f32]) -> f32 {
     vec_a
         .iter()
         .zip(vec_b.iter())
-        .map(|(a, b)| a * b)
+        .map(|(left, right)| left * right)
         .sum::<f32>()
 }
 
@@ -64,7 +58,7 @@ fn reranking_produces_scores() -> Result<()> {
 
     let ctx_params = LlamaContextParams::default()
         .with_n_threads_batch(std::thread::available_parallelism()?.get().try_into()?)
-        .with_n_seq_max(document_count as u32)
+        .with_n_seq_max(u32::try_from(document_count)?)
         .with_embeddings(true);
     let mut ctx = model
         .new_context(&backend, ctx_params)
@@ -81,17 +75,17 @@ fn reranking_produces_scores() -> Result<()> {
         .collect::<std::result::Result<Vec<_>, _>>()
         .with_context(|| "failed to tokenize prompts")?;
 
-    let n_ctx = ctx.n_ctx() as usize;
+    let n_ctx = usize::try_from(ctx.n_ctx())?;
 
     if tokens_lines_list.iter().any(|tokens| n_ctx < tokens.len()) {
         bail!("one of the provided prompts exceeds the size of the context window");
     }
 
-    let mut batch = LlamaBatch::new(2048, document_count as i32);
+    let mut batch = LlamaBatch::new(2048, i32::try_from(document_count)?);
     let t_main_start = ggml_time_us();
 
     for (sequence_index, tokens) in tokens_lines_list.iter().enumerate() {
-        batch.add_sequence(tokens, sequence_index as i32, false)?;
+        batch.add_sequence(tokens, i32::try_from(sequence_index)?, false)?;
     }
 
     ctx.clear_kv_cache();
@@ -102,20 +96,21 @@ fn reranking_produces_scores() -> Result<()> {
 
     for sequence_index in 0..document_count {
         let raw_embedding = ctx
-            .embeddings_seq_ith(sequence_index as i32)
+            .embeddings_seq_ith(i32::try_from(sequence_index)?)
             .with_context(|| "failed to get sequence embeddings")?;
         embeddings.push(normalize(raw_embedding));
     }
 
     let t_main_end = ggml_time_us();
     let total_tokens: usize = tokens_lines_list.iter().map(Vec::len).sum();
-    let duration = Duration::from_micros((t_main_end - t_main_start) as u64);
+    let duration = Duration::from_micros(u64::try_from(t_main_end - t_main_start)?);
+
+    #[allow(clippy::cast_precision_loss)]
+    let tokens_per_second = total_tokens as f32 / duration.as_secs_f32();
 
     eprintln!(
-        "created embeddings for {} tokens in {:.2} s, speed {:.2} t/s",
-        total_tokens,
+        "created embeddings for {total_tokens} tokens in {:.2} s, speed {tokens_per_second:.2} t/s",
         duration.as_secs_f32(),
-        total_tokens as f32 / duration.as_secs_f32()
     );
 
     assert_eq!(
