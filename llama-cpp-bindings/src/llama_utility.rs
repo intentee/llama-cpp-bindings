@@ -122,7 +122,7 @@ pub fn ggml_time_us() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{status_is_ok, status_to_i32};
+    use super::{json_schema_to_grammar, status_is_ok, status_to_i32};
 
     #[test]
     fn status_is_ok_for_ok_status() {
@@ -143,5 +143,51 @@ mod tests {
         );
         assert_eq!(status_to_i32(42), 42);
         assert_eq!(status_to_i32(-1), -1);
+    }
+
+    #[test]
+    fn json_schema_to_grammar_simple_object() {
+        let schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}}"#;
+        let result = json_schema_to_grammar(schema);
+
+        assert!(result.is_ok(), "expected valid grammar, got {result:?}");
+        assert!(!result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn json_schema_to_grammar_with_null_byte_returns_error() {
+        let schema = "{\x00}";
+        let result = json_schema_to_grammar(schema);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn json_schema_to_grammar_simple_string() {
+        let schema = r#"{"type": "string"}"#;
+        let result = json_schema_to_grammar(schema);
+
+        assert!(result.is_ok(), "expected valid grammar, got {result:?}");
+    }
+
+    #[test]
+    fn llama_time_us_returns_positive() {
+        let time = super::llama_time_us();
+
+        assert!(time > 0);
+    }
+
+    #[test]
+    fn max_devices_is_non_negative() {
+        let devices = super::max_devices();
+
+        assert!(devices > 0);
+    }
+
+    #[test]
+    fn ggml_time_us_returns_positive() {
+        let time = super::ggml_time_us();
+
+        assert!(time > 0);
     }
 }

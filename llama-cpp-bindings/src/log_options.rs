@@ -190,4 +190,157 @@ mod tests {
         // Not sure where the extra \n comes from.
         assert_eq!(*logger.logs.lock().unwrap(), vec!["Hello world\n\n"]);
     }
+
+    #[test]
+    fn disabled_logs_are_suppressed() {
+        let logger = create_logger(tracing::Level::DEBUG);
+        let disabled_options = LogOptions::default().with_logs_enabled(false);
+        let mut log_state = Box::new(State::new(Module::LlamaCpp, disabled_options));
+        let log_ptr = log_state.as_mut() as *mut State as *mut std::os::raw::c_void;
+
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
+            c"Should not appear\n".as_ptr(),
+            log_ptr,
+        );
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_ERROR,
+            c"Also suppressed\n".as_ptr(),
+            log_ptr,
+        );
+
+        assert!(logger.logs.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn with_logs_enabled_true() {
+        let options = LogOptions::default().with_logs_enabled(true);
+
+        assert!(!options.disabled);
+    }
+
+    #[test]
+    fn with_logs_enabled_false() {
+        let options = LogOptions::default().with_logs_enabled(false);
+
+        assert!(options.disabled);
+    }
+
+    #[test]
+    fn info_level_log_emitted() {
+        let logger = create_logger(tracing::Level::INFO);
+        let mut log_state = Box::new(State::new(Module::LlamaCpp, LogOptions::default()));
+        let log_ptr = log_state.as_mut() as *mut State as *mut std::os::raw::c_void;
+
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
+            c"info message\n".as_ptr(),
+            log_ptr,
+        );
+
+        let logs = logger.logs.lock().unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].contains("info message"));
+    }
+
+    #[test]
+    fn warn_level_log_emitted() {
+        let logger = create_logger(tracing::Level::WARN);
+        let mut log_state = Box::new(State::new(Module::LlamaCpp, LogOptions::default()));
+        let log_ptr = log_state.as_mut() as *mut State as *mut std::os::raw::c_void;
+
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN,
+            c"warning message\n".as_ptr(),
+            log_ptr,
+        );
+
+        let logs = logger.logs.lock().unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].contains("warning message"));
+    }
+
+    #[test]
+    fn error_level_log_emitted() {
+        let logger = create_logger(tracing::Level::ERROR);
+        let mut log_state = Box::new(State::new(Module::LlamaCpp, LogOptions::default()));
+        let log_ptr = log_state.as_mut() as *mut State as *mut std::os::raw::c_void;
+
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_ERROR,
+            c"error message\n".as_ptr(),
+            log_ptr,
+        );
+
+        let logs = logger.logs.lock().unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].contains("error message"));
+    }
+
+    #[test]
+    fn debug_level_log_emitted_when_enabled() {
+        let logger = create_logger(tracing::Level::DEBUG);
+        let mut log_state = Box::new(State::new(Module::LlamaCpp, LogOptions::default()));
+        let log_ptr = log_state.as_mut() as *mut State as *mut std::os::raw::c_void;
+
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_DEBUG,
+            c"debug message\n".as_ptr(),
+            log_ptr,
+        );
+
+        let logs = logger.logs.lock().unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].contains("debug message"));
+    }
+
+    #[test]
+    fn submodule_extraction_from_log_text() {
+        let logger = create_logger(tracing::Level::INFO);
+        let mut log_state = Box::new(State::new(Module::LlamaCpp, LogOptions::default()));
+        let log_ptr = log_state.as_mut() as *mut State as *mut std::os::raw::c_void;
+
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
+            c"sampling: initialized\n".as_ptr(),
+            log_ptr,
+        );
+
+        let logs = logger.logs.lock().unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].contains("initialized"));
+    }
+
+    #[test]
+    fn multi_part_cont_log() {
+        let logger = create_logger(tracing::Level::INFO);
+        let mut log_state = Box::new(State::new(Module::LlamaCpp, LogOptions::default()));
+        let log_ptr = log_state.as_mut() as *mut State as *mut std::os::raw::c_void;
+
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
+            c"part1 ".as_ptr(),
+            log_ptr,
+        );
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_CONT,
+            c"part2 ".as_ptr(),
+            log_ptr,
+        );
+        logs_to_trace(
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_CONT,
+            c"part3\n".as_ptr(),
+            log_ptr,
+        );
+
+        let logs = logger.logs.lock().unwrap();
+
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].contains("part1 part2 part3"));
+    }
 }

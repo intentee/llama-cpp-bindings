@@ -848,4 +848,77 @@ mod tests {
 
         assert_eq!(sampler.get_seed(), 0xFFFF_FFFF);
     }
+
+    #[test]
+    fn debug_format() {
+        let sampler = LlamaSampler::greedy();
+        let debug_output = format!("{sampler:?}");
+
+        assert!(debug_output.contains("LlamaSamplerChain"));
+    }
+
+    #[test]
+    fn apply_modifies_data_array() {
+        use crate::token::LlamaToken;
+        use crate::token::data::LlamaTokenData;
+        use crate::token::data_array::LlamaTokenDataArray;
+
+        let sampler = LlamaSampler::greedy();
+        let mut data_array = LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0),
+                LlamaTokenData::new(LlamaToken::new(1), 5.0, 0.0),
+            ],
+            false,
+        );
+
+        sampler.apply(&mut data_array);
+
+        assert_eq!(data_array.selected_token(), Some(LlamaToken::new(1)));
+    }
+
+    #[test]
+    fn accept_does_not_panic() {
+        let mut sampler = LlamaSampler::chain_simple([
+            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::greedy(),
+        ]);
+
+        sampler.accept(crate::token::LlamaToken::new(1));
+    }
+
+    #[test]
+    fn try_accept_succeeds_on_penalties_sampler() {
+        let mut sampler = LlamaSampler::chain_simple([
+            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::greedy(),
+        ]);
+
+        let result = sampler.try_accept(crate::token::LlamaToken::new(42));
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn accept_many_multiple_tokens() {
+        use crate::token::LlamaToken;
+
+        let mut sampler = LlamaSampler::chain_simple([
+            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::greedy(),
+        ]);
+
+        sampler.accept_many([LlamaToken::new(1), LlamaToken::new(2), LlamaToken::new(3)]);
+    }
+
+    #[test]
+    fn with_tokens_builder_pattern() {
+        use crate::token::LlamaToken;
+
+        let _sampler = LlamaSampler::chain_simple([
+            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::greedy(),
+        ])
+        .with_tokens([LlamaToken::new(10), LlamaToken::new(20)]);
+    }
 }

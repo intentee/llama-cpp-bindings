@@ -288,3 +288,92 @@ impl State {
 
 pub static LLAMA_STATE: OnceLock<Box<State>> = OnceLock::new();
 pub static GGML_STATE: OnceLock<Box<State>> = OnceLock::new();
+
+#[cfg(test)]
+mod tests {
+    use super::{Module, State};
+    use crate::log_options::LogOptions;
+
+    #[test]
+    fn module_name_ggml() {
+        assert_eq!(Module::Ggml.name(), "ggml");
+    }
+
+    #[test]
+    fn module_name_llama_cpp() {
+        assert_eq!(Module::LlamaCpp.name(), "llama.cpp");
+    }
+
+    #[test]
+    fn state_new_creates_empty_buffer() {
+        let state = State::new(Module::LlamaCpp, LogOptions::default());
+        let buffer = state.buffered.lock().unwrap_or_else(|err| err.into_inner());
+
+        assert!(buffer.is_none());
+        assert!(!state.options.disabled);
+    }
+
+    #[test]
+    fn update_previous_level_for_disabled_log_stores_level() {
+        let state = State::new(Module::LlamaCpp, LogOptions::default());
+
+        state.update_previous_level_for_disabled_log(llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN);
+
+        let stored = state
+            .previous_level
+            .load(std::sync::atomic::Ordering::Relaxed);
+
+        assert_eq!(stored, llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN as i32);
+    }
+
+    #[test]
+    fn update_previous_level_ignores_cont() {
+        let state = State::new(Module::LlamaCpp, LogOptions::default());
+
+        state.update_previous_level_for_disabled_log(llama_cpp_bindings_sys::GGML_LOG_LEVEL_ERROR);
+        state.update_previous_level_for_disabled_log(llama_cpp_bindings_sys::GGML_LOG_LEVEL_CONT);
+
+        let stored = state
+            .previous_level
+            .load(std::sync::atomic::Ordering::Relaxed);
+
+        assert_eq!(stored, llama_cpp_bindings_sys::GGML_LOG_LEVEL_ERROR as i32);
+    }
+
+    #[test]
+    fn buffer_non_cont_sets_buffering_flag() {
+        let state = State::new(Module::LlamaCpp, LogOptions::default());
+
+        state.buffer_non_cont(llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO, "partial");
+
+        assert!(
+            state
+                .is_buffering
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
+
+        let buffer = state.buffered.lock().unwrap_or_else(|err| err.into_inner());
+
+        assert!(buffer.is_some());
+        let (level, text) = buffer.as_ref().unwrap();
+
+        assert_eq!(*level, llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO);
+        assert_eq!(text, "partial");
+    }
+
+    #[test]
+    fn cont_buffered_log_appends_to_existing_buffer() {
+        let state = State::new(Module::LlamaCpp, LogOptions::default());
+
+        state.buffer_non_cont(llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO, "hello ");
+
+        state.cont_buffered_log("world");
+
+        let buffer = state.buffered.lock().unwrap_or_else(|err| err.into_inner());
+
+        assert!(buffer.is_some());
+        let (_, text) = buffer.as_ref().unwrap();
+
+        assert_eq!(text, "hello world");
+    }
+}
