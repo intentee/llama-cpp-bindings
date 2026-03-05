@@ -14,6 +14,7 @@ pub mod context;
 pub mod error;
 pub mod llama_backend;
 pub mod llama_backend_device;
+pub mod llama_backend_numa_strategy;
 pub mod llama_batch;
 pub mod llama_utility_ggml_time_us;
 pub mod llama_utility_json_schema_to_grammar;
@@ -25,7 +26,7 @@ pub mod llama_utility_status_is_ok;
 pub mod llama_utility_status_to_i32;
 #[cfg(feature = "llguidance")]
 pub mod llguidance_sampler;
-pub(crate) mod log;
+pub mod log;
 pub mod log_options;
 pub mod model;
 #[cfg(feature = "mtmd")]

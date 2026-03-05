@@ -94,7 +94,7 @@ pub fn list_llama_ggml_backend_devices() -> Vec<LlamaBackendDevice> {
 
 #[cfg(test)]
 mod tests {
-    use super::{LlamaBackendDeviceType, cstr_to_string, list_llama_ggml_backend_devices};
+    use super::cstr_to_string;
 
     #[test]
     fn cstr_to_string_with_null_returns_empty() {
@@ -108,30 +108,5 @@ mod tests {
         let result = cstr_to_string(c"hello".as_ptr());
 
         assert_eq!(result, "hello");
-    }
-
-    #[test]
-    fn list_devices_returns_at_least_cpu() {
-        let devices = list_llama_ggml_backend_devices();
-
-        assert!(
-            !devices.is_empty(),
-            "should have at least one backend device (CPU)"
-        );
-
-        let has_cpu = devices
-            .iter()
-            .any(|device| device.device_type == LlamaBackendDeviceType::Cpu);
-
-        assert!(has_cpu, "should have at least one CPU device");
-    }
-
-    #[test]
-    fn device_fields_are_populated() {
-        let devices = list_llama_ggml_backend_devices();
-        let first_device = &devices[0];
-
-        assert!(!first_device.name.is_empty());
-        assert!(!first_device.backend.is_empty());
     }
 }

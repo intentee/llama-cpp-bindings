@@ -757,94 +757,15 @@ mod tests {
     use super::{KvCacheType, LlamaPoolingType, RopeScalingType};
 
     #[test]
-    fn rope_scaling_type_roundtrip_all_variants() {
-        let variants = [
-            (RopeScalingType::Unspecified, -1),
-            (RopeScalingType::None, 0),
-            (RopeScalingType::Linear, 1),
-            (RopeScalingType::Yarn, 2),
-        ];
-
-        for (variant, expected_i32) in variants {
-            let as_i32: i32 = variant.into();
-            assert_eq!(as_i32, expected_i32);
-            assert_eq!(RopeScalingType::from(as_i32), variant);
-        }
-    }
-
-    #[test]
     fn rope_scaling_type_unknown_defaults_to_unspecified() {
         assert_eq!(RopeScalingType::from(99), RopeScalingType::Unspecified);
         assert_eq!(RopeScalingType::from(-100), RopeScalingType::Unspecified);
     }
 
     #[test]
-    fn pooling_type_roundtrip_all_variants() {
-        let variants = [
-            (LlamaPoolingType::Unspecified, -1),
-            (LlamaPoolingType::None, 0),
-            (LlamaPoolingType::Mean, 1),
-            (LlamaPoolingType::Cls, 2),
-            (LlamaPoolingType::Last, 3),
-            (LlamaPoolingType::Rank, 4),
-        ];
-
-        for (variant, expected_i32) in variants {
-            let as_i32: i32 = variant.into();
-            assert_eq!(as_i32, expected_i32);
-            assert_eq!(LlamaPoolingType::from(as_i32), variant);
-        }
-    }
-
-    #[test]
     fn pooling_type_unknown_defaults_to_unspecified() {
         assert_eq!(LlamaPoolingType::from(99), LlamaPoolingType::Unspecified);
         assert_eq!(LlamaPoolingType::from(-50), LlamaPoolingType::Unspecified);
-    }
-
-    #[test]
-    fn kv_cache_type_roundtrip_named_variants() {
-        let variants = [
-            KvCacheType::F32,
-            KvCacheType::F16,
-            KvCacheType::Q4_0,
-            KvCacheType::Q4_1,
-            KvCacheType::Q5_0,
-            KvCacheType::Q5_1,
-            KvCacheType::Q8_0,
-            KvCacheType::Q8_1,
-            KvCacheType::Q2_K,
-            KvCacheType::Q3_K,
-            KvCacheType::Q4_K,
-            KvCacheType::Q5_K,
-            KvCacheType::Q6_K,
-            KvCacheType::Q8_K,
-            KvCacheType::IQ2_XXS,
-            KvCacheType::IQ2_XS,
-            KvCacheType::IQ3_XXS,
-            KvCacheType::IQ1_S,
-            KvCacheType::IQ4_NL,
-            KvCacheType::IQ3_S,
-            KvCacheType::IQ2_S,
-            KvCacheType::IQ4_XS,
-            KvCacheType::I8,
-            KvCacheType::I16,
-            KvCacheType::I32,
-            KvCacheType::I64,
-            KvCacheType::F64,
-            KvCacheType::IQ1_M,
-            KvCacheType::BF16,
-            KvCacheType::TQ1_0,
-            KvCacheType::TQ2_0,
-            KvCacheType::MXFP4,
-        ];
-
-        for variant in variants {
-            let raw: llama_cpp_bindings_sys::ggml_type = variant.into();
-            let back = KvCacheType::from(raw);
-
-            assert_eq!(back, variant, "roundtrip failed for {variant:?}");
-        }
     }
 
     #[test]

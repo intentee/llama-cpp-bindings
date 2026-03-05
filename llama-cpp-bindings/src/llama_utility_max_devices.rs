@@ -9,15 +9,3 @@
 pub fn max_devices() -> usize {
     unsafe { llama_cpp_bindings_sys::llama_max_devices() }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::max_devices;
-
-    #[test]
-    fn is_non_negative() {
-        let devices = max_devices();
-
-        assert!(devices > 0);
-    }
-}

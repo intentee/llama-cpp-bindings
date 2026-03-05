@@ -24,6 +24,7 @@ pub mod llama_chat_template;
 pub mod llama_lora_adapter;
 pub mod params;
 pub mod rope_type;
+pub mod split_mode;
 pub mod vocab_type;
 
 pub use add_bos::AddBos;

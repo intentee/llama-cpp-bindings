@@ -3,119 +3,14 @@
 use crate::LlamaCppError;
 use crate::error::ModelParamsError;
 use crate::model::params::kv_overrides::KvOverrides;
+use crate::model::split_mode::{LlamaSplitMode, LlamaSplitModeParseError};
 use std::ffi::{CStr, c_char};
 use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
 use std::ptr::null;
 
 pub mod kv_overrides;
-
-const LLAMA_SPLIT_MODE_NONE: i8 = llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_NONE as i8;
-const LLAMA_SPLIT_MODE_LAYER: i8 = llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_LAYER as i8;
-const LLAMA_SPLIT_MODE_ROW: i8 = llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_ROW as i8;
-
-/// A rusty wrapper around `llama_split_mode`.
-#[repr(i8)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum LlamaSplitMode {
-    /// Single GPU
-    None = LLAMA_SPLIT_MODE_NONE,
-    /// Split layers and KV across GPUs
-    Layer = LLAMA_SPLIT_MODE_LAYER,
-    /// Split layers and KV across GPUs, use tensor parallelism if supported
-    Row = LLAMA_SPLIT_MODE_ROW,
-}
-
-/// An error that occurs when unknown split mode is encountered.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LlamaSplitModeParseError {
-    /// The value that could not be parsed as a split mode.
-    pub value: i32,
-    /// Additional context about why the parse failed.
-    pub context: String,
-}
-
-/// Create a `LlamaSplitMode` from a `i32`.
-///
-/// # Errors
-/// Returns `LlamaSplitModeParseError` if the value does not correspond to a valid `LlamaSplitMode`.
-impl TryFrom<i32> for LlamaSplitMode {
-    type Error = LlamaSplitModeParseError;
-
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
-        let i8_value = value
-            .try_into()
-            .map_err(|convert_error| LlamaSplitModeParseError {
-                value,
-                context: format!("i32 to i8 conversion failed: {convert_error}"),
-            })?;
-        match i8_value {
-            LLAMA_SPLIT_MODE_NONE => Ok(Self::None),
-            LLAMA_SPLIT_MODE_LAYER => Ok(Self::Layer),
-            LLAMA_SPLIT_MODE_ROW => Ok(Self::Row),
-            _ => Err(LlamaSplitModeParseError {
-                value,
-                context: format!("unknown split mode value: {value}"),
-            }),
-        }
-    }
-}
-
-/// Create a `LlamaSplitMode` from a `u32`.
-///
-/// # Errors
-/// Returns `LlamaSplitModeParseError` if the value does not correspond to a valid `LlamaSplitMode`.
-impl TryFrom<u32> for LlamaSplitMode {
-    type Error = LlamaSplitModeParseError;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        let clamped_value = i32::try_from(value).unwrap_or(i32::MAX);
-        let i8_value = value
-            .try_into()
-            .map_err(|convert_error| LlamaSplitModeParseError {
-                value: clamped_value,
-                context: format!("u32 to i8 conversion failed: {convert_error}"),
-            })?;
-        match i8_value {
-            LLAMA_SPLIT_MODE_NONE => Ok(Self::None),
-            LLAMA_SPLIT_MODE_LAYER => Ok(Self::Layer),
-            LLAMA_SPLIT_MODE_ROW => Ok(Self::Row),
-            _ => Err(LlamaSplitModeParseError {
-                value: clamped_value,
-                context: format!("unknown split mode value: {value}"),
-            }),
-        }
-    }
-}
-
-/// Create a `i32` from a `LlamaSplitMode`.
-impl From<LlamaSplitMode> for i32 {
-    fn from(value: LlamaSplitMode) -> Self {
-        match value {
-            LlamaSplitMode::None => LLAMA_SPLIT_MODE_NONE.into(),
-            LlamaSplitMode::Layer => LLAMA_SPLIT_MODE_LAYER.into(),
-            LlamaSplitMode::Row => LLAMA_SPLIT_MODE_ROW.into(),
-        }
-    }
-}
-
-/// Create a `u32` from a `LlamaSplitMode`.
-impl From<LlamaSplitMode> for u32 {
-    fn from(value: LlamaSplitMode) -> Self {
-        match value {
-            LlamaSplitMode::None => LLAMA_SPLIT_MODE_NONE as u32,
-            LlamaSplitMode::Layer => LLAMA_SPLIT_MODE_LAYER as u32,
-            LlamaSplitMode::Row => LLAMA_SPLIT_MODE_ROW as u32,
-        }
-    }
-}
-
-/// The default split mode is `Layer` in llama.cpp.
-impl Default for LlamaSplitMode {
-    fn default() -> Self {
-        LlamaSplitMode::Layer
-    }
-}
+pub mod param_override_value;
 
 /// The maximum number of devices supported.
 ///
@@ -176,7 +71,7 @@ impl LlamaModelParams {
     /// # use std::ffi::{CStr, CString};
     /// use std::pin::pin;
     /// # use llama_cpp_bindings::model::params::LlamaModelParams;
-    /// # use llama_cpp_bindings::model::params::kv_overrides::ParamOverrideValue;
+    /// # use llama_cpp_bindings::model::params::param_override_value::ParamOverrideValue;
     /// let mut params = pin!(LlamaModelParams::default());
     /// let key = CString::new("key").expect("CString::new failed");
     /// params.as_mut().append_kv_override(&key, ParamOverrideValue::Int(50)).unwrap();
@@ -192,7 +87,7 @@ impl LlamaModelParams {
     pub fn append_kv_override(
         mut self: Pin<&mut Self>,
         key: &CStr,
-        value: kv_overrides::ParamOverrideValue,
+        value: param_override_value::ParamOverrideValue,
     ) -> Result<(), ModelParamsError> {
         let kv_override = self
             .kv_overrides
@@ -440,7 +335,7 @@ impl LlamaModelParams {
 /// Default parameters for `LlamaModel`. (as defined in llama.cpp by `llama_model_default_params`)
 /// ```
 /// # use llama_cpp_bindings::model::params::LlamaModelParams;
-/// use llama_cpp_bindings::model::params::LlamaSplitMode;
+/// use llama_cpp_bindings::model::split_mode::LlamaSplitMode;
 /// let params = LlamaModelParams::default();
 /// assert_eq!(params.n_gpu_layers(), -1, "n_gpu_layers should be -1");
 /// assert_eq!(params.main_gpu(), 0, "main_gpu should be 0");
@@ -474,51 +369,9 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
-    use super::{LlamaModelParams, LlamaSplitMode};
+    use crate::model::split_mode::LlamaSplitMode;
 
-    #[test]
-    fn split_mode_into_i32_roundtrip() {
-        let variants = [
-            (LlamaSplitMode::None, 0_i32),
-            (LlamaSplitMode::Layer, 1_i32),
-            (LlamaSplitMode::Row, 2_i32),
-        ];
-
-        for (variant, expected) in variants {
-            let as_i32: i32 = variant.into();
-            assert_eq!(as_i32, expected);
-            assert_eq!(LlamaSplitMode::try_from(as_i32), Ok(variant));
-        }
-    }
-
-    #[test]
-    fn split_mode_into_u32_roundtrip() {
-        let variants = [
-            (LlamaSplitMode::None, 0_u32),
-            (LlamaSplitMode::Layer, 1_u32),
-            (LlamaSplitMode::Row, 2_u32),
-        ];
-
-        for (variant, expected) in variants {
-            let as_u32: u32 = variant.into();
-            assert_eq!(as_u32, expected);
-            assert_eq!(LlamaSplitMode::try_from(as_u32), Ok(variant));
-        }
-    }
-
-    #[test]
-    fn split_mode_try_from_i32_invalid() {
-        let result = LlamaSplitMode::try_from(99_i32);
-
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert_eq!(error.value, 99);
-    }
-
-    #[test]
-    fn split_mode_try_from_u32_invalid() {
-        assert!(LlamaSplitMode::try_from(99_u32).is_err());
-    }
+    use super::LlamaModelParams;
 
     #[test]
     fn default_params_have_expected_values() {

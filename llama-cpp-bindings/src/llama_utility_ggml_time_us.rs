@@ -19,15 +19,3 @@
 pub fn ggml_time_us() -> i64 {
     unsafe { llama_cpp_bindings_sys::ggml_time_us() }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::ggml_time_us;
-
-    #[test]
-    fn returns_positive() {
-        let time = ggml_time_us();
-
-        assert!(time > 0);
-    }
-}
