@@ -307,6 +307,20 @@ pub enum SamplerAcceptError {
     FfiError(i32),
 }
 
+/// Errors that can occur when modifying model parameters.
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+pub enum ModelParamsError {
+    /// The internal override vector has no available slot.
+    #[error("No available slot in override vector")]
+    NoAvailableSlot,
+    /// The first override slot is not empty.
+    #[error("Override slot is not empty")]
+    SlotNotEmpty,
+    /// A character in the key is not a valid C char.
+    #[error("Invalid character in key: {0}")]
+    InvalidCharacterInKey(u8),
+}
+
 /// Failed to sample a token from the data array.
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum TokenSamplingError {

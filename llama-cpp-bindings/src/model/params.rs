@@ -1,6 +1,7 @@
 //! A safe wrapper around `llama_model_params`.
 
 use crate::LlamaCppError;
+use crate::error::ModelParamsError;
 use crate::model::params::kv_overrides::KvOverrides;
 use std::ffi::{CStr, c_char};
 use std::fmt::{Debug, Formatter};
@@ -149,6 +150,10 @@ impl LlamaModelParams {
 
     /// Appends a key-value override to the model parameters. It must be pinned as this creates a self-referential struct.
     ///
+    /// # Errors
+    /// Returns [`ModelParamsError`] if the internal override vector has no available slot,
+    /// the slot is not empty, or the key contains invalid characters.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -158,7 +163,7 @@ impl LlamaModelParams {
     /// # use llama_cpp_bindings::model::params::kv_overrides::ParamOverrideValue;
     /// let mut params = pin!(LlamaModelParams::default());
     /// let key = CString::new("key").expect("CString::new failed");
-    /// params.as_mut().append_kv_override(&key, ParamOverrideValue::Int(50));
+    /// params.as_mut().append_kv_override(&key, ParamOverrideValue::Int(50)).unwrap();
     ///
     /// let kv_overrides = params.kv_overrides().into_iter().collect::<Vec<_>>();
     /// assert_eq!(kv_overrides.len(), 1);
@@ -172,17 +177,19 @@ impl LlamaModelParams {
         mut self: Pin<&mut Self>,
         key: &CStr,
         value: kv_overrides::ParamOverrideValue,
-    ) {
+    ) -> Result<(), ModelParamsError> {
         let kv_override = self
             .kv_overrides
             .get_mut(0)
-            .expect("kv_overrides did not have a next allocated");
+            .ok_or(ModelParamsError::NoAvailableSlot)?;
 
-        assert_eq!(kv_override.key[0], 0, "last kv_override was not empty");
+        if kv_override.key[0] != 0 {
+            return Err(ModelParamsError::SlotNotEmpty);
+        }
 
-        // There should be some way to do this without iterating over everything.
-        for (i, &c) in key.to_bytes_with_nul().iter().enumerate() {
-            kv_override.key[i] = c_char::try_from(c).expect("invalid character in key");
+        for (i, &byte) in key.to_bytes_with_nul().iter().enumerate() {
+            kv_override.key[i] = c_char::try_from(byte)
+                .map_err(|_| ModelParamsError::InvalidCharacterInKey(byte))?;
         }
 
         kv_override.tag = value.tag();
@@ -203,34 +210,42 @@ impl LlamaModelParams {
 
         // set the pointer to the (potentially) new vector
         self.params.kv_overrides = self.kv_overrides.as_ptr();
+
+        Ok(())
     }
 }
 
 impl LlamaModelParams {
-    /// Adds buffer type overides to move all mixture-of-experts layers to CPU.
-    pub fn add_cpu_moe_override(self: Pin<&mut Self>) {
-        self.add_cpu_buft_override(c"\\.ffn_(up|down|gate)_(ch|)exps");
+    /// Adds buffer type overrides to move all mixture-of-experts layers to CPU.
+    ///
+    /// # Errors
+    /// Returns [`ModelParamsError`] if the internal override vector has no available slot,
+    /// the slot is not empty, or the key contains invalid characters.
+    pub fn add_cpu_moe_override(self: Pin<&mut Self>) -> Result<(), ModelParamsError> {
+        self.add_cpu_buft_override(c"\\.ffn_(up|down|gate)_(ch|)exps")
     }
 
     /// Appends a buffer type override to the model parameters, to move layers matching pattern to CPU.
     /// It must be pinned as this creates a self-referential struct.
     ///
-    /// # Panics
-    /// Panics if the internal buffer type overrides vector is empty or the last entry is not empty.
-    pub fn add_cpu_buft_override(mut self: Pin<&mut Self>, key: &CStr) {
+    /// # Errors
+    /// Returns [`ModelParamsError`] if the internal override vector has no available slot,
+    /// the slot is not empty, or the key contains invalid characters.
+    pub fn add_cpu_buft_override(
+        mut self: Pin<&mut Self>,
+        key: &CStr,
+    ) -> Result<(), ModelParamsError> {
         let buft_override = self
             .buft_overrides
             .get_mut(0)
-            .expect("buft_overrides did not have a next allocated");
+            .ok_or(ModelParamsError::NoAvailableSlot)?;
 
-        assert!(
-            buft_override.pattern.is_null(),
-            "last buft_override was not empty"
-        );
+        if !buft_override.pattern.is_null() {
+            return Err(ModelParamsError::SlotNotEmpty);
+        }
 
-        // There should be some way to do this without iterating over everything.
-        for &c in key.to_bytes_with_nul() {
-            c_char::try_from(c).expect("invalid character in key");
+        for &byte in key.to_bytes_with_nul() {
+            c_char::try_from(byte).map_err(|_| ModelParamsError::InvalidCharacterInKey(byte))?;
         }
 
         buft_override.pattern = key.as_ptr();
@@ -248,6 +263,8 @@ impl LlamaModelParams {
 
         // set the pointer to the (potentially) new vector
         self.params.tensor_buft_overrides = self.buft_overrides.as_ptr();
+
+        Ok(())
     }
 }
 
