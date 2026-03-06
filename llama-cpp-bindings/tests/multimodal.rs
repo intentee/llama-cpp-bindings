@@ -27,7 +27,6 @@ fn download_file(filename: &str) -> Result<std::path::PathBuf> {
 
 fn fixtures_path(filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
         .join("fixtures")
         .join(filename)
 }
