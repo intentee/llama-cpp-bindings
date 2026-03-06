@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn tag_float() {
-        let value = ParamOverrideValue::Float(3.14);
+        let value = ParamOverrideValue::Float(1.23);
 
         assert_eq!(
             value.tag(),
@@ -124,11 +124,11 @@ mod tests {
 
     #[test]
     fn value_float_roundtrip() {
-        let value = ParamOverrideValue::Float(2.718);
+        let value = ParamOverrideValue::Float(1.23);
         let ffi_value = value.value();
         let result = unsafe { ffi_value.val_f64 };
 
-        assert!((result - 2.718).abs() < f64::EPSILON);
+        assert!((result - 1.23).abs() < f64::EPSILON);
     }
 
     #[test]

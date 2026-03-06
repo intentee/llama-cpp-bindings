@@ -73,8 +73,7 @@ mod tests {
 
     #[test]
     fn try_from_valid_single_attribute() {
-        let attrs =
-            LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_NORMAL as u32);
+        let attrs = LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_NORMAL);
 
         assert!(attrs.is_ok());
         assert!(
