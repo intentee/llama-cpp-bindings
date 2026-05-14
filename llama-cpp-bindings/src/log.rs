@@ -87,6 +87,26 @@ impl Module {
     }
 }
 
+#[cfg(target_env = "msvc")]
+const fn ggml_log_level_to_i32(level: llama_cpp_bindings_sys::ggml_log_level) -> i32 {
+    level
+}
+
+#[cfg(not(target_env = "msvc"))]
+const fn ggml_log_level_to_i32(level: llama_cpp_bindings_sys::ggml_log_level) -> i32 {
+    level.cast_signed()
+}
+
+#[cfg(target_env = "msvc")]
+const fn ggml_log_level_from_i32(stored: i32) -> llama_cpp_bindings_sys::ggml_log_level {
+    stored
+}
+
+#[cfg(not(target_env = "msvc"))]
+const fn ggml_log_level_from_i32(stored: i32) -> llama_cpp_bindings_sys::ggml_log_level {
+    stored.cast_unsigned()
+}
+
 fn meta_for_level(
     level: llama_cpp_bindings_sys::ggml_log_level,
 ) -> Option<(&'static Metadata<'static>, &'static OverridableFields)> {
@@ -194,10 +214,10 @@ impl State {
                 *lock = Some((previous_log_level, buffer));
             }
         } else {
-            let level = self
-                .previous_level
-                .load(std::sync::atomic::Ordering::Acquire)
-                as llama_cpp_bindings_sys::ggml_log_level;
+            let level = ggml_log_level_from_i32(
+                self.previous_level
+                    .load(std::sync::atomic::Ordering::Acquire),
+            );
             tracing::warn!(
                 inferred_level = level,
                 text = text,
@@ -231,8 +251,10 @@ impl State {
 
         self.is_buffering
             .store(true, std::sync::atomic::Ordering::Release);
-        self.previous_level
-            .store(level as i32, std::sync::atomic::Ordering::Release);
+        self.previous_level.store(
+            ggml_log_level_to_i32(level),
+            std::sync::atomic::Ordering::Release,
+        );
     }
 
     /// Emit a normal unbuffered log message (not the CONT log level and the text ends with a newline).
@@ -254,8 +276,10 @@ impl State {
             self.generate_log(buf_level, buf_text.as_str());
         }
 
-        self.previous_level
-            .store(level as i32, std::sync::atomic::Ordering::Release);
+        self.previous_level.store(
+            ggml_log_level_to_i32(level),
+            std::sync::atomic::Ordering::Release,
+        );
 
         let (text, _trailing_newline) = text.split_at(text.len() - 1);
 
@@ -294,8 +318,10 @@ impl State {
         level: llama_cpp_bindings_sys::ggml_log_level,
     ) {
         if level != llama_cpp_bindings_sys::GGML_LOG_LEVEL_CONT {
-            self.previous_level
-                .store(level as i32, std::sync::atomic::Ordering::Release);
+            self.previous_level.store(
+                ggml_log_level_to_i32(level),
+                std::sync::atomic::Ordering::Release,
+            );
         }
     }
 
@@ -304,9 +330,10 @@ impl State {
     /// being checked on their own.
     pub fn is_enabled_for_level(&self, level: llama_cpp_bindings_sys::ggml_log_level) -> bool {
         let level = if level == llama_cpp_bindings_sys::GGML_LOG_LEVEL_CONT {
-            self.previous_level
-                .load(std::sync::atomic::Ordering::Relaxed)
-                as llama_cpp_bindings_sys::ggml_log_level
+            ggml_log_level_from_i32(
+                self.previous_level
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            )
         } else {
             level
         };
@@ -397,7 +424,7 @@ mod tests {
 
     use tracing_subscriber::util::SubscriberInitExt;
 
-    use super::{Module, State, logs_to_trace};
+    use super::{Module, State, ggml_log_level_to_i32, logs_to_trace};
     use crate::log_options::LogOptions;
 
     #[test]
@@ -435,7 +462,7 @@ mod tests {
 
         assert_eq!(
             stored,
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN as i32
+            ggml_log_level_to_i32(llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN)
         );
     }
 
@@ -452,7 +479,7 @@ mod tests {
 
         assert_eq!(
             stored,
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_ERROR as i32
+            ggml_log_level_to_i32(llama_cpp_bindings_sys::GGML_LOG_LEVEL_ERROR)
         );
     }
 
