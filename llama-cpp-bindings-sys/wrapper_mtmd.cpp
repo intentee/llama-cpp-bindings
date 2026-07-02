@@ -6,9 +6,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <exception>
-#include <new>
-#include <string>
 
 extern "C" auto llama_rs_mtmd_init_from_file(
     const char * mmproj_path,

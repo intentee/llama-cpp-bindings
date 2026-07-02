@@ -3,10 +3,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
 #include <gsl/span>
 #include <memory>
-#include <new>
 #include <regex>
 #include <stdexcept>
 #include <string>

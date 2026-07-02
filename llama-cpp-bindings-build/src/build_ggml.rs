@@ -49,12 +49,11 @@ fn configure_and_install_ggml(
 ) -> PathBuf {
     let mut config = Config::new(wrapper_cmake_dir);
 
-    config.define(
-        "GGML_SOURCE_DIR",
-        ggml_src
-            .to_str()
-            .expect("ggml source path must be valid UTF-8"),
-    );
+    let ggml_source_dir = ggml_src
+        .to_str()
+        .expect("ggml source path must be valid UTF-8")
+        .replace('\\', "/");
+    config.define("GGML_SOURCE_DIR", &ggml_source_dir);
     config.define("GGML_BUILD_TESTS", "OFF");
     config.define("GGML_BUILD_EXAMPLES", "OFF");
     config.cflag("-w");

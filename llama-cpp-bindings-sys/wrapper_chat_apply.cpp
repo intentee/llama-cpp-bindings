@@ -8,9 +8,7 @@
 #include "wrapper_utils.h"
 
 #include <cstddef>
-#include <exception>
 #include <gsl/span>
-#include <new>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <utility>

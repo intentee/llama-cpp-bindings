@@ -7,9 +7,7 @@
 #include <nlohmann/json_fwd.hpp>
 #include "wrapper_utils.h"
 
-#include <exception>
 #include <memory>
-#include <new>
 #include <string>
 #include <utility>
 

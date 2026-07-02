@@ -10,9 +10,7 @@
 #include "wrapper_utils.h"
 
 #include <cstddef>
-#include <exception>
 #include <memory>
-#include <new>
 #include <string>
 #include <utility>
 

@@ -9,9 +9,7 @@
 #include "llama.cpp/include/llama.h"
 #include "wrapper_utils.h"
 
-#include <exception>
 #include <memory>
-#include <new>
 #include <string>
 
 using wrapper_helpers::token_text_or_empty;
