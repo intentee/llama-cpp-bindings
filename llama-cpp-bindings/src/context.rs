@@ -682,16 +682,14 @@ mod unit_tests {
     }
 
     #[test]
-    fn decode_nonzero_code_with_zero_value_returns_unrecognized_status_error() {
+    fn decode_returned_error_code_with_zero_return_value_maps_to_dedicated_error() {
         assert_eq!(
             decode_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_DECODE_RETURNED_ERROR_CODE,
                 0,
                 std::ptr::null_mut(),
             ),
-            Err(DecodeError::UnrecognizedStatusCode {
-                code: i64::from(llama_cpp_bindings_sys::LLAMA_RS_DECODE_RETURNED_ERROR_CODE)
-            }),
+            Err(DecodeError::ReturnedErrorCodeWasZero),
         );
     }
 
@@ -781,16 +779,14 @@ mod unit_tests {
     }
 
     #[test]
-    fn encode_nonzero_code_with_zero_value_returns_unrecognized_status_error() {
+    fn encode_returned_error_code_with_zero_return_value_maps_to_dedicated_error() {
         assert_eq!(
             encode_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_ENCODE_RETURNED_ERROR_CODE,
                 0,
                 std::ptr::null_mut(),
             ),
-            Err(EncodeError::UnrecognizedStatusCode {
-                code: i64::from(llama_cpp_bindings_sys::LLAMA_RS_ENCODE_RETURNED_ERROR_CODE)
-            }),
+            Err(EncodeError::ReturnedErrorCodeWasZero),
         );
     }
 
