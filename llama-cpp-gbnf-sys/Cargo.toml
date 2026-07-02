@@ -13,6 +13,9 @@ llama-cpp-bindings-sys = { workspace = true }
 [build-dependencies]
 llama-cpp-bindings-build = { workspace = true }
 
+[features]
+fault-injection = []
+
 [lints.rust]
 unsafe_op_in_unsafe_fn = "warn"
 unused_qualifications = "warn"

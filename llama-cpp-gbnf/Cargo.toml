@@ -10,6 +10,9 @@ repository.workspace = true
 llama-cpp-gbnf-sys = { workspace = true }
 thiserror = { workspace = true }
 
+[features]
+fault-injection = ["llama-cpp-gbnf-sys/fault-injection"]
+
 [lints.rust]
 unsafe_op_in_unsafe_fn = "warn"
 unused_qualifications = "warn"

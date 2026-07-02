@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use crate::target_os::TargetOs;
 
+const LLAMA_BINDINGS_SYS_RELATIVE_PATH: &str = "../llama-cpp-bindings-sys";
 const LLAMA_SUBMODULE_RELATIVE_PATH: &str = "../llama-cpp-bindings-sys/llama.cpp";
 
 pub fn build_gbnf() {
@@ -15,6 +16,7 @@ pub fn build_gbnf() {
 
     let manifest = PathBuf::from(&manifest_dir);
     let llama_src = manifest.join(LLAMA_SUBMODULE_RELATIVE_PATH);
+    let bindings_sys = manifest.join(LLAMA_BINDINGS_SYS_RELATIVE_PATH);
     let grammar_source_dir = llama_src.join("src");
 
     assert!(
@@ -25,27 +27,42 @@ pub fn build_gbnf() {
 
     register_rebuild_triggers(&manifest);
 
-    compile_wrapper(&manifest, &llama_src, &grammar_source_dir, &target_os);
+    compile_wrapper(
+        &manifest,
+        &llama_src,
+        &bindings_sys,
+        &grammar_source_dir,
+        &target_os,
+    );
 }
 
 fn compile_wrapper(
     manifest: &Path,
     llama_src: &Path,
+    bindings_sys: &Path,
     grammar_source_dir: &Path,
     target_os: &TargetOs,
 ) {
+    let fault_injection = env::var_os("CARGO_FEATURE_FAULT_INJECTION").is_some();
+
     let mut build = cc::Build::new();
 
     build
         .cpp(true)
         .warnings(false)
         .include(manifest)
+        .include(bindings_sys)
         .include(llama_src.join("include"))
         .include(grammar_source_dir)
         .include(llama_src.join("ggml/include"))
         .flag_if_supported("-std=c++17")
         .pic(true)
         .file(manifest.join("wrapper_gbnf.cpp"));
+
+    if fault_injection {
+        build.define("GBNF_FAULT_INJECTION", None);
+        build.file(manifest.join("alloc_fault.cpp"));
+    }
 
     if target_os.is_msvc() {
         build.flag("/std:c++17");
@@ -57,12 +74,13 @@ fn compile_wrapper(
 
 fn register_rebuild_triggers(manifest: &Path) {
     println!("cargo:rerun-if-changed=build.rs");
-    println!(
-        "cargo:rerun-if-changed={}",
-        manifest.join("wrapper_gbnf.cpp").display()
-    );
-    println!(
-        "cargo:rerun-if-changed={}",
-        manifest.join("wrapper_gbnf.h").display()
-    );
+
+    for source in [
+        "wrapper_gbnf.cpp",
+        "wrapper_gbnf.h",
+        "alloc_fault.cpp",
+        "alloc_fault.h",
+    ] {
+        println!("cargo:rerun-if-changed={}", manifest.join(source).display());
+    }
 }

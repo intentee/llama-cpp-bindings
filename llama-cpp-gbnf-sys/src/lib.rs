@@ -15,6 +15,16 @@ pub enum LlamaRsGbnfParseStatus {
     EmptyRuleSet,
     RootSymbolMissing,
     LeftRecursion,
+    AllocationFailed,
+    ThrewCxxException,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlamaRsGbnfRuntimeStatus {
+    Ok = 0,
+    AllocationFailed,
+    ThrewCxxException,
 }
 
 unsafe extern "C" {
@@ -28,15 +38,25 @@ unsafe extern "C" {
         grammar: *mut llama_grammar,
         piece: *const c_char,
         piece_len: usize,
-    );
+    ) -> LlamaRsGbnfRuntimeStatus;
 
     pub fn llama_rs_gbnf_is_accepting(grammar: *mut llama_grammar) -> bool;
 
     pub fn llama_rs_gbnf_is_rejected(grammar: *mut llama_grammar) -> bool;
 
-    pub fn llama_rs_gbnf_clone(grammar: *const llama_grammar) -> *mut llama_grammar;
+    pub fn llama_rs_gbnf_clone(
+        grammar: *const llama_grammar,
+        out_clone: *mut *mut llama_grammar,
+    ) -> LlamaRsGbnfRuntimeStatus;
 
     pub fn llama_rs_gbnf_free(grammar: *mut llama_grammar);
+}
+
+#[cfg(feature = "fault-injection")]
+unsafe extern "C" {
+    pub fn gbnf_alloc_fault_arm(skip_ops: usize);
+
+    pub fn gbnf_alloc_fault_disarm();
 }
 
 #[cfg(test)]

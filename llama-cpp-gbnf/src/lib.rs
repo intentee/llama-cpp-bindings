@@ -10,7 +10,7 @@
     )
 )]
 
+pub mod gbnf_error;
 pub mod gbnf_grammar;
 pub mod gbnf_matcher;
-pub mod gbnf_parse_error;
 pub mod validation;

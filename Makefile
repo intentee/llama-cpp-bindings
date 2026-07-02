@@ -1,6 +1,7 @@
 TEST_DEVICE ?=
 
 DEVICE_FEATURE = $(if $(TEST_DEVICE),--features $(TEST_DEVICE),)
+FAULT_INJECTION_FEATURE = --features llama-cpp-gbnf/fault-injection
 
 node_modules: package-lock.json
 	npm ci
@@ -25,7 +26,7 @@ clippy:
 .PHONY: coverage
 coverage: node_modules
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov --no-report --no-fail-fast --workspace $(DEVICE_FEATURE)
+	cargo llvm-cov --no-report --no-fail-fast --workspace $(FAULT_INJECTION_FEATURE) $(DEVICE_FEATURE)
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report

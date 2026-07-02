@@ -4,8 +4,8 @@ use std::fmt::{Debug, Formatter};
 
 use llama_cpp_error_recorder::error_scope::ErrorScope;
 use llama_cpp_error_recorder::recorded_error::RecordedError;
+use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_gbnf::gbnf_grammar::GbnfGrammar;
-use llama_cpp_gbnf::gbnf_parse_error::GbnfParseError;
 
 use crate::context::LlamaContext;
 use crate::error::grammar_error::GrammarError;
@@ -458,7 +458,7 @@ impl LlamaSampler {
         grammar_str: &str,
         grammar_root: &str,
     ) -> Result<(CString, CString), GrammarError> {
-        if let Err(GbnfParseError::RootSymbolMissing { .. }) =
+        if let Err(GbnfError::RootSymbolMissing { .. }) =
             GbnfGrammar::parse(grammar_str, grammar_root)
         {
             return Err(GrammarError::RootNotFound);
