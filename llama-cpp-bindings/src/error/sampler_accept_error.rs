@@ -7,5 +7,5 @@ pub enum SamplerAcceptError {
     #[error("the grammar sampler callback failed during accept: {message}")]
     GrammarCallbackFailed { message: String },
     #[error("the FFI wrapper returned an unrecognized status code {code}")]
-    UnrecognizedStatusCode { code: u32 },
+    UnrecognizedStatusCode { code: i64 },
 }

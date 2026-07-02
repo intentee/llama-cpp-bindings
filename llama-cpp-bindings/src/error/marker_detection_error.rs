@@ -23,5 +23,5 @@ pub enum MarkerDetectionError {
     #[error("the chat template could not be retrieved for tool-call marker detection: {0}")]
     ChatTemplateUnavailable(#[source] ChatTemplateError),
     #[error("the FFI wrapper returned an unrecognized status code {code}")]
-    UnrecognizedStatusCode { code: u32 },
+    UnrecognizedStatusCode { code: i64 },
 }

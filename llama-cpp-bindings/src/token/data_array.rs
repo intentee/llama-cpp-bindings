@@ -23,7 +23,9 @@ fn sampler_apply_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(SamplerApplyError::Reported { message })
         }
-        other => Err(SamplerApplyError::UnrecognizedStatusCode { code: other }),
+        other => Err(SamplerApplyError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -199,7 +201,7 @@ mod tests {
                 std::ptr::null_mut(),
             ),
             Err(SamplerApplyError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_sampler_apply_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_sampler_apply_status::MAX)
             }),
         );
     }

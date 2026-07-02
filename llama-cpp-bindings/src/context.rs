@@ -59,7 +59,9 @@ fn new_context_with_model_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(LlamaContextLoadError::Reported { message })
         }
-        other => Err(LlamaContextLoadError::UnrecognizedStatusCode { code: other }),
+        other => Err(LlamaContextLoadError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -71,8 +73,12 @@ fn decode_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_RETURNED_ERROR_CODE => {
-            NonZeroI32::new(out_return_code).map_or(
-                Err(DecodeError::UnrecognizedStatusCode { code: status }),
+            NonZeroI32::new(out_return_code).map_or_else(
+                || {
+                    Err(DecodeError::UnrecognizedStatusCode {
+                        code: i64::from(status),
+                    })
+                },
                 |code| Err(DecodeError::from(code)),
             )
         }
@@ -87,7 +93,9 @@ fn decode_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(DecodeError::Reported { message })
         }
-        other => Err(DecodeError::UnrecognizedStatusCode { code: other }),
+        other => Err(DecodeError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -102,8 +110,12 @@ fn encode_status_to_result(
             Err(EncodeError::ModelHasNoEncoder)
         }
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_RETURNED_ERROR_CODE => {
-            NonZeroI32::new(out_return_code).map_or(
-                Err(EncodeError::UnrecognizedStatusCode { code: status }),
+            NonZeroI32::new(out_return_code).map_or_else(
+                || {
+                    Err(EncodeError::UnrecognizedStatusCode {
+                        code: i64::from(status),
+                    })
+                },
                 |code| Err(EncodeError::from(code)),
             )
         }
@@ -118,7 +130,9 @@ fn encode_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(EncodeError::Reported { message })
         }
-        other => Err(EncodeError::UnrecognizedStatusCode { code: other }),
+        other => Err(EncodeError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -608,7 +622,9 @@ mod unit_tests {
                 std::ptr::null_mut(),
             ),
             Err(LlamaContextLoadError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_new_context_with_model_status::MAX
+                code: i64::from(
+                    llama_cpp_bindings_sys::llama_rs_new_context_with_model_status::MAX
+                )
             }),
         );
     }
@@ -682,7 +698,7 @@ mod unit_tests {
                 std::ptr::null_mut(),
             ),
             Err(DecodeError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::LLAMA_RS_DECODE_RETURNED_ERROR_CODE,
+                code: i64::from(llama_cpp_bindings_sys::LLAMA_RS_DECODE_RETURNED_ERROR_CODE)
             }),
         );
     }
@@ -696,7 +712,7 @@ mod unit_tests {
                 std::ptr::null_mut(),
             ),
             Err(DecodeError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_decode_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_decode_status::MAX)
             }),
         );
     }
@@ -781,7 +797,7 @@ mod unit_tests {
                 std::ptr::null_mut(),
             ),
             Err(EncodeError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::LLAMA_RS_ENCODE_RETURNED_ERROR_CODE,
+                code: i64::from(llama_cpp_bindings_sys::LLAMA_RS_ENCODE_RETURNED_ERROR_CODE)
             }),
         );
     }
@@ -795,7 +811,7 @@ mod unit_tests {
                 std::ptr::null_mut(),
             ),
             Err(EncodeError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_encode_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_encode_status::MAX)
             }),
         );
     }

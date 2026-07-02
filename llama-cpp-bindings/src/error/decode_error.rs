@@ -20,7 +20,7 @@ pub enum DecodeError {
     #[error("{message}")]
     Reported { message: String },
     #[error("the FFI wrapper returned an unrecognized status code {code}")]
-    UnrecognizedStatusCode { code: u32 },
+    UnrecognizedStatusCode { code: i64 },
 }
 
 impl From<NonZeroI32> for DecodeError {

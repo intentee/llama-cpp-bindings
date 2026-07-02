@@ -37,7 +37,9 @@ fn kv_cache_seq_add_status_to_result(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(KvCacheSeqAddError::Reported { message })
         }
-        other => Err(KvCacheSeqAddError::UnrecognizedStatusCode { code: other }),
+        other => Err(KvCacheSeqAddError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -60,7 +62,9 @@ fn kv_cache_seq_div_status_to_result(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(KvCacheSeqDivError::Reported { message })
         }
-        other => Err(KvCacheSeqDivError::UnrecognizedStatusCode { code: other }),
+        other => Err(KvCacheSeqDivError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -265,7 +269,7 @@ mod tests {
                 ptr::null_mut(),
             ),
             Err(KvCacheSeqAddError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_memory_seq_add_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_memory_seq_add_status::MAX)
             }),
         );
     }
@@ -334,7 +338,7 @@ mod tests {
                 ptr::null_mut(),
             ),
             Err(KvCacheSeqDivError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_memory_seq_div_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_memory_seq_div_status::MAX)
             }),
         );
     }

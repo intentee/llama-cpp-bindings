@@ -54,7 +54,9 @@ fn eval_chunk_single_status_to_result(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdEvalError::Reported { message })
         }
-        other => Err(MtmdEvalError::UnrecognizedStatusCode { code: other }),
+        other => Err(MtmdEvalError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -289,7 +291,9 @@ mod unit_tests {
                 std::ptr::null_mut(),
             ),
             Err(MtmdEvalError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status::MAX
+                code: i64::from(
+                    llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status::MAX
+                )
             }),
         );
     }

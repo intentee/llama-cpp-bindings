@@ -53,7 +53,7 @@ unsafe fn from_file_status_to_result(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdBitmapError::Reported { message })
         }
-        other => Err(MtmdBitmapError::UnrecognizedStatusCode { code: other }),
+        other => Err(MtmdBitmapError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 

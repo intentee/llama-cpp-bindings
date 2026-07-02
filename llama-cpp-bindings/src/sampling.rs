@@ -31,7 +31,9 @@ fn check_sampler_accept_status(
             let message = unsafe { read_and_free_cpp_error(error_ptr) };
             Err(SamplerAcceptError::GrammarStateCorrupted { message })
         }
-        other => Err(SamplerAcceptError::UnrecognizedStatusCode { code: other }),
+        other => Err(SamplerAcceptError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -49,7 +51,9 @@ fn sampler_sample_status_to_result(
             let message = unsafe { read_and_free_cpp_error(error_ptr) };
             Err(SampleError::Reported { message })
         }
-        other => Err(SampleError::UnrecognizedStatusCode { code: other }),
+        other => Err(SampleError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -70,7 +74,9 @@ fn sampler_init_grammar_status_to_result(
             let message = unsafe { read_and_free_cpp_error(error_ptr) };
             Err(GrammarError::Reported { message })
         }
-        other => Err(GrammarError::UnrecognizedStatusCode { code: other }),
+        other => Err(GrammarError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -94,7 +100,7 @@ fn sampler_init_grammar_lazy_status_to_result(
             Err(GrammarError::Reported { message })
         }
         other => {
-            Err(GrammarError::UnrecognizedStatusCode { code: other })
+            Err(GrammarError::UnrecognizedStatusCode { code: i64::from(other) })
         }
     }
 }
@@ -122,7 +128,7 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
             let message = unsafe { read_and_free_cpp_error(error_ptr) };
             Err(GrammarError::Reported { message })
         }
-        other => Err(GrammarError::UnrecognizedStatusCode { code: other }),
+        other => Err(GrammarError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -921,7 +927,7 @@ mod tests {
                 std::ptr::null_mut(),
             ),
             Err(SamplerAcceptError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_NULL_SAMPLER_ARG
+                code: i64::from(llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_NULL_SAMPLER_ARG)
             }),
         );
     }
@@ -962,7 +968,7 @@ mod tests {
                 std::ptr::null_mut(),
             ),
             Err(SampleError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_CTX_ARG
+                code: i64::from(llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_CTX_ARG)
             }),
         );
     }

@@ -31,7 +31,9 @@ unsafe fn json_schema_to_grammar_status_to_result(
             let message = unsafe { read_and_free_cpp_error(error_ptr) };
             Err(JsonSchemaToGrammarError::Reported { message })
         }
-        other => Err(JsonSchemaToGrammarError::UnrecognizedStatusCode { code: other }),
+        other => Err(JsonSchemaToGrammarError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -227,7 +229,9 @@ mod tests {
                 )
             },
             Err(JsonSchemaToGrammarError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status::MAX
+                code: i64::from(
+                    llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status::MAX
+                )
             }),
         );
     }

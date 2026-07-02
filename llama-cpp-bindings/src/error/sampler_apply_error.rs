@@ -7,5 +7,5 @@ pub enum SamplerApplyError {
     #[error("the sampler threw a C++ exception while applying to the token data array: {message}")]
     Reported { message: String },
     #[error("the FFI wrapper returned an unrecognized status code {code}")]
-    UnrecognizedStatusCode { code: u32 },
+    UnrecognizedStatusCode { code: i64 },
 }

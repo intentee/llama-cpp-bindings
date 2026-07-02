@@ -39,7 +39,9 @@ fn map_tokenize_status(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdTokenizeError::Reported { message })
         }
-        other => Err(MtmdTokenizeError::UnrecognizedStatusCode { code: other }),
+        other => Err(MtmdTokenizeError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -60,7 +62,9 @@ fn map_encode_chunk_status(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdEncodeError::Reported { message })
         }
-        other => Err(MtmdEncodeError::UnrecognizedStatusCode { code: other }),
+        other => Err(MtmdEncodeError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -89,7 +93,9 @@ fn map_init_from_file_status(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdInitError::Reported { message })
         }
-        other => Err(MtmdInitError::UnrecognizedStatusCode { code: other }),
+        other => Err(MtmdInitError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -340,9 +346,7 @@ mod unit_tests {
                 0,
                 std::ptr::null_mut(),
             ),
-            Err(MtmdTokenizeError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO,
-            }),
+            Err(MtmdTokenizeError::UnrecognizedStatusCode { code: i64::from(llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO) }),
         );
     }
 
@@ -355,7 +359,7 @@ mod unit_tests {
                 std::ptr::null_mut(),
             ),
             Err(MtmdTokenizeError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_mtmd_tokenize_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_mtmd_tokenize_status::MAX)
             }),
         );
     }
@@ -396,7 +400,7 @@ mod unit_tests {
                 std::ptr::null_mut(),
             ),
             Err(MtmdEncodeError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk_status::MAX)
             }),
         );
     }

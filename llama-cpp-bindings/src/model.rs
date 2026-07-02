@@ -148,7 +148,9 @@ unsafe fn load_model_from_file_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(LlamaModelLoadError::Reported { message })
         }
-        other => Err(LlamaModelLoadError::UnrecognizedStatusCode { code: other }),
+        other => Err(LlamaModelLoadError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -173,7 +175,9 @@ unsafe fn parse_chat_message_status_to_result(
             unsafe { *out_error = ptr::null_mut() };
             Err(ParseChatMessageError::ParseFailed { message })
         }
-        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: other }),
+        other => Err(ParseChatMessageError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -187,7 +191,11 @@ unsafe fn chat_parser_create_status_to_result(
 ) -> Result<ChatParserHandle, ParseChatMessageError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_OK => NonNull::new(parser).map_or_else(
-            || Err(ParseChatMessageError::UnrecognizedStatusCode { code: status }),
+            || {
+                Err(ParseChatMessageError::UnrecognizedStatusCode {
+                    code: i64::from(status),
+                })
+            },
             |parser| Ok(ChatParserHandle { parser }),
         ),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_MODEL_HAS_NO_CHAT_TEMPLATE => {
@@ -204,7 +212,9 @@ unsafe fn chat_parser_create_status_to_result(
             unsafe { *out_error = ptr::null_mut() };
             Err(ParseChatMessageError::ParseFailed { message })
         }
-        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: other }),
+        other => Err(ParseChatMessageError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -240,7 +250,9 @@ unsafe fn parsed_chat_free_status_to_result(
         (Ok(_), other) => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(free_error) };
-            Err(ParseChatMessageError::UnrecognizedStatusCode { code: other })
+            Err(ParseChatMessageError::UnrecognizedStatusCode {
+                code: i64::from(other),
+            })
         }
         (Err(parse_err), _) => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
@@ -310,7 +322,9 @@ unsafe fn apply_chat_template_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(ApplyChatTemplateError::Reported { message })
         }
-        other => Err(ApplyChatTemplateError::UnrecognizedStatusCode { code: other }),
+        other => Err(ApplyChatTemplateError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -1140,7 +1154,9 @@ unsafe fn parsed_chat_content_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(ParseChatMessageError::Reported { message })
         }
-        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: other }),
+        other => Err(ParseChatMessageError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -1180,7 +1196,7 @@ unsafe fn parsed_chat_reasoning_content_status_to_result(
                 unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(ParseChatMessageError::Reported { message })
         }
-        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: other }),
+        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -1218,7 +1234,7 @@ unsafe fn parsed_chat_tool_call_count_status_to_result(
                 unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(ParseChatMessageError::Reported { message })
         }
-        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: other }),
+        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -1262,7 +1278,7 @@ unsafe fn parsed_chat_tool_call_id_status_to_result(
                 unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(ParseChatMessageError::Reported { message })
         }
-        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: other }),
+        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -1308,7 +1324,7 @@ unsafe fn parsed_chat_tool_call_name_status_to_result(
                 unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(ParseChatMessageError::Reported { message })
         }
-        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: other }),
+        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -1354,7 +1370,7 @@ unsafe fn parsed_chat_tool_call_arguments_status_to_result(
                 unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(ParseChatMessageError::Reported { message })
         }
-        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: other }),
+        other => Err(ParseChatMessageError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -1456,7 +1472,7 @@ unsafe fn detect_reasoning_markers_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(MarkerDetectionError::ReasoningMarkerDetectionFailed { message })
         }
-        other => Err(MarkerDetectionError::UnrecognizedStatusCode { code: other }),
+        other => Err(MarkerDetectionError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -1522,7 +1538,9 @@ unsafe fn render_chat_template_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(MarkerDetectionError::ReasoningMarkerDetectionFailed { message })
         }
-        other => Err(MarkerDetectionError::UnrecognizedStatusCode { code: other }),
+        other => Err(MarkerDetectionError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -1613,7 +1631,7 @@ unsafe fn compute_tool_call_haystack_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(MarkerDetectionError::ToolCallHaystackComputationFailed { message })
         }
-        other => Err(MarkerDetectionError::UnrecognizedStatusCode { code: other }),
+        other => Err(MarkerDetectionError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -1663,7 +1681,7 @@ unsafe fn diagnose_tool_call_synthetic_renders_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(MarkerDetectionError::ToolCallSyntheticRenderDiagnosisFailed { message })
         }
-        other => Err(MarkerDetectionError::UnrecognizedStatusCode { code: other }),
+        other => Err(MarkerDetectionError::UnrecognizedStatusCode { code: i64::from(other) }),
     }
 }
 
@@ -1728,7 +1746,9 @@ unsafe fn tokenize_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(StringToTokenError::Reported { message })
         }
-        other => Err(StringToTokenError::UnrecognizedStatusCode { code: other }),
+        other => Err(StringToTokenError::UnrecognizedStatusCode {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -2989,7 +3009,7 @@ mod ffi_status_mapping_tests {
                 )
             },
             Err(MarkerDetectionError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_render_chat_template_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_render_chat_template_status::MAX)
             }),
         );
     }
@@ -3053,7 +3073,9 @@ mod ffi_status_mapping_tests {
                 )
             },
             Err(MarkerDetectionError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers_status::MAX
+                code: i64::from(
+                    llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers_status::MAX
+                )
             }),
         );
     }
@@ -3113,7 +3135,9 @@ mod ffi_status_mapping_tests {
                 )
             },
             Err(MarkerDetectionError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_compute_tool_call_haystack_status::MAX
+                code: i64::from(
+                    llama_cpp_bindings_sys::llama_rs_compute_tool_call_haystack_status::MAX
+                )
             }),
         );
     }
@@ -3178,9 +3202,7 @@ mod ffi_status_mapping_tests {
                     ptr::null_mut(),
                 )
             },
-            Err(MarkerDetectionError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_diagnose_tool_call_synthetic_renders_status::MAX,
-            }),
+            Err(MarkerDetectionError::UnrecognizedStatusCode { code: i64::from(llama_cpp_bindings_sys::llama_rs_diagnose_tool_call_synthetic_renders_status::MAX) }),
         );
     }
 
@@ -3239,7 +3261,7 @@ mod ffi_status_mapping_tests {
                 )
             },
             Err(StringToTokenError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_tokenize_status::MAX
+                code: i64::from(llama_cpp_bindings_sys::llama_rs_tokenize_status::MAX)
             }),
         );
     }
@@ -3345,9 +3367,7 @@ mod ffi_status_mapping_tests {
                     ptr::null_mut(),
                 )
             },
-            Err(crate::error::apply_chat_template_error::ApplyChatTemplateError::UnrecognizedStatusCode {
-                code: llama_cpp_bindings_sys::llama_rs_apply_chat_template_status::MAX
-            }),
+            Err(crate::error::apply_chat_template_error::ApplyChatTemplateError::UnrecognizedStatusCode { code: i64::from(llama_cpp_bindings_sys::llama_rs_apply_chat_template_status::MAX) }),
         );
     }
 
