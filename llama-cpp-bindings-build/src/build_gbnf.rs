@@ -77,6 +77,7 @@ fn compile_wrapper(
     if target_os.is_msvc() {
         build.flag("/std:c++17");
         build.flag("/EHsc");
+        build.flag("/Gy");
     }
 
     build.compile("llama_cpp_gbnf_wrapper");
