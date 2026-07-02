@@ -8,7 +8,7 @@ repository.workspace = true
 links = "llama_cpp_gbnf"
 
 [dependencies]
-llama-cpp-ggml-sys = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
 
 [build-dependencies]
 llama-cpp-bindings-build = { workspace = true }

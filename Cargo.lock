@@ -1243,7 +1243,7 @@ name = "llama-cpp-gbnf-sys"
 version = "0.9.0"
 dependencies = [
  "llama-cpp-bindings-build",
- "llama-cpp-ggml-sys",
+ "llama-cpp-bindings-sys",
 ]
 
 [[package]]

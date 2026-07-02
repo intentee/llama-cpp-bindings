@@ -1,5 +1,7 @@
 use core::ffi::c_char;
 
+use llama_cpp_bindings_sys as _;
+
 #[repr(C)]
 pub struct llama_grammar {
     _opaque: [u8; 0],
