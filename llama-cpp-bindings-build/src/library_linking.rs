@@ -90,11 +90,19 @@ fn link_cmake_built_libraries(
         "static"
     };
 
+    let ggml_link_kind = if cfg!(feature = "system-ggml-static") {
+        "static"
+    } else if build_shared_libs || cfg!(feature = "system-ggml") {
+        "dylib"
+    } else {
+        "static"
+    };
+
     let lib_names = extract_lib_names(cmake_dir, build_shared_libs);
     assert!(!lib_names.is_empty(), "no libraries found in build output");
 
     link_llama_common_internal_libraries(cmake_dir, profile);
-    link_system_ggml_libraries(link_kind, target_os);
+    link_system_ggml_libraries(ggml_link_kind, target_os);
 
     for lib_name in lib_names {
         let link = format!("cargo:rustc-link-lib={link_kind}={lib_name}");
