@@ -74,11 +74,7 @@ fn decode_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_RETURNED_ERROR_CODE => {
             NonZeroI32::new(out_return_code).map_or_else(
-                || {
-                    Err(DecodeError::UnrecognizedStatusCode {
-                        code: i64::from(status),
-                    })
-                },
+                || Err(DecodeError::ReturnedErrorCodeWasZero),
                 |code| Err(DecodeError::from(code)),
             )
         }
@@ -111,11 +107,7 @@ fn encode_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_RETURNED_ERROR_CODE => {
             NonZeroI32::new(out_return_code).map_or_else(
-                || {
-                    Err(EncodeError::UnrecognizedStatusCode {
-                        code: i64::from(status),
-                    })
-                },
+                || Err(EncodeError::ReturnedErrorCodeWasZero),
                 |code| Err(EncodeError::from(code)),
             )
         }

@@ -19,6 +19,8 @@ pub enum EncodeError {
     NotEnoughMemory,
     #[error("{message}")]
     Reported { message: String },
+    #[error("the encode wrapper reported a returned error code but the return code was zero")]
+    ReturnedErrorCodeWasZero,
     #[error("the FFI wrapper returned an unrecognized status code {code}")]
     UnrecognizedStatusCode { code: i64 },
 }
