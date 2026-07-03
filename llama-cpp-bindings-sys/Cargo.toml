@@ -10,10 +10,11 @@ links = "llama"
 include = [
     "wrapper*.h",
     "wrapper_*.cpp",
-    "marker_probes/**/*.h",
-    "marker_probes/**/*.cpp",
     "build.rs",
     "/src",
+
+    "/GSL/include/**/*",
+    "/GSL/LICENSE",
 
     "/llama.cpp/common/**/*.h",
     "/llama.cpp/common/**/*.hpp",
