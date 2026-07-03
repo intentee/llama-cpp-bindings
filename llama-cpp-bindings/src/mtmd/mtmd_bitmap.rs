@@ -41,7 +41,7 @@ unsafe fn from_file_status_to_result(
             })?;
             Ok(MtmdBitmap { bitmap })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LOAD_FAILED => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_RETURNED_NULL => {
             Err(MtmdBitmapError::FileUnreadable {
                 path: PathBuf::from(path),
             })
@@ -49,11 +49,13 @@ unsafe fn from_file_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdBitmapError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdBitmapError::Reported { message })
         }
-        other => Err(MtmdBitmapError::UnrecognizedStatusCode { code: i64::from(other) }),
+        other => unreachable!(
+            "llama_rs_mtmd_bitmap_init_from_file returned unrecognized status: {other}"
+        ),
     }
 }
 
@@ -325,10 +327,10 @@ mod tests {
     }
 
     #[test]
-    fn from_file_status_load_failed_returns_file_unreadable() {
+    fn from_file_status_vendored_returned_null_returns_file_unreadable() {
         let result = unsafe {
             super::from_file_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LOAD_FAILED,
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_RETURNED_NULL,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
                 "/missing/image.png",
@@ -358,10 +360,10 @@ mod tests {
     }
 
     #[test]
-    fn from_file_status_threw_cxx_exception_returns_reported() {
+    fn from_file_status_vendored_threw_cxx_exception_returns_reported() {
         let result = unsafe {
             super::from_file_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_THREW_CXX_EXCEPTION,
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
                 "/missing/image.png",
@@ -377,17 +379,15 @@ mod tests {
     }
 
     #[test]
-    fn from_file_status_null_ctx_arg_returns_unrecognized_status_error_as_unreachable() {
-        assert!(matches!(
-            unsafe {
-                super::from_file_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG,
-                    std::ptr::null_mut(),
-                    std::ptr::null_mut(),
-                    "/missing/image.png",
-                )
-            },
-            Err(MtmdBitmapError::UnrecognizedStatusCode { .. })
-        ));
+    #[should_panic(expected = "returned unrecognized status")]
+    fn from_file_status_null_ctx_arg_panics_as_unreachable() {
+        let _result = unsafe {
+            super::from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                "/missing/image.png",
+            )
+        };
     }
 }

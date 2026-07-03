@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString, c_char};
 
-use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
+use crate::error::JsonSchemaToGrammarError;
 use crate::ffi_error_reader::read_and_free_cpp_error;
 
 /// # Safety
@@ -27,13 +27,13 @@ unsafe fn json_schema_to_grammar_status_to_result(
             let message = unsafe { read_and_free_cpp_error(error_ptr) };
             Err(JsonSchemaToGrammarError::InvalidSchema { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_error(error_ptr) };
             Err(JsonSchemaToGrammarError::Reported { message })
         }
-        other => Err(JsonSchemaToGrammarError::UnrecognizedStatusCode {
-            code: i64::from(other),
-        }),
+        other => {
+            unreachable!("llama_rs_json_schema_to_grammar returned unrecognized status {other}")
+        }
     }
 }
 
@@ -64,7 +64,7 @@ mod tests {
 
     use super::json_schema_to_grammar;
     use super::json_schema_to_grammar_status_to_result;
-    use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
+    use crate::error::JsonSchemaToGrammarError;
 
     unsafe extern "C" {
         fn strdup(source: *const c_char) -> *mut c_char;
@@ -149,10 +149,10 @@ mod tests {
     }
 
     #[test]
-    fn exception_status_returns_reported() {
+    fn vendored_exception_status_returns_reported() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_THREW_CXX_EXCEPTION,
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
             )
@@ -219,20 +219,14 @@ mod tests {
     }
 
     #[test]
-    fn unrecognized_status_returns_unrecognized_status_error() {
-        assert_eq!(
-            unsafe {
-                json_schema_to_grammar_status_to_result(
-                    llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status::MAX,
-                    std::ptr::null_mut(),
-                    std::ptr::null_mut(),
-                )
-            },
-            Err(JsonSchemaToGrammarError::UnrecognizedStatusCode {
-                code: i64::from(
-                    llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status::MAX
-                )
-            }),
-        );
+    #[should_panic(expected = "llama_rs_json_schema_to_grammar returned unrecognized status")]
+    fn unrecognized_status_panics() {
+        let _result = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status::MAX,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
     }
 }

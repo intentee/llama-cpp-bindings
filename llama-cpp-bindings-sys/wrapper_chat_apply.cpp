@@ -8,7 +8,9 @@
 #include "wrapper_utils.h"
 
 #include <cstddef>
+#include <exception>
 #include <gsl/span>
+#include <new>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
@@ -85,10 +87,19 @@ extern "C" auto llama_rs_apply_chat_template(
         }
 
         return LLAMA_RS_APPLY_CHAT_TEMPLATE_OK;
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED;
+    } catch (const std::exception & ex) {
+        *out_error = llama_rs_dup_string(std::string(ex.what()));
+        if (*out_error == nullptr) {
+            return LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED;
+        }
+        return LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_THREW_CXX_EXCEPTION;
     } catch (...) {
-        return llama_rs_capture_exception(
-            out_error,
-            LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED,
-            LLAMA_RS_APPLY_CHAT_TEMPLATE_THREW_CXX_EXCEPTION);
+        *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
+        if (*out_error == nullptr) {
+            return LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED;
+        }
+        return LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_THREW_CXX_EXCEPTION;
     }
 }

@@ -1,13 +1,6 @@
 #![cfg_attr(
     not(test),
-    deny(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::panic,
-        clippy::unreachable,
-        clippy::todo,
-        clippy::unimplemented
-    )
+    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
 mod expand;

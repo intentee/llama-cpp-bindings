@@ -1,6 +1,6 @@
-use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::ParsedToolCall;
 
-use crate::error::tool_call_format_failure::ToolCallFormatFailure;
+use crate::error::ToolCallFormatFailure;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ToolCallFormatOutcome {

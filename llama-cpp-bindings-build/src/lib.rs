@@ -1,13 +1,8 @@
 mod android_ndk;
 mod bindgen_config;
-pub mod build_gbnf;
-pub mod build_ggml;
-mod cmake_common;
 mod cmake_config;
 mod cpp_wrapper;
 mod cpp_wrapper_mtmd;
-mod ggml_cmake_options;
-mod ggml_system_paths;
 mod glob_paths;
 mod library_asset_extraction;
 mod library_linking;
@@ -21,7 +16,6 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 use android_ndk::AndroidNdk;
-use ggml_system_paths::GgmlSystemPaths;
 use stable_cmake_build_dir::stable_cmake_build_dir;
 use target_os::TargetOs;
 
@@ -46,7 +40,6 @@ pub struct BuildContext {
     pub profile: String,
     pub static_crt: bool,
     pub android_ndk: Option<AndroidNdk>,
-    pub ggml_system: Option<GgmlSystemPaths>,
 }
 
 impl BuildContext {
@@ -81,12 +74,6 @@ impl BuildContext {
             None
         };
 
-        let ggml_system = if cfg!(feature = "system-ggml") {
-            Some(GgmlSystemPaths::from_env())
-        } else {
-            None
-        };
-
         let cmake_dir = stable_cmake_build_dir(
             &target_dir,
             &target_triple,
@@ -113,7 +100,6 @@ impl BuildContext {
             profile,
             static_crt,
             android_ndk,
-            ggml_system,
         }
     }
 }
@@ -163,7 +149,6 @@ pub fn build() {
         &context.target_triple,
         context.build_shared_libs,
         &context.profile,
-        context.ggml_system.as_ref(),
     );
 
     if context.build_shared_libs {
