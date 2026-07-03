@@ -1226,6 +1226,14 @@ name = "llama-cpp-error-recorder"
 version = "0.9.0"
 
 [[package]]
+name = "llama-cpp-gbnf"
+version = "0.9.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "thiserror",
+]
+
+[[package]]
 name = "llama-cpp-log-decoder"
 version = "0.9.0"
 
