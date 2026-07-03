@@ -19,6 +19,10 @@ pub enum DecodeError {
     NotEnoughMemory,
     #[error("{message}")]
     Reported { message: String },
+    #[error("the decode wrapper reported a returned error code but the return code was zero")]
+    ReturnedErrorCodeWasZero,
+    #[error("the FFI wrapper returned an unrecognized status code {code}")]
+    UnrecognizedStatusCode { code: i64 },
 }
 
 impl From<NonZeroI32> for DecodeError {

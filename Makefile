@@ -1,6 +1,7 @@
 TEST_DEVICE ?=
 
 DEVICE_FEATURE = $(if $(TEST_DEVICE),--features $(TEST_DEVICE),)
+FAULT_INJECTION_FEATURE = --features llama-cpp-gbnf/fault-injection
 
 node_modules: package-lock.json
 	npm ci
@@ -9,9 +10,14 @@ node_modules: package-lock.json
 package-lock.json: package.json
 	npm install --package-lock-only
 
+.PHONY: clean
+clean:
+	cargo clean
+	rm -rf node_modules
+
 .PHONY: clean.cmake
 clean.cmake:
-	rm -rf target/llama-cpp-cmake-build
+	rm -rf target/*/llama-cpp-cmake-build
 
 .PHONY: clippy
 clippy:
@@ -20,7 +26,7 @@ clippy:
 .PHONY: coverage
 coverage: node_modules
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov --no-report --no-fail-fast --workspace $(DEVICE_FEATURE)
+	cargo llvm-cov --no-report --no-fail-fast --workspace $(FAULT_INJECTION_FEATURE) $(DEVICE_FEATURE)
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
@@ -28,6 +34,8 @@ coverage: node_modules
 		--workspace-root $(CURDIR) \
 		--gated llama-cpp-bindings=98 \
 		--gated llama-cpp-error-recorder=100 \
+		--gated llama-cpp-gbnf=100 \
+		--gated llama-cpp-gbnf-sys=100 \
 		--gated llama-cpp-log-decoder=100 \
 		--gated llama-cpp-bindings-types=100 \
 		--gated llama-cpp-test-harness=99 \
@@ -83,4 +91,4 @@ test.llms: clippy test.harness test.unit
 
 .PHONY: test.unit
 test.unit: clippy
-	cargo test -p llama-cpp-log-decoder -p llama-cpp-bindings $(DEVICE_FEATURE)
+	cargo test -p llama-cpp-gbnf -p llama-cpp-gbnf-sys -p llama-cpp-log-decoder -p llama-cpp-bindings $(DEVICE_FEATURE)
