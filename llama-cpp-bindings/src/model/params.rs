@@ -397,7 +397,18 @@ impl Default for LlamaModelParams {
 mod tests {
     use crate::model::split_mode::LlamaSplitMode;
 
-    use super::LlamaModelParams;
+    use super::{LLAMA_CPP_MAX_DEVICES, LlamaModelParams};
+
+    #[test]
+    fn device_capacity_is_not_smaller_than_the_upstream_limit() {
+        let upstream_limit = crate::max_devices();
+        assert!(
+            LLAMA_CPP_MAX_DEVICES >= upstream_limit,
+            "LLAMA_CPP_MAX_DEVICES ({LLAMA_CPP_MAX_DEVICES}) backs a fixed-size device array and is \
+             clamped against llama_max_devices() ({upstream_limit}); once upstream reports more \
+             devices than the array can hold, the extra devices are dropped without any error"
+        );
+    }
 
     #[test]
     fn default_params_have_expected_values() {
