@@ -149,10 +149,9 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
         "model should generate a description from combined image and audio input"
     );
     assert!(
-        description.contains("sheep"),
-        "the gemma-4 vision encoder recognizes the image animals as \"sheep\" (a borderline \
-         llama/sheep call the b9585 clip-encoder update tipped); the assertion tracks the \
-         model's actual recognition so it still proves the image reached the output; \
+        description.contains("alpaca"),
+        "the gemma-4 vision encoder recognizes the image animals as \"alpaca\"; the assertion \
+         tracks the model's actual recognition so it still proves the image reached the output; \
          got: {description:?}"
     );
     assert!(
