@@ -43,6 +43,9 @@ pub enum KvCacheType {
     TQ1_0,
     TQ2_0,
     MXFP4,
+    NVFP4,
+    Q1_0,
+    Q2_0,
 }
 
 impl From<KvCacheType> for llama_cpp_bindings_sys::ggml_type {
@@ -81,6 +84,9 @@ impl From<KvCacheType> for llama_cpp_bindings_sys::ggml_type {
             KvCacheType::TQ1_0 => llama_cpp_bindings_sys::GGML_TYPE_TQ1_0,
             KvCacheType::TQ2_0 => llama_cpp_bindings_sys::GGML_TYPE_TQ2_0,
             KvCacheType::MXFP4 => llama_cpp_bindings_sys::GGML_TYPE_MXFP4,
+            KvCacheType::NVFP4 => llama_cpp_bindings_sys::GGML_TYPE_NVFP4,
+            KvCacheType::Q1_0 => llama_cpp_bindings_sys::GGML_TYPE_Q1_0,
+            KvCacheType::Q2_0 => llama_cpp_bindings_sys::GGML_TYPE_Q2_0,
         }
     }
 }
@@ -120,6 +126,9 @@ impl From<llama_cpp_bindings_sys::ggml_type> for KvCacheType {
             x if x == llama_cpp_bindings_sys::GGML_TYPE_TQ1_0 => Self::TQ1_0,
             x if x == llama_cpp_bindings_sys::GGML_TYPE_TQ2_0 => Self::TQ2_0,
             x if x == llama_cpp_bindings_sys::GGML_TYPE_MXFP4 => Self::MXFP4,
+            x if x == llama_cpp_bindings_sys::GGML_TYPE_NVFP4 => Self::NVFP4,
+            x if x == llama_cpp_bindings_sys::GGML_TYPE_Q1_0 => Self::Q1_0,
+            x if x == llama_cpp_bindings_sys::GGML_TYPE_Q2_0 => Self::Q2_0,
             _ => Self::Unknown(value),
         }
     }
@@ -127,7 +136,33 @@ impl From<llama_cpp_bindings_sys::ggml_type> for KvCacheType {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CStr;
+
     use super::KvCacheType;
+
+    fn is_retired_upstream_slot(raw: llama_cpp_bindings_sys::ggml_type) -> bool {
+        unsafe { llama_cpp_bindings_sys::ggml_blck_size(raw) == 0 }
+    }
+
+    #[test]
+    fn every_upstream_ggml_type_maps_to_a_known_variant() {
+        for raw in 0..llama_cpp_bindings_sys::GGML_TYPE_COUNT {
+            if is_retired_upstream_slot(raw) {
+                continue;
+            }
+
+            let upstream_name =
+                unsafe { CStr::from_ptr(llama_cpp_bindings_sys::ggml_type_name(raw)) }
+                    .to_string_lossy();
+
+            assert_ne!(
+                KvCacheType::from(raw),
+                KvCacheType::Unknown(raw),
+                "ggml type {raw} (\"{upstream_name}\") has no matching KvCacheType variant, so it \
+                 silently degrades to Unknown; add the variant to keep the mirror complete"
+            );
+        }
+    }
 
     #[test]
     fn kv_cache_type_unknown_preserves_raw_value() {
@@ -176,6 +211,9 @@ mod tests {
             KvCacheType::TQ1_0,
             KvCacheType::TQ2_0,
             KvCacheType::MXFP4,
+            KvCacheType::NVFP4,
+            KvCacheType::Q1_0,
+            KvCacheType::Q2_0,
         ];
 
         for variant in all_variants {
