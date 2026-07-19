@@ -112,21 +112,10 @@ fn cargo_target_dir(out_dir: &Path) -> PathBuf {
         .to_path_buf()
 }
 
-fn set_cmake_parallelism() {
-    if let Ok(parallelism) = std::thread::available_parallelism() {
-        // SAFETY: build scripts are single-threaded, so modifying env is safe.
-        unsafe {
-            env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", parallelism.get().to_string());
-        }
-    }
-}
-
 pub fn build() {
     let context = BuildContext::detect();
 
     rebuild_tracking::register_rebuild_triggers(&context.llama_src);
-
-    set_cmake_parallelism();
 
     bindgen_config::generate_bindings(
         &context.llama_src,
