@@ -7,11 +7,15 @@
 #include <nlohmann/json_fwd.hpp>
 #include "wrapper_utils.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <exception>
+#include <gsl/span>
 #include <memory>
 #include <new>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -32,7 +36,7 @@ auto find_reasoning_markers(
     const common_chat_template & tmpl,
     const char * tmpl_src,
     std::string * out_start,
-    std::string * out_end) -> bool {
+    std::vector<std::string> * out_ends) -> bool {
     autoparser::generation_params probe_params;
     probe_params.add_generation_prompt = true;
     probe_params.enable_thinking = true;
@@ -47,9 +51,9 @@ auto find_reasoning_markers(
     if (auto specialized = common_chat_try_specialized_template(tmpl, tmpl_src_str, probe_params)) {
         if (specialized->supports_thinking
             && !specialized->thinking_start_tag.empty()
-            && !specialized->thinking_end_tag.empty()) {
+            && !specialized->thinking_end_tags.empty()) {
             *out_start = std::move(specialized->thinking_start_tag);
-            *out_end = std::move(specialized->thinking_end_tag);
+            *out_ends = std::move(specialized->thinking_end_tags);
             return true;
         }
     }
@@ -60,7 +64,8 @@ auto find_reasoning_markers(
         && !parser.reasoning.start.empty()
         && !parser.reasoning.end.empty()) {
         *out_start = std::move(parser.reasoning.start);
-        *out_end = std::move(parser.reasoning.end);
+        out_ends->clear();
+        out_ends->push_back(std::move(parser.reasoning.end));
         return true;
     }
 
@@ -72,13 +77,17 @@ auto find_reasoning_markers(
 extern "C" auto llama_rs_detect_reasoning_markers(
     const struct llama_model * model,
     char ** out_open,
-    char ** out_close,
+    char *** out_closes,
+    size_t * out_closes_count,
     char ** out_error) -> llama_rs_detect_reasoning_markers_status {
     if (out_open != nullptr) {
         *out_open = nullptr;
     }
-    if (out_close != nullptr) {
-        *out_close = nullptr;
+    if (out_closes != nullptr) {
+        *out_closes = nullptr;
+    }
+    if (out_closes_count != nullptr) {
+        *out_closes_count = 0;
     }
     if (out_error != nullptr) {
         *out_error = nullptr;
@@ -89,8 +98,11 @@ extern "C" auto llama_rs_detect_reasoning_markers(
     if (out_open == nullptr) {
         return LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_OPEN_ARG;
     }
-    if (out_close == nullptr) {
-        return LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_CLOSE_ARG;
+    if (out_closes == nullptr) {
+        return LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_CLOSES_ARG;
+    }
+    if (out_closes_count == nullptr) {
+        return LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_CLOSES_COUNT_ARG;
     }
     if (out_error == nullptr) {
         return LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_ERROR_ARG;
@@ -113,20 +125,40 @@ extern "C" auto llama_rs_detect_reasoning_markers(
         common_chat_template const tmpl(tmpl_src, bos_token, eos_token);
 
         std::string detected_start;
-        std::string detected_end;
-        if (!find_reasoning_markers(tmpl, tmpl_src, &detected_start, &detected_end)) {
+        std::vector<std::string> detected_ends;
+        if (!find_reasoning_markers(tmpl, tmpl_src, &detected_start, &detected_ends)) {
             return LLAMA_RS_DETECT_REASONING_MARKERS_OK;
         }
 
         std::unique_ptr<char[]> open_dup(llama_rs_dup_string(detected_start));
-        std::unique_ptr<char[]> close_dup(llama_rs_dup_string(detected_end));
-
-        if ((open_dup == nullptr) || (close_dup == nullptr)) {
+        if (open_dup == nullptr) {
             return LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED;
         }
 
+        std::vector<std::unique_ptr<char[]>> close_dups;
+        close_dups.reserve(detected_ends.size());
+        for (const std::string & detected_end : detected_ends) {
+            std::unique_ptr<char[]> close_dup(llama_rs_dup_string(detected_end));
+            if (close_dup == nullptr) {
+                return LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED;
+            }
+            close_dups.push_back(std::move(close_dup));
+        }
+
+        std::unique_ptr<char *[]> closes_array(new (std::nothrow) char *[close_dups.size()]);
+        if (closes_array == nullptr) {
+            return LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED;
+        }
+        const gsl::span<char *> closes_view(closes_array.get(), close_dups.size());
+        std::transform(
+            close_dups.begin(),
+            close_dups.end(),
+            closes_view.begin(),
+            [](std::unique_ptr<char[]> & close_dup) -> char * { return close_dup.release(); });
+
         *out_open = open_dup.release();
-        *out_close = close_dup.release();
+        *out_closes_count = close_dups.size();
+        *out_closes = closes_array.release();
 
         return LLAMA_RS_DETECT_REASONING_MARKERS_OK;
     } catch (const std::bad_alloc &) {

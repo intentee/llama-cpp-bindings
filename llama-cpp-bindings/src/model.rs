@@ -1,8 +1,10 @@
 pub mod add_bos;
 pub mod llama_chat_message;
 pub mod llama_chat_template;
+pub mod llama_load_mode_parse_error;
 pub mod llama_lora_adapter;
 pub mod llama_split_mode_parse_error;
+pub mod load_mode;
 pub mod params;
 pub mod rope_type;
 pub mod split_mode;
@@ -24,6 +26,7 @@ use toktrie::TokTrie;
 
 use llama_cpp_bindings_types::ParsedChatMessage;
 use llama_cpp_bindings_types::ParsedToolCall;
+use llama_cpp_bindings_types::ProbedReasoningMarkers;
 use llama_cpp_bindings_types::ReasoningMarkers;
 use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_bindings_types::ToolCallMarkers;
@@ -250,18 +253,6 @@ unsafe fn parsed_chat_free_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(free_error) };
             Err(parse_err)
         }
-    }
-}
-
-fn reasoning_markers_from_marker_pair(
-    open: Option<String>,
-    close: Option<String>,
-) -> Option<ReasoningMarkers> {
-    match (open, close) {
-        (Some(open), Some(close)) if !open.is_empty() && !close.is_empty() => {
-            Some(ReasoningMarkers { open, close })
-        }
-        _ => None,
     }
 }
 
@@ -789,8 +780,7 @@ impl LlamaModel {
     /// # Errors
     /// Returns [`MarkerDetectionError`] when any underlying FFI call fails.
     pub fn streaming_markers(&self) -> Result<StreamingMarkers, MarkerDetectionError> {
-        let (reasoning_open_str, reasoning_close_str) =
-            invoke_detect_reasoning_markers(self.model.as_ptr())?;
+        let detected_reasoning = invoke_detect_reasoning_markers(self.model.as_ptr())?;
 
         let tool_call_haystack = invoke_compute_tool_call_haystack(self.model.as_ptr())?;
 
@@ -809,10 +799,11 @@ impl LlamaModel {
             self.resolve_tool_call_marker_strings(autoparser_open, autoparser_close)?;
 
         Ok(StreamingMarkers {
-            reasoning_open: self.tokenize_marker(reasoning_open_str.as_deref())?,
-            reasoning_close: self.tokenize_marker(reasoning_close_str.as_deref())?,
-            tool_call_open: self.tokenize_marker(resolved_tool_call_markers.open.as_deref())?,
-            tool_call_close: self.tokenize_marker(resolved_tool_call_markers.close.as_deref())?,
+            reasoning_open: self.tokenize_markers(detected_reasoning.open.as_deref())?,
+            reasoning_close: self
+                .tokenize_markers(detected_reasoning.closes.iter().map(String::as_str))?,
+            tool_call_open: self.tokenize_markers(resolved_tool_call_markers.open.as_deref())?,
+            tool_call_close: self.tokenize_markers(resolved_tool_call_markers.close.as_deref())?,
         })
     }
 
@@ -850,13 +841,13 @@ impl LlamaModel {
     /// # Errors
     /// Returns [`MarkerDetectionError`] when the underlying FFI call fails.
     pub fn reasoning_markers(&self) -> Result<Option<ReasoningMarkers>, MarkerDetectionError> {
-        let (open, close) = invoke_detect_reasoning_markers(self.model.as_ptr())?;
+        let detected = invoke_detect_reasoning_markers(self.model.as_ptr())?;
 
-        if let Some(markers) = reasoning_markers_from_marker_pair(open, close) {
+        if let Some(markers) = detected.into_reasoning_markers() {
             return Ok(Some(markers));
         }
 
-        detect_reasoning_markers_via_template_probe(self.model.as_ptr())
+        Ok(detect_reasoning_markers_via_template_probe(self.model.as_ptr())?.map(Into::into))
     }
 
     /// # Errors
@@ -877,13 +868,7 @@ impl LlamaModel {
     /// # Errors
     /// Returns [`StringToTokenError`] when a present, non-empty marker string
     /// fails to tokenise.
-    fn tokenize_marker(
-        &self,
-        marker: Option<&str>,
-    ) -> Result<Option<Vec<LlamaToken>>, StringToTokenError> {
-        let Some(marker) = marker else {
-            return Ok(None);
-        };
+    fn tokenize_marker(&self, marker: &str) -> Result<Option<Vec<LlamaToken>>, StringToTokenError> {
         let marker = marker.trim();
         if marker.is_empty() {
             return Ok(None);
@@ -894,6 +879,16 @@ impl LlamaModel {
         } else {
             Ok(Some(tokens))
         }
+    }
+
+    fn tokenize_markers<'marker>(
+        &self,
+        markers: impl IntoIterator<Item = &'marker str>,
+    ) -> Result<Vec<Vec<LlamaToken>>, StringToTokenError> {
+        markers
+            .into_iter()
+            .filter_map(|marker| self.tokenize_marker(marker).transpose())
+            .collect()
     }
 
     /// # Errors
@@ -1422,12 +1417,12 @@ fn split_reasoning_prefix(
     };
 
     let after_open = &input[open_pos + reasoning_markers.open.len()..];
-    let Some(close_offset) = after_open.find(&reasoning_markers.close) else {
+    let Some(close) = reasoning_markers.find_earliest_close(after_open) else {
         return content_only();
     };
 
-    let reasoning = after_open[..close_offset].to_owned();
-    let after_close = &after_open[close_offset + reasoning_markers.close.len()..];
+    let reasoning = after_open[..close.offset].to_owned();
+    let after_close = &after_open[close.offset + close.length..];
 
     ReasoningSplit {
         reasoning,
@@ -1448,30 +1443,115 @@ fn synthesize_missing_tool_call_ids(tool_calls: &mut [ParsedToolCall]) {
     }
 }
 
-// SAFETY: `out_open`, `out_close`, and `out_error` must be the pointers
-// populated by the preceding `llama_rs_detect_reasoning_markers` call (or null).
-// `out_open`/`out_close` are read but not freed here; `out_error` is freed only
-// in the CXX-exception arm, mirroring the conditional cleanup in the caller.
-unsafe fn detect_reasoning_markers_status_to_result(
+struct DetectedReasoningMarkers {
+    open: Option<String>,
+    closes: Vec<String>,
+}
+
+impl DetectedReasoningMarkers {
+    fn into_reasoning_markers(self) -> Option<ReasoningMarkers> {
+        let markers = ReasoningMarkers {
+            open: self.open?,
+            closes: self
+                .closes
+                .into_iter()
+                .filter(|close| !close.is_empty())
+                .collect(),
+        };
+
+        markers.is_usable().then_some(markers)
+    }
+}
+
+/// Sole owner of the C allocations produced by one
+/// `llama_rs_detect_reasoning_markers` call. Every pointer it holds is released
+/// on drop, so no call path can leak or double-free them.
+struct ReasoningMarkerDetection {
     status: llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers_status,
-    out_open: *const c_char,
-    out_close: *const c_char,
+    out_open: *mut c_char,
+    out_closes: *mut *mut c_char,
+    out_closes_count: usize,
     out_error: *mut c_char,
-) -> Result<(Option<String>, Option<String>), MarkerDetectionError> {
-    match status {
-        llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_OK => {
-            collect_optional_cstr_pair(out_open, out_close)
+}
+
+impl ReasoningMarkerDetection {
+    fn detect(model: *const llama_cpp_bindings_sys::llama_model) -> Self {
+        let mut out_open: *mut c_char = ptr::null_mut();
+        let mut out_closes: *mut *mut c_char = ptr::null_mut();
+        let mut out_closes_count: usize = 0;
+        let mut out_error: *mut c_char = ptr::null_mut();
+
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers(
+                model,
+                &raw mut out_open,
+                &raw mut out_closes,
+                &raw mut out_closes_count,
+                &raw mut out_error,
+            )
+        };
+
+        Self {
+            status,
+            out_open,
+            out_closes,
+            out_closes_count,
+            out_error,
         }
-        llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(MarkerDetectionError::NotEnoughMemory)
+    }
+
+    fn read_closes(&self) -> Result<Vec<String>, MarkerDetectionError> {
+        if self.out_closes.is_null() {
+            return Ok(Vec::new());
         }
-        llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
-            Err(MarkerDetectionError::ReasoningMarkerDetectionFailed { message })
+
+        let entries = unsafe { std::slice::from_raw_parts(self.out_closes, self.out_closes_count) };
+
+        entries
+            .iter()
+            .filter_map(|entry| read_optional_owned_cstr(*entry).transpose())
+            .collect()
+    }
+
+    fn take_error_message(&mut self) -> String {
+        let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(self.out_error) };
+        self.out_error = ptr::null_mut();
+        message
+    }
+
+    fn into_result(mut self) -> Result<DetectedReasoningMarkers, MarkerDetectionError> {
+        match self.status {
+            llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_OK => {
+                Ok(DetectedReasoningMarkers {
+                    open: read_optional_owned_cstr(self.out_open)?,
+                    closes: self.read_closes()?,
+                })
+            }
+            llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED => {
+                Err(MarkerDetectionError::NotEnoughMemory)
+            }
+            llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_THREW_CXX_EXCEPTION => {
+                Err(MarkerDetectionError::ReasoningMarkerDetectionFailed {
+                    message: self.take_error_message(),
+                })
+            }
+            other => unreachable!(
+                "llama_rs_detect_reasoning_markers returned unrecognized status {other}"
+            ),
         }
-        other => unreachable!(
-            "llama_rs_detect_reasoning_markers returned unrecognized status {other}"
-        ),
+    }
+}
+
+impl Drop for ReasoningMarkerDetection {
+    fn drop(&mut self) {
+        unsafe { llama_cpp_bindings_sys::llama_rs_string_free(self.out_open) };
+        unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_array_free(
+                self.out_closes,
+                self.out_closes_count,
+            );
+        };
+        unsafe { llama_cpp_bindings_sys::llama_rs_string_free(self.out_error) };
     }
 }
 
@@ -1488,31 +1568,8 @@ const fn cxx_exception_owns_out_error<TValue>(
 
 fn invoke_detect_reasoning_markers(
     model: *const llama_cpp_bindings_sys::llama_model,
-) -> Result<(Option<String>, Option<String>), MarkerDetectionError> {
-    let mut out_open: *mut c_char = ptr::null_mut();
-    let mut out_close: *mut c_char = ptr::null_mut();
-    let mut out_error: *mut c_char = ptr::null_mut();
-
-    let status = unsafe {
-        llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers(
-            model,
-            &raw mut out_open,
-            &raw mut out_close,
-            &raw mut out_error,
-        )
-    };
-
-    let parsed = unsafe {
-        detect_reasoning_markers_status_to_result(status, out_open, out_close, out_error)
-    };
-
-    unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_open) };
-    unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_close) };
-    if !cxx_exception_owns_out_error(&parsed) {
-        unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-    }
-
-    parsed
+) -> Result<DetectedReasoningMarkers, MarkerDetectionError> {
+    ReasoningMarkerDetection::detect(model).into_result()
 }
 
 // SAFETY: `out_rendered` and `out_error` must be the pointers populated by the
@@ -1592,7 +1649,7 @@ fn render_probe_messages(
 
 fn detect_reasoning_markers_via_template_probe(
     model: *const llama_cpp_bindings_sys::llama_model,
-) -> Result<Option<ReasoningMarkers>, MarkerDetectionError> {
+) -> Result<Option<ProbedReasoningMarkers>, MarkerDetectionError> {
     use crate::extract_reasoning_markers_from_probe_renders::chunked_probe_messages_json;
     use crate::extract_reasoning_markers_from_probe_renders::extract_reasoning_markers_from_probe_renders;
     use crate::extract_reasoning_markers_from_probe_renders::plain_probe_messages_json;
@@ -2106,11 +2163,12 @@ mod ffi_status_mapping_tests {
     use llama_cpp_bindings_types::ReasoningMarkers;
     use llama_cpp_bindings_types::ToolCallArguments;
 
+    use super::DetectedReasoningMarkers;
+    use super::ReasoningMarkerDetection;
     use super::ReasoningSplit;
     use super::chat_parser_create_status_to_result;
     use super::compute_tool_call_haystack_status_to_result;
     use super::cxx_exception_owns_out_error;
-    use super::detect_reasoning_markers_status_to_result;
     use super::diagnose_tool_call_synthetic_renders_status_to_result;
     use super::load_model_from_file_status_to_result;
     use super::outcome_from_via_ffi_result;
@@ -2122,7 +2180,6 @@ mod ffi_status_mapping_tests {
     use super::parsed_chat_tool_call_count_status_to_result;
     use super::parsed_chat_tool_call_id_status_to_result;
     use super::parsed_chat_tool_call_name_status_to_result;
-    use super::reasoning_markers_from_marker_pair;
     use super::render_chat_template_status_to_result;
     use super::split_reasoning_prefix;
     use super::tokenize_status_to_result;
@@ -2985,64 +3042,60 @@ mod ffi_status_mapping_tests {
         };
     }
 
-    #[test]
-    fn detect_reasoning_markers_ok_with_null_pointers_is_none_pair() {
-        let result = unsafe {
-            detect_reasoning_markers_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_OK,
-                ptr::null(),
-                ptr::null(),
-                ptr::null_mut(),
-            )
-        };
+    fn detection_with_status(
+        status: llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers_status,
+    ) -> ReasoningMarkerDetection {
+        ReasoningMarkerDetection {
+            status,
+            out_open: ptr::null_mut(),
+            out_closes: ptr::null_mut(),
+            out_closes_count: 0,
+            out_error: ptr::null_mut(),
+        }
+    }
 
-        assert_eq!(result, Ok((None, None)));
+    #[test]
+    fn detect_reasoning_markers_ok_with_null_pointers_yields_nothing_detected() {
+        let detected =
+            detection_with_status(llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_OK)
+                .into_result()
+                .expect("ok status must parse");
+
+        assert_eq!(detected.open, None);
+        assert!(detected.closes.is_empty());
     }
 
     #[test]
     fn detect_reasoning_markers_allocation_failed_is_not_enough_memory() {
-        let result = unsafe {
-            detect_reasoning_markers_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED,
-                ptr::null(),
-                ptr::null(),
-                ptr::null_mut(),
-            )
-        };
+        let result = detection_with_status(
+            llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED,
+        )
+        .into_result();
 
-        assert_eq!(result, Err(MarkerDetectionError::NotEnoughMemory));
+        assert!(matches!(result, Err(MarkerDetectionError::NotEnoughMemory)));
     }
 
     #[test]
     fn detect_reasoning_markers_cxx_exception_is_detection_failed() {
-        let result = unsafe {
-            detect_reasoning_markers_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_THREW_CXX_EXCEPTION,
-                ptr::null(),
-                ptr::null(),
-                ptr::null_mut(),
-            )
-        };
+        let result = detection_with_status(
+            llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_THREW_CXX_EXCEPTION,
+        )
+        .into_result();
 
-        assert_eq!(
+        assert!(matches!(
             result,
-            Err(MarkerDetectionError::ReasoningMarkerDetectionFailed {
-                message: "unknown error".to_owned()
-            })
-        );
+            Err(MarkerDetectionError::ReasoningMarkerDetectionFailed { message })
+                if message == "unknown error"
+        ));
     }
 
     #[test]
     #[should_panic(expected = "llama_rs_detect_reasoning_markers returned unrecognized status")]
     fn detect_reasoning_markers_unrecognized_status_panics() {
-        let _ = unsafe {
-            detect_reasoning_markers_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers_status::MAX,
-                ptr::null(),
-                ptr::null(),
-                ptr::null_mut(),
-            )
-        };
+        let _ = detection_with_status(
+            llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers_status::MAX,
+        )
+        .into_result();
     }
 
     #[test]
@@ -3329,7 +3382,7 @@ mod ffi_status_mapping_tests {
     fn split_reasoning_prefix_with_missing_open_marker_returns_content_only() {
         let markers = ReasoningMarkers {
             open: "<think>".to_owned(),
-            close: "</think>".to_owned(),
+            closes: vec!["</think>".to_owned()],
         };
         let ReasoningSplit { reasoning, content } =
             split_reasoning_prefix("plain answer", Some(&markers), "<tool>");
@@ -3342,7 +3395,7 @@ mod ffi_status_mapping_tests {
     fn split_reasoning_prefix_with_missing_close_marker_returns_content_only() {
         let markers = ReasoningMarkers {
             open: "<think>".to_owned(),
-            close: "</think>".to_owned(),
+            closes: vec!["</think>".to_owned()],
         };
         let ReasoningSplit { reasoning, content } =
             split_reasoning_prefix("<think>unterminated", Some(&markers), "<tool>");
@@ -3355,7 +3408,7 @@ mod ffi_status_mapping_tests {
     fn split_reasoning_prefix_extracts_reasoning_and_trailing_content() {
         let markers = ReasoningMarkers {
             open: "<think>".to_owned(),
-            close: "</think>".to_owned(),
+            closes: vec!["</think>".to_owned()],
         };
         let ReasoningSplit { reasoning, content } = split_reasoning_prefix(
             "<think>deduce</think>answer<tool>tail",
@@ -3368,32 +3421,52 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn reasoning_markers_from_marker_pair_with_both_present_builds_markers() {
-        let markers = reasoning_markers_from_marker_pair(
-            Some("<think>".to_owned()),
-            Some("</think>".to_owned()),
-        );
+    fn detected_markers_with_both_present_build_markers() {
+        let markers = DetectedReasoningMarkers {
+            open: Some("<think>".to_owned()),
+            closes: vec!["</think>".to_owned()],
+        }
+        .into_reasoning_markers();
 
         assert_eq!(
             markers,
             Some(ReasoningMarkers {
                 open: "<think>".to_owned(),
-                close: "</think>".to_owned()
+                closes: vec!["</think>".to_owned()],
             })
         );
     }
 
     #[test]
-    fn reasoning_markers_from_marker_pair_with_empty_marker_is_none() {
-        let markers =
-            reasoning_markers_from_marker_pair(Some(String::new()), Some("</think>".to_owned()));
+    fn detected_markers_keep_every_close_candidate() {
+        let markers = DetectedReasoningMarkers {
+            open: "<think>".to_owned().into(),
+            closes: vec!["</think>".to_owned(), "<tool_call>".to_owned()],
+        }
+        .into_reasoning_markers()
+        .expect("both candidates are usable");
+
+        assert_eq!(markers.closes, vec!["</think>", "<tool_call>"]);
+    }
+
+    #[test]
+    fn detected_markers_with_only_empty_closes_are_none() {
+        let markers = DetectedReasoningMarkers {
+            open: Some("<think>".to_owned()),
+            closes: vec![String::new()],
+        }
+        .into_reasoning_markers();
 
         assert!(markers.is_none());
     }
 
     #[test]
-    fn reasoning_markers_from_marker_pair_with_missing_marker_is_none() {
-        let markers = reasoning_markers_from_marker_pair(None, Some("</think>".to_owned()));
+    fn detected_markers_with_missing_open_are_none() {
+        let markers = DetectedReasoningMarkers {
+            open: None,
+            closes: vec!["</think>".to_owned()],
+        }
+        .into_reasoning_markers();
 
         assert!(markers.is_none());
     }

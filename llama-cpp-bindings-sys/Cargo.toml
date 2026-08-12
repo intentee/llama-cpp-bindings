@@ -57,7 +57,6 @@ include = [
 
     "/llama.cpp/cmake",
     "/llama.cpp/ggml/cmake",
-    "/llama.cpp/common/cmake",
 ]
 
 [dependencies]

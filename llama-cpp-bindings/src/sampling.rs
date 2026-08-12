@@ -125,18 +125,6 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
     }
 }
 
-fn n_ctx_train_overflow_to_grammar_error(convert_error: std::num::TryFromIntError) -> GrammarError {
-    GrammarError::IntegerOverflow(format!(
-        "n_ctx_train does not fit into u32: {convert_error}"
-    ))
-}
-
-fn checked_u32_as_i32(value: u32) -> Result<i32, GrammarError> {
-    i32::try_from(value).map_err(|convert_error| {
-        GrammarError::IntegerOverflow(format!("value exceeds i32::MAX: {convert_error}"))
-    })
-}
-
 fn checked_usize_as_i32_sampling(value: usize) -> Result<i32, SamplingError> {
     i32::try_from(value).map_err(|convert_error| {
         SamplingError::IntegerOverflow(format!("value exceeds i32::MAX: {convert_error}"))
@@ -498,14 +486,9 @@ impl LlamaSampler {
             .map(|seq_breaker| seq_breaker.as_ptr())
             .collect();
 
-        let n_ctx_train_value = model
-            .n_ctx_train()
-            .map_err(n_ctx_train_overflow_to_grammar_error)?;
-        let n_ctx_train = checked_u32_as_i32(n_ctx_train_value)?;
         let sampler = unsafe {
             llama_cpp_bindings_sys::llama_sampler_init_dry(
                 model.vocab_ptr(),
-                n_ctx_train,
                 multiplier,
                 base,
                 allowed_length,
@@ -520,6 +503,7 @@ impl LlamaSampler {
 
     #[must_use]
     pub fn penalties(
+        n_vocab: i32,
         penalty_last_n: i32,
         penalty_repeat: f32,
         penalty_freq: f32,
@@ -527,6 +511,7 @@ impl LlamaSampler {
     ) -> Self {
         let sampler = unsafe {
             llama_cpp_bindings_sys::llama_sampler_init_penalties(
+                n_vocab,
                 penalty_last_n,
                 penalty_repeat,
                 penalty_freq,
@@ -781,7 +766,7 @@ mod tests {
     #[test]
     fn accept_succeeds() {
         let mut sampler = LlamaSampler::chain_simple([
-            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::penalties(32000, 64, 1.1, 0.0, 0.0),
             LlamaSampler::greedy(),
         ]);
 
@@ -793,7 +778,7 @@ mod tests {
     #[test]
     fn try_accept_succeeds_on_penalties_sampler() {
         let mut sampler = LlamaSampler::chain_simple([
-            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::penalties(32000, 64, 1.1, 0.0, 0.0),
             LlamaSampler::greedy(),
         ]);
 
@@ -807,7 +792,7 @@ mod tests {
         use crate::token::LlamaToken;
 
         let mut sampler = LlamaSampler::chain_simple([
-            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::penalties(32000, 64, 1.1, 0.0, 0.0),
             LlamaSampler::greedy(),
         ]);
 
@@ -821,7 +806,7 @@ mod tests {
         use crate::token::LlamaToken;
 
         let _sampler = LlamaSampler::chain_simple([
-            LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+            LlamaSampler::penalties(32000, 64, 1.1, 0.0, 0.0),
             LlamaSampler::greedy(),
         ])
         .with_tokens([LlamaToken::new(10), LlamaToken::new(20)])
@@ -861,12 +846,6 @@ mod tests {
         let sampler = LlamaSampler::greedy();
         let debug_output = format!("{sampler:?}");
         assert!(debug_output.contains("LlamaSampler"));
-    }
-
-    #[test]
-    fn checked_u32_as_i32_overflow() {
-        let result = super::checked_u32_as_i32(u32::MAX);
-        assert!(result.is_err());
     }
 
     #[test]
@@ -1102,17 +1081,6 @@ mod tests {
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_SAMPLER_ARG,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
-        );
-    }
-
-    #[test]
-    fn n_ctx_train_overflow_maps_to_integer_overflow() {
-        let convert_error = u32::try_from(-1_i64).expect_err("-1 cannot convert to u32");
-        let grammar_error = super::n_ctx_train_overflow_to_grammar_error(convert_error);
-
-        assert_eq!(
-            std::mem::discriminant(&grammar_error),
-            std::mem::discriminant(&GrammarError::IntegerOverflow(String::new())),
         );
     }
 

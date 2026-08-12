@@ -140,8 +140,7 @@ fn assert_audio_transcription_contains(
         "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
     ),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 4096,
     n_batch = 512,
     n_ubatch = 512,
@@ -153,8 +152,7 @@ fn assert_audio_transcription_contains(
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 4096,
     n_batch = 512,
     n_ubatch = 512,
@@ -183,8 +181,7 @@ fn audio_mmproj_reports_audio_support(fixture: &LlamaFixture<'_>) -> Result<()> 
         "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
     ),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 4096,
     n_batch = 512,
     n_ubatch = 512,
@@ -196,8 +193,7 @@ fn audio_mmproj_reports_audio_support(fixture: &LlamaFixture<'_>) -> Result<()> 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 4096,
     n_batch = 512,
     n_ubatch = 512,
@@ -213,8 +209,7 @@ fn audio_transcribes_spoken_word(fixture: &LlamaFixture<'_>) -> Result<()> {
         "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
     ),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 4096,
     n_batch = 512,
     n_ubatch = 512,
@@ -226,8 +221,7 @@ fn audio_transcribes_spoken_word(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 4096,
     n_batch = 512,
     n_ubatch = 512,

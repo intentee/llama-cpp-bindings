@@ -63,6 +63,8 @@ impl ExecutionPlan {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::model::load_mode::LlamaLoadMode;
+
     use crate::context_params::ContextParams;
     use crate::llama_test_registration::LlamaTestRegistration;
     use crate::load_key::LoadKey;
@@ -100,8 +102,7 @@ mod tests {
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Auto,
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
@@ -118,8 +119,7 @@ mod tests {
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Auto,
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
@@ -136,8 +136,7 @@ mod tests {
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Auto,
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
@@ -154,8 +153,7 @@ mod tests {
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Auto,
             },
         },
         context_params: ALTERNATE_CONTEXT_PARAMS,
@@ -173,8 +171,7 @@ mod tests {
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Auto,
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,

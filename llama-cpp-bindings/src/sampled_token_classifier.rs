@@ -26,6 +26,13 @@ use crate::token::LlamaToken;
 pub use crate::ingest_outcome::IngestOutcome;
 pub use crate::sampled_token_section::SampledTokenSection;
 
+#[derive(Clone, Copy, Debug)]
+struct MatchedMarker {
+    span_start: usize,
+    length: usize,
+    kind: MarkerKind,
+}
+
 #[derive(Clone, Debug)]
 struct PendingToken {
     token: LlamaToken,
@@ -174,24 +181,39 @@ impl<'model> SampledTokenClassifier<'model> {
             MarkerKind::ToolCallClose,
         ];
 
+        let mut longest: Option<MatchedMarker> = None;
+
         for &kind in PROBE_KINDS {
-            let Some(marker) = self.markers.lookup(kind) else {
-                continue;
-            };
-            if marker.is_empty() || self.pending.len() < marker.len() {
-                continue;
+            for marker in self.markers.lookup(kind) {
+                if marker.is_empty() || self.pending.len() < marker.len() {
+                    continue;
+                }
+                let span_start = self.pending.len() - marker.len();
+                let matches = self
+                    .pending
+                    .iter()
+                    .skip(span_start)
+                    .zip(marker)
+                    .all(|(entry, marker_token)| entry.token == *marker_token);
+                if matches
+                    && longest
+                        .as_ref()
+                        .is_none_or(|found| marker.len() > found.length)
+                {
+                    longest = Some(MatchedMarker {
+                        span_start,
+                        length: marker.len(),
+                        kind,
+                    });
+                }
             }
-            let span_start = self.pending.len() - marker.len();
-            let matches = self
-                .pending
-                .iter()
-                .skip(span_start)
-                .zip(marker)
-                .all(|(entry, marker_token)| entry.token == *marker_token);
-            if matches {
-                self.mark_marker_span(span_start, kind);
-                return;
-            }
+        }
+
+        if let Some(MatchedMarker {
+            span_start, kind, ..
+        }) = longest
+        {
+            self.mark_marker_span(span_start, kind);
         }
     }
 
@@ -548,10 +570,10 @@ mod tests {
         reasoning_close: Option<Vec<LlamaToken>>,
     ) -> StreamingMarkers {
         StreamingMarkers {
-            reasoning_open,
-            reasoning_close,
-            tool_call_open: None,
-            tool_call_close: None,
+            reasoning_open: reasoning_open.into_iter().collect(),
+            reasoning_close: reasoning_close.into_iter().collect(),
+            tool_call_open: Vec::new(),
+            tool_call_close: Vec::new(),
         }
     }
 
@@ -619,6 +641,46 @@ mod tests {
                 SampledToken::Undeterminable(_) => SampledTokenSection::Pending,
             })
             .collect()
+    }
+
+    #[test]
+    fn the_longest_matching_close_candidate_wins_over_a_shorter_suffix() {
+        let markers = StreamingMarkers {
+            reasoning_open: vec![vec![token(100)]],
+            reasoning_close: vec![vec![token(202)], vec![token(201), token(202)]],
+            tool_call_open: Vec::new(),
+            tool_call_close: Vec::new(),
+        };
+        let mut classifier = synthetic_classifier(markers);
+        classifier.section = SampledTokenSection::Reasoning;
+
+        push_pending(&mut classifier, 201, "</");
+        classifier.try_consume_marker_at_tail();
+        push_pending(&mut classifier, 202, "think>");
+        classifier.try_consume_marker_at_tail();
+
+        assert!(
+            classifier.pending.iter().all(|entry| entry.is_boundary),
+            "the two-token candidate must claim both tokens, not just the trailing one"
+        );
+        assert_eq!(classifier.section, SampledTokenSection::Content);
+    }
+
+    #[test]
+    fn a_second_close_candidate_also_ends_the_reasoning_section() {
+        let markers = StreamingMarkers {
+            reasoning_open: vec![vec![token(100)]],
+            reasoning_close: vec![vec![token(200)], vec![token(300)]],
+            tool_call_open: Vec::new(),
+            tool_call_close: Vec::new(),
+        };
+        let mut classifier = synthetic_classifier(markers);
+        classifier.section = SampledTokenSection::Reasoning;
+
+        push_pending(&mut classifier, 300, "<tool_call>");
+        classifier.try_consume_marker_at_tail();
+
+        assert_eq!(classifier.section, SampledTokenSection::Content);
     }
 
     #[test]
@@ -745,10 +807,10 @@ mod tests {
     #[test]
     fn spurious_tool_call_close_in_reasoning_section_classifies_as_tool_call() {
         let markers = StreamingMarkers {
-            reasoning_open: Some(vec![token(100)]),
-            reasoning_close: Some(vec![token(200)]),
-            tool_call_open: Some(vec![token(300)]),
-            tool_call_close: Some(vec![token(400)]),
+            reasoning_open: vec![vec![token(100)]],
+            reasoning_close: vec![vec![token(200)]],
+            tool_call_open: vec![vec![token(300)]],
+            tool_call_close: vec![vec![token(400)]],
         };
         let mut classifier = synthetic_classifier(markers);
         classifier.section = SampledTokenSection::ToolCall;
@@ -1058,8 +1120,8 @@ mod tests {
 
         let returned = classifier.markers();
 
-        assert_eq!(returned.reasoning_open.as_deref(), Some(&[token(1)][..]));
-        assert_eq!(returned.reasoning_close.as_deref(), Some(&[token(2)][..]));
+        assert_eq!(returned.reasoning_open, vec![vec![token(1)]]);
+        assert_eq!(returned.reasoning_close, vec![vec![token(2)]]);
     }
 
     #[test]
@@ -1076,7 +1138,7 @@ mod tests {
     #[test]
     fn spurious_tool_call_close_in_content_section_classifies_as_content() {
         let mut markers = markers_with(None, None);
-        markers.tool_call_close = Some(vec![token(300)]);
+        markers.tool_call_close = vec![vec![token(300)]];
         let mut classifier = synthetic_classifier(markers);
         classifier.section = SampledTokenSection::Content;
 
@@ -1093,10 +1155,10 @@ mod tests {
 
     fn markers_with_tool_call_open(tool_call_open: Vec<LlamaToken>) -> StreamingMarkers {
         StreamingMarkers {
-            reasoning_open: None,
-            reasoning_close: None,
-            tool_call_open: Some(tool_call_open),
-            tool_call_close: None,
+            reasoning_open: Vec::new(),
+            reasoning_close: Vec::new(),
+            tool_call_open: vec![tool_call_open],
+            tool_call_close: Vec::new(),
         }
     }
 
@@ -1303,10 +1365,10 @@ mod tests {
     #[test]
     fn json_probe_does_not_engage_in_reasoning_section() {
         let markers = StreamingMarkers {
-            reasoning_open: Some(vec![token(800)]),
-            reasoning_close: Some(vec![token(801)]),
-            tool_call_open: Some(vec![token(900)]),
-            tool_call_close: None,
+            reasoning_open: vec![vec![token(800)]],
+            reasoning_close: vec![vec![token(801)]],
+            tool_call_open: vec![vec![token(900)]],
+            tool_call_close: Vec::new(),
         };
         let mut classifier = synthetic_classifier(markers);
         classifier.section = SampledTokenSection::Reasoning;

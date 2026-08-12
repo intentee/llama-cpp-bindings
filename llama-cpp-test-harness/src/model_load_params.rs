@@ -1,10 +1,10 @@
+use llama_cpp_bindings::model::load_mode::LlamaLoadMode;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModelLoadParams {
     pub n_gpu_layers: i32,
-    pub use_mmap: bool,
-    pub use_mlock: bool,
+    pub load_mode: LlamaLoadMode,
 }
 
 impl ModelLoadParams {
@@ -12,45 +12,41 @@ impl ModelLoadParams {
     pub fn into_llama_model_params(self) -> LlamaModelParams {
         let Self {
             n_gpu_layers,
-            use_mmap,
-            use_mlock,
+            load_mode,
         } = self;
         LlamaModelParams::default()
             .with_n_gpu_layers(n_gpu_layers)
-            .with_use_mmap(use_mmap)
-            .with_use_mlock(use_mlock)
+            .with_load_mode(load_mode)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::model::load_mode::LlamaLoadMode;
+
     use super::ModelLoadParams;
 
     #[test]
-    fn into_llama_model_params_carries_all_three_fields() {
+    fn into_llama_model_params_carries_both_fields() {
         let params = ModelLoadParams {
             n_gpu_layers: 7,
-            use_mmap: false,
-            use_mlock: true,
+            load_mode: LlamaLoadMode::Mlock,
         }
         .into_llama_model_params();
 
         assert_eq!(params.n_gpu_layers(), 7);
-        assert!(!params.use_mmap());
-        assert!(params.use_mlock());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Mlock));
     }
 
     #[test]
     fn identical_values_compare_equal() {
         let one = ModelLoadParams {
             n_gpu_layers: 1,
-            use_mmap: true,
-            use_mlock: false,
+            load_mode: LlamaLoadMode::Auto,
         };
         let two = ModelLoadParams {
             n_gpu_layers: 1,
-            use_mmap: true,
-            use_mlock: false,
+            load_mode: LlamaLoadMode::Auto,
         };
 
         assert_eq!(one, two);
@@ -60,13 +56,25 @@ mod tests {
     fn differing_n_gpu_layers_compare_unequal() {
         let one = ModelLoadParams {
             n_gpu_layers: 1,
-            use_mmap: true,
-            use_mlock: false,
+            load_mode: LlamaLoadMode::Auto,
         };
         let two = ModelLoadParams {
             n_gpu_layers: 2,
-            use_mmap: true,
-            use_mlock: false,
+            load_mode: LlamaLoadMode::Auto,
+        };
+
+        assert_ne!(one, two);
+    }
+
+    #[test]
+    fn differing_load_mode_compares_unequal() {
+        let one = ModelLoadParams {
+            n_gpu_layers: 1,
+            load_mode: LlamaLoadMode::Auto,
+        };
+        let two = ModelLoadParams {
+            n_gpu_layers: 1,
+            load_mode: LlamaLoadMode::Mmap,
         };
 
         assert_ne!(one, two);

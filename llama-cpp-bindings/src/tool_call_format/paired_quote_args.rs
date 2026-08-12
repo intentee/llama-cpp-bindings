@@ -224,8 +224,21 @@ mod tests {
     use llama_cpp_bindings_types::ToolCallValueQuote;
     use serde_json::json;
 
+    use super::find_bare_value_end;
     use super::parse;
     use crate::error::PairedQuoteFailure;
+
+    #[test]
+    fn a_bare_value_ends_at_the_first_comma_close_marker_or_input_end() {
+        assert_eq!(find_bare_value_end("42, next", "</tool>"), 2);
+        assert_eq!(find_bare_value_end("42</tool>rest", "</tool>"), 2);
+        assert_eq!(find_bare_value_end("42", "</tool>"), 2);
+        assert_eq!(
+            find_bare_value_end("42", ""),
+            2,
+            "an empty close marker must not terminate the scan"
+        );
+    }
 
     fn gemma4_markers() -> ToolCallMarkers {
         ToolCallMarkers {

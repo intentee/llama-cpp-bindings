@@ -12,14 +12,14 @@ use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 
 use crate::parsed_context_params::ParsedContextParams;
+use crate::parsed_load_mode::ParsedLoadMode;
 use crate::parsed_model_load_params::ParsedModelLoadParams;
 use crate::parsed_source::ParsedSource;
 
 const REQUIRED_FIELDS: &[&str] = &[
     "model_source",
     "n_gpu_layers",
-    "use_mmap",
-    "use_mlock",
+    "load_mode",
     "n_ctx",
     "n_batch",
     "n_ubatch",
@@ -98,8 +98,7 @@ struct AttributeAccumulator {
     model_source: Option<ParsedSource>,
     mmproj_source: Option<ParsedSource>,
     n_gpu_layers: Option<i32>,
-    use_mmap: Option<bool>,
-    use_mlock: Option<bool>,
+    load_mode: Option<ParsedLoadMode>,
     n_ctx: Option<u32>,
     n_batch: Option<u32>,
     n_ubatch: Option<u32>,
@@ -141,17 +140,8 @@ fn dispatch_field(
                 "n_ubatch",
             )?);
         }
-        "use_mmap" => {
-            accumulator.use_mmap = Some(require_bool_lit(
-                literal_from_expression(value)?,
-                "use_mmap",
-            )?);
-        }
-        "use_mlock" => {
-            accumulator.use_mlock = Some(require_bool_lit(
-                literal_from_expression(value)?,
-                "use_mlock",
-            )?);
+        "load_mode" => {
+            accumulator.load_mode = Some(ParsedLoadMode::parse(value, "load_mode")?);
         }
         "embeddings" => {
             accumulator.embeddings = Some(require_bool_lit(
@@ -182,6 +172,14 @@ fn dispatch_field(
                 identifier,
                 format!(
                     "field `{name}` was removed; use `model_source = HuggingFace(repo, file)` or `model_source = LocalPath(path)` (and `mmproj_source` for mmproj)"
+                ),
+            ));
+        }
+        "use_mmap" | "use_mlock" => {
+            return Err(syn::Error::new_spanned(
+                identifier,
+                format!(
+                    "field `{name}` was removed; upstream replaced both booleans with one value, so use `load_mode = Auto` (or None, Mmap, Mlock, MmapMlock, DirectIo)"
                 ),
             ));
         }
@@ -241,8 +239,7 @@ impl Parse for ParsedArgs {
             mmproj_source: accumulator.mmproj_source,
             model_load_params: ParsedModelLoadParams {
                 n_gpu_layers: require(accumulator.n_gpu_layers, "n_gpu_layers", span)?,
-                use_mmap: require(accumulator.use_mmap, "use_mmap", span)?,
-                use_mlock: require(accumulator.use_mlock, "use_mlock", span)?,
+                load_mode: require(accumulator.load_mode, "load_mode", span)?,
             },
             context_params: ParsedContextParams {
                 n_ctx: require(accumulator.n_ctx, "n_ctx", span)?,
@@ -262,13 +259,13 @@ mod tests {
     use syn::parse_str;
 
     use super::ParsedArgs;
+    use crate::parsed_load_mode::ParsedLoadMode;
     use crate::parsed_source::ParsedSource;
 
     const ALL_REQUIRED: &str = "\
         model_source = HuggingFace(\"foo\", \"bar.gguf\"), \
         n_gpu_layers = 0, \
-        use_mmap = true, \
-        use_mlock = false, \
+        load_mode = Auto, \
         n_ctx = 512, \
         n_batch = 128, \
         n_ubatch = 64";
@@ -289,8 +286,7 @@ mod tests {
             },
         );
         assert_eq!(parsed.model_load_params.n_gpu_layers, 0);
-        assert!(parsed.model_load_params.use_mmap);
-        assert!(!parsed.model_load_params.use_mlock);
+        assert_eq!(parsed.model_load_params.load_mode, ParsedLoadMode::Auto);
         assert_eq!(parsed.context_params.n_ctx, 512);
         assert_eq!(parsed.context_params.n_batch, 128);
         assert_eq!(parsed.context_params.n_ubatch, 64);
@@ -302,8 +298,7 @@ mod tests {
         let source = "\
             model_source = LocalPath(\"/abs/local/model.gguf\"), \
             n_gpu_layers = 0, \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 1, \
             n_batch = 1, \
             n_ubatch = 1";
@@ -343,8 +338,8 @@ mod tests {
 
     #[test]
     fn legacy_repo_field_is_rejected_with_migration_hint() {
-        let source = "repo = \"foo\", file = \"bar\", n_gpu_layers = 0, use_mmap = true, \
-            use_mlock = false, n_ctx = 1, n_batch = 1, n_ubatch = 1";
+        let source = "repo = \"foo\", file = \"bar\", n_gpu_layers = 0, load_mode = Auto, \
+            n_ctx = 1, n_batch = 1, n_ubatch = 1";
         let message = parse(source)
             .expect_err("legacy repo must be rejected")
             .to_string();
@@ -364,7 +359,7 @@ mod tests {
 
     #[test]
     fn missing_model_source_is_rejected() {
-        let source = "n_gpu_layers = 0, use_mmap = true, use_mlock = false, \
+        let source = "n_gpu_layers = 0, load_mode = Auto, \
             n_ctx = 1, n_batch = 1, n_ubatch = 1";
         let message = parse(source)
             .expect_err("missing model_source must fail")
@@ -378,8 +373,8 @@ mod tests {
 
     #[test]
     fn missing_n_ctx_is_rejected() {
-        let source = "model_source = HuggingFace(\"x\", \"y\"), n_gpu_layers = 0, use_mmap = true, \
-            use_mlock = false, n_batch = 1, n_ubatch = 1";
+        let source = "model_source = HuggingFace(\"x\", \"y\"), n_gpu_layers = 0, load_mode = Auto, \
+            n_batch = 1, n_ubatch = 1";
         let message = parse(source)
             .expect_err("missing n_ctx must fail")
             .to_string();
@@ -427,8 +422,7 @@ mod tests {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = some_const, \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 1, \
             n_batch = 1, \
             n_ubatch = 1";
@@ -444,8 +438,7 @@ mod tests {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = \"nine\", \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 1, \
             n_batch = 1, \
             n_ubatch = 1";
@@ -461,8 +454,8 @@ mod tests {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
-            use_mmap = 1, \
-            use_mlock = false, \
+            load_mode = Auto, \
+            embeddings = 1, \
             n_ctx = 1, \
             n_batch = 1, \
             n_ubatch = 1";
@@ -478,8 +471,7 @@ mod tests {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = -1, \
             n_batch = 1, \
             n_ubatch = 1";
@@ -496,8 +488,7 @@ mod tests {
             foo::bar = 1, \
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 1, \
             n_batch = 1, \
             n_ubatch = 1";
@@ -513,8 +504,7 @@ mod tests {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 99999999999, \
             n_batch = 1, \
             n_ubatch = 1";
@@ -537,8 +527,7 @@ mod tests {
     fn missing_n_gpu_layers_is_rejected() {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 1, \
             n_batch = 1, \
             n_ubatch = 1";
@@ -553,41 +542,43 @@ mod tests {
     }
 
     #[test]
-    fn missing_use_mmap_is_rejected() {
+    fn missing_load_mode_is_rejected() {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
-            use_mlock = false, \
             n_ctx = 1, \
             n_batch = 1, \
             n_ubatch = 1";
         let message = parse(source)
-            .expect_err("missing use_mmap must fail")
+            .expect_err("missing load_mode must fail")
             .to_string();
 
         assert!(
-            message.contains("missing required field `use_mmap`"),
+            message.contains("missing required field `load_mode`"),
             "got: {message}"
         );
     }
 
     #[test]
-    fn missing_use_mlock_is_rejected() {
-        let source = "\
-            model_source = HuggingFace(\"x\", \"y\"), \
-            n_gpu_layers = 0, \
-            use_mmap = true, \
-            n_ctx = 1, \
-            n_batch = 1, \
-            n_ubatch = 1";
-        let message = parse(source)
-            .expect_err("missing use_mlock must fail")
+    fn legacy_mmap_booleans_are_rejected_with_migration_hint() {
+        for field in ["use_mmap", "use_mlock"] {
+            let source = format!("{ALL_REQUIRED}, {field} = true");
+            let message = parse(&source)
+                .expect_err("legacy boolean must be rejected")
+                .to_string();
+
+            assert!(message.contains("load_mode = Auto"), "{field}: {message}");
+        }
+    }
+
+    #[test]
+    fn load_mode_rejects_an_unknown_variant() {
+        let source = override_field("load_mode", "Mystery");
+        let message = parse(&source)
+            .expect_err("unknown load mode must fail")
             .to_string();
 
-        assert!(
-            message.contains("missing required field `use_mlock`"),
-            "got: {message}"
-        );
+        assert!(message.contains("unknown load mode"), "got: {message}");
     }
 
     #[test]
@@ -595,8 +586,7 @@ mod tests {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 1, \
             n_ubatch = 1";
         let message = parse(source)
@@ -614,8 +604,7 @@ mod tests {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 1, \
             n_batch = 1";
         let message = parse(source)
@@ -717,11 +706,10 @@ mod tests {
     }
 
     fn override_field(field: &str, replacement: &str) -> String {
-        let parts: [(&str, &str); 7] = [
+        let parts: [(&str, &str); 6] = [
             ("model_source", "HuggingFace(\"foo\", \"bar.gguf\")"),
             ("n_gpu_layers", "0"),
-            ("use_mmap", "true"),
-            ("use_mlock", "false"),
+            ("load_mode", "Auto"),
             ("n_ctx", "512"),
             ("n_batch", "128"),
             ("n_ubatch", "64"),
@@ -752,8 +740,8 @@ mod tests {
 
     #[test]
     fn each_bool_dispatch_arm_rejects_non_literal_value() {
-        for field in ["use_mmap", "use_mlock"] {
-            let source = override_field(field, "some_const");
+        for field in ["embeddings", "void_logs"] {
+            let source = append_field(field, "some_const");
             let message = parse(&source).expect_err(field).to_string();
 
             assert!(message.contains("literal"), "{field}: {message}");
@@ -772,8 +760,8 @@ mod tests {
 
     #[test]
     fn each_bool_dispatch_arm_rejects_wrong_literal_kind() {
-        for field in ["use_mmap", "use_mlock"] {
-            let source = override_field(field, "0");
+        for field in ["embeddings", "void_logs"] {
+            let source = append_field(field, "0");
             let message = parse(&source).expect_err(field).to_string();
 
             assert!(message.contains("bool literal"), "{field}: {message}");
@@ -855,8 +843,7 @@ mod tests {
         let source = "\
             model_source = Mystery(\"a\", \"b\"), \
             n_gpu_layers = 0, \
-            use_mmap = true, \
-            use_mlock = false, \
+            load_mode = Auto, \
             n_ctx = 1, \
             n_batch = 1, \
             n_ubatch = 1";

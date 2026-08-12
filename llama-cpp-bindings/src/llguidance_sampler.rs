@@ -105,6 +105,8 @@ static mut LLG_SAMPLER_I: llama_cpp_bindings_sys::llama_sampler_i =
         backend_accept: None,
         backend_apply: None,
         backend_set_input: None,
+        backend_reset: None,
+        copy_state: None,
     };
 
 /// # Errors

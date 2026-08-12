@@ -77,6 +77,17 @@ extern "C" void llama_rs_string_free(char * ptr) {
     const std::unique_ptr<char[]> reclaimed(ptr);
 }
 
+extern "C" void llama_rs_string_array_free(char ** strings, size_t count) {
+    if (strings == nullptr) {
+        return;
+    }
+    const gsl::span<char *> entries(strings, count);
+    for (char * entry : entries) {
+        const std::unique_ptr<char[]> reclaimed(entry);
+    }
+    const std::unique_ptr<char *[]> reclaimed_array(strings);
+}
+
 extern "C" auto llama_rs_sampler_init_grammar(
     const struct llama_vocab * vocab,
     const char * grammar_str,

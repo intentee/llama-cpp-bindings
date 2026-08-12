@@ -20,8 +20,7 @@ use serde_json::json;
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -63,7 +62,7 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
         LlamaSampler::min_p(0.05, 1),
@@ -135,8 +134,7 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -174,7 +172,7 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
         LlamaSampler::min_p(0.05, 1),
@@ -279,8 +277,7 @@ fn assert_deepseek_r1_streams(
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -341,8 +338,7 @@ fn deepseek_r1_8b_duck_types_gemma_paired_quote(fixture: &LlamaFixture<'_>) -> R
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -404,8 +400,7 @@ fn deepseek_r1_8b_duck_types_glm_key_value_tags(fixture: &LlamaFixture<'_>) -> R
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -466,8 +461,7 @@ fn deepseek_r1_8b_duck_types_mistral_bracketed_json(fixture: &LlamaFixture<'_>) 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -532,8 +526,7 @@ Paris\n\
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -582,8 +575,7 @@ fn deepseek_r1_8b_recognizes_empty_tool_calls_when_input_is_plain_content_with_t
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -612,8 +604,7 @@ fn deepseek_r1_8b_recognizes_empty_tool_calls_when_tools_not_requested(
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -716,8 +707,7 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -828,8 +818,7 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -887,8 +876,7 @@ fn gemma4_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -925,8 +913,7 @@ fn gemma4_template_override_returns_full_markers(fixture: &LlamaFixture<'_>) -> 
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -968,7 +955,7 @@ What is 2 + 2?
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
         LlamaSampler::min_p(0.05, 1),
@@ -1007,8 +994,7 @@ What is 2 + 2?
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1049,7 +1035,7 @@ What is 2 + 2?
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
         LlamaSampler::min_p(0.05, 1),
@@ -1105,8 +1091,7 @@ What is 2 + 2?
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1162,8 +1147,7 @@ fn glm47_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1199,8 +1183,7 @@ fn glm47_template_override_returns_full_markers(fixture: &LlamaFixture<'_>) -> R
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1269,8 +1252,7 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1357,8 +1339,7 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1413,8 +1394,7 @@ fn mistral3_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 2048,
     n_batch = 512,
     n_ubatch = 128,
@@ -1479,8 +1459,7 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1524,7 +1503,7 @@ What is 2 + 2?<|im_end|>
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
         LlamaSampler::min_p(0.05, 1),
@@ -1563,8 +1542,7 @@ What is 2 + 2?<|im_end|>
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1605,7 +1583,7 @@ What is 2 + 2?<|im_end|>
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
         LlamaSampler::min_p(0.05, 1),
@@ -1670,8 +1648,7 @@ fn arguments_as_json(arguments: &ToolCallArguments) -> Result<&Value> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1754,8 +1731,7 @@ get off the keyboard\n\
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1812,8 +1788,7 @@ Paris\n\
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1853,8 +1828,7 @@ fn qwen35_parses_partial_tool_call_returns_pending_state(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1913,8 +1887,7 @@ Berlin\n\
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1963,8 +1936,7 @@ fn qwen35_recognizes_empty_tool_calls_when_input_is_plain_content_with_tools_req
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 2048,
     n_batch = 512,
     n_ubatch = 128,
@@ -2036,8 +2008,7 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -2081,7 +2052,7 @@ What is 2 + 2?<|im_end|>
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
         LlamaSampler::min_p(0.05, 1),
@@ -2120,8 +2091,7 @@ What is 2 + 2?<|im_end|>
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Auto,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -2162,7 +2132,7 @@ What is 2 + 2?<|im_end|>
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0),
         LlamaSampler::top_k(40),
         LlamaSampler::top_p(0.9, 1),
         LlamaSampler::min_p(0.05, 1),
@@ -2208,6 +2178,37 @@ What is 2 + 2?<|im_end|>
         assert!(!outcome.reasoning_stream.contains(forbidden));
         assert!(!outcome.content_stream.contains(forbidden));
     }
+
+    Ok(())
+}
+
+/// Llama 3.2 has a chat template but no reasoning markers, so detection falls
+/// through the FFI probe to the template probe and finds nothing. Shares the
+/// ultravox load key so it joins an existing phase rather than adding one.
+#[llama_test(
+    model_source = HuggingFace(
+        "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
+        "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+    ),
+    n_gpu_layers = 999,
+    load_mode = Auto,
+    n_ctx = 4096,
+    n_batch = 512,
+    n_ubatch = 512,
+    mmproj_source = HuggingFace(
+        "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
+        "mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf"
+    ),
+)]
+fn a_model_without_reasoning_markers_falls_through_to_the_template_probe(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let markers = fixture.model.reasoning_markers()?;
+
+    assert!(
+        markers.is_none(),
+        "a chat template without thinking tags yields no reasoning markers; got: {markers:?}"
+    );
 
     Ok(())
 }

@@ -121,6 +121,8 @@ llama_rs_sampler_sample_status llama_rs_sampler_sample(
 
 void llama_rs_string_free(char * ptr);
 
+void llama_rs_string_array_free(char ** strings, size_t count);
+
 llama_pos llama_rs_memory_seq_pos_max(
     const struct llama_context * ctx,
     llama_seq_id seq_id);

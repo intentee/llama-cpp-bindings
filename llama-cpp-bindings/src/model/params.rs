@@ -6,7 +6,9 @@ use std::ptr::null;
 use crate::LlamaCppError;
 use crate::context::params::LlamaContextParams;
 use crate::error::{FitError, ModelParamsError};
+use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
+use crate::model::load_mode::LlamaLoadMode;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
 use crate::model::split_mode::LlamaSplitMode;
@@ -33,8 +35,7 @@ impl Debug for LlamaModelParams {
             .field("n_gpu_layers", &self.params.n_gpu_layers)
             .field("main_gpu", &self.params.main_gpu)
             .field("vocab_only", &self.params.vocab_only)
-            .field("use_mmap", &self.params.use_mmap)
-            .field("use_mlock", &self.params.use_mlock)
+            .field("load_mode", &self.load_mode())
             .field("split_mode", &self.split_mode())
             .field("devices", &self.devices)
             .field("kv_overrides", &"vec of kv_overrides")
@@ -169,14 +170,10 @@ impl LlamaModelParams {
         self.params.vocab_only
     }
 
-    #[must_use]
-    pub const fn use_mmap(&self) -> bool {
-        self.params.use_mmap
-    }
-
-    #[must_use]
-    pub const fn use_mlock(&self) -> bool {
-        self.params.use_mlock
+    /// # Errors
+    /// Returns `LlamaLoadModeParseError` if an unknown load mode is encountered.
+    pub fn load_mode(&self) -> Result<LlamaLoadMode, LlamaLoadModeParseError> {
+        LlamaLoadMode::try_from(self.params.load_mode)
     }
 
     /// # Errors
@@ -229,8 +226,8 @@ impl LlamaModelParams {
     }
 
     #[must_use]
-    pub const fn with_use_mmap(mut self, use_mmap: bool) -> Self {
-        self.params.use_mmap = use_mmap;
+    pub fn with_load_mode(mut self, load_mode: LlamaLoadMode) -> Self {
+        self.params.load_mode = load_mode.into();
         self
     }
 
@@ -239,19 +236,17 @@ impl LlamaModelParams {
         self.params.no_alloc
     }
 
-    #[must_use]
-    pub const fn with_no_alloc(mut self, no_alloc: bool) -> Self {
+    /// Enabling `no_alloc` also drops memory mapping: weights that are never
+    /// read cannot be mapped.
+    ///
+    /// # Errors
+    /// Returns `LlamaLoadModeParseError` if an unknown load mode is encountered.
+    pub fn with_no_alloc(mut self, no_alloc: bool) -> Result<Self, LlamaLoadModeParseError> {
         self.params.no_alloc = no_alloc;
         if no_alloc {
-            self.params.use_mmap = false;
+            self.params.load_mode = self.load_mode()?.without_mmap().into();
         }
-        self
-    }
-
-    #[must_use]
-    pub const fn with_use_mlock(mut self, use_mlock: bool) -> Self {
-        self.params.use_mlock = use_mlock;
-        self
+        Ok(self)
     }
 
     #[must_use]
@@ -395,6 +390,7 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::load_mode::LlamaLoadMode;
     use crate::model::split_mode::LlamaSplitMode;
 
     use super::{LLAMA_CPP_MAX_DEVICES, LlamaModelParams};
@@ -417,8 +413,7 @@ mod tests {
         assert_eq!(params.n_gpu_layers(), -1);
         assert_eq!(params.main_gpu(), 0);
         assert!(!params.vocab_only());
-        assert!(params.use_mmap());
-        assert!(!params.use_mlock());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Auto));
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Layer));
         assert!(params.devices().is_empty());
     }
@@ -473,41 +468,49 @@ mod tests {
     }
 
     #[test]
-    fn with_use_mmap_enables() {
-        let params = LlamaModelParams::default().with_use_mmap(true);
+    fn with_load_mode_sets_the_mode() {
+        let params = LlamaModelParams::default().with_load_mode(LlamaLoadMode::MmapMlock);
 
-        assert!(params.use_mmap());
-    }
-
-    #[test]
-    fn with_use_mmap_disables() {
-        let params = LlamaModelParams::default().with_use_mmap(false);
-
-        assert!(!params.use_mmap());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::MmapMlock));
     }
 
     #[test]
     fn with_no_alloc_enables() {
-        let params = LlamaModelParams::default().with_no_alloc(true);
+        let params = LlamaModelParams::default()
+            .with_no_alloc(true)
+            .expect("default load mode is recognized");
 
         assert!(params.no_alloc());
     }
 
     #[test]
     fn with_no_alloc_disables() {
-        let params = LlamaModelParams::default().with_no_alloc(false);
+        let params = LlamaModelParams::default()
+            .with_no_alloc(false)
+            .expect("default load mode is recognized");
 
         assert!(!params.no_alloc());
     }
 
     #[test]
-    fn with_no_alloc_true_disables_mmap() {
+    fn with_no_alloc_true_drops_mapping_but_keeps_mlock() {
         let params = LlamaModelParams::default()
-            .with_use_mmap(true)
-            .with_no_alloc(true);
+            .with_load_mode(LlamaLoadMode::MmapMlock)
+            .with_no_alloc(true)
+            .expect("load mode is recognized");
 
         assert!(params.no_alloc());
-        assert!(!params.use_mmap());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Mlock));
+    }
+
+    #[test]
+    fn with_no_alloc_false_leaves_the_load_mode_untouched() {
+        let params = LlamaModelParams::default()
+            .with_load_mode(LlamaLoadMode::Mmap)
+            .with_no_alloc(false)
+            .expect("load mode is recognized");
+
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Mmap));
     }
 
     #[test]
@@ -518,20 +521,6 @@ mod tests {
     }
 
     #[test]
-    fn with_use_mlock_enables() {
-        let params = LlamaModelParams::default().with_use_mlock(true);
-
-        assert!(params.use_mlock());
-    }
-
-    #[test]
-    fn with_use_mlock_disables() {
-        let params = LlamaModelParams::default().with_use_mlock(false);
-
-        assert!(!params.use_mlock());
-    }
-
-    #[test]
     fn debug_format_contains_field_names() {
         let params = LlamaModelParams::default();
         let debug_output = format!("{params:?}");
@@ -539,8 +528,7 @@ mod tests {
         assert!(debug_output.contains("n_gpu_layers"));
         assert!(debug_output.contains("main_gpu"));
         assert!(debug_output.contains("vocab_only"));
-        assert!(debug_output.contains("use_mmap"));
-        assert!(debug_output.contains("use_mlock"));
+        assert!(debug_output.contains("load_mode"));
         assert!(debug_output.contains("split_mode"));
     }
 
@@ -551,13 +539,13 @@ mod tests {
             .with_main_gpu(1)
             .with_split_mode(LlamaSplitMode::Row)
             .with_vocab_only(true)
-            .with_use_mlock(true);
+            .with_load_mode(LlamaLoadMode::Mlock);
 
         assert_eq!(params.n_gpu_layers(), 10);
         assert_eq!(params.main_gpu(), 1);
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Row));
         assert!(params.vocab_only());
-        assert!(params.use_mlock());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Mlock));
     }
 
     #[test]

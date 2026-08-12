@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use crate::ReasoningMarkers;
+use crate::ProbedReasoningMarkers;
 
 const REASON_PROBE: &str = "__PADDLER_REASON_PROBE_3F4A8C__";
 const RESPONSE_PROBE: &str = "__PADDLER_RESPONSE_PROBE_3F4A8C__";
@@ -60,7 +60,7 @@ fn contains_subslice(haystack: &[u8], needle: &[u8]) -> bool {
 pub fn extract_reasoning_markers_from_probe_renders(
     plain_render: &str,
     chunked_render: &str,
-) -> Option<ReasoningMarkers> {
+) -> Option<ProbedReasoningMarkers> {
     let plain = plain_render.as_bytes();
     let chunked = chunked_render.as_bytes();
 
@@ -86,10 +86,6 @@ pub fn extract_reasoning_markers_from_probe_renders(
         common_suffix += 1;
     }
 
-    if common_prefix + common_suffix > chunked_size {
-        return None;
-    }
-
     let diff = &chunked[common_prefix..chunked_size - common_suffix];
     let reason_pos = find_subslice(diff, REASON_PROBE.as_bytes())?;
 
@@ -112,7 +108,7 @@ pub fn extract_reasoning_markers_from_probe_renders(
         return None;
     }
 
-    Some(ReasoningMarkers { open, close })
+    Some(ProbedReasoningMarkers { open, close })
 }
 
 #[cfg(test)]
@@ -156,5 +152,16 @@ mod tests {
             format!("PREFIX<think{RESPONSE_PROBE}>{REASON_PROBE}</think>{RESPONSE_PROBE}SUFFIX");
 
         assert!(extract_reasoning_markers_from_probe_renders(&plain, &chunked).is_none());
+    }
+
+    #[test]
+    fn returns_none_when_the_close_marker_would_be_empty() {
+        let plain = format!("PREFIX{RESPONSE_PROBE}SUFFIX");
+        let chunked = format!("PREFIX<think>{REASON_PROBE}{RESPONSE_PROBE}SUFFIX");
+
+        assert!(
+            extract_reasoning_markers_from_probe_renders(&plain, &chunked).is_none(),
+            "a render with nothing between the reasoning and response probes has no close marker"
+        );
     }
 }
