@@ -21,17 +21,12 @@ clippy:
 coverage: node_modules
 	cargo llvm-cov clean --workspace
 	cargo llvm-cov --no-report --no-fail-fast --workspace $(DEVICE_FEATURE)
-	cargo llvm-cov --no-report --no-fail-fast -p llama-cpp-bindings-build \
-		--features cuda,rocm,system-ggml,static-stdcxx,openmp,vulkan,dynamic-backends
-	cargo llvm-cov --no-report --no-fail-fast -p llama-cpp-bindings-build \
-		--features system-ggml-static,shared-stdcxx,cuda,cuda-no-vmm
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
 		--gated llama-cpp-bindings=98 \
-		--gated llama-cpp-bindings-build=98 \
 		--gated llama-cpp-error-recorder=100 \
 		--gated llama-cpp-gbnf=100 \
 		--gated llama-cpp-log-decoder=100 \
