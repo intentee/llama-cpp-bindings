@@ -340,7 +340,6 @@ mod tests {
     use super::link_platform_system_libraries;
     use super::link_rocm_libraries;
     use super::link_system_ggml_paths;
-    use super::macos_link_search_path;
     use super::msvc_debug_runtime;
     use super::parse_clang_search_dirs;
 
@@ -502,6 +501,8 @@ mod tests {
     #[test]
     #[serial]
     fn the_macos_link_search_path_is_discovered_from_clang() {
+        use super::macos_link_search_path;
+
         let path = macos_link_search_path().expect("clang ships with the macOS toolchain");
 
         assert!(path.ends_with("/lib/darwin"), "got: {path}");
