@@ -163,14 +163,17 @@ fn detect_api_level() -> String {
 }
 
 fn detect_host_tag() -> Result<&'static str, AndroidNdkDetectionError> {
-    if cfg!(target_os = "macos") {
-        Ok("darwin-x86_64")
-    } else if cfg!(target_os = "linux") {
-        Ok("linux-x86_64")
-    } else if cfg!(target_os = "windows") {
-        Ok("windows-x86_64")
-    } else {
-        Err(AndroidNdkDetectionError::UnsupportedHostPlatform)
+    host_tag_for_os(std::env::consts::OS)
+}
+
+/// Resolved from an OS name rather than a `cfg!` branch, so every host's tag
+/// stays reachable from any machine.
+fn host_tag_for_os(os: &str) -> Result<&'static str, AndroidNdkDetectionError> {
+    match os {
+        "macos" => Ok("darwin-x86_64"),
+        "linux" => Ok("linux-x86_64"),
+        "windows" => Ok("windows-x86_64"),
+        _ => Err(AndroidNdkDetectionError::UnsupportedHostPlatform),
     }
 }
 
@@ -231,5 +234,355 @@ fn find_clang_builtin_includes(toolchain_path: &str) -> Option<String> {
         Some(include_path.to_string_lossy().to_string())
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use serial_test::serial;
+
+    use crate::scratch_dir::ScratchDir;
+
+    use super::AndroidNdk;
+    use super::AndroidNdkDetectionError;
+    use super::detect_api_level;
+    use super::detect_host_tag;
+    use super::detect_ndk_from_sdk;
+    use super::detect_ndk_path;
+    use super::find_clang_builtin_includes;
+    use super::host_tag_for_os;
+    use super::target_triple_to_abi;
+    use super::target_triple_to_ndk_prefix;
+    use super::validate_ndk_installation;
+
+    const NDK_VARS: &[&str] = &[
+        "ANDROID_NDK",
+        "ANDROID_NDK_ROOT",
+        "NDK_ROOT",
+        "CARGO_NDK_ANDROID_NDK",
+        "ANDROID_HOME",
+        "ANDROID_SDK_ROOT",
+        "ANDROID_API_LEVEL",
+        "ANDROID_PLATFORM",
+        "CARGO_NDK_ANDROID_PLATFORM",
+    ];
+
+    fn clear_ndk_environment() {
+        for name in NDK_VARS {
+            unsafe { std::env::remove_var(name) };
+        }
+    }
+
+    fn host_tag() -> &'static str {
+        detect_host_tag().expect("the test host must be supported")
+    }
+
+    /// A synthetic NDK layout: enough structure for detection to succeed.
+    fn ndk_tree(scratch: &ScratchDir, with_clang_includes: bool) -> String {
+        let ndk = scratch.path().join("ndk/27.0.1");
+        std::fs::create_dir_all(ndk.join("build/cmake")).expect("cmake dir must be creatable");
+        std::fs::write(ndk.join("build/cmake/android.toolchain.cmake"), b"x")
+            .expect("toolchain file must be writable");
+        let toolchain = ndk.join(format!("toolchains/llvm/prebuilt/{}", host_tag()));
+        std::fs::create_dir_all(toolchain.join("sysroot")).expect("sysroot must be creatable");
+
+        if with_clang_includes {
+            std::fs::create_dir_all(toolchain.join("lib/clang/18/include"))
+                .expect("clang include dir must be creatable");
+        }
+
+        ndk.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn each_supported_architecture_maps_to_an_abi_and_prefix() {
+        for (triple, abi, prefix) in [
+            (
+                "aarch64-linux-android",
+                "arm64-v8a",
+                "aarch64-linux-android",
+            ),
+            (
+                "armv7-linux-androideabi",
+                "armeabi-v7a",
+                "arm-linux-androideabi",
+            ),
+            ("x86_64-linux-android", "x86_64", "x86_64-linux-android"),
+            ("i686-linux-android", "x86", "i686-linux-android"),
+        ] {
+            assert_eq!(target_triple_to_abi(triple).expect(triple), abi);
+            assert_eq!(target_triple_to_ndk_prefix(triple).expect(triple), prefix);
+        }
+    }
+
+    #[test]
+    fn an_unsupported_architecture_is_rejected_by_both_mappings() {
+        assert!(matches!(
+            target_triple_to_abi("mips-linux-android"),
+            Err(AndroidNdkDetectionError::UnsupportedAndroidTarget { .. })
+        ));
+        assert!(matches!(
+            target_triple_to_ndk_prefix("mips-linux-android"),
+            Err(AndroidNdkDetectionError::UnsupportedAndroidTarget { .. })
+        ));
+    }
+
+    #[test]
+    fn every_supported_host_has_a_tag_and_others_are_rejected() {
+        assert_eq!(host_tag_for_os("macos").expect("macos"), "darwin-x86_64");
+        assert_eq!(host_tag_for_os("linux").expect("linux"), "linux-x86_64");
+        assert_eq!(
+            host_tag_for_os("windows").expect("windows"),
+            "windows-x86_64"
+        );
+        assert!(matches!(
+            host_tag_for_os("plan9"),
+            Err(AndroidNdkDetectionError::UnsupportedHostPlatform)
+        ));
+    }
+
+    #[test]
+    #[serial]
+    fn the_api_level_falls_back_through_each_variable() {
+        clear_ndk_environment();
+        assert_eq!(detect_api_level(), "28");
+
+        unsafe { std::env::set_var("CARGO_NDK_ANDROID_PLATFORM", "android-30") };
+        assert_eq!(detect_api_level(), "30");
+
+        unsafe { std::env::set_var("ANDROID_PLATFORM", "android-31") };
+        assert_eq!(detect_api_level(), "31");
+
+        unsafe { std::env::set_var("ANDROID_API_LEVEL", "32") };
+        assert_eq!(detect_api_level(), "32");
+
+        clear_ndk_environment();
+    }
+
+    #[test]
+    #[serial]
+    fn each_ndk_variable_is_consulted_in_order() {
+        clear_ndk_environment();
+
+        for name in [
+            "CARGO_NDK_ANDROID_NDK",
+            "NDK_ROOT",
+            "ANDROID_NDK_ROOT",
+            "ANDROID_NDK",
+        ] {
+            unsafe { std::env::set_var(name, format!("/from/{name}")) };
+
+            assert_eq!(
+                detect_ndk_path("aarch64-linux-android").expect(name),
+                format!("/from/{name}")
+            );
+        }
+
+        clear_ndk_environment();
+    }
+
+    #[test]
+    #[serial]
+    fn an_unset_ndk_reports_the_target_triple() {
+        clear_ndk_environment();
+        let scratch = ScratchDir::new("ndk-unset");
+        unsafe { std::env::set_var("ANDROID_HOME", scratch.path()) };
+
+        let error =
+            detect_ndk_path("aarch64-linux-android").expect_err("no NDK anywhere must fail");
+
+        clear_ndk_environment();
+
+        assert!(matches!(
+            error,
+            AndroidNdkDetectionError::NdkRootNotConfigured { ref target_triple, .. }
+                if target_triple == "aarch64-linux-android"
+        ));
+    }
+
+    #[test]
+    #[serial]
+    fn the_newest_sdk_installed_ndk_is_selected() {
+        clear_ndk_environment();
+        let scratch = ScratchDir::new("ndk-sdk");
+        let ndk_dir = scratch.path().join("ndk");
+        std::fs::create_dir_all(ndk_dir.join("25.1.0")).expect("older ndk must be creatable");
+        std::fs::create_dir_all(ndk_dir.join("27.0.1")).expect("newer ndk must be creatable");
+        std::fs::write(ndk_dir.join("not-a-directory"), b"x").expect("file must be writable");
+        unsafe { std::env::set_var("ANDROID_SDK_ROOT", scratch.path()) };
+
+        let detected = detect_ndk_from_sdk().expect("an SDK-installed NDK must be found");
+
+        clear_ndk_environment();
+
+        assert!(detected.ends_with("ndk/27.0.1"), "got: {detected}");
+    }
+
+    #[test]
+    #[serial]
+    fn an_sdk_without_any_ndk_directory_is_not_detected() {
+        clear_ndk_environment();
+        let scratch = ScratchDir::new("ndk-sdk-empty");
+        std::fs::create_dir_all(scratch.path().join("ndk")).expect("ndk dir must be creatable");
+        unsafe { std::env::set_var("ANDROID_HOME", scratch.path()) };
+
+        let outcome = detect_ndk_from_sdk();
+
+        clear_ndk_environment();
+
+        assert!(outcome.is_err(), "an empty ndk directory yields nothing");
+    }
+
+    #[test]
+    fn validation_rejects_a_missing_root_and_a_missing_toolchain_file() {
+        let scratch = ScratchDir::new("ndk-validate");
+
+        assert!(matches!(
+            validate_ndk_installation("/definitely/not/here"),
+            Err(AndroidNdkDetectionError::NdkRootMissing { .. })
+        ));
+
+        let bare = scratch.path().join("bare");
+        std::fs::create_dir_all(&bare).expect("bare ndk must be creatable");
+
+        assert!(matches!(
+            validate_ndk_installation(&bare.to_string_lossy()),
+            Err(AndroidNdkDetectionError::NdkToolchainFileMissing { .. })
+        ));
+    }
+
+    #[test]
+    fn clang_builtin_includes_are_found_only_when_the_version_directory_exists() {
+        let scratch = ScratchDir::new("ndk-clang");
+        let toolchain = scratch.path().join("toolchain");
+
+        assert_eq!(
+            find_clang_builtin_includes(&toolchain.to_string_lossy()),
+            None,
+            "a missing lib/clang directory yields nothing"
+        );
+
+        std::fs::create_dir_all(toolchain.join("lib/clang")).expect("clang dir must be creatable");
+        std::fs::create_dir_all(toolchain.join("lib/clang/not-a-version"))
+            .expect("non-version dir must be creatable");
+
+        assert_eq!(
+            find_clang_builtin_includes(&toolchain.to_string_lossy()),
+            None,
+            "only digit-prefixed version directories count"
+        );
+
+        std::fs::create_dir_all(toolchain.join("lib/clang/18"))
+            .expect("version dir must be creatable");
+
+        assert_eq!(
+            find_clang_builtin_includes(&toolchain.to_string_lossy()),
+            None,
+            "a version directory without include/ yields nothing"
+        );
+
+        std::fs::create_dir_all(toolchain.join("lib/clang/18/include"))
+            .expect("include dir must be creatable");
+
+        let found = find_clang_builtin_includes(&toolchain.to_string_lossy())
+            .expect("a complete layout must resolve");
+
+        assert!(found.ends_with("lib/clang/18/include"), "got: {found}");
+    }
+
+    #[test]
+    #[serial]
+    fn a_complete_ndk_layout_is_detected_end_to_end() {
+        clear_ndk_environment();
+        let scratch = ScratchDir::new("ndk-complete");
+        let ndk_path = ndk_tree(&scratch, true);
+        unsafe { std::env::set_var("ANDROID_NDK", &ndk_path) };
+
+        let ndk = AndroidNdk::detect("aarch64-linux-android").expect("layout must be detected");
+
+        clear_ndk_environment();
+
+        assert_eq!(ndk.abi, "arm64-v8a");
+        assert_eq!(ndk.target_prefix, "aarch64-linux-android");
+        assert_eq!(ndk.api_level, "28");
+        assert_eq!(ndk.android_platform(), "android-28");
+        assert_eq!(
+            ndk.cmake_toolchain_file(),
+            format!("{ndk_path}/build/cmake/android.toolchain.cmake")
+        );
+        assert!(Path::new(&ndk.sysroot).is_dir());
+        assert!(ndk.clang_builtin_includes.is_some());
+        assert!(format!("{ndk:?}").contains("AndroidNdk"));
+    }
+
+    #[test]
+    #[serial]
+    fn a_layout_without_the_host_toolchain_directory_is_rejected() {
+        clear_ndk_environment();
+        let scratch = ScratchDir::new("ndk-no-toolchain");
+        let ndk = scratch.path().join("ndk");
+        std::fs::create_dir_all(ndk.join("build/cmake")).expect("cmake dir must be creatable");
+        std::fs::write(ndk.join("build/cmake/android.toolchain.cmake"), b"x")
+            .expect("toolchain file must be writable");
+        unsafe { std::env::set_var("ANDROID_NDK", ndk.to_string_lossy().as_ref()) };
+
+        let error = AndroidNdk::detect("aarch64-linux-android")
+            .expect_err("a missing host toolchain must fail");
+
+        clear_ndk_environment();
+
+        assert!(matches!(
+            error,
+            AndroidNdkDetectionError::NdkToolchainDirectoryMissing { .. }
+        ));
+    }
+
+    #[test]
+    #[serial]
+    fn a_complete_layout_without_clang_includes_still_detects() {
+        clear_ndk_environment();
+        let scratch = ScratchDir::new("ndk-no-clang");
+        unsafe { std::env::set_var("ANDROID_NDK", ndk_tree(&scratch, false)) };
+
+        let ndk = AndroidNdk::detect("x86_64-linux-android").expect("layout must be detected");
+
+        clear_ndk_environment();
+
+        assert_eq!(ndk.abi, "x86_64");
+        assert_eq!(ndk.clang_builtin_includes, None);
+    }
+
+    #[test]
+    fn every_error_variant_renders_a_message() {
+        let messages = [
+            AndroidNdkDetectionError::NdkRootMissing { path: "/p".into() }.to_string(),
+            AndroidNdkDetectionError::NdkToolchainFileMissing { path: "/p".into() }.to_string(),
+            AndroidNdkDetectionError::NdkToolchainDirectoryMissing { path: "/p".into() }
+                .to_string(),
+            AndroidNdkDetectionError::UnsupportedHostPlatform.to_string(),
+            AndroidNdkDetectionError::UnsupportedAndroidTarget {
+                target_triple: "mips".to_owned(),
+            }
+            .to_string(),
+        ];
+
+        for message in messages {
+            assert!(!message.is_empty());
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn an_unset_sdk_root_falls_back_to_the_home_directory() {
+        clear_ndk_environment();
+
+        let outcome = detect_ndk_from_sdk();
+
+        assert!(
+            outcome.is_err(),
+            "no NDK is installed under the home directory in this environment"
+        );
     }
 }

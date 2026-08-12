@@ -15,6 +15,9 @@ glob = { workspace = true }
 thiserror = { workspace = true }
 walkdir = { workspace = true }
 
+[dev-dependencies]
+serial_test = { workspace = true }
+
 [features]
 cuda = []
 cuda-no-vmm = ["cuda"]

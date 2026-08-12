@@ -49,3 +49,84 @@ pub fn stable_cmake_build_dir(
 
     path
 }
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+
+    use crate::scratch_dir::ScratchDir;
+
+    use super::stable_cmake_build_dir;
+
+    const OVERRIDE_VAR: &str = "LLAMA_CMAKE_BUILD_DIR_OVERRIDE";
+
+    fn build_dir_for(
+        scratch: &ScratchDir,
+        target_triple: &str,
+        profile: &str,
+    ) -> std::path::PathBuf {
+        stable_cmake_build_dir(scratch.path(), target_triple, profile, false, false)
+    }
+
+    #[test]
+    #[serial]
+    fn the_same_inputs_always_yield_the_same_directory() {
+        unsafe { std::env::remove_var(OVERRIDE_VAR) };
+        let scratch = ScratchDir::new("cmakedir-stable");
+
+        let first = build_dir_for(&scratch, "aarch64-apple-darwin", "Release");
+        let second = build_dir_for(&scratch, "aarch64-apple-darwin", "Release");
+
+        assert_eq!(first, second, "the directory must be stable across calls");
+        assert!(first.is_dir(), "the directory must be created");
+    }
+
+    #[test]
+    #[serial]
+    fn each_configuration_input_changes_the_directory() {
+        unsafe { std::env::remove_var(OVERRIDE_VAR) };
+        let scratch = ScratchDir::new("cmakedir-varies");
+        let baseline = build_dir_for(&scratch, "aarch64-apple-darwin", "Release");
+
+        let other_triple = build_dir_for(&scratch, "x86_64-unknown-linux-gnu", "Release");
+        let other_profile = build_dir_for(&scratch, "aarch64-apple-darwin", "Debug");
+        let static_crt = stable_cmake_build_dir(
+            scratch.path(),
+            "aarch64-apple-darwin",
+            "Release",
+            true,
+            false,
+        );
+        let shared_libs = stable_cmake_build_dir(
+            scratch.path(),
+            "aarch64-apple-darwin",
+            "Release",
+            false,
+            true,
+        );
+
+        for (label, candidate) in [
+            ("target triple", other_triple),
+            ("profile", other_profile),
+            ("static crt", static_crt),
+            ("shared libs", shared_libs),
+        ] {
+            assert_ne!(baseline, candidate, "{label} must change the build dir");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn the_override_environment_variable_wins_and_is_created() {
+        let scratch = ScratchDir::new("cmakedir-override");
+        let override_path = scratch.path().join("explicit-build-dir");
+        unsafe { std::env::set_var(OVERRIDE_VAR, &override_path) };
+
+        let resolved = build_dir_for(&scratch, "aarch64-apple-darwin", "Release");
+
+        unsafe { std::env::remove_var(OVERRIDE_VAR) };
+
+        assert_eq!(resolved, override_path);
+        assert!(resolved.is_dir(), "the override directory must be created");
+    }
+}

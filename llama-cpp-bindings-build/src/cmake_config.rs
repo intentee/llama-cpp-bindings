@@ -361,3 +361,348 @@ fn configure_system_ggml(config: &mut Config) {
         config.define("LLAMA_USE_SYSTEM_GGML", "ON");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use cmake::Config;
+    use serial_test::serial;
+
+    use crate::android_ndk::AndroidNdk;
+    use crate::scratch_dir::ScratchDir;
+    use crate::target_os::TargetOs;
+
+    use super::configure_android_arch_flags;
+    use super::configure_android_cmake;
+    use super::configure_base_defines;
+    use super::configure_compiler_launchers;
+    use super::configure_cpu_features;
+    use super::configure_dynamic_backends;
+    use super::configure_gpu_backends;
+    use super::configure_msvc_release_workaround;
+    use super::configure_openmp;
+    use super::configure_platform_specific;
+    use super::configure_shared_libs;
+    use super::configure_system_ggml;
+    use super::configure_vulkan_linking;
+    use super::map_cpu_feature_to_ggml;
+    use super::override_archive_commands_for_apple_ar;
+    use super::pass_cmake_env_vars;
+    use super::which;
+
+    fn config() -> Config {
+        Config::new(".")
+    }
+
+    fn target_os(triple: &str) -> TargetOs {
+        TargetOs::from_target_triple(triple).expect("supported triple")
+    }
+
+    fn android_ndk(abi: &'static str) -> AndroidNdk {
+        AndroidNdk {
+            ndk_path: "/ndk".to_owned(),
+            api_level: "28".to_owned(),
+            abi,
+            host_tag: "darwin-x86_64",
+            toolchain_path: "/ndk/toolchain".to_owned(),
+            sysroot: "/ndk/toolchain/sysroot".to_owned(),
+            target_prefix: "aarch64-linux-android",
+            clang_builtin_includes: None,
+        }
+    }
+
+    #[test]
+    fn every_recognised_cpu_feature_maps_to_a_ggml_flag() {
+        for (feature, flag) in [
+            ("avx", "GGML_AVX"),
+            ("avx2", "GGML_AVX2"),
+            ("avx512bf16", "GGML_AVX512_BF16"),
+            ("avx512vbmi", "GGML_AVX512_VBMI"),
+            ("avx512vnni", "GGML_AVX512_VNNI"),
+            ("avxvnni", "GGML_AVX_VNNI"),
+            ("bmi2", "GGML_BMI2"),
+            ("f16c", "GGML_F16C"),
+            ("fma", "GGML_FMA"),
+            ("sse4.2", "GGML_SSE42"),
+        ] {
+            assert_eq!(map_cpu_feature_to_ggml(feature), Some(flag));
+        }
+
+        assert_eq!(map_cpu_feature_to_ggml("neon"), None);
+    }
+
+    #[test]
+    #[serial]
+    fn which_finds_a_program_on_path_and_reports_absence() {
+        let scratch = ScratchDir::new("cmake-which");
+        let program = scratch.path().join("a-build-tool");
+        std::fs::write(&program, b"#!/bin/sh\n").expect("program must be writable");
+        let previous = std::env::var_os("PATH").expect("PATH is always set");
+        unsafe { std::env::set_var("PATH", scratch.path()) };
+
+        let found = which("a-build-tool");
+        let missing = which("definitely-not-a-program");
+
+        unsafe { std::env::set_var("PATH", previous) };
+
+        assert_eq!(found, Some(program));
+        assert_eq!(missing, None);
+    }
+
+    #[test]
+    #[serial]
+    fn dynamic_backends_are_configured_only_behind_the_feature() {
+        let scratch = ScratchDir::new("cmake-backends");
+        let mut config = config();
+
+        let backends_dir = configure_dynamic_backends(&mut config, scratch.path());
+
+        if cfg!(feature = "dynamic-backends") {
+            let dir = backends_dir.expect("the feature must yield a backends directory");
+            assert!(dir.is_dir(), "the backends directory must be created");
+        } else {
+            assert_eq!(backends_dir, None);
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn compiler_launchers_are_skipped_when_ccache_is_disabled() {
+        unsafe { std::env::set_var("LLAMA_DISABLE_CCACHE", "1") };
+
+        configure_compiler_launchers(&mut config());
+
+        unsafe { std::env::remove_var("LLAMA_DISABLE_CCACHE") };
+    }
+
+    #[test]
+    #[serial]
+    fn compiler_launchers_are_configured_when_ccache_is_present() {
+        let scratch = ScratchDir::new("cmake-ccache");
+        std::fs::write(scratch.path().join("ccache"), b"#!/bin/sh\n")
+            .expect("ccache stand-in must be writable");
+        let previous_path = std::env::var_os("PATH").expect("PATH is always set");
+
+        unsafe {
+            std::env::remove_var("LLAMA_DISABLE_CCACHE");
+            std::env::set_var("PATH", scratch.path());
+        }
+
+        configure_compiler_launchers(&mut config());
+
+        unsafe { std::env::set_var("PATH", previous_path) };
+    }
+
+    #[test]
+    #[serial]
+    fn cmake_prefixed_environment_variables_are_forwarded() {
+        unsafe { std::env::set_var("CMAKE_A_TEST_ONLY_VARIABLE", "value") };
+
+        pass_cmake_env_vars(&mut config());
+
+        unsafe { std::env::remove_var("CMAKE_A_TEST_ONLY_VARIABLE") };
+    }
+
+    #[test]
+    #[serial]
+    fn a_native_target_cpu_enables_ggml_native() {
+        unsafe {
+            std::env::set_var("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native");
+        }
+
+        configure_cpu_features(&mut config(), "aarch64-apple-darwin");
+
+        unsafe { std::env::remove_var("CARGO_ENCODED_RUSTFLAGS") };
+    }
+
+    #[test]
+    #[serial]
+    fn an_explicit_target_cpu_sets_a_baseline_march() {
+        unsafe {
+            std::env::set_var("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=haswell");
+            std::env::set_var("CARGO_CFG_TARGET_FEATURE", "avx,avx2,neon");
+        }
+
+        configure_cpu_features(&mut config(), "aarch64-unknown-linux-gnu");
+
+        unsafe {
+            std::env::remove_var("CARGO_ENCODED_RUSTFLAGS");
+            std::env::remove_var("CARGO_CFG_TARGET_FEATURE");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn an_absent_target_cpu_still_configures_features() {
+        unsafe {
+            std::env::remove_var("CARGO_ENCODED_RUSTFLAGS");
+            std::env::remove_var("CARGO_CFG_TARGET_FEATURE");
+        }
+
+        configure_cpu_features(&mut config(), "x86_64-unknown-linux-gnu");
+    }
+
+    #[test]
+    fn shared_library_configuration_covers_both_settings() {
+        configure_shared_libs(&mut config(), true);
+        configure_shared_libs(&mut config(), false);
+    }
+
+    #[test]
+    fn every_platform_arm_is_configured() {
+        configure_platform_specific(
+            &mut config(),
+            &target_os("aarch64-apple-darwin"),
+            "aarch64-apple-darwin",
+            "Release",
+            None,
+        );
+        configure_platform_specific(
+            &mut config(),
+            &target_os("x86_64-pc-windows-msvc"),
+            "x86_64-pc-windows-msvc",
+            "Release",
+            None,
+        );
+        configure_platform_specific(
+            &mut config(),
+            &target_os("x86_64-unknown-linux-gnu"),
+            "x86_64-unknown-linux-gnu",
+            "Release",
+            None,
+        );
+        configure_platform_specific(
+            &mut config(),
+            &target_os("aarch64-linux-android"),
+            "aarch64-linux-android",
+            "Release",
+            None,
+        );
+        configure_platform_specific(
+            &mut config(),
+            &target_os("aarch64-linux-android"),
+            "aarch64-linux-android",
+            "Release",
+            Some(&android_ndk("arm64-v8a")),
+        );
+    }
+
+    #[test]
+    fn the_msvc_release_workaround_applies_only_to_release_profiles() {
+        for profile in ["Release", "RelWithDebInfo", "MinSizeRel", "Debug"] {
+            configure_msvc_release_workaround(&mut config(), profile);
+        }
+    }
+
+    #[test]
+    fn the_android_cmake_configuration_uses_the_detected_ndk() {
+        configure_android_cmake(
+            &mut config(),
+            &android_ndk("arm64-v8a"),
+            "aarch64-linux-android",
+        );
+    }
+
+    #[test]
+    fn every_android_abi_sets_architecture_flags() {
+        for abi in ["arm64-v8a", "armeabi-v7a", "x86_64", "x86", "riscv64"] {
+            configure_android_arch_flags(&mut config(), abi);
+        }
+    }
+
+    #[test]
+    fn apple_archive_commands_are_overridden() {
+        override_archive_commands_for_apple_ar(&mut config());
+    }
+
+    #[test]
+    fn gpu_backends_are_configured_for_each_host() {
+        configure_gpu_backends(&mut config(), &target_os("aarch64-apple-darwin"));
+        configure_gpu_backends(&mut config(), &target_os("x86_64-unknown-linux-gnu"));
+    }
+
+    #[test]
+    #[serial]
+    fn vulkan_linking_covers_every_platform_arm() {
+        let scratch = ScratchDir::new("cmake-vulkan");
+        unsafe { std::env::set_var("VULKAN_SDK", scratch.path()) };
+
+        configure_vulkan_linking(&mut config(), &target_os("x86_64-pc-windows-msvc"));
+        configure_vulkan_linking(&mut config(), &target_os("x86_64-unknown-linux-gnu"));
+        configure_vulkan_linking(&mut config(), &target_os("aarch64-apple-darwin"));
+
+        unsafe { std::env::remove_var("VULKAN_SDK") };
+
+        configure_vulkan_linking(&mut config(), &target_os("x86_64-unknown-linux-gnu"));
+
+        assert_eq!(
+            std::env::var("TrackFileAccess").as_deref(),
+            Ok("false"),
+            "the windows arm must disable MSBuild file tracking"
+        );
+
+        unsafe { std::env::remove_var("TrackFileAccess") };
+    }
+
+    #[test]
+    fn openmp_is_disabled_for_android_and_configured_elsewhere() {
+        configure_openmp(&mut config(), &target_os("aarch64-linux-android"));
+        configure_openmp(&mut config(), &target_os("aarch64-apple-darwin"));
+    }
+
+    #[test]
+    fn system_ggml_configuration_runs() {
+        configure_system_ggml(&mut config());
+    }
+
+    #[test]
+    fn the_base_defines_turn_off_upstream_extras() {
+        configure_base_defines(&mut config());
+    }
+
+    /// Drives the whole configure-and-build path against a minimal CMake
+    /// project, so the orchestration is exercised without building llama.cpp.
+    #[test]
+    #[serial]
+    fn a_minimal_project_is_configured_and_built() {
+        let scratch = ScratchDir::new("cmake-build");
+        let source_dir = scratch.path().join("source");
+        std::fs::create_dir_all(&source_dir).expect("source dir must be creatable");
+        std::fs::write(
+            source_dir.join("CMakeLists.txt"),
+            b"cmake_minimum_required(VERSION 3.14)\n\
+              project(probe C)\n\
+              add_library(probe STATIC probe.c)\n\
+              install(TARGETS probe ARCHIVE DESTINATION lib)\n",
+        )
+        .expect("CMakeLists must be writable");
+        std::fs::write(
+            source_dir.join("probe.c"),
+            b"int probe(void) { return 1; }\n",
+        )
+        .expect("source must be writable");
+
+        let context = crate::BuildContext {
+            manifest_dir: scratch.path().to_path_buf(),
+            out_dir: scratch.path().join("out"),
+            target_dir: scratch.path().join("target"),
+            cmake_dir: scratch.path().join("cmake-out"),
+            llama_src: source_dir,
+            target_os: target_os("aarch64-apple-darwin"),
+            target_triple: "aarch64-apple-darwin".to_owned(),
+            build_shared_libs: false,
+            profile: "Release".to_owned(),
+            static_crt: false,
+            android_ndk: None,
+        };
+
+        let install_dir =
+            crate::cc_test_environment::with_cc_environment_value(scratch.path(), || {
+                super::configure_and_build(&context)
+            });
+
+        assert!(
+            install_dir.join("lib").join("libprobe.a").exists(),
+            "the archive must be installed under the cmake out dir"
+        );
+    }
+}
