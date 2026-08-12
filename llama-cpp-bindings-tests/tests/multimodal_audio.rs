@@ -16,6 +16,7 @@ use llama_cpp_test_harness::llama_test;
 const TRANSCRIBE_SYSTEM_PROMPT: &str = "You are a speech transcription assistant. Transcribe the user's audio verbatim, \
      replying with only the exact words spoken.";
 const TRANSCRIBE_INSTRUCTION: &str = "Transcribe the speech in this audio word for word.";
+const TRANSCRIPT_PREFILL: &str = "The words spoken are:";
 
 fn assert_audio_transcription_contains(
     fixture: &LlamaFixture<'_>,
@@ -49,7 +50,10 @@ fn assert_audio_transcription_contains(
         )?,
     ];
     let input_text = MtmdInputText {
-        text: model.apply_chat_template(&template, &messages, true, true)?,
+        text: format!(
+            "{}{TRANSCRIPT_PREFILL}",
+            model.apply_chat_template(&template, &messages, true, true)?
+        ),
         add_special: false,
         parse_special: true,
     };
