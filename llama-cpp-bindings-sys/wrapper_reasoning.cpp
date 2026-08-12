@@ -154,7 +154,7 @@ extern "C" auto llama_rs_detect_reasoning_markers(
             close_dups.begin(),
             close_dups.end(),
             closes_view.begin(),
-            [](std::unique_ptr<char[]> & close_dup) -> char * { return close_dup.release(); });
+            [](auto & close_dup) -> char * { return close_dup.release(); });
 
         *out_open = open_dup.release();
         *out_closes_count = close_dups.size();
