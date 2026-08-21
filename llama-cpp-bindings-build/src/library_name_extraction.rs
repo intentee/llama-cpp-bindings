@@ -177,7 +177,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn an_unreadable_library_directory_is_reported_and_skipped() {
+    fn an_unreadable_library_directory_fails_the_build() {
         use std::os::unix::fs::PermissionsExt;
 
         let scratch = ScratchDir::new("libname-unreadable");
@@ -188,14 +188,16 @@ mod tests {
         std::fs::set_permissions(&libs_dir, std::fs::Permissions::from_mode(0o000))
             .expect("permissions must be settable");
 
-        let names = extract_lib_names_for(&cmake_dir, false, HostPlatform::Unixlike);
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            extract_lib_names_for(&cmake_dir, false, HostPlatform::Unixlike)
+        }));
 
         std::fs::set_permissions(&libs_dir, std::fs::Permissions::from_mode(0o755))
             .expect("permissions must be restorable for cleanup");
 
         assert!(
-            names.is_empty(),
-            "unreadable entries are skipped: {names:?}"
+            outcome.is_err(),
+            "a directory that cannot be read must fail the build rather than link nothing"
         );
     }
 
