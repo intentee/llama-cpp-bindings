@@ -54,16 +54,24 @@ impl AndroidNdk {
         let abi = target_triple_to_abi(target_triple)?;
         let host_tag = detect_host_tag()?;
         let target_prefix = target_triple_to_ndk_prefix(target_triple)?;
-        let toolchain_path = format!("{ndk_path}/toolchains/llvm/prebuilt/{host_tag}");
+        let toolchain_path = Path::new(&ndk_path)
+            .join("toolchains")
+            .join("llvm")
+            .join("prebuilt")
+            .join(host_tag);
 
-        if !Path::new(&toolchain_path).exists() {
+        if !toolchain_path.exists() {
             return Err(AndroidNdkDetectionError::NdkToolchainDirectoryMissing {
-                path: PathBuf::from(toolchain_path),
+                path: toolchain_path,
             });
         }
 
-        let sysroot = format!("{toolchain_path}/sysroot");
+        let sysroot = toolchain_path
+            .join("sysroot")
+            .to_string_lossy()
+            .into_owned();
         let clang_builtin_includes = find_clang_builtin_includes(&toolchain_path);
+        let toolchain_path = toolchain_path.to_string_lossy().into_owned();
 
         Ok(Self {
             ndk_path,
@@ -211,8 +219,8 @@ fn target_triple_to_ndk_prefix(
     }
 }
 
-fn find_clang_builtin_includes(toolchain_path: &str) -> Option<String> {
-    let clang_lib_path = format!("{toolchain_path}/lib/clang");
+fn find_clang_builtin_includes(toolchain_path: &Path) -> Option<String> {
+    let clang_lib_path = toolchain_path.join("lib").join("clang");
     let entries = std::fs::read_dir(&clang_lib_path).ok()?;
 
     let version_dir = entries.filter_map(std::result::Result::ok).find(|entry| {
@@ -459,7 +467,7 @@ mod tests {
         let toolchain = scratch.path().join("toolchain");
 
         assert_eq!(
-            find_clang_builtin_includes(&toolchain.to_string_lossy()),
+            find_clang_builtin_includes(&toolchain),
             None,
             "a missing lib/clang directory yields nothing"
         );
@@ -469,7 +477,7 @@ mod tests {
             .expect("non-version dir must be creatable");
 
         assert_eq!(
-            find_clang_builtin_includes(&toolchain.to_string_lossy()),
+            find_clang_builtin_includes(&toolchain),
             None,
             "only digit-prefixed version directories count"
         );
@@ -478,7 +486,7 @@ mod tests {
             .expect("version dir must be creatable");
 
         assert_eq!(
-            find_clang_builtin_includes(&toolchain.to_string_lossy()),
+            find_clang_builtin_includes(&toolchain),
             None,
             "a version directory without include/ yields nothing"
         );
@@ -486,10 +494,15 @@ mod tests {
         std::fs::create_dir_all(toolchain.join("lib/clang/18/include"))
             .expect("include dir must be creatable");
 
-        let found = find_clang_builtin_includes(&toolchain.to_string_lossy())
-            .expect("a complete layout must resolve");
+        let found =
+            find_clang_builtin_includes(&toolchain).expect("a complete layout must resolve");
+        let expected = toolchain
+            .join("lib")
+            .join("clang")
+            .join("18")
+            .join("include");
 
-        assert!(found.ends_with("lib/clang/18/include"), "got: {found}");
+        assert_eq!(Path::new(&found), expected);
     }
 
     #[test]

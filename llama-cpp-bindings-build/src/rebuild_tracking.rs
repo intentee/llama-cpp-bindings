@@ -24,10 +24,7 @@ pub fn register_rebuild_triggers(wrapper_dir: &Path, llama_src: &Path) {
     println!("cargo:rerun-if-changed=build.rs");
 
     for pattern in WRAPPER_TRACKING_PATTERNS {
-        let scoped = wrapper_dir.join(pattern);
-        let scoped = scoped.to_string_lossy();
-
-        match glob_paths::collect_paths(&scoped) {
+        match glob_paths::collect_paths(wrapper_dir, pattern) {
             Ok(paths) => {
                 for path in paths {
                     println!("cargo:rerun-if-changed={}", path.display());

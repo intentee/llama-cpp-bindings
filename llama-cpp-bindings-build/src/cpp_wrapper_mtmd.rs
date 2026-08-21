@@ -1,20 +1,9 @@
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::BuildContext;
+use crate::cpp_build::cpp_build;
 use crate::glob_paths;
-use crate::target_os::TargetOs;
-
-fn msvc_flags(target_os: &TargetOs) -> &'static [&'static str] {
-    if target_os.is_msvc() {
-        &["/std:c++17", "/EHsc"]
-    } else {
-        &[]
-    }
-}
-
-fn links_stdlib_statically(target_os: &TargetOs) -> bool {
-    target_os.is_android() && cfg!(feature = "static-stdcxx")
-}
 
 const MTMD_SKIP_FILES: &[&str] = &["mtmd-cli.cpp", "deprecation-warning.cpp"];
 
@@ -30,9 +19,7 @@ fn mtmd_include_dirs(llama_src: &Path, mtmd_src: &Path) -> Vec<PathBuf> {
 }
 
 fn mtmd_sources(mtmd_src: &Path) -> Vec<PathBuf> {
-    let pattern = mtmd_src.join("**/*.cpp");
-
-    let paths = match glob_paths::collect_paths(&pattern.to_string_lossy()) {
+    let paths = match glob_paths::collect_paths(mtmd_src, "**/*.cpp") {
         Ok(paths) => paths,
         Err(error) => panic!("mtmd source discovery failed: {error}"),
     };
@@ -50,44 +37,26 @@ fn mtmd_sources(mtmd_src: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-pub fn compile_mtmd(llama_src: &Path, target_os: &TargetOs) {
-    mtmd_build(llama_src, target_os).compile("mtmd");
+pub fn compile_mtmd(context: &BuildContext) {
+    mtmd_build(context).compile("mtmd");
 }
 
-fn mtmd_build(llama_src: &Path, target_os: &TargetOs) -> cc::Build {
-    let mtmd_src = llama_src.join("tools/mtmd");
-    let mut build = cc::Build::new();
+fn mtmd_build(context: &BuildContext) -> cc::Build {
+    let mtmd_src = context.llama_src.join("tools/mtmd");
 
-    build.cpp(true).warnings(false);
-
-    for include_dir in mtmd_include_dirs(llama_src, &mtmd_src) {
-        build.include(include_dir);
-    }
-
-    build.flag_if_supported("-std=c++17").pic(true);
-
-    for flag in msvc_flags(target_os) {
-        build.flag(flag);
-    }
-
-    if links_stdlib_statically(target_os) {
-        build.cpp_link_stdlib(None);
-    }
-
-    for source in mtmd_sources(&mtmd_src) {
-        build.file(&source);
-    }
-
-    build
+    cpp_build(
+        context,
+        mtmd_include_dirs(&context.llama_src, &mtmd_src),
+        mtmd_sources(&mtmd_src),
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
-
-    use crate::cc_test_environment::with_cc_environment;
+    use crate::host_platform::HostPlatform;
+    use crate::host_target_triple::host_target_triple;
     use crate::scratch_dir::ScratchDir;
-    use crate::target_os::TargetOs;
+    use crate::test_build_context::test_build_context;
 
     use super::compile_mtmd;
     use super::mtmd_include_dirs;
@@ -144,54 +113,18 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn mtmd_sources_are_compiled_into_an_archive() {
         let scratch = ScratchDir::new("mtmd-compile");
         let llama_src = llama_src_with_mtmd(&scratch);
+        let context = test_build_context(scratch.path(), &llama_src, &host_target_triple());
 
-        with_cc_environment(scratch.path(), || {
-            compile_mtmd(
-                &llama_src,
-                &TargetOs::from_target_triple("aarch64-apple-darwin").expect("supported triple"),
-            );
-        });
+        compile_mtmd(&context);
+
+        let archive = HostPlatform::current().static_library_file_name("mtmd");
 
         assert!(
-            scratch.path().join("libmtmd.a").exists(),
-            "the mtmd archive must be produced"
+            scratch.path().join(&archive).exists(),
+            "the mtmd archive {archive} must be produced"
         );
-    }
-
-    #[test]
-    fn platform_flag_decisions_cover_every_target() {
-        let msvc = TargetOs::from_target_triple("x86_64-pc-windows-msvc").expect("msvc");
-        let android = TargetOs::from_target_triple("aarch64-linux-android").expect("android");
-        let apple = TargetOs::from_target_triple("aarch64-apple-darwin").expect("apple");
-
-        assert_eq!(super::msvc_flags(&msvc), &["/std:c++17", "/EHsc"]);
-        assert!(super::msvc_flags(&apple).is_empty());
-        assert!(super::msvc_flags(&android).is_empty());
-
-        assert_eq!(
-            super::links_stdlib_statically(&android),
-            cfg!(feature = "static-stdcxx")
-        );
-        assert!(!super::links_stdlib_statically(&apple));
-    }
-
-    #[test]
-    fn the_builder_applies_flags_for_every_target_without_compiling() {
-        let scratch = ScratchDir::new("mtmd-builder");
-        let llama_src = llama_src_with_mtmd(&scratch);
-
-        for triple in [
-            "x86_64-pc-windows-msvc",
-            "aarch64-linux-android",
-            "aarch64-apple-darwin",
-        ] {
-            let target_os = TargetOs::from_target_triple(triple).expect(triple);
-
-            let _ = super::mtmd_build(&llama_src, &target_os);
-        }
     }
 }

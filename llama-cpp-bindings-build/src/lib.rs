@@ -1,12 +1,13 @@
 mod android_ndk;
 mod bindgen_config;
-#[cfg(test)]
-mod cc_test_environment;
 mod cmake_config;
+mod cpp_build;
 mod cpp_wrapper;
 mod cpp_wrapper_mtmd;
 mod glob_paths;
 mod host_platform;
+#[cfg(test)]
+mod host_target_triple;
 mod library_asset_extraction;
 mod library_linking;
 mod library_name_extraction;
@@ -16,6 +17,8 @@ mod scratch_dir;
 mod shared_libs;
 mod stable_cmake_build_dir;
 mod target_os;
+#[cfg(test)]
+mod test_build_context;
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -42,9 +45,12 @@ pub struct BuildContext {
     pub llama_src: PathBuf,
     pub target_os: TargetOs,
     pub target_triple: String,
+    pub host: String,
     pub build_shared_libs: bool,
     pub profile: String,
     pub static_crt: bool,
+    pub opt_level: String,
+    pub debug: bool,
     pub android_ndk: Option<AndroidNdk>,
 }
 
@@ -52,6 +58,11 @@ impl BuildContext {
     fn detect() -> Self {
         let target_triple =
             env::var("TARGET").expect("TARGET env var is required in build scripts");
+        let host = env::var("HOST").expect("HOST env var is required in build scripts");
+        let opt_level =
+            env::var("OPT_LEVEL").expect("OPT_LEVEL env var is required in build scripts");
+        let debug =
+            env::var("DEBUG").expect("DEBUG env var is required in build scripts") == "true";
         let target_os = TargetOs::from_target_triple(&target_triple)
             .unwrap_or_else(|error| panic!("Failed to parse target OS: {error}"));
         let out_dir = PathBuf::from(
@@ -68,9 +79,7 @@ impl BuildContext {
 
         let profile = env::var("LLAMA_LIB_PROFILE").unwrap_or_else(|_| "Release".to_string());
 
-        let static_crt = env::var("LLAMA_STATIC_CRT")
-            .map(|value| value == "1")
-            .unwrap_or(false);
+        let static_crt = static_crt_from_environment();
 
         let android_ndk = if target_os.is_android() {
             Some(
@@ -104,12 +113,26 @@ impl BuildContext {
             llama_src,
             target_os,
             target_triple,
+            host,
             build_shared_libs,
             profile,
             static_crt,
+            opt_level,
+            debug,
             android_ndk,
         }
     }
+}
+
+fn static_crt_from_environment() -> bool {
+    env::var("LLAMA_STATIC_CRT").map_or_else(
+        |_| {
+            env::var("CARGO_CFG_TARGET_FEATURE")
+                .unwrap_or_default()
+                .contains("crt-static")
+        },
+        |value| value == "1",
+    )
 }
 
 fn cargo_target_dir(out_dir: &Path) -> PathBuf {
@@ -125,24 +148,13 @@ pub fn build() {
 
     rebuild_tracking::register_rebuild_triggers(&context.manifest_dir, &context.llama_src);
 
-    bindgen_config::generate_bindings(
-        &context.manifest_dir,
-        &context.llama_src,
-        &context.out_dir,
-        &context.target_os,
-        &context.target_triple,
-        context.android_ndk.as_ref(),
-    );
+    bindgen_config::generate_bindings(&context);
 
-    cpp_wrapper::compile_cpp_wrappers(
-        &context.manifest_dir,
-        &context.llama_src,
-        &context.target_os,
-    );
+    cpp_wrapper::compile_cpp_wrappers(&context);
 
     let build_dir = cmake_config::configure_and_build(&context);
 
-    cpp_wrapper_mtmd::compile_mtmd(&context.llama_src, &context.target_os);
+    cpp_wrapper_mtmd::compile_mtmd(&context);
 
     library_linking::link_libraries(
         &context.cmake_dir,
@@ -164,11 +176,23 @@ mod tests {
 
     use serial_test::serial;
 
+    use crate::host_target_triple::host_target_triple;
     use crate::scratch_dir::ScratchDir;
     use crate::target_os::TargetOs;
 
     use super::BuildContext;
     use super::cargo_target_dir;
+
+    fn set_mandatory_build_script_environment(manifest_dir: &Path, out_dir: &Path, target: &str) {
+        unsafe {
+            std::env::set_var("TARGET", target);
+            std::env::set_var("HOST", host_target_triple());
+            std::env::set_var("OUT_DIR", out_dir);
+            std::env::set_var("CARGO_MANIFEST_DIR", manifest_dir);
+            std::env::set_var("OPT_LEVEL", "0");
+            std::env::set_var("DEBUG", "false");
+        }
+    }
 
     /// A complete stand-in for the sys crate: wrapper headers and sources, and
     /// a minimal CMake project in place of llama.cpp. Lets `build()` run end to
@@ -204,7 +228,9 @@ mod tests {
             b"cmake_minimum_required(VERSION 3.14)\n\
               project(probe C)\n\
               add_library(probe probe.c)\n\
-              install(TARGETS probe ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)\n",
+              set_target_properties(probe PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)\n\
+              install(TARGETS probe ARCHIVE DESTINATION lib LIBRARY DESTINATION lib \
+              RUNTIME DESTINATION bin)\n",
         )
         .expect("CMakeLists must be writable");
         std::fs::write(
@@ -221,7 +247,7 @@ mod tests {
         std::fs::create_dir_all(&out_dir).expect("out dir must be creatable");
         let rocm_root = manifest_dir.join("rocm");
         std::fs::create_dir_all(rocm_root.join("lib")).expect("rocm lib must be creatable");
-        let host = format!("{}-apple-darwin", std::env::consts::ARCH);
+        let host = host_target_triple();
 
         unsafe {
             std::env::set_var("ROCM_PATH", &rocm_root);
@@ -231,6 +257,7 @@ mod tests {
             std::env::set_var("TARGET", &host);
             std::env::set_var("HOST", &host);
             std::env::set_var("OPT_LEVEL", "0");
+            std::env::set_var("DEBUG", "false");
             std::env::set_var("PROFILE", "debug");
             std::env::set_var("NUM_JOBS", "1");
             std::env::set_var("LLAMA_BUILD_SHARED_LIBS", shared_libs);
@@ -244,11 +271,11 @@ mod tests {
         unsafe {
             std::env::remove_var("LLAMA_BUILD_SHARED_LIBS");
             std::env::remove_var("OPT_LEVEL");
+            std::env::remove_var("DEBUG");
             std::env::remove_var("PROFILE");
             std::env::remove_var("NUM_JOBS");
             std::env::remove_var("ROCM_PATH");
             std::env::remove_var("VULKAN_SDK");
-            std::env::remove_var("TrackFileAccess");
         }
     }
 
@@ -288,10 +315,8 @@ mod tests {
         let out_dir = scratch.path().join("target/debug/build/crate-abc/out");
         std::fs::create_dir_all(&out_dir).expect("out dir must be creatable");
 
+        set_mandatory_build_script_environment(scratch.path(), &out_dir, "aarch64-apple-darwin");
         unsafe {
-            std::env::set_var("TARGET", "aarch64-apple-darwin");
-            std::env::set_var("OUT_DIR", &out_dir);
-            std::env::set_var("CARGO_MANIFEST_DIR", scratch.path());
             std::env::remove_var("LLAMA_CMAKE_BUILD_DIR_OVERRIDE");
             std::env::remove_var("LLAMA_BUILD_SHARED_LIBS");
             std::env::remove_var("LLAMA_LIB_PROFILE");
@@ -302,6 +327,9 @@ mod tests {
 
         assert!(matches!(context.target_os, TargetOs::Apple(_)));
         assert_eq!(context.target_triple, "aarch64-apple-darwin");
+        assert_eq!(context.host, host_target_triple());
+        assert_eq!(context.opt_level, "0");
+        assert!(!context.debug);
         assert_eq!(context.manifest_dir, scratch.path());
         assert_eq!(context.llama_src, scratch.path().join("llama.cpp"));
         assert_eq!(context.target_dir, scratch.path().join("target/debug"));
@@ -324,10 +352,12 @@ mod tests {
         let out_dir = scratch.path().join("target/debug/build/crate-abc/out");
         std::fs::create_dir_all(&out_dir).expect("out dir must be creatable");
 
+        set_mandatory_build_script_environment(
+            scratch.path(),
+            &out_dir,
+            "x86_64-unknown-linux-gnu",
+        );
         unsafe {
-            std::env::set_var("TARGET", "x86_64-unknown-linux-gnu");
-            std::env::set_var("OUT_DIR", &out_dir);
-            std::env::set_var("CARGO_MANIFEST_DIR", scratch.path());
             std::env::set_var("LLAMA_LIB_PROFILE", "Debug");
             std::env::set_var("LLAMA_STATIC_CRT", "1");
             std::env::set_var("LLAMA_BUILD_SHARED_LIBS", "1");
@@ -355,10 +385,8 @@ mod tests {
         let out_dir = scratch.path().join("target/debug/build/crate-abc/out");
         std::fs::create_dir_all(&out_dir).expect("out dir must be creatable");
 
+        set_mandatory_build_script_environment(scratch.path(), &out_dir, "aarch64-linux-android");
         unsafe {
-            std::env::set_var("TARGET", "aarch64-linux-android");
-            std::env::set_var("OUT_DIR", &out_dir);
-            std::env::set_var("CARGO_MANIFEST_DIR", scratch.path());
             for name in [
                 "ANDROID_NDK",
                 "ANDROID_NDK_ROOT",

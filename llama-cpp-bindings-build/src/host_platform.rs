@@ -45,6 +45,16 @@ impl HostPlatform {
         }
     }
 
+    /// File name a C++ toolchain gives the static library it archives from `stem`.
+    #[cfg(test)]
+    #[must_use]
+    pub fn static_library_file_name(self, stem: &str) -> String {
+        match self {
+            Self::Windows => format!("{stem}.lib"),
+            Self::MacOs | Self::Unixlike => format!("lib{stem}.a"),
+        }
+    }
+
     /// Glob for the libraries the linker should be told about.
     #[must_use]
     pub const fn link_library_pattern(self, build_shared_libs: bool) -> &'static str {
@@ -89,6 +99,22 @@ mod tests {
         assert_eq!(HostPlatform::Windows.shared_library_dir(), "bin");
         assert_eq!(HostPlatform::MacOs.shared_library_dir(), "lib");
         assert_eq!(HostPlatform::Unixlike.shared_library_dir(), "lib");
+    }
+
+    #[test]
+    fn only_windows_omits_the_lib_prefix_from_static_archives() {
+        assert_eq!(
+            HostPlatform::Windows.static_library_file_name("mtmd"),
+            "mtmd.lib"
+        );
+        assert_eq!(
+            HostPlatform::MacOs.static_library_file_name("mtmd"),
+            "libmtmd.a"
+        );
+        assert_eq!(
+            HostPlatform::Unixlike.static_library_file_name("mtmd"),
+            "libmtmd.a"
+        );
     }
 
     #[test]

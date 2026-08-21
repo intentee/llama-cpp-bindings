@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use glob::glob;
-
-use crate::debug_log;
+use crate::glob_paths;
+use crate::glob_paths::GlobPathsError;
 use crate::host_platform::HostPlatform;
 
 pub fn extract_lib_assets(cmake_dir: &Path) -> Vec<PathBuf> {
@@ -11,26 +10,12 @@ pub fn extract_lib_assets(cmake_dir: &Path) -> Vec<PathBuf> {
 
 fn extract_lib_assets_for(cmake_dir: &Path, platform: HostPlatform) -> Vec<PathBuf> {
     let libs_dir = cmake_dir.join(platform.shared_library_dir());
-    let pattern = libs_dir.join(platform.shared_library_pattern());
-    debug_log!("Extract lib assets {}", pattern.display());
 
-    let pattern_str = pattern.to_string_lossy();
-    let mut files = Vec::new();
-
-    let Ok(entries) = glob(&pattern_str) else {
-        println!("cargo:warning=failed to glob shared lib pattern: {pattern_str}");
-
-        return files;
-    };
-
-    for entry in entries {
-        match entry {
-            Ok(path) => files.push(path),
-            Err(error) => eprintln!("cargo:warning=glob error: {error}"),
-        }
+    match glob_paths::collect_paths(&libs_dir, platform.shared_library_pattern()) {
+        Ok(paths) => paths,
+        Err(GlobPathsError::NoMatches { .. }) => Vec::new(),
+        Err(error) => panic!("shared library discovery failed: {error}"),
     }
-
-    files
 }
 
 #[cfg(test)]
@@ -122,12 +107,14 @@ mod tests {
     }
 
     #[test]
-    fn an_invalid_glob_pattern_is_reported_and_yields_no_files() {
-        let scratch = ScratchDir::new("assets-badglob");
-        let cmake_dir = scratch.path().join("a**b");
-        std::fs::create_dir_all(cmake_dir.join(assets_dir_name()))
-            .expect("assets dir must be creatable");
+    fn a_directory_holding_glob_metacharacters_still_yields_its_libraries() {
+        let scratch = ScratchDir::new("assets-metachars");
+        let cmake_dir = scratch.path().join("a[b]c");
+        let assets_dir = cmake_dir.join(assets_dir_name());
+        std::fs::create_dir_all(&assets_dir).expect("assets dir must be creatable");
+        std::fs::write(assets_dir.join(shared_lib_name("probe")), b"x")
+            .expect("library must be writable");
 
-        assert!(extract_lib_assets(&cmake_dir).is_empty());
+        assert_eq!(extract_lib_assets(&cmake_dir).len(), 1);
     }
 }

@@ -244,26 +244,6 @@ fn link_android_cpp_stdlib() {
 
 fn link_msvc_system_libraries() {
     println!("cargo:rustc-link-lib=advapi32");
-
-    let crt_static = env::var("CARGO_CFG_TARGET_FEATURE")
-        .unwrap_or_default()
-        .contains("crt-static");
-
-    if let Some(debug_runtime) = msvc_debug_runtime(cfg!(debug_assertions), crt_static) {
-        println!("{debug_runtime}");
-    }
-}
-
-fn msvc_debug_runtime(debug_assertions: bool, crt_static: bool) -> Option<&'static str> {
-    if !debug_assertions {
-        return None;
-    }
-
-    if crt_static {
-        Some("cargo:rustc-link-lib=libcmtd")
-    } else {
-        Some("cargo:rustc-link-lib=dylib=msvcrtd")
-    }
 }
 
 fn link_apple_frameworks(variant: AppleVariant) {
@@ -340,7 +320,6 @@ mod tests {
     use super::link_platform_system_libraries;
     use super::link_rocm_libraries;
     use super::link_system_ggml_paths;
-    use super::msvc_debug_runtime;
     use super::parse_clang_search_dirs;
 
     fn archive_name(stem: &str) -> String {
@@ -420,6 +399,14 @@ mod tests {
 
     /// `link_rocm_libraries` asserts the ROCm lib directory exists, so the
     /// environment is pointed at a real one for the duration of the call.
+    fn with_build_script_target<TBody: FnOnce()>(body: TBody) {
+        unsafe { std::env::set_var("TARGET", crate::host_target_triple::host_target_triple()) };
+
+        body();
+
+        unsafe { std::env::remove_var("TARGET") };
+    }
+
     fn with_rocm_root<TBody: FnOnce()>(body: TBody) {
         let scratch = ScratchDir::new("linking-rocm");
         std::fs::create_dir_all(scratch.path().join("lib")).expect("rocm lib must be creatable");
@@ -471,7 +458,7 @@ mod tests {
     #[test]
     #[serial]
     fn accelerator_linking_runs_for_static_builds() {
-        link_cuda_libraries(false);
+        with_build_script_target(|| link_cuda_libraries(false));
         with_rocm_root(|| link_rocm_libraries(false));
     }
 
@@ -516,15 +503,17 @@ mod tests {
         let target_os =
             TargetOs::from_target_triple("aarch64-apple-darwin").expect("supported triple");
 
-        with_rocm_root(|| {
-            link_libraries(
-                &cmake_dir,
-                scratch.path(),
-                &target_os,
-                "aarch64-apple-darwin",
-                false,
-                "Release",
-            );
+        with_build_script_target(|| {
+            with_rocm_root(|| {
+                link_libraries(
+                    &cmake_dir,
+                    scratch.path(),
+                    &target_os,
+                    "aarch64-apple-darwin",
+                    false,
+                    "Release",
+                );
+            });
         });
     }
 
@@ -542,20 +531,6 @@ mod tests {
     fn clang_output_without_a_libraries_line_yields_nothing() {
         assert_eq!(parse_clang_search_dirs("programs: =/usr/bin\n"), None);
         assert_eq!(parse_clang_search_dirs(""), None);
-    }
-
-    #[test]
-    fn the_msvc_debug_runtime_depends_on_assertions_and_the_crt_kind() {
-        assert_eq!(
-            msvc_debug_runtime(true, true),
-            Some("cargo:rustc-link-lib=libcmtd")
-        );
-        assert_eq!(
-            msvc_debug_runtime(true, false),
-            Some("cargo:rustc-link-lib=dylib=msvcrtd")
-        );
-        assert_eq!(msvc_debug_runtime(false, true), None);
-        assert_eq!(msvc_debug_runtime(false, false), None);
     }
 
     #[test]

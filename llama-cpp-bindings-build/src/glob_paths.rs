@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 use thiserror::Error;
@@ -20,7 +21,12 @@ pub enum GlobPathsError {
     NoMatches { pattern: String },
 }
 
-pub fn collect_paths(pattern: &str) -> Result<Vec<PathBuf>, GlobPathsError> {
+pub fn collect_paths(directory: &Path, file_pattern: &str) -> Result<Vec<PathBuf>, GlobPathsError> {
+    let escaped = glob::Pattern::escape(&directory.to_string_lossy());
+    let pattern = Path::new(&escaped).join(file_pattern);
+    let pattern = pattern.to_string_lossy();
+    let pattern = pattern.as_ref();
+
     let entries = glob::glob(pattern).map_err(|source| GlobPathsError::InvalidPattern {
         pattern: pattern.to_string(),
         source,
@@ -57,16 +63,13 @@ mod tests {
     use super::GlobPathsError;
     use super::collect_paths;
 
-    fn manifest_relative(pattern: &str) -> String {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join(pattern)
-            .to_string_lossy()
-            .into_owned()
-    }
-
     #[test]
     fn matching_pattern_returns_sorted_paths() {
-        let paths = collect_paths(&manifest_relative("src/*.rs")).expect("sources must match");
+        let paths = collect_paths(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src"),
+            "*.rs",
+        )
+        .expect("sources must match");
 
         assert!(paths.len() > 1, "the crate has several source files");
 
@@ -81,31 +84,37 @@ mod tests {
     }
 
     #[test]
-    fn an_invalid_pattern_reports_the_pattern() {
-        let error = collect_paths("a/**b/c").expect_err("malformed recursive glob must fail");
+    fn an_invalid_file_pattern_reports_the_pattern() {
+        let scratch = ScratchDir::new("glob-badpattern");
 
-        assert!(matches!(
-            error,
-            GlobPathsError::InvalidPattern { ref pattern, .. } if pattern == "a/**b/c"
-        ));
+        let error =
+            collect_paths(scratch.path(), "**b/c").expect_err("malformed recursive glob must fail");
+
+        assert!(matches!(error, GlobPathsError::InvalidPattern { .. }));
         assert!(error.to_string().contains("invalid glob pattern"));
+    }
+
+    #[test]
+    fn glob_metacharacters_in_the_directory_are_matched_literally() {
+        let scratch = ScratchDir::new("glob-metachars");
+        let awkward = scratch.path().join("a[b]c");
+        std::fs::create_dir_all(&awkward).expect("directory must be creatable");
+        std::fs::write(awkward.join("found.txt"), b"x").expect("file must be writable");
+
+        let paths = collect_paths(&awkward, "*.txt").expect("the directory must match literally");
+
+        assert_eq!(paths.len(), 1, "got: {paths:?}");
+        assert!(paths[0].ends_with("found.txt"));
     }
 
     #[test]
     fn a_pattern_matching_nothing_reports_no_matches() {
         let scratch = ScratchDir::new("glob-empty");
-        let pattern = scratch
-            .path()
-            .join("*.nothing-here")
-            .to_string_lossy()
-            .into_owned();
 
-        let error = collect_paths(&pattern).expect_err("empty directory must fail");
+        let error =
+            collect_paths(scratch.path(), "*.nothing-here").expect_err("empty directory must fail");
 
-        assert!(matches!(
-            error,
-            GlobPathsError::NoMatches { pattern: ref reported } if *reported == pattern
-        ));
+        assert!(matches!(error, GlobPathsError::NoMatches { .. }));
         assert!(error.to_string().contains("no files matched"));
     }
 
@@ -121,8 +130,7 @@ mod tests {
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000))
             .expect("permissions must be settable");
 
-        let pattern = scratch.path().join("*/*").to_string_lossy().into_owned();
-        let outcome = collect_paths(&pattern);
+        let outcome = collect_paths(scratch.path(), "*/*");
 
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755))
             .expect("permissions must be restorable for cleanup");

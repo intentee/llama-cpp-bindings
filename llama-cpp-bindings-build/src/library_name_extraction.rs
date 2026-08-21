@@ -1,8 +1,7 @@
 use std::path::Path;
 
-use glob::glob;
-
-use crate::debug_log;
+use crate::glob_paths;
+use crate::glob_paths::GlobPathsError;
 use crate::host_platform::HostPlatform;
 
 fn extract_single_lib_name(path: &Path) -> Option<String> {
@@ -36,31 +35,18 @@ fn extract_lib_names_for(
     build_shared_libs: bool,
     platform: HostPlatform,
 ) -> Vec<String> {
-    let libs_dir = cmake_dir.join("lib*");
-    let pattern = libs_dir.join(platform.link_library_pattern(build_shared_libs));
-    debug_log!("Extract libs {}", pattern.display());
+    let file_pattern = format!("lib*/{}", platform.link_library_pattern(build_shared_libs));
 
-    let pattern_str = pattern.to_string_lossy();
-    let mut lib_names: Vec<String> = Vec::new();
-
-    let Ok(entries) = glob(&pattern_str) else {
-        println!("cargo:warning=failed to glob library pattern: {pattern_str}");
-
-        return lib_names;
+    let paths = match glob_paths::collect_paths(cmake_dir, &file_pattern) {
+        Ok(paths) => paths,
+        Err(GlobPathsError::NoMatches { .. }) => Vec::new(),
+        Err(error) => panic!("library discovery failed: {error}"),
     };
 
-    for entry in entries {
-        match entry {
-            Ok(path) => {
-                if let Some(lib_name) = extract_single_lib_name(&path) {
-                    lib_names.push(lib_name);
-                }
-            }
-            Err(error) => println!("cargo:warning=glob error: {error}"),
-        }
-    }
-
-    lib_names
+    paths
+        .iter()
+        .filter_map(|path| extract_single_lib_name(path))
+        .collect()
 }
 
 #[cfg(test)]
@@ -137,9 +123,9 @@ mod tests {
     }
 
     #[test]
-    fn an_invalid_glob_pattern_is_reported_and_yields_no_names() {
-        let scratch = ScratchDir::new("libname-badglob");
-        let cmake_dir = scratch.path().join("a**b");
+    fn a_directory_without_libraries_yields_no_names() {
+        let scratch = ScratchDir::new("libname-empty");
+        let cmake_dir = scratch.path().join("cmake-out");
         std::fs::create_dir_all(&cmake_dir).expect("directory must be creatable");
 
         assert!(extract_lib_names(&cmake_dir, false).is_empty());

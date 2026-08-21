@@ -30,6 +30,8 @@ pub fn configure_and_build(context: &BuildContext) -> PathBuf {
 
     config.static_crt(context.static_crt);
     config
+        .target(&context.target_triple)
+        .host(&context.host)
         .out_dir(&context.cmake_dir)
         .profile(&context.profile)
         .very_verbose(env::var("CMAKE_VERBOSE").is_ok())
@@ -681,28 +683,20 @@ mod tests {
         )
         .expect("source must be writable");
 
-        let context = crate::BuildContext {
-            manifest_dir: scratch.path().to_path_buf(),
-            out_dir: scratch.path().join("out"),
-            target_dir: scratch.path().join("target"),
-            cmake_dir: scratch.path().join("cmake-out"),
-            llama_src: source_dir,
-            target_os: target_os("aarch64-apple-darwin"),
-            target_triple: "aarch64-apple-darwin".to_owned(),
-            build_shared_libs: false,
-            profile: "Release".to_owned(),
-            static_crt: false,
-            android_ndk: None,
-        };
+        let context = crate::test_build_context::test_build_context(
+            scratch.path(),
+            &source_dir,
+            &crate::host_target_triple::host_target_triple(),
+        );
 
-        let install_dir =
-            crate::cc_test_environment::with_cc_environment_value(scratch.path(), || {
-                super::configure_and_build(&context)
-            });
+        let install_dir = super::configure_and_build(&context);
+
+        let archive =
+            crate::host_platform::HostPlatform::current().static_library_file_name("probe");
 
         assert!(
-            install_dir.join("lib").join("libprobe.a").exists(),
-            "the archive must be installed under the cmake out dir"
+            install_dir.join("lib").join(&archive).exists(),
+            "the archive {archive} must be installed under the cmake out dir"
         );
     }
 }

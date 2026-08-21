@@ -1,28 +1,22 @@
 use std::env;
 use std::path::Path;
 
+use crate::BuildContext;
 use crate::android_ndk::AndroidNdk;
+use crate::cpp_build::cpp_build;
 use crate::debug_log;
-use crate::target_os::TargetOs;
 
-pub fn generate_bindings(
-    wrapper_dir: &Path,
-    llama_src: &Path,
-    out_dir: &Path,
-    target_os: &TargetOs,
-    target_triple: &str,
-    android_ndk: Option<&AndroidNdk>,
-) {
-    let mut builder = create_base_builder(wrapper_dir, llama_src);
+pub fn generate_bindings(context: &BuildContext) {
+    let mut builder = create_base_builder(&context.manifest_dir, &context.llama_src);
 
-    if target_os.is_android()
-        && let Some(ndk) = android_ndk
+    if context.target_os.is_android()
+        && let Some(ndk) = context.android_ndk.as_ref()
     {
-        builder = configure_android_bindgen(builder, ndk, target_triple);
+        builder = configure_android_bindgen(builder, ndk, &context.target_triple);
     }
 
-    if target_os.is_msvc() {
-        builder = configure_msvc_bindgen(builder, target_triple);
+    if context.target_os.is_msvc() {
+        builder = configure_msvc_bindgen(builder, context);
     }
 
     let bindings = builder
@@ -30,7 +24,7 @@ pub fn generate_bindings(
         .expect("bindgen failed to generate FFI bindings");
 
     bindings
-        .write_to_file(out_dir.join("bindings.rs"))
+        .write_to_file(context.out_dir.join("bindings.rs"))
         .expect("failed to write generated bindings to file");
 
     debug_log!("Bindings Created");
@@ -41,7 +35,10 @@ fn create_base_builder(wrapper_dir: &Path, llama_src: &Path) -> bindgen::Builder
         .header(wrapper_dir.join("wrapper.h").to_string_lossy())
         .header(wrapper_dir.join("wrapper_mtmd.h").to_string_lossy())
         .clang_arg(format!("-I{}", llama_src.join("include").display()))
-        .clang_arg(format!("-I{}", llama_src.join("ggml/include").display()))
+        .clang_arg(format!(
+            "-I{}",
+            llama_src.join("ggml").join("include").display()
+        ))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .derive_partialeq(true)
         .allowlist_function("ggml_.*")
@@ -126,39 +123,25 @@ fn split_msvc_include_paths(include_paths: &str) -> Vec<String> {
         .collect()
 }
 
-fn configure_msvc_bindgen(mut builder: bindgen::Builder, target_triple: &str) -> bindgen::Builder {
-    let out_dir_str = env::var("OUT_DIR").unwrap_or_default();
-    let dummy_c = Path::new(&out_dir_str).join("dummy.c");
+fn toolchain_include_paths(context: &BuildContext) -> Option<String> {
+    let dummy_c = context.out_dir.join("dummy.c");
 
-    if std::fs::write(&dummy_c, "int main() { return 0; }").is_err() {
-        return builder;
-    }
+    std::fs::write(&dummy_c, "int main() { return 0; }").ok()?;
 
-    let mut cc_build = cc::Build::new();
-    cc_build.file(&dummy_c);
+    let compiler = cpp_build(context, Vec::new(), vec![dummy_c])
+        .try_get_compiler()
+        .ok()?;
 
-    let Ok(compiler) = cc_build.try_get_compiler() else {
-        return builder;
-    };
-
-    let msvc_include_paths = compiler
+    compiler
         .env()
         .iter()
         .find(|(key, _)| key.eq_ignore_ascii_case("INCLUDE"))
-        .map(|(_, value)| value.clone());
+        .map(|(_, value)| value.to_string_lossy().into_owned())
+}
 
-    builder = apply_msvc_include_paths(
-        builder,
-        msvc_include_paths
-            .as_ref()
-            .map(|paths| paths.to_string_lossy())
-            .as_deref(),
-    );
-
-    builder = builder
-        .clang_arg(format!("--target={target_triple}"))
-        .clang_arg("-fms-compatibility")
-        .clang_arg("-fms-extensions");
+fn configure_msvc_bindgen(builder: bindgen::Builder, context: &BuildContext) -> bindgen::Builder {
+    let target_triple = &context.target_triple;
+    let builder = apply_msvc_include_paths(builder, toolchain_include_paths(context).as_deref());
 
     debug_log!(
         "Configured bindgen with MSVC toolchain for target: {}",
@@ -166,6 +149,9 @@ fn configure_msvc_bindgen(mut builder: bindgen::Builder, target_triple: &str) ->
     );
 
     builder
+        .clang_arg(format!("--target={target_triple}"))
+        .clang_arg("-fms-compatibility")
+        .clang_arg("-fms-extensions")
 }
 
 #[cfg(test)]
@@ -173,8 +159,9 @@ mod tests {
     use serial_test::serial;
 
     use crate::android_ndk::AndroidNdk;
-    use crate::cc_test_environment::with_cc_environment;
+    use crate::host_target_triple::host_target_triple;
     use crate::scratch_dir::ScratchDir;
+    use crate::test_build_context::test_build_context;
 
     use super::apply_msvc_include_paths;
     use super::configure_android_bindgen;
@@ -199,6 +186,10 @@ mod tests {
         format!("{builder:?}")
     }
 
+    fn as_rendered(value: &str) -> String {
+        format!("{value:?}").trim_matches('"').to_owned()
+    }
+
     #[test]
     #[serial]
     fn bindings_are_generated_and_respect_the_allowlist() {
@@ -217,15 +208,11 @@ mod tests {
         )
         .expect("mtmd header must be writable");
 
-        super::generate_bindings(
+        super::generate_bindings(&test_build_context(
             scratch.path(),
             &llama_src,
-            scratch.path(),
-            &crate::target_os::TargetOs::from_target_triple("aarch64-apple-darwin")
-                .expect("supported triple"),
-            "aarch64-apple-darwin",
-            None,
-        );
+            &host_target_triple(),
+        ));
 
         let generated = std::fs::read_to_string(scratch.path().join("bindings.rs"))
             .expect("bindings must be written");
@@ -247,8 +234,14 @@ mod tests {
         for expected in ["llama_.*", "ggml_.*", "mtmd_.*", "gguf_.*"] {
             assert!(description.contains(expected), "missing {expected}");
         }
-        assert!(description.contains("/llama/include"));
-        assert!(description.contains("/llama/ggml/include"));
+        for expected in [
+            std::path::Path::new("/llama").join("include"),
+            std::path::Path::new("/llama").join("ggml").join("include"),
+        ] {
+            let flag = as_rendered(&format!("-I{}", expected.display()));
+
+            assert!(description.contains(&flag), "missing {flag}");
+        }
     }
 
     #[test]
@@ -309,36 +302,42 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn the_msvc_configuration_adds_compatibility_flags() {
         let scratch = ScratchDir::new("bindgen-msvc");
-
-        with_cc_environment(scratch.path(), || {
-            let builder = configure_msvc_bindgen(
-                create_base_builder(std::path::Path::new("/sys"), std::path::Path::new("/llama")),
-                "x86_64-pc-windows-msvc",
-            );
-            let description = rendered(&builder);
-
-            assert!(description.contains("-fms-compatibility"));
-            assert!(description.contains("-fms-extensions"));
-            assert!(description.contains("--target=x86_64-pc-windows-msvc"));
-        });
-    }
-
-    #[test]
-    #[serial]
-    fn an_unwritable_out_dir_leaves_the_msvc_builder_untouched() {
-        unsafe { std::env::set_var("OUT_DIR", "/definitely/not/a/directory") };
-
-        let builder = configure_msvc_bindgen(
-            create_base_builder(std::path::Path::new("/sys"), std::path::Path::new("/llama")),
+        let context = test_build_context(
+            scratch.path(),
+            &scratch.path().join("llama.cpp"),
             "x86_64-pc-windows-msvc",
         );
 
-        unsafe { std::env::remove_var("OUT_DIR") };
+        let builder = configure_msvc_bindgen(
+            create_base_builder(std::path::Path::new("/sys"), std::path::Path::new("/llama")),
+            &context,
+        );
+        let description = rendered(&builder);
 
-        assert!(!rendered(&builder).contains("-fms-compatibility"));
+        assert!(description.contains("-fms-compatibility"));
+        assert!(description.contains("-fms-extensions"));
+        assert!(description.contains("--target=x86_64-pc-windows-msvc"));
+    }
+
+    #[test]
+    fn an_unwritable_out_dir_skips_include_discovery_but_keeps_the_flags() {
+        let scratch = ScratchDir::new("bindgen-msvc-unwritable");
+        let mut context = test_build_context(
+            scratch.path(),
+            &scratch.path().join("llama.cpp"),
+            "x86_64-pc-windows-msvc",
+        );
+        context.out_dir = std::path::PathBuf::from("/definitely/not/a/directory");
+
+        let description = rendered(&configure_msvc_bindgen(
+            create_base_builder(std::path::Path::new("/sys"), std::path::Path::new("/llama")),
+            &context,
+        ));
+
+        assert!(!description.contains("-isystem"));
+        assert!(description.contains("-fms-compatibility"));
     }
 
     #[test]
@@ -358,21 +357,11 @@ mod tests {
         )
         .expect("header must be writable");
 
-        with_cc_environment(scratch.path(), || {
-            unsafe { std::env::set_var("INCLUDE", format!("{};", scratch.path().display())) };
-
-            super::generate_bindings(
-                scratch.path(),
-                &llama_src,
-                scratch.path(),
-                &crate::target_os::TargetOs::from_target_triple("x86_64-pc-windows-msvc")
-                    .expect("msvc triple"),
-                "x86_64-pc-windows-msvc",
-                None,
-            );
-
-            unsafe { std::env::remove_var("INCLUDE") };
-        });
+        super::generate_bindings(&test_build_context(
+            scratch.path(),
+            &llama_src,
+            "x86_64-pc-windows-msvc",
+        ));
 
         assert!(
             scratch.path().join("bindings.rs").exists(),
@@ -404,44 +393,14 @@ mod tests {
 
         unsafe { std::env::remove_var("CARGO_SUBCOMMAND") };
 
-        super::generate_bindings(
-            scratch.path(),
-            &llama_src,
-            scratch.path(),
-            &crate::target_os::TargetOs::from_target_triple("aarch64-linux-android")
-                .expect("android triple"),
-            "aarch64-linux-android",
-            Some(&ndk),
-        );
+        let mut context = test_build_context(scratch.path(), &llama_src, "aarch64-linux-android");
+        context.android_ndk = Some(ndk);
+
+        super::generate_bindings(&context);
 
         assert!(
             scratch.path().join("bindings.rs").exists(),
             "bindings must still be produced for an android target"
-        );
-    }
-
-    #[test]
-    #[serial]
-    fn a_missing_compiler_environment_leaves_the_msvc_builder_untouched() {
-        let scratch = ScratchDir::new("bindgen-nocompiler");
-
-        unsafe {
-            std::env::set_var("OUT_DIR", scratch.path());
-            std::env::remove_var("HOST");
-            std::env::remove_var("TARGET");
-            std::env::remove_var("OPT_LEVEL");
-        }
-
-        let builder = configure_msvc_bindgen(
-            create_base_builder(std::path::Path::new("/sys"), std::path::Path::new("/llama")),
-            "x86_64-pc-windows-msvc",
-        );
-
-        unsafe { std::env::remove_var("OUT_DIR") };
-
-        assert!(
-            !rendered(&builder).contains("-fms-compatibility"),
-            "without a resolvable compiler the builder must be returned unchanged"
         );
     }
 
