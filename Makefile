@@ -1,6 +1,7 @@
 TEST_DEVICE ?=
 
 DEVICE_FEATURE = $(if $(TEST_DEVICE),--features $(TEST_DEVICE),)
+COVERAGE_WORKSPACE_ROOT = $(if $(findstring :/,$(CURDIR)),$(subst /,\,$(CURDIR)),$(CURDIR))
 
 node_modules: package-lock.json
 	npm ci
@@ -25,8 +26,9 @@ coverage: node_modules
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
 	npx rust-coverage-check target/llvm-cov.json \
-		--workspace-root $(CURDIR) \
+		--workspace-root $(COVERAGE_WORKSPACE_ROOT) \
 		--gated llama-cpp-bindings=98 \
+		--gated llama-cpp-bindings-build=96 \
 		--gated llama-cpp-error-recorder=100 \
 		--gated llama-cpp-gbnf=100 \
 		--gated llama-cpp-log-decoder=100 \
@@ -76,7 +78,7 @@ test: test.unit test.llms
 
 .PHONY: test.harness
 test.harness: clippy
-	cargo test -p llama-cpp-test-harness-macros -p llama-cpp-test-harness $(DEVICE_FEATURE)
+	cargo test --no-fail-fast -p llama-cpp-test-harness-macros -p llama-cpp-test-harness $(DEVICE_FEATURE)
 
 .PHONY: test.llms
 test.llms: clippy test.harness test.unit
@@ -84,4 +86,7 @@ test.llms: clippy test.harness test.unit
 
 .PHONY: test.unit
 test.unit: clippy
-	cargo test -p llama-cpp-log-decoder -p llama-cpp-gbnf -p llama-cpp-bindings $(DEVICE_FEATURE)
+	cargo test --workspace --no-fail-fast $(DEVICE_FEATURE) \
+		--exclude llama-cpp-bindings-tests \
+		--exclude llama-cpp-test-harness \
+		--exclude llama-cpp-test-harness-macros
