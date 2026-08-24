@@ -1,4 +1,5 @@
 use crate::mtmd::image_chunk_batch_size_mismatch::ImageChunkBatchSizeMismatch;
+use crate::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdEvalError {
@@ -16,6 +17,8 @@ pub enum MtmdEvalError {
     ImageChunkExceedsBatchSize(ImageChunkBatchSizeMismatch),
     #[error("multimodal chunk eval failed with code: {code}")]
     EvalFailed { code: i32 },
+    #[error("the chunk type could not be classified before evaluating it: {0}")]
+    UnknownChunkType(#[from] MtmdInputChunkTypeError),
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("{message}")]

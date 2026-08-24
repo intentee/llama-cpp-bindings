@@ -981,6 +981,8 @@ impl LlamaModel {
         input: &str,
         is_partial: bool,
     ) -> Result<ChatMessageParseOutcome, ParseChatMessageError> {
+        let tools_cstring =
+            CString::new(tools_json).map_err(ParseChatMessageError::ToolsJsonContainsNulByte)?;
         let tools_value: serde_json::Value =
             serde_json::from_str(tools_json).map_err(ParseChatMessageError::ToolsJsonInvalid)?;
         if !tools_value.is_array() {
@@ -1011,7 +1013,7 @@ impl LlamaModel {
         }
 
         let via_ffi_result = self
-            .parse_chat_message_via_ffi(tools_json, input, is_partial)
+            .parse_chat_message_via_ffi(&tools_cstring, input, is_partial)
             .map(|mut parsed| {
                 restore_partial_reasoning(
                     &mut parsed,
@@ -1027,16 +1029,14 @@ impl LlamaModel {
 
     fn parse_chat_message_via_ffi(
         &self,
-        tools_json: &str,
+        tools_cstring: &CStr,
         input: &str,
         is_partial: bool,
     ) -> Result<ParsedChatMessage, ParseChatMessageError> {
         let parser = self.chat_parser()?;
 
-        let tools_cstring = CString::new(tools_json)
-            .map_err(|err| ParseChatMessageError::ToolsSerialization(err.to_string()))?;
-        let input_cstring = CString::new(input)
-            .map_err(|err| ParseChatMessageError::ToolsSerialization(err.to_string()))?;
+        let input_cstring =
+            CString::new(input).map_err(ParseChatMessageError::InputContainsNulByte)?;
 
         let mut handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();

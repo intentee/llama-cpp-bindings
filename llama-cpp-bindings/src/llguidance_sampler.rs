@@ -120,15 +120,22 @@ pub fn create_llg_sampler(
     let tok_env = model.approximate_tok_env()?;
     let tok_env_dyn: Arc<dyn toktrie::TokenizerEnv + Sync> = tok_env.clone();
 
-    let factory = llguidance::ParserFactory::new_simple(&tok_env_dyn)
-        .map_err(|factory_error| GrammarError::LlguidanceError(factory_error.to_string()))?;
+    let factory = llguidance::ParserFactory::new_simple(&tok_env_dyn).map_err(|factory_error| {
+        GrammarError::LlguidanceFactoryUnavailable {
+            message: factory_error.to_string(),
+        }
+    })?;
 
     let grammar = llguidance::api::TopLevelGrammar::from_tagged_str(grammar_kind, grammar_data)
-        .map_err(|parse_error| GrammarError::LlguidanceError(parse_error.to_string()))?;
+        .map_err(|parse_error| GrammarError::LlguidanceGrammarInvalid {
+            message: parse_error.to_string(),
+        })?;
 
-    let parser = factory
-        .create_parser(grammar)
-        .map_err(|parser_error| GrammarError::LlguidanceError(parser_error.to_string()))?;
+    let parser = factory.create_parser(grammar).map_err(|parser_error| {
+        GrammarError::LlguidanceParserUnavailable {
+            message: parser_error.to_string(),
+        }
+    })?;
 
     let ctx = Box::new(LlgContext {
         grammar: GrammarMatcher::new(parser),

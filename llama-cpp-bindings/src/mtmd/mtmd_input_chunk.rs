@@ -102,10 +102,14 @@ impl MtmdInputChunk {
         MtmdInputChunkType::try_from(chunk_type)
     }
 
-    #[must_use]
-    pub fn text_tokens(&self) -> Option<&[LlamaToken]> {
-        if self.chunk_type() != Ok(MtmdInputChunkType::Text) {
-            return None;
+    /// # Errors
+    ///
+    /// Returns [`MtmdInputChunkTypeError`] when the wrapper reports a chunk type this
+    /// binding does not know, so an unclassifiable chunk is never mistaken for a
+    /// non-text chunk.
+    pub fn text_tokens(&self) -> Result<Option<&[LlamaToken]>, MtmdInputChunkTypeError> {
+        if self.chunk_type()? != MtmdInputChunkType::Text {
+            return Ok(None);
         }
 
         let mut n_tokens = 0usize;
@@ -116,7 +120,7 @@ impl MtmdInputChunk {
             )
         };
 
-        unsafe { tokens_from_raw_ptr(tokens_ptr, n_tokens) }
+        Ok(unsafe { tokens_from_raw_ptr(tokens_ptr, n_tokens) })
     }
 
     #[must_use]
@@ -170,7 +174,7 @@ impl MtmdInputChunk {
         let chunk_token_count = self.n_tokens();
 
         if let Some(error) = image_chunk_batch_size_error(
-            matches!(self.chunk_type(), Ok(MtmdInputChunkType::Image)),
+            self.chunk_type()? == MtmdInputChunkType::Image,
             chunk_token_count,
             n_batch,
         ) {

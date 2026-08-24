@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::panic::AssertUnwindSafe;
 use std::panic::catch_unwind;
 
@@ -10,6 +11,18 @@ use crate::mask_outcome::MaskOutcome;
 enum StepOutcome<TValue> {
     Produced(TValue),
     BenignStop,
+}
+
+fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&'static str>() {
+        return (*message).to_owned();
+    }
+
+    if let Some(message) = payload.downcast_ref::<String>() {
+        return message.clone();
+    }
+
+    "the parser panicked with a payload that carries no message".to_owned()
 }
 
 fn stop_reason_to_result(
@@ -86,23 +99,26 @@ impl GrammarMatcher {
         }
     }
 
-    fn run<TValue, TError>(
+    fn run<TValue, TError: std::fmt::Display>(
         &mut self,
         operation: &'static str,
-        op: impl FnOnce(&mut TokenParser) -> Result<TValue, TError>,
+        step: impl FnOnce(&mut TokenParser) -> Result<TValue, TError>,
     ) -> Result<StepOutcome<TValue>, GrammarRuntimeError> {
-        match catch_unwind(AssertUnwindSafe(|| op(&mut self.parser))) {
-            Ok(op_result) => {
-                if let Ok(value) = op_result {
-                    return Ok(StepOutcome::Produced(value));
-                }
-
-                let detail = self.parser.error_message().unwrap_or_default();
+        match catch_unwind(AssertUnwindSafe(|| step(&mut self.parser))) {
+            Ok(Ok(value)) => Ok(StepOutcome::Produced(value)),
+            Ok(Err(step_error)) => {
+                let detail = self
+                    .parser
+                    .error_message()
+                    .unwrap_or_else(|| step_error.to_string());
                 stop_reason_to_result(self.parser.stop_reason(), detail)?;
 
                 Ok(StepOutcome::BenignStop)
             }
-            Err(_panic) => Err(GrammarRuntimeError::Panicked { operation }),
+            Err(panic_payload) => Err(GrammarRuntimeError::Panicked {
+                operation,
+                message: panic_payload_message(panic_payload.as_ref()),
+            }),
         }
     }
 }
@@ -111,8 +127,33 @@ impl GrammarMatcher {
 mod tests {
     use llguidance::api::StopReason;
 
+    use super::panic_payload_message;
     use super::stop_reason_to_result;
     use crate::error::grammar_runtime_error::GrammarRuntimeError;
+
+    #[test]
+    fn a_static_str_panic_payload_is_preserved() {
+        let payload: Box<dyn std::any::Any + Send> = Box::new("parser exploded");
+
+        assert_eq!(panic_payload_message(payload.as_ref()), "parser exploded");
+    }
+
+    #[test]
+    fn an_owned_string_panic_payload_is_preserved() {
+        let payload: Box<dyn std::any::Any + Send> = Box::new("lexer exploded".to_owned());
+
+        assert_eq!(panic_payload_message(payload.as_ref()), "lexer exploded");
+    }
+
+    #[test]
+    fn a_payload_without_a_message_is_described() {
+        let payload: Box<dyn std::any::Any + Send> = Box::new(42_u32);
+
+        assert_eq!(
+            panic_payload_message(payload.as_ref()),
+            "the parser panicked with a payload that carries no message"
+        );
+    }
 
     #[test]
     fn benign_stop_reasons_are_ok() {

@@ -15,6 +15,10 @@ pub enum KvCacheConversionError {
     P0TooLarge(#[source] TryFromIntError),
     #[error("Provided end position is too large for a i32")]
     P1TooLarge(#[source] TryFromIntError),
+    #[error("the context has no memory module attached")]
+    MemoryHandleUnavailable,
+    #[error("sequence {seq_id} could not be partially removed over positions [{p0}, {p1})")]
+    PartialSequenceNotRemoved { seq_id: c_int, p0: c_int, p1: c_int },
 }
 
 fn kv_cache_seq_add_status_to_result(
@@ -141,7 +145,22 @@ fn kv_cache_seq_pos_max_status_to_result(
 
 impl LlamaContext<'_> {
     /// # Errors
-    /// If either position exceeds [`i32::MAX`].
+    /// Returns [`KvCacheConversionError::MemoryHandleUnavailable`] when the context was
+    /// built without a memory module, so a null handle is never handed to llama.cpp.
+    fn memory_handle(
+        &self,
+    ) -> Result<llama_cpp_bindings_sys::llama_memory_t, KvCacheConversionError> {
+        let mem = unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) };
+
+        if mem.is_null() {
+            return Err(KvCacheConversionError::MemoryHandleUnavailable);
+        }
+
+        Ok(mem)
+    }
+
+    /// # Errors
+    /// If either position exceeds [`i32::MAX`], or the context has no memory module.
     pub fn copy_kv_cache_seq(
         &mut self,
         src: i32,
@@ -155,19 +174,21 @@ impl LlamaContext<'_> {
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
             .map_err(KvCacheConversionError::P1TooLarge)?;
-        let mem = unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) };
+        let mem = self.memory_handle()?;
         unsafe { llama_cpp_bindings_sys::llama_memory_seq_cp(mem, src, dest, p0, p1) };
+
         Ok(())
     }
 
     /// # Errors
-    /// If the sequence id or either position exceeds [`i32::MAX`].
+    /// If the sequence id or either position exceeds [`i32::MAX`], the context has no
+    /// memory module, or llama.cpp reports that the partial sequence could not be removed.
     pub fn clear_kv_cache_seq(
         &mut self,
         src: Option<u32>,
         p0: Option<u32>,
         p1: Option<u32>,
-    ) -> Result<bool, KvCacheConversionError> {
+    ) -> Result<(), KvCacheConversionError> {
         let src = src
             .map_or(Ok(-1), i32::try_from)
             .map_err(KvCacheConversionError::SeqIdTooLarge)?;
@@ -177,19 +198,36 @@ impl LlamaContext<'_> {
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
             .map_err(KvCacheConversionError::P1TooLarge)?;
-        let mem = unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) };
-        Ok(unsafe { llama_cpp_bindings_sys::llama_memory_seq_rm(mem, src, p0, p1) })
+        let mem = self.memory_handle()?;
+
+        if unsafe { llama_cpp_bindings_sys::llama_memory_seq_rm(mem, src, p0, p1) } {
+            return Ok(());
+        }
+
+        Err(KvCacheConversionError::PartialSequenceNotRemoved {
+            seq_id: src,
+            p0,
+            p1,
+        })
     }
 
-    pub fn clear_kv_cache(&mut self) {
-        let mem = unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) };
+    /// # Errors
+    /// If the context has no memory module.
+    pub fn clear_kv_cache(&mut self) -> Result<(), KvCacheConversionError> {
+        let mem = self.memory_handle()?;
         let clear_data_buffers = true;
-        unsafe { llama_cpp_bindings_sys::llama_memory_clear(mem, clear_data_buffers) }
+        unsafe { llama_cpp_bindings_sys::llama_memory_clear(mem, clear_data_buffers) };
+
+        Ok(())
     }
 
-    pub fn kv_cache_seq_keep(&mut self, seq_id: i32) {
-        let mem = unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) };
-        unsafe { llama_cpp_bindings_sys::llama_memory_seq_keep(mem, seq_id) }
+    /// # Errors
+    /// If the context has no memory module.
+    pub fn kv_cache_seq_keep(&mut self, seq_id: i32) -> Result<(), KvCacheConversionError> {
+        let mem = self.memory_handle()?;
+        unsafe { llama_cpp_bindings_sys::llama_memory_seq_keep(mem, seq_id) };
+
+        Ok(())
     }
 
     /// # Errors

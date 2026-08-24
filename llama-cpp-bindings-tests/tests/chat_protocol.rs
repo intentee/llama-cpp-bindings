@@ -527,16 +527,43 @@ fn parses_with_tools_null_byte_returns_tools_json_invalid_error(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parses_with_input_null_byte_returns_tools_serialization_error(
+fn parses_with_tools_json_null_byte_reports_the_tools_as_the_source(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let result = fixture.model.parse_chat_message("[]\0", "hello", false);
+
+    let Err(llama_cpp_bindings::ParseChatMessageError::ToolsJsonContainsNulByte(nul_error)) =
+        result
+    else {
+        anyhow::bail!("a NUL byte in tools_json must be reported against tools_json");
+    };
+
+    assert_eq!(nul_error.nul_position(), 2);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn parses_with_input_null_byte_reports_the_input_as_the_source(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let result = fixture
         .model
         .parse_chat_message("[]", "hello\0world", false);
 
-    assert!(matches!(
-        result,
-        Err(llama_cpp_bindings::ParseChatMessageError::ToolsSerialization(_))
-    ));
+    let Err(llama_cpp_bindings::ParseChatMessageError::InputContainsNulByte(nul_error)) = result
+    else {
+        anyhow::bail!("a NUL byte in the message must be reported against the message");
+    };
+
+    assert_eq!(nul_error.nul_position(), 5);
+
     Ok(())
 }

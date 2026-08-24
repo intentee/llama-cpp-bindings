@@ -33,8 +33,10 @@ pub enum ParseChatMessageError {
     ToolsJsonInvalid(#[source] serde_json::Error),
     #[error("tools_json must be a JSON array")]
     ToolsJsonNotArray,
-    #[error("could not serialize tools to JSON: {0}")]
-    ToolsSerialization(String),
+    #[error("tools_json contains an interior NUL byte")]
+    ToolsJsonContainsNulByte(#[source] std::ffi::NulError),
+    #[error("the message to parse contains an interior NUL byte")]
+    InputContainsNulByte(#[source] std::ffi::NulError),
     #[error("tool-call format parser failed: {0}")]
     ToolCallFormat(#[from] ToolCallFormatFailure),
     #[error("reasoning-marker detection failed: {0}")]

@@ -67,7 +67,7 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
     assert_eq!(classifier.pending_prompt_tokens(), prompt_token_count);
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
-    ctx.clear_kv_cache();
+    ctx.clear_kv_cache()?;
     ctx.decode(&mut batch)
         .with_context(|| "llama_decode() failed")?;
 
@@ -180,7 +180,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert_eq!(classifier.pending_prompt_tokens(), total_token_count);
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
-    ctx.clear_kv_cache();
+    ctx.clear_kv_cache()?;
     ctx.decode(&mut batch)
         .with_context(|| "llama_decode() failed")?;
 
@@ -393,7 +393,7 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
             batch.add_sequence(&tokens, sequence_id, true)?;
         }
 
-        context.clear_kv_cache();
+        context.clear_kv_cache()?;
         context.decode(&mut batch)?;
 
         for sequence_index in 0..iteration_inputs.len() {

@@ -21,8 +21,12 @@ pub enum GrammarError {
     NulError(#[from] NulError),
     #[error("integer overflow: {0}")]
     IntegerOverflow(String),
-    #[error("llguidance error: {0}")]
-    LlguidanceError(String),
+    #[error("the llguidance parser factory could not be created: {message}")]
+    LlguidanceFactoryUnavailable { message: String },
+    #[error("the llguidance grammar could not be parsed: {message}")]
+    LlguidanceGrammarInvalid { message: String },
+    #[error("the llguidance parser could not be created for the grammar: {message}")]
+    LlguidanceParserUnavailable { message: String },
     #[error("grammar is malformed")]
     GrammarMalformed,
     #[error("lazy grammar is malformed")]

@@ -285,9 +285,12 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let first_chunk = chunks
         .get(0)
         .ok_or_else(|| anyhow::anyhow!("missing first chunk"))?;
-    let tokens = first_chunk.text_tokens();
-    assert!(tokens.is_some());
-    assert!(!tokens.expect("tokens should be some").is_empty());
+    let tokens = first_chunk
+        .text_tokens()?
+        .ok_or_else(|| anyhow::anyhow!("the first chunk of a text prompt must carry tokens"))?;
+
+    assert!(!tokens.is_empty());
+
     Ok(())
 }
 
@@ -397,8 +400,9 @@ fn image_chunk_returns_none_for_text_tokens(fixture: &LlamaFixture<'_>) -> Resul
         let chunk = chunks
             .get(chunk_index)
             .ok_or_else(|| anyhow::anyhow!("missing chunk at index {chunk_index}"))?;
-        if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
-            assert!(chunk.text_tokens().is_none());
+        if chunk.chunk_type()? == MtmdInputChunkType::Image {
+            assert_eq!(chunk.text_tokens()?, None);
+
             return Ok(());
         }
     }

@@ -685,7 +685,7 @@ fn clear_kv_cache_resets_positions(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     prime_kv_cache(fixture, &mut context)?;
 
-    context.clear_kv_cache();
+    context.clear_kv_cache()?;
     assert_eq!(context.kv_cache_seq_pos_max(0)?, -1);
 
     Ok(())
@@ -809,8 +809,10 @@ fn clear_kv_cache_seq_with_range(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     prime_kv_cache(fixture, &mut context)?;
 
-    let result = context.clear_kv_cache_seq(Some(0), Some(0), Some(1));
-    assert!(result.is_ok());
+    assert_eq!(
+        context.clear_kv_cache_seq(Some(0), Some(0), Some(1)),
+        Ok(())
+    );
 
     Ok(())
 }
@@ -852,8 +854,7 @@ fn copy_kv_cache_seq_succeeds(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     prime_kv_cache(fixture, &mut context)?;
 
-    let result = context.copy_kv_cache_seq(0, 1, None, None);
-    assert!(result.is_ok());
+    assert_eq!(context.copy_kv_cache_seq(0, 1, None, None), Ok(()));
 
     Ok(())
 }
@@ -958,7 +959,7 @@ fn kv_cache_seq_keep_retains_specified_sequence(fixture: &LlamaFixture<'_>) -> R
 
     prime_kv_cache(fixture, &mut context)?;
 
-    context.kv_cache_seq_keep(0);
+    context.kv_cache_seq_keep(0)?;
 
     assert!(context.kv_cache_seq_pos_max(0)? >= 0);
 
@@ -1002,9 +1003,7 @@ fn copy_kv_cache_seq_with_explicit_range(fixture: &LlamaFixture<'_>) -> Result<(
 
     prime_kv_cache(fixture, &mut context)?;
 
-    let result = context.copy_kv_cache_seq(0, 2, Some(0), Some(1));
-
-    assert!(result.is_ok());
+    assert_eq!(context.copy_kv_cache_seq(0, 2, Some(0), Some(1)), Ok(()));
 
     Ok(())
 }

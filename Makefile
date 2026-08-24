@@ -36,6 +36,7 @@ coverage: node_modules
 		--gated llama-cpp-bindings=98 \
 		--gated llama-cpp-bindings-tests=100 \
 		--gated llama-cpp-error-recorder=100 \
+		--gated llama-cpp-ffi-status=100 \
 		--gated llama-cpp-gbnf=100 \
 		--gated llama-cpp-log-decoder=100 \
 		--gated llama-cpp-bindings-types=100 \

@@ -14,7 +14,7 @@ pub fn ingest_prompt_chunk(
     match chunk.chunk_type()? {
         MtmdInputChunkType::Text => {
             classifier.record_prompt_tokens(n_tokens);
-            if let Some(tokens) = chunk.text_tokens() {
+            if let Some(tokens) = chunk.text_tokens()? {
                 classifier.ingest_prompt_tokens(tokens);
             }
         }
