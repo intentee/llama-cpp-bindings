@@ -179,6 +179,14 @@ fn dispatch_field(
                 "void_logs",
             )?);
         }
+        "repo" | "file" | "mmproj_file" => {
+            return Err(syn::Error::new_spanned(
+                identifier,
+                format!(
+                    "field `{name}` was removed; use `model_source = HuggingFace(repo, file)` or `model_source = LocalPath(path)` (and `mmproj_source` for mmproj)"
+                ),
+            ));
+        }
         other => {
             return Err(syn::Error::new_spanned(
                 identifier,
@@ -359,6 +367,27 @@ mod tests {
             message.contains("missing required field `n_ctx`"),
             "got: {message}"
         );
+    }
+
+    #[test]
+    fn legacy_repo_field_is_rejected_with_migration_hint() {
+        let source = "repo = \"foo\", file = \"bar\", n_gpu_layers = 0, load_mode = Mmap, \
+            n_ctx = 1, n_batch = 1, n_ubatch = 1";
+        let message = parse(source)
+            .expect_err("legacy repo must be rejected")
+            .to_string();
+
+        assert!(message.contains("model_source"), "got: {message}");
+    }
+
+    #[test]
+    fn legacy_mmproj_file_field_is_rejected_with_migration_hint() {
+        let source = format!("{ALL_REQUIRED}, mmproj_file = \"mmproj.gguf\"");
+        let message = parse(&source)
+            .expect_err("legacy mmproj_file must be rejected")
+            .to_string();
+
+        assert!(message.contains("mmproj_source"), "got: {message}");
     }
 
     #[test]

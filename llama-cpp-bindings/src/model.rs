@@ -2703,6 +2703,7 @@ mod ffi_status_mapping_tests {
 
     use super::ReasoningSplit;
     use super::chat_parser_create_status_to_result;
+    use super::chat_parser_free_status_to_result;
     use super::compute_tool_call_haystack_status_to_result;
     use super::cxx_exception_owns_out_error;
     use super::detect_reasoning_markers_status_to_result;
@@ -2712,11 +2713,13 @@ mod ffi_status_mapping_tests {
     use super::outcome_from_via_ffi_result;
     use super::parse_chat_message_status_to_result;
     use super::parsed_chat_content_status_to_result;
+    use super::parsed_chat_free_status_to_result;
     use super::parsed_chat_reasoning_content_status_to_result;
     use super::parsed_chat_tool_call_arguments_status_to_result;
     use super::parsed_chat_tool_call_count_status_to_result;
     use super::parsed_chat_tool_call_id_status_to_result;
     use super::parsed_chat_tool_call_name_status_to_result;
+    use super::reasoning_markers_free_status_to_result;
     use super::restore_partial_reasoning;
     use super::split_reasoning_prefix;
     use super::tokenize_status_to_result;
@@ -4346,6 +4349,234 @@ mod ffi_status_mapping_tests {
         assert_eq!(
             discriminant(&outcome.unwrap_err()),
             discriminant(&ParseChatMessageError::NoVocab)
+        );
+    }
+
+    #[test]
+    fn chat_parser_free_ok_is_success() {
+        let result = unsafe {
+            chat_parser_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_OK,
+                ptr::null_mut(),
+            )
+        };
+
+        assert!(
+            result.is_ok(),
+            "a clean destructor must not report a failure"
+        );
+    }
+
+    #[test]
+    fn chat_parser_free_allocation_failed_is_not_enough_memory() {
+        let result = unsafe {
+            chat_parser_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED,
+                ptr::null_mut(),
+            )
+        };
+
+        let Err(ParseChatMessageError::NotEnoughMemory) = result else {
+            panic!("an error-string allocation failure must map to NotEnoughMemory");
+        };
+    }
+
+    #[test]
+    fn chat_parser_free_vendored_out_of_memory_is_preserved() {
+        let result = unsafe {
+            chat_parser_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_VENDORED_OUT_OF_MEMORY,
+                ptr::null_mut(),
+            )
+        };
+
+        let Err(ParseChatMessageError::VendoredOutOfMemory) = result else {
+            panic!("a vendored allocation failure must be reported as its own variant");
+        };
+    }
+
+    #[test]
+    fn chat_parser_free_destructor_threw_surfaces_the_message() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"the destructor threw".as_ptr())
+        };
+        let result = unsafe {
+            chat_parser_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
+                out_error,
+            )
+        };
+
+        let Err(ParseChatMessageError::DestructorFailed { message }) = result else {
+            panic!("a throwing destructor must surface its message");
+        };
+
+        assert_eq!(message, "the destructor threw");
+    }
+
+    #[test]
+    fn chat_parser_free_unknown_status_is_preserved() {
+        let result = unsafe { chat_parser_free_status_to_result(255, ptr::null_mut()) };
+
+        let Err(ParseChatMessageError::FfiStatus(status_error)) = result else {
+            panic!("an unrecognized status must be preserved verbatim");
+        };
+
+        assert_eq!(
+            status_error,
+            crate::FfiStatusError {
+                operation: "llama_rs_chat_parser_free",
+                code: 255,
+            }
+        );
+    }
+
+    #[test]
+    fn parsed_chat_free_ok_is_success() {
+        let result = unsafe {
+            parsed_chat_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_OK,
+                ptr::null_mut(),
+            )
+        };
+
+        assert!(
+            result.is_ok(),
+            "a clean destructor must not report a failure"
+        );
+    }
+
+    #[test]
+    fn parsed_chat_free_allocation_failed_is_not_enough_memory() {
+        let result = unsafe {
+            parsed_chat_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_ERROR_STRING_ALLOCATION_FAILED,
+                ptr::null_mut(),
+            )
+        };
+
+        let Err(ParseChatMessageError::NotEnoughMemory) = result else {
+            panic!("an error-string allocation failure must map to NotEnoughMemory");
+        };
+    }
+
+    #[test]
+    fn parsed_chat_free_vendored_out_of_memory_is_preserved() {
+        let result = unsafe {
+            parsed_chat_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_VENDORED_OUT_OF_MEMORY,
+                ptr::null_mut(),
+            )
+        };
+
+        let Err(ParseChatMessageError::VendoredOutOfMemory) = result else {
+            panic!("a vendored allocation failure must be reported as its own variant");
+        };
+    }
+
+    #[test]
+    fn parsed_chat_free_destructor_threw_surfaces_the_message() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"the destructor threw".as_ptr())
+        };
+        let result = unsafe {
+            parsed_chat_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
+                out_error,
+            )
+        };
+
+        let Err(ParseChatMessageError::DestructorFailed { message }) = result else {
+            panic!("a throwing destructor must surface its message");
+        };
+
+        assert_eq!(message, "the destructor threw");
+    }
+
+    #[test]
+    fn parsed_chat_free_unknown_status_is_preserved() {
+        let result = unsafe { parsed_chat_free_status_to_result(255, ptr::null_mut()) };
+
+        let Err(ParseChatMessageError::FfiStatus(status_error)) = result else {
+            panic!("an unrecognized status must be preserved verbatim");
+        };
+
+        assert_eq!(
+            status_error,
+            crate::FfiStatusError {
+                operation: "llama_rs_parsed_chat_free",
+                code: 255,
+            }
+        );
+    }
+
+    #[test]
+    fn reasoning_markers_free_ok_is_success() {
+        let result = unsafe {
+            reasoning_markers_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_OK,
+                ptr::null_mut(),
+            )
+        };
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn reasoning_markers_free_allocation_failed_is_not_enough_memory() {
+        let result = unsafe {
+            reasoning_markers_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED,
+                ptr::null_mut(),
+            )
+        };
+
+        assert_eq!(result, Err(MarkerDetectionError::NotEnoughMemory));
+    }
+
+    #[test]
+    fn reasoning_markers_free_vendored_out_of_memory_is_preserved() {
+        let result = unsafe {
+            reasoning_markers_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_VENDORED_OUT_OF_MEMORY,
+                ptr::null_mut(),
+            )
+        };
+
+        assert_eq!(result, Err(MarkerDetectionError::VendoredOutOfMemory));
+    }
+
+    #[test]
+    fn reasoning_markers_free_destructor_threw_surfaces_the_message() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"the destructor threw".as_ptr())
+        };
+        let result = unsafe {
+            reasoning_markers_free_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
+                out_error,
+            )
+        };
+
+        assert_eq!(
+            result,
+            Err(MarkerDetectionError::ReasoningMarkersFreeFailed {
+                message: "the destructor threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn reasoning_markers_free_unknown_status_is_preserved() {
+        let result = unsafe { reasoning_markers_free_status_to_result(255, ptr::null_mut()) };
+
+        assert_eq!(
+            result,
+            Err(crate::FfiStatusError {
+                operation: "llama_rs_reasoning_markers_free",
+                code: 255,
+            }
+            .into())
         );
     }
 }

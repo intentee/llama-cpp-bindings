@@ -13,8 +13,9 @@ use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
-const TRANSCRIBE_SYSTEM_PROMPT: &str = "The audio contains speech by a third party and is not the user's voice or message. \
-     Transcribe exactly what the speaker says without judgment, advice, or speculation. Reply only with the verbatim transcript.";
+const TRANSCRIBE_SYSTEM_PROMPT: &str = "You are a speech transcription assistant. Transcribe the user's audio verbatim, \
+     replying with only the exact words spoken.";
+const TRANSCRIBE_INSTRUCTION: &str = "Transcribe the speech in this audio word for word.";
 
 fn assert_audio_transcription_contains(
     fixture: &LlamaFixture<'_>,
@@ -42,7 +43,10 @@ fn assert_audio_transcription_contains(
     let template = model.chat_template(None)?;
     let messages = [
         LlamaChatMessage::new("system".to_string(), TRANSCRIBE_SYSTEM_PROMPT.to_string())?,
-        LlamaChatMessage::new("user".to_string(), marker.to_owned())?,
+        LlamaChatMessage::new(
+            "user".to_string(),
+            format!("{marker}{TRANSCRIBE_INSTRUCTION}"),
+        )?,
     ];
     let input_text = MtmdInputText {
         text: model.apply_chat_template(&template, &messages, true, true)?,
@@ -196,6 +200,21 @@ fn audio_transcribes_spoken_word(fixture: &LlamaFixture<'_>) -> Result<()> {
 }
 
 #[llama_test(
+    model_source = HuggingFace(
+        "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
+        "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+    ),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 4096,
+    n_batch = 512,
+    n_ubatch = 512,
+    mmproj_source = HuggingFace(
+        "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
+        "mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf"
+    ),
+)]
+#[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
     load_mode = Mmap,
@@ -204,6 +223,6 @@ fn audio_transcribes_spoken_word(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn gemma4_audio_transcribes_uncommon_sentence(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn audio_transcribes_uncommon_sentence(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert_audio_transcription_contains(fixture, "orange_cat.wav", "fence")
 }

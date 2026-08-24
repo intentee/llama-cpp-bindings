@@ -559,14 +559,28 @@ fn grammar_lazy_with_null_byte_in_pattern_returns_error(fixture: &LlamaFixture<'
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_with_pattern_and_missing_root_returns_error(
+fn grammar_lazy_returns_sampler_for_valid_grammar_with_trigger_tokens(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let patterns = vec!["\\{.*".to_owned()];
-    let result =
-        LlamaSampler::grammar_lazy(fixture.model, "expr ::= \"hello\"", "root", &patterns, &[]);
+    let trigger_tokens = fixture.model.str_to_token("{", AddBos::Never)?;
 
-    assert!(matches!(result, Err(GrammarError::RootNotFound)));
+    assert!(
+        !trigger_tokens.is_empty(),
+        "the tokenizer must produce at least one trigger token"
+    );
+
+    let sampler = LlamaSampler::grammar_lazy(
+        fixture.model,
+        "root ::= \"hello\"",
+        "root",
+        &[],
+        &trigger_tokens,
+    );
+
+    assert!(
+        sampler.is_ok(),
+        "trigger tokens alone must be enough to build a lazy grammar sampler"
+    );
 
     Ok(())
 }
@@ -579,10 +593,9 @@ fn grammar_lazy_with_pattern_and_missing_root_returns_error(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_with_null_byte_in_regex_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let patterns = vec!["hel\0lo".to_owned()];
+fn grammar_lazy_with_null_byte_in_grammar_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
     let result =
-        LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hello\"", "root", &patterns, &[]);
+        LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hel\0lo\"", "root", &[], &[]);
 
     assert!(matches!(result, Err(GrammarError::GrammarNullBytes(_))));
 

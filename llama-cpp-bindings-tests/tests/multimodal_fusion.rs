@@ -148,10 +148,10 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
         "model should generate a description from combined image and audio input"
     );
     assert!(
-        ["llama", "alpaca", "sheep"]
-            .iter()
-            .any(|animal| description.contains(animal)),
-        "description should identify an animal visible in llamas.jpg; got: {description:?}"
+        description.contains("alpaca"),
+        "the gemma-4 vision encoder recognizes the image animals as \"alpaca\"; the assertion \
+         tracks the model's actual recognition so it still proves the image reached the output; \
+         got: {description:?}"
     );
     assert!(
         description.contains("fence"),
