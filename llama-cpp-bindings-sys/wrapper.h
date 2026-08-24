@@ -6,4 +6,5 @@
 #include "wrapper_fit.h"
 #include "wrapper_gbnf.h"
 #include "wrapper_reasoning.h"
+#include "wrapper_state.h"
 #include "wrapper_tool_calls.h"

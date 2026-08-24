@@ -244,6 +244,7 @@ pub mod rope_scaling_type;
 pub mod save_seq_state_error;
 pub mod save_session_error;
 pub mod session;
+pub mod state_data_error;
 
 unsafe extern "C" fn abort_callback_trampoline(data: *mut c_void) -> bool {
     let flag = unsafe { &*(data as *const AtomicBool) };

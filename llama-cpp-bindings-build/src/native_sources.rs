@@ -7,6 +7,7 @@ pub const WRAPPER_HEADERS: &[&str] = &[
     "wrapper_gbnf.h",
     "wrapper_mtmd.h",
     "wrapper_reasoning.h",
+    "wrapper_state.h",
     "wrapper_token_text.h",
     "wrapper_tool_calls.h",
     "wrapper_utils.h",
@@ -20,6 +21,7 @@ pub const WRAPPER_SOURCES: &[&str] = &[
     "wrapper_gbnf.cpp",
     "wrapper_mtmd.cpp",
     "wrapper_reasoning.cpp",
+    "wrapper_state.cpp",
     "wrapper_token_text.cpp",
     "wrapper_tool_calls.cpp",
 ];
