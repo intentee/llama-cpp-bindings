@@ -20,6 +20,8 @@ pub enum MarkerDetectionError {
     ToolCallHaystackComputationFailed { message: String },
     #[error("tool-call synthetic-render diagnosis failed: {message}")]
     ToolCallSyntheticRenderDiagnosisFailed { message: String },
+    #[error("the reasoning-markers destructor threw: {message}")]
+    ReasoningMarkersFreeFailed { message: String },
     #[error("a detected marker string could not be tokenised: {0}")]
     MarkerTokenizationFailed(#[from] StringToTokenError),
     #[error("the chat template is not valid UTF-8: {0}")]

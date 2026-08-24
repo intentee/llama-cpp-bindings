@@ -1,2 +1,0 @@
-[env]
-LLVM_COV_FLAGS = { value = '--ignore-filename-regex [\\/]llama-cpp-bindings-tests[\\/]', force = true }

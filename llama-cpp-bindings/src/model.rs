@@ -90,9 +90,75 @@ unsafe impl Send for ChatParserHandle {}
 
 unsafe impl Sync for ChatParserHandle {}
 
+/// # Safety
+///
+/// `free_error` must be the pointer populated by the preceding
+/// `llama_rs_parsed_chat_free` call, or null. The destructor-threw arm reads and
+/// frees it.
+unsafe fn parsed_chat_free_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_parsed_chat_free_status,
+    free_error: *mut c_char,
+) -> Result<(), ParseChatMessageError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_OK => Ok(()),
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(ParseChatMessageError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
+            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(free_error) };
+
+            Err(ParseChatMessageError::DestructorFailed { message })
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_parsed_chat_free",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
+/// # Safety
+///
+/// `out_error` must be the pointer populated by the preceding
+/// `llama_rs_chat_parser_free` call, or null. The destructor-threw arm reads and
+/// frees it.
+unsafe fn chat_parser_free_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_chat_parser_free_status,
+    out_error: *mut c_char,
+) -> Result<(), ParseChatMessageError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_OK => Ok(()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(ParseChatMessageError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
+            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+
+            Err(ParseChatMessageError::DestructorFailed { message })
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_chat_parser_free",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
 impl Drop for ChatParserHandle {
     fn drop(&mut self) {
-        unsafe { llama_cpp_bindings_sys::llama_rs_chat_parser_free(self.parser.as_ptr()) }
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_chat_parser_free(
+                self.parser.as_ptr(),
+                &raw mut out_error,
+            )
+        };
+
+        if let Err(destructor_failure) =
+            unsafe { chat_parser_free_status_to_result(status, out_error) }
+        {
+            log::error!("{destructor_failure}");
+        }
     }
 }
 
@@ -180,7 +246,7 @@ unsafe fn parse_chat_message_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(*out_error) };
             unsafe { *out_error = ptr::null_mut() };
-            Err(ParseChatMessageError::ParseFailed { message })
+            Err(ParseChatMessageError::MessageUnrecognized { message })
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_parse_chat_message",
@@ -220,7 +286,7 @@ unsafe fn chat_parser_create_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(*out_error) };
             unsafe { *out_error = ptr::null_mut() };
-            Err(ParseChatMessageError::ParseFailed { message })
+            Err(ParseChatMessageError::ParserCreationFailed { message })
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_chat_parser_create",
@@ -241,7 +307,7 @@ fn outcome_from_via_ffi_result(
             synthesize_missing_tool_call_ids(&mut parsed.tool_calls);
             Ok(ChatMessageParseOutcome::Recognized(parsed))
         }
-        Err(ParseChatMessageError::ParseFailed { message }) => {
+        Err(ParseChatMessageError::MessageUnrecognized { message }) => {
             Ok(ChatMessageParseOutcome::Unrecognized(RawChatMessage {
                 tools_json: tools_json.to_owned(),
                 text: input.to_owned(),
@@ -891,18 +957,23 @@ impl LlamaModel {
         let reasoning_markers = self.reasoning_markers()?;
 
         for candidate in chat_template_tool_calls::known_marker_candidates() {
-            if let ToolCallFormatOutcome::Parsed(calls) =
-                tool_call_format::try_parse(input, &candidate)
-            {
-                let split = split_reasoning_prefix(
-                    input,
-                    reasoning_markers.as_ref(),
-                    Some(&candidate.open),
-                    is_partial,
-                );
-                let mut parsed = ParsedChatMessage::new(split.content, split.reasoning, calls);
-                synthesize_missing_tool_call_ids(&mut parsed.tool_calls);
-                return Ok(ChatMessageParseOutcome::Recognized(parsed));
+            match tool_call_format::try_parse(input, &candidate) {
+                ToolCallFormatOutcome::NoMatch => {}
+                ToolCallFormatOutcome::Parsed(calls) => {
+                    let split = split_reasoning_prefix(
+                        input,
+                        reasoning_markers.as_ref(),
+                        Some(&candidate.open),
+                        is_partial,
+                    );
+                    let mut parsed = ParsedChatMessage::new(split.content, split.reasoning, calls);
+                    synthesize_missing_tool_call_ids(&mut parsed.tool_calls);
+
+                    return Ok(ChatMessageParseOutcome::Recognized(parsed));
+                }
+                ToolCallFormatOutcome::Failed(failure) => {
+                    return Err(ParseChatMessageError::ToolCallFormat(failure));
+                }
             }
         }
 
@@ -951,9 +1022,24 @@ impl LlamaModel {
         let parsed =
             unsafe { parse_chat_message_status_to_result(status, handle, &raw mut out_error) };
 
-        unsafe { llama_cpp_bindings_sys::llama_rs_parsed_chat_free(handle) };
+        let mut free_error: *mut c_char = ptr::null_mut();
+        let free_status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_parsed_chat_free(handle, &raw mut free_error)
+        };
+        let freed = unsafe { parsed_chat_free_status_to_result(free_status, free_error) };
+
         unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-        parsed
+
+        match parsed {
+            Ok(message) => freed.map(|()| message),
+            Err(parse_failure) => {
+                if let Err(destructor_failure) = freed {
+                    log::error!("{destructor_failure}");
+                }
+
+                Err(parse_failure)
+            }
+        }
     }
 
     fn chat_parser(&self) -> Result<&ChatParserHandle, ParseChatMessageError> {
@@ -1625,6 +1711,33 @@ const fn cxx_exception_owns_out_error<TValue>(
     )
 }
 
+/// # Safety
+///
+/// `free_error` must be the pointer populated by the preceding
+/// `llama_rs_reasoning_markers_free` call, or null. The destructor-threw arm
+/// reads and frees it.
+unsafe fn reasoning_markers_free_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_reasoning_markers_free_status,
+    free_error: *mut c_char,
+) -> Result<(), MarkerDetectionError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_OK => Ok(()),
+        llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(MarkerDetectionError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
+            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(free_error) };
+
+            Err(MarkerDetectionError::ReasoningMarkersFreeFailed { message })
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_reasoning_markers_free",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
 fn invoke_detect_reasoning_markers(
     model: *const llama_cpp_bindings_sys::llama_model,
 ) -> Result<Option<ReasoningMarkers>, MarkerDetectionError> {
@@ -1642,12 +1755,26 @@ fn invoke_detect_reasoning_markers(
     let parsed =
         unsafe { detect_reasoning_markers_status_to_result(status, out_markers, out_error) };
 
-    unsafe { llama_cpp_bindings_sys::llama_rs_reasoning_markers_free(out_markers) };
+    let mut free_error: *mut c_char = ptr::null_mut();
+    let free_status = unsafe {
+        llama_cpp_bindings_sys::llama_rs_reasoning_markers_free(out_markers, &raw mut free_error)
+    };
+    let freed = unsafe { reasoning_markers_free_status_to_result(free_status, free_error) };
+
     if !cxx_exception_owns_out_error(&parsed) {
         unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
     }
 
-    parsed
+    match parsed {
+        Ok(markers) => freed.map(|()| markers),
+        Err(detection_failure) => {
+            if let Err(destructor_failure) = freed {
+                log::error!("{destructor_failure}");
+            }
+
+            Err(detection_failure)
+        }
+    }
 }
 
 // SAFETY: `out_haystack` and `out_error` must be the pointers populated by the
@@ -2389,7 +2516,7 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn chat_parser_create_cxx_exception_is_parse_failed_and_nulls_error() {
+    fn chat_parser_create_cxx_exception_is_parser_creation_failed_and_nulls_error() {
         let mut out_error: *mut c_char = ptr::null_mut();
         let result = unsafe {
             chat_parser_create_status_to_result(
@@ -2401,7 +2528,7 @@ mod ffi_status_mapping_tests {
 
         assert_eq!(
             discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::ParseFailed {
+            discriminant(&ParseChatMessageError::ParserCreationFailed {
                 message: String::new()
             })
         );
@@ -2464,7 +2591,7 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn parse_chat_message_cxx_exception_is_parse_failed_and_nulls_error() {
+    fn parse_chat_message_cxx_exception_is_message_unrecognized_and_nulls_error() {
         let mut out_error: *mut c_char = ptr::null_mut();
         let result = unsafe {
             parse_chat_message_status_to_result(
@@ -2476,7 +2603,7 @@ mod ffi_status_mapping_tests {
 
         assert_eq!(
             discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::ParseFailed {
+            discriminant(&ParseChatMessageError::MessageUnrecognized {
                 message: String::new()
             })
         );
@@ -3726,9 +3853,9 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn outcome_from_via_ffi_result_parse_failed_is_unrecognized_with_raw_message() {
+    fn outcome_from_via_ffi_result_message_unrecognized_is_unrecognized_with_raw_message() {
         let outcome = outcome_from_via_ffi_result(
-            Err(ParseChatMessageError::ParseFailed {
+            Err(ParseChatMessageError::MessageUnrecognized {
                 message: "boom".to_owned(),
             }),
             "[]",
@@ -3743,6 +3870,25 @@ mod ffi_status_mapping_tests {
                 text: "garbled".to_owned(),
                 is_partial: true,
                 ffi_error_message: "boom".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn outcome_from_via_ffi_result_parser_creation_failure_propagates() {
+        let outcome = outcome_from_via_ffi_result(
+            Err(ParseChatMessageError::ParserCreationFailed {
+                message: "the parser could not be built".to_owned(),
+            }),
+            "[]",
+            "garbled",
+            true,
+        );
+
+        assert_eq!(
+            discriminant(&outcome.unwrap_err()),
+            discriminant(&ParseChatMessageError::ParserCreationFailed {
+                message: String::new()
             })
         );
     }

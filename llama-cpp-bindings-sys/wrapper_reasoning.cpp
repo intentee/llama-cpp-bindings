@@ -162,9 +162,34 @@ extern "C" auto llama_rs_reasoning_markers_close_at(
     return markers->closes[index].c_str();
 }
 
-extern "C" void llama_rs_reasoning_markers_free(llama_rs_reasoning_markers * markers) {
-    std::unique_ptr<llama_rs_reasoning_markers> reclaimed(markers);
-    reclaimed.reset();
+extern "C" auto llama_rs_reasoning_markers_free(
+    llama_rs_reasoning_markers * markers,
+    char ** out_error) -> llama_rs_reasoning_markers_free_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    try {
+        const std::unique_ptr<llama_rs_reasoning_markers> reclaimed(markers);
+        return LLAMA_RS_REASONING_MARKERS_FREE_OK;
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED;
+    } catch (const std::exception & err) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string(err.what());
+            if (*out_error == nullptr) {
+                return LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+    } catch (...) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string("unknown c++ exception");
+            if (*out_error == nullptr) {
+                return LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+    }
 }
 
 extern "C" auto llama_rs_render_chat_template(

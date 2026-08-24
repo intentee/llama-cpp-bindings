@@ -92,9 +92,34 @@ extern "C" auto llama_rs_chat_parser_create(
     }
 }
 
-extern "C" void llama_rs_chat_parser_free(llama_rs_chat_parser_handle parser) {
-    std::unique_ptr<llama_rs_chat_parser> reclaimed(parser);
-    reclaimed.reset();
+extern "C" auto llama_rs_chat_parser_free(
+    llama_rs_chat_parser_handle parser,
+    char ** out_error) -> llama_rs_chat_parser_free_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    try {
+        const std::unique_ptr<llama_rs_chat_parser> reclaimed(parser);
+        return LLAMA_RS_CHAT_PARSER_FREE_OK;
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_CHAT_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED;
+    } catch (const std::exception & err) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string(err.what());
+            if (*out_error == nullptr) {
+                return LLAMA_RS_CHAT_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_CHAT_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+    } catch (...) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string("unknown c++ exception");
+            if (*out_error == nullptr) {
+                return LLAMA_RS_CHAT_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_CHAT_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+    }
 }
 
 extern "C" auto llama_rs_parse_chat_message(
@@ -163,9 +188,34 @@ extern "C" auto llama_rs_parse_chat_message(
     }
 }
 
-extern "C" void llama_rs_parsed_chat_free(llama_rs_parsed_chat_handle handle) {
-    std::unique_ptr<llama_rs_parsed_chat> reclaimed(handle);
-    reclaimed.reset();
+extern "C" auto llama_rs_parsed_chat_free(
+    llama_rs_parsed_chat_handle handle,
+    char ** out_error) -> llama_rs_parsed_chat_free_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    try {
+        const std::unique_ptr<llama_rs_parsed_chat> reclaimed(handle);
+        return LLAMA_RS_PARSED_CHAT_FREE_OK;
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_PARSED_CHAT_FREE_ERROR_STRING_ALLOCATION_FAILED;
+    } catch (const std::exception & err) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string(err.what());
+            if (*out_error == nullptr) {
+                return LLAMA_RS_PARSED_CHAT_FREE_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_PARSED_CHAT_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+    } catch (...) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string("unknown c++ exception");
+            if (*out_error == nullptr) {
+                return LLAMA_RS_PARSED_CHAT_FREE_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_PARSED_CHAT_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+    }
 }
 
 extern "C" auto llama_rs_parsed_chat_tool_call_count(

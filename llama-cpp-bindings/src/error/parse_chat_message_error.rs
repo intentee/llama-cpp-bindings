@@ -15,8 +15,12 @@ pub enum ParseChatMessageError {
     NoVocab,
     #[error("not enough memory")]
     NotEnoughMemory,
-    #[error("chat-template parse failed: {message}")]
-    ParseFailed { message: String },
+    #[error("the chat parser could not be constructed: {message}")]
+    ParserCreationFailed { message: String },
+    #[error("the chat parser did not recognize the message: {message}")]
+    MessageUnrecognized { message: String },
+    #[error("the chat parser destructor threw: {message}")]
+    DestructorFailed { message: String },
     #[error("tool-call id index {index} out of bounds")]
     ToolCallIdIndexOutOfBounds { index: usize },
     #[error("tool-call name index {index} out of bounds")]

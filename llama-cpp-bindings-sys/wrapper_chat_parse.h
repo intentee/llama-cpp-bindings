@@ -31,7 +31,15 @@ llama_rs_chat_parser_create_status llama_rs_chat_parser_create(
     llama_rs_chat_parser_handle * out_parser,
     char ** out_error);
 
-void llama_rs_chat_parser_free(llama_rs_chat_parser_handle parser);
+typedef enum llama_rs_chat_parser_free_status {
+    LLAMA_RS_CHAT_PARSER_FREE_OK = 0,
+    LLAMA_RS_CHAT_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_CHAT_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
+} llama_rs_chat_parser_free_status;
+
+llama_rs_chat_parser_free_status llama_rs_chat_parser_free(
+    llama_rs_chat_parser_handle parser,
+    char ** out_error);
 
 typedef enum llama_rs_parse_chat_message_status {
     LLAMA_RS_PARSE_CHAT_MESSAGE_OK = 0,
@@ -51,7 +59,15 @@ llama_rs_parse_chat_message_status llama_rs_parse_chat_message(
     llama_rs_parsed_chat_handle * out_handle,
     char ** out_error);
 
-void llama_rs_parsed_chat_free(llama_rs_parsed_chat_handle handle);
+typedef enum llama_rs_parsed_chat_free_status {
+    LLAMA_RS_PARSED_CHAT_FREE_OK = 0,
+    LLAMA_RS_PARSED_CHAT_FREE_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_PARSED_CHAT_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
+} llama_rs_parsed_chat_free_status;
+
+llama_rs_parsed_chat_free_status llama_rs_parsed_chat_free(
+    llama_rs_parsed_chat_handle handle,
+    char ** out_error);
 
 typedef enum llama_rs_parsed_chat_tool_call_count_status {
     LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_OK = 0,

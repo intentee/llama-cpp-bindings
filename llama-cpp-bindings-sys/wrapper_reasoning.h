@@ -30,7 +30,15 @@ size_t llama_rs_reasoning_markers_close_count(const llama_rs_reasoning_markers *
 const char * llama_rs_reasoning_markers_close_at(
     const llama_rs_reasoning_markers * markers,
     size_t index);
-void llama_rs_reasoning_markers_free(llama_rs_reasoning_markers * markers);
+typedef enum llama_rs_reasoning_markers_free_status {
+    LLAMA_RS_REASONING_MARKERS_FREE_OK = 0,
+    LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
+} llama_rs_reasoning_markers_free_status;
+
+llama_rs_reasoning_markers_free_status llama_rs_reasoning_markers_free(
+    llama_rs_reasoning_markers * markers,
+    char ** out_error);
 
 typedef enum llama_rs_render_chat_template_status {
     LLAMA_RS_RENDER_CHAT_TEMPLATE_OK = 0,
