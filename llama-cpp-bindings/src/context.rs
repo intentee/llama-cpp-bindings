@@ -60,6 +60,27 @@ fn new_context_with_model_status_to_result(
             }?;
             Err(LlamaContextLoadError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_new_context_with_model",
+                detail: "was given a null model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_new_context_with_model",
+                detail: "was given a null out_ctx argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_new_context_with_model",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_new_context_with_model",
             code: i64::from(other),
@@ -99,6 +120,18 @@ fn decode_status_to_result(
                 )
             }?;
             Err(DecodeError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_CTX_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_decode",
+            detail: "was given a null ctx argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_decode",
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_decode",
@@ -143,6 +176,11 @@ fn encode_status_to_result(
             }?;
             Err(EncodeError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_CTX_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_encode",
+            detail: "was given a null ctx argument",
+        }
+        .into()),
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_encode",
             code: i64::from(other),

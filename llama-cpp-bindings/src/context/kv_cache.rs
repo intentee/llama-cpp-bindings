@@ -46,6 +46,13 @@ fn kv_cache_seq_add_status_to_result(
             }?;
             Err(KvCacheSeqAddError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_add",
+                detail: "was given a null ctx argument",
+            }
+            .into())
+        }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_memory_seq_add",
             code: i64::from(other),
@@ -78,6 +85,13 @@ fn kv_cache_seq_div_status_to_result(
                 )
             }?;
             Err(KvCacheSeqDivError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_div",
+                detail: "was given a null ctx argument",
+            }
+            .into())
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_memory_seq_div",

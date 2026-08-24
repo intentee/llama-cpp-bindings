@@ -30,6 +30,20 @@ fn sampler_apply_status_to_result(
             }?;
             Err(SamplerApplyError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_apply",
+                detail: "was given a null data_array argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_apply",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_sampler_apply",
             code: i64::from(other),

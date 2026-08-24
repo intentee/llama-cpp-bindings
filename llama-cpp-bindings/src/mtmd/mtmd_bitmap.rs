@@ -54,6 +54,21 @@ unsafe fn from_file_status_to_result(
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_mtmd_bitmap_init_from_file", "reported a thrown C++ exception without an error message") }?;
             Err(MtmdBitmapError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_bitmap_init_from_file",
+            detail: "was given a null ctx argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_FNAME_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_bitmap_init_from_file",
+            detail: "was given a null fname argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_OUT_BITMAP_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_bitmap_init_from_file",
+            detail: "was given a null out_bitmap argument",
+        }
+        .into()),
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_bitmap_init_from_file",
             code: i64::from(other),
@@ -409,7 +424,7 @@ mod tests {
     }
 
     #[test]
-    fn from_file_null_context_status_is_preserved() {
+    fn from_file_null_context_status_is_a_contract_error() {
         let status = llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG;
         let result = unsafe {
             super::from_file_status_to_result(
@@ -422,9 +437,9 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            MtmdBitmapError::FfiStatus(crate::FfiStatusError {
+            MtmdBitmapError::FfiContract(crate::FfiContractError {
                 operation: "llama_rs_mtmd_bitmap_init_from_file",
-                code: i64::from(status),
+                detail: "was given a null ctx argument",
             })
         );
     }

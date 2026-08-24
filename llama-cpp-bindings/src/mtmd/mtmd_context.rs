@@ -46,6 +46,21 @@ fn map_tokenize_status(
             }
             .into())
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_tokenize",
+            detail: "was given a null ctx argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_tokenize",
+            detail: "was given a null output argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_tokenize",
+            detail: "was given a null text argument",
+        }
+        .into()),
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_tokenize",
             code: i64::from(other),
@@ -78,6 +93,20 @@ fn map_encode_chunk_status(
                 )
             }?;
             Err(MtmdEncodeError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_encode_chunk",
+                detail: "was given a null ctx argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_encode_chunk",
+                detail: "was given a null chunk argument",
+            }
+            .into())
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_encode_chunk",
@@ -120,6 +149,27 @@ fn map_init_from_file_status(
                 )
             }?;
             Err(MtmdInitError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_MMPROJ_PATH_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_init_from_file",
+                detail: "was given a null mmproj_path argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_TEXT_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_init_from_file",
+                detail: "was given a null text_model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_OUT_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_init_from_file",
+                detail: "was given a null out_ctx argument",
+            }
+            .into())
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_init_from_file",

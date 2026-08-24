@@ -230,6 +230,27 @@ unsafe fn load_model_from_file_status_to_result(
             }?;
             Err(LlamaModelLoadError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_load_model_from_file",
+                detail: "was given a null path argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_load_model_from_file",
+                detail: "was given a null out_model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_load_model_from_file",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_load_model_from_file",
             code: i64::from(other),
@@ -272,6 +293,34 @@ unsafe fn parse_chat_message_status_to_result(
             }?;
             unsafe { *out_error = ptr::null_mut() };
             Err(ParseChatMessageError::MessageUnrecognized { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_PARSER_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parse_chat_message",
+                detail: "was given a null parser argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_INPUT_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parse_chat_message",
+                detail: "was given a null input argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_HANDLE_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parse_chat_message",
+                detail: "was given a null out_handle argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parse_chat_message",
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_parse_chat_message",
@@ -318,6 +367,27 @@ unsafe fn chat_parser_create_status_to_result(
             }?;
             unsafe { *out_error = ptr::null_mut() };
             Err(ParseChatMessageError::ParserCreationFailed { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_NULL_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_chat_parser_create",
+                detail: "was given a null model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_NULL_OUT_PARSER_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_chat_parser_create",
+                detail: "was given a null out_parser argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_chat_parser_create",
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_chat_parser_create",
@@ -384,6 +454,41 @@ unsafe fn apply_chat_template_status_to_result(
                 )
             }?;
             Err(ApplyChatTemplateError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_apply_chat_template",
+                detail: "was given a null model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_TEMPLATE_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_apply_chat_template",
+                detail: "was given a null template argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_MESSAGES_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_apply_chat_template",
+                detail: "was given a null messages argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_OUT_STRING_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_apply_chat_template",
+                detail: "was given a null out_string argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_apply_chat_template",
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_apply_chat_template",
@@ -1243,6 +1348,24 @@ unsafe fn parsed_chat_content_status_to_result(
             }?;
             Err(ParseChatMessageError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_NULL_HANDLE_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_content",
+                detail: "was given a null handle argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_NULL_OUT_STRING_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_content",
+                detail: "was given a null out_string argument",
+            }
+            .into())
+        }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
@@ -1291,6 +1414,24 @@ unsafe fn parsed_chat_reasoning_content_status_to_result(
                 unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_reasoning_content", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_NULL_HANDLE_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_reasoning_content",
+                detail: "was given a null handle argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_NULL_OUT_STRING_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_reasoning_content",
+                detail: "was given a null out_string argument",
+            }
+            .into())
+        }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
@@ -1336,6 +1477,22 @@ unsafe fn parsed_chat_tool_call_count_status_to_result(
             let message =
                 unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_count", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_NULL_HANDLE_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_tool_call_count",
+                detail: "was given a null handle argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_NULL_OUT_COUNT_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_tool_call_count",
+                detail: "was given a null out_count argument",
+            }
+            .into())
         }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
@@ -1387,6 +1544,24 @@ unsafe fn parsed_chat_tool_call_id_status_to_result(
             let message =
                 unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_id", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_NULL_HANDLE_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_tool_call_id",
+                detail: "was given a null handle argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_NULL_OUT_STRING_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_tool_call_id",
+                detail: "was given a null out_string argument",
+            }
+            .into())
         }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
@@ -1442,6 +1617,24 @@ unsafe fn parsed_chat_tool_call_name_status_to_result(
                 unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_name", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_NULL_HANDLE_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_tool_call_name",
+                detail: "was given a null handle argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_NULL_OUT_STRING_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_tool_call_name",
+                detail: "was given a null out_string argument",
+            }
+            .into())
+        }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
@@ -1495,6 +1688,24 @@ unsafe fn parsed_chat_tool_call_arguments_status_to_result(
             let message =
                 unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_arguments", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NULL_HANDLE_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_tool_call_arguments",
+                detail: "was given a null handle argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NULL_OUT_STRING_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_parsed_chat_tool_call_arguments",
+                detail: "was given a null out_string argument",
+            }
+            .into())
         }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_string) };
@@ -1842,6 +2053,21 @@ unsafe fn compute_tool_call_haystack_status_to_result(
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_compute_tool_call_haystack", "reported a thrown C++ exception without an error message") }?;
             Err(MarkerDetectionError::ToolCallHaystackComputationFailed { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_NULL_MODEL_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_compute_tool_call_haystack",
+            detail: "was given a null model argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_NULL_OUT_HAYSTACK_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_compute_tool_call_haystack",
+            detail: "was given a null out_haystack argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_NULL_OUT_ERROR_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_compute_tool_call_haystack",
+            detail: "was given a null out_error argument",
+        }
+        .into()),
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_compute_tool_call_haystack",
             code: i64::from(other),
@@ -1896,6 +2122,26 @@ unsafe fn diagnose_tool_call_synthetic_renders_status_to_result(
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_diagnose_tool_call_synthetic_renders", "reported a thrown C++ exception without an error message") }?;
             Err(MarkerDetectionError::ToolCallSyntheticRenderDiagnosisFailed { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_NULL_MODEL_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+            detail: "was given a null model argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_NULL_OUT_NO_TOOLS_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+            detail: "was given a null out_no_tools argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_NULL_OUT_WITH_TOOLS_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+            detail: "was given a null out_with_tools argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_NULL_OUT_ERROR_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+            detail: "was given a null out_error argument",
+        }
+        .into()),
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_diagnose_tool_call_synthetic_renders",
             code: i64::from(other),
@@ -1970,6 +2216,38 @@ unsafe fn tokenize_status_to_result(
                 )
             }?;
             Err(StringToTokenError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_tokenize",
+                detail: "was given a null vocab argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_TEXT_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_tokenize",
+                detail: "was given a null text argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_RETURNED_COUNT_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_tokenize",
+                detail: "was given a null out_returned_count argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_ERROR_ARG => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(crate::FfiContractError {
+                operation: "llama_rs_tokenize",
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };

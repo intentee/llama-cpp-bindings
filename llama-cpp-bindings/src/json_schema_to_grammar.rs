@@ -50,6 +50,27 @@ unsafe fn json_schema_to_grammar_status_to_result(
             }?;
             Err(JsonSchemaToGrammarError::Reported { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "was given a null schema_json argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "was given a null out_grammar argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_json_schema_to_grammar",
             code: i64::from(other),
