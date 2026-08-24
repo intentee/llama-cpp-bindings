@@ -84,10 +84,11 @@ struct ChatParserHandle {
     parser: NonNull<llama_cpp_bindings_sys::llama_rs_chat_parser>,
 }
 
-// SAFETY: the handle is an opaque pointer to a heap-allocated parser owned by the
-// model; it is created once, never mutated afterwards, and freed exactly once on
-// drop. The owning `LlamaModel` is already `Send + Sync`, so the handle shares that
-// guarantee.
+/// # Safety
+///
+/// The handle is an opaque pointer to a heap-allocated parser owned by the model; it is
+/// created once, never mutated afterwards, and freed exactly once on drop. The owning
+/// `LlamaModel` is already `Send + Sync`, so the handle shares that guarantee.
 unsafe impl Send for ChatParserHandle {}
 
 unsafe impl Sync for ChatParserHandle {}
@@ -194,9 +195,11 @@ unsafe impl Send for LlamaModel {}
 
 unsafe impl Sync for LlamaModel {}
 
-// SAFETY: `out_model` and `out_error` must be the pointers populated by the
-// preceding `llama_rs_load_model_from_file` call (or null); `out_error` is read
-// and freed only in the CXX-exception arm.
+/// # Safety
+///
+/// `out_model` and `out_error` must be the pointers populated by the preceding
+/// `llama_rs_load_model_from_file` call (or null); `out_error` is read and freed only in the
+/// CXX-exception arm.
 unsafe fn load_model_from_file_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_load_model_from_file_status,
     out_model: *mut llama_cpp_bindings_sys::llama_model,
@@ -269,10 +272,12 @@ unsafe fn load_model_from_file_status_to_result(
     }
 }
 
-// SAFETY: `handle` must be the parsed-chat handle (or null) and `out_error` must
-// reference the pointer populated by the preceding `llama_rs_parse_chat_message`
-// call. In the CXX-exception arm the error is read, freed, and the referenced
-// pointer is nulled so the later free in the caller does not double-free.
+/// # Safety
+///
+/// `handle` must be the parsed-chat handle (or null) and `out_error` must reference the
+/// pointer populated by the preceding `llama_rs_parse_chat_message` call. In the CXX-exception
+/// arm the error is read, freed, and the referenced pointer is nulled so the later free in the
+/// caller does not double-free.
 unsafe fn parse_chat_message_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_parse_chat_message_status,
     handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
@@ -343,9 +348,11 @@ unsafe fn parse_chat_message_status_to_result(
     }
 }
 
-// SAFETY: `out_error` must reference the pointer populated by the preceding
-// `llama_rs_chat_parser_create` call (or null); it is read, freed, and nulled only in
-// the CXX-exception arm. `parser` must be the pointer populated by the same call.
+/// # Safety
+///
+/// `out_error` must reference the pointer populated by the preceding
+/// `llama_rs_chat_parser_create` call (or null); it is read, freed, and nulled only in the
+/// CXX-exception arm. `parser` must be the pointer populated by the same call.
 unsafe fn chat_parser_create_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_chat_parser_create_status,
     parser: *mut llama_cpp_bindings_sys::llama_rs_chat_parser,
@@ -436,9 +443,11 @@ fn outcome_from_via_ffi_result(
     }
 }
 
-// SAFETY: `out_string` and `out_error` must be the pointers populated by the
-// preceding `llama_rs_apply_chat_template` call (or null). The success arm reads
-// and frees `out_string`; the CXX-exception arm reads and frees `out_error`.
+/// # Safety
+///
+/// `out_string` and `out_error` must be the pointers populated by the preceding
+/// `llama_rs_apply_chat_template` call (or null). The success arm reads and frees
+/// `out_string`; the CXX-exception arm reads and frees `out_error`.
 unsafe fn apply_chat_template_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_apply_chat_template_status,
     out_string: *mut c_char,
@@ -1338,9 +1347,11 @@ fn collect_parsed_chat_message(
     ))
 }
 
-// SAFETY: `out_string` and `out_error` must be the pointers populated by the
-// preceding `llama_rs_parsed_chat_content` call (or null when no value/error
-// was produced); each is read and freed in exactly one match arm.
+/// # Safety
+///
+/// `out_string` and `out_error` must be the pointers populated by the preceding
+/// `llama_rs_parsed_chat_content` call (or null when no value/error was produced); each is
+/// read and freed in exactly one match arm.
 unsafe fn parsed_chat_content_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_parsed_chat_content_status,
     out_string: *mut c_char,
@@ -1413,9 +1424,11 @@ fn read_parsed_chat_content(
     unsafe { parsed_chat_content_status_to_result(status, out_string, out_error) }
 }
 
-// SAFETY: `out_string` and `out_error` must be the pointers populated by the
-// preceding `llama_rs_parsed_chat_reasoning_content` call (or null when no
-// value/error was produced); each is read and freed in exactly one match arm.
+/// # Safety
+///
+/// `out_string` and `out_error` must be the pointers populated by the preceding
+/// `llama_rs_parsed_chat_reasoning_content` call (or null when no value/error was produced);
+/// each is read and freed in exactly one match arm.
 unsafe fn parsed_chat_reasoning_content_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_parsed_chat_reasoning_content_status,
     out_string: *mut c_char,
@@ -1483,9 +1496,11 @@ fn read_parsed_chat_reasoning_content(
     unsafe { parsed_chat_reasoning_content_status_to_result(status, out_string, out_error) }
 }
 
-// SAFETY: `out_error` must be the pointer populated by the preceding
-// `llama_rs_parsed_chat_tool_call_count` call (or null when no error was
-// produced); it is freed in exactly one match arm.
+/// # Safety
+///
+/// `out_error` must be the pointer populated by the preceding
+/// `llama_rs_parsed_chat_tool_call_count` call (or null when no error was produced); it is
+/// freed in exactly one match arm.
 unsafe fn parsed_chat_tool_call_count_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_count_status,
     out_count: usize,
@@ -1548,9 +1563,11 @@ fn read_parsed_chat_tool_call_count(
     unsafe { parsed_chat_tool_call_count_status_to_result(status, out_count, out_error) }
 }
 
-// SAFETY: `out_string` and `out_error` must be the pointers populated by the
-// preceding `llama_rs_parsed_chat_tool_call_id` call (or null when no
-// value/error was produced); each is read and freed in exactly one match arm.
+/// # Safety
+///
+/// `out_string` and `out_error` must be the pointers populated by the preceding
+/// `llama_rs_parsed_chat_tool_call_id` call (or null when no value/error was produced); each
+/// is read and freed in exactly one match arm.
 unsafe fn parsed_chat_tool_call_id_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_id_status,
     index: usize,
@@ -1624,9 +1641,11 @@ fn read_parsed_chat_tool_call_id(
     unsafe { parsed_chat_tool_call_id_status_to_result(status, index, out_string, out_error) }
 }
 
-// SAFETY: `out_string` and `out_error` must be the pointers populated by the
-// preceding `llama_rs_parsed_chat_tool_call_name` call (or null when no
-// value/error was produced); each is read and freed in exactly one match arm.
+/// # Safety
+///
+/// `out_string` and `out_error` must be the pointers populated by the preceding
+/// `llama_rs_parsed_chat_tool_call_name` call (or null when no value/error was produced); each
+/// is read and freed in exactly one match arm.
 unsafe fn parsed_chat_tool_call_name_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_name_status,
     index: usize,
@@ -1700,9 +1719,11 @@ fn read_parsed_chat_tool_call_name(
     unsafe { parsed_chat_tool_call_name_status_to_result(status, index, out_string, out_error) }
 }
 
-// SAFETY: `out_string` and `out_error` must be the pointers populated by the
-// preceding `llama_rs_parsed_chat_tool_call_arguments` call (or null when no
-// value/error was produced); each is read and freed in exactly one match arm.
+/// # Safety
+///
+/// `out_string` and `out_error` must be the pointers populated by the preceding
+/// `llama_rs_parsed_chat_tool_call_arguments` call (or null when no value/error was produced);
+/// each is read and freed in exactly one match arm.
 unsafe fn parsed_chat_tool_call_arguments_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_arguments_status,
     index: usize,
@@ -2085,10 +2106,12 @@ fn invoke_detect_reasoning_markers(
     }
 }
 
-// SAFETY: `out_haystack` and `out_error` must be the pointers populated by the
-// preceding `llama_rs_compute_tool_call_haystack` call (or null). `out_haystack`
-// is read but not freed here; `out_error` is freed only in the CXX-exception
-// arm, mirroring the conditional cleanup in the caller.
+/// # Safety
+///
+/// `out_haystack` and `out_error` must be the pointers populated by the preceding
+/// `llama_rs_compute_tool_call_haystack` call (or null). `out_haystack` is read but not freed
+/// here; `out_error` is freed only in the CXX-exception arm, mirroring the conditional cleanup
+/// in the caller.
 unsafe fn compute_tool_call_haystack_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_compute_tool_call_haystack_status,
     out_haystack: *const c_char,
@@ -2162,10 +2185,12 @@ fn invoke_compute_tool_call_haystack(
     parsed
 }
 
-// SAFETY: `out_no_tools`, `out_with_tools`, and `out_error` must be the pointers
-// populated by the preceding `llama_rs_diagnose_tool_call_synthetic_renders`
-// call (or null). The render pointers are read but not freed here; `out_error`
-// is freed only in the CXX-exception arm, mirroring the cleanup in the caller.
+/// # Safety
+///
+/// `out_no_tools`, `out_with_tools`, and `out_error` must be the pointers populated by the
+/// preceding `llama_rs_diagnose_tool_call_synthetic_renders` call (or null). The render
+/// pointers are read but not freed here; `out_error` is freed only in the CXX-exception arm,
+/// mirroring the cleanup in the caller.
 unsafe fn diagnose_tool_call_synthetic_renders_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_diagnose_tool_call_synthetic_renders_status,
     out_no_tools: *const c_char,
@@ -2268,9 +2293,10 @@ fn read_optional_owned_cstr(ptr: *const c_char) -> Result<Option<String>, Marker
     Ok(Some(String::from_utf8(bytes)?))
 }
 
-// SAFETY: `out_error` must be the pointer populated by the preceding
-// `llama_rs_tokenize` call (or null when no error was produced); it is read and
-// freed only in the CXX-exception arm.
+/// # Safety
+///
+/// `out_error` must be the pointer populated by the preceding `llama_rs_tokenize` call (or
+/// null when no error was produced); it is read and freed only in the CXX-exception arm.
 unsafe fn tokenize_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_tokenize_status,
     out_count: c_int,
@@ -2402,7 +2428,6 @@ fn tokenize_into_buffer(
 
     let size = checked_token_count(size)?;
 
-    // SAFETY: `size` <= `capacity` and llama-cpp has initialized elements up to `size`
     unsafe { buffer.set_len(size) }
 
     Ok(buffer)

@@ -156,7 +156,6 @@ impl LlamaContext<'_> {
         let mut tokens: Vec<LlamaToken> = Vec::with_capacity(max_tokens);
         let mut n_out = 0;
 
-        // SAFETY: cast is valid as LlamaToken is repr(transparent)
         let tokens_out = tokens
             .as_mut_ptr()
             .cast::<llama_cpp_bindings_sys::llama_token>();
@@ -228,7 +227,6 @@ impl LlamaContext<'_> {
         let mut tokens: Vec<LlamaToken> = Vec::with_capacity(max_tokens);
         let mut n_out = 0;
 
-        // SAFETY: cast is valid as LlamaToken is repr(transparent)
         let tokens_out = tokens
             .as_mut_ptr()
             .cast::<llama_cpp_bindings_sys::llama_token>();

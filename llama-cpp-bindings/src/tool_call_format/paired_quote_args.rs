@@ -245,6 +245,15 @@ mod tests {
         }
     }
 
+    fn gemma4_call(arguments_body: &str) -> String {
+        let mut call = String::from("<|tool_call>call:f");
+        call.push('{');
+        call.push_str(arguments_body);
+        call.push('}');
+
+        call
+    }
+
     #[test]
     fn parses_single_quoted_string_argument_with_full_markers() {
         let parsed = parse(
@@ -297,12 +306,8 @@ mod tests {
 
     #[test]
     fn parses_bare_numeric_value() {
-        let parsed = parse(
-            "<|tool_call>call:f{a:42}",
-            &gemma4_markers(),
-            &gemma4_shape(),
-        )
-        .expect("must parse");
+        let parsed =
+            parse(&gemma4_call("a:42"), &gemma4_markers(), &gemma4_shape()).expect("must parse");
 
         assert_eq!(
             parsed[0].arguments,
@@ -312,12 +317,8 @@ mod tests {
 
     #[test]
     fn parses_bare_boolean_value() {
-        let parsed = parse(
-            "<|tool_call>call:f{a:true}",
-            &gemma4_markers(),
-            &gemma4_shape(),
-        )
-        .expect("must parse");
+        let parsed =
+            parse(&gemma4_call("a:true"), &gemma4_markers(), &gemma4_shape()).expect("must parse");
 
         assert_eq!(
             parsed[0].arguments,
@@ -405,11 +406,7 @@ mod tests {
 
     #[test]
     fn rejects_empty_key_with_typed_failure() {
-        let result = parse(
-            "<|tool_call>call:f{:42}",
-            &gemma4_markers(),
-            &gemma4_shape(),
-        );
+        let result = parse(&gemma4_call(":42"), &gemma4_markers(), &gemma4_shape());
 
         assert_eq!(
             result.expect_err("empty key must produce a typed failure"),
@@ -438,7 +435,7 @@ mod tests {
 
     #[test]
     fn parses_empty_bare_value_as_null() {
-        let parsed = parse("<|tool_call>call:f{a:}", &gemma4_markers(), &gemma4_shape())
+        let parsed = parse(&gemma4_call("a:"), &gemma4_markers(), &gemma4_shape())
             .expect("empty bare value must parse");
 
         assert_eq!(

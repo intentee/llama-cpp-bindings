@@ -18,15 +18,6 @@ using wrapper_helpers::token_text_or_empty;
 
 namespace {
 
-// Render the chat template with a deterministic tool-call assistant turn and
-// diff it against the no-tool-call variant. Returns the raw section between
-// the model's tool-call open/close markers — i.e. the `<...>{...}</...>`
-// fragment the model is expected to emit, with any reasoning prelude removed.
-//
-// We deliberately reproduce the autoparser's diff-based approach (so the
-// detected markers come from the model's actual template behavior, not from a
-// hardcoded list), but use plain-ASCII synthetic names where the upstream
-// autoparser uses sentinel strings that some Jinja templates choke on.
 auto detect_tool_call_haystack(
     const common_chat_template & tmpl,
     const autoparser::analyze_reasoning & reasoning) -> std::string {
@@ -90,9 +81,6 @@ auto detect_tool_call_haystack(
     diff_split const diff = calculate_diff_split(output_no_tools, output_with_tools);
     std::string haystack = diff.right;
 
-    // Strip reasoning markers so the surrounding tool-call markers can be
-    // located reliably — the autoparser does the same for the JSON-native
-    // path.
     auto remove_first = [&haystack](const std::string & needle) -> void {
         if (needle.empty()) {
             return;

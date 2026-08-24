@@ -73,8 +73,6 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
     Ok(())
 }
 
-//
-
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,

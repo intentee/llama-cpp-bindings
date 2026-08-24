@@ -118,8 +118,6 @@ mod tests {
         assert_ne!(baseline(), other);
     }
 
-    //
-
     use std::sync::Arc;
 
     use llama_cpp_bindings::llama_backend::LlamaBackend;

@@ -1589,6 +1589,43 @@ fn samples_token_constrained_by_grammar(fixture: &LlamaFixture<'_>) -> Result<()
     n_batch = 512,
     n_ubatch = 128,
 )]
+fn reset_clears_a_failed_grammar_state(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let mut sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
+
+    let out_of_vocabulary = LlamaToken(i32::MAX - 1);
+    let failure = sampler.accept(out_of_vocabulary);
+
+    assert!(
+        failure.is_err(),
+        "an out-of-vocabulary token must drive the grammar matcher into an error state"
+    );
+
+    sampler
+        .reset()
+        .context("reset must recover a grammar matcher that recorded a failure")?;
+
+    let yes_tokens = fixture.model.str_to_token("yes", AddBos::Never)?;
+    let first_allowed_token = *yes_tokens
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("the tokenizer must produce a token for \"yes\""))?;
+
+    assert_eq!(
+        sampler.accept(first_allowed_token),
+        Ok(()),
+        "after reset the sampler must accept a token the grammar allows"
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
 fn accept_maps_an_out_of_vocabulary_token_to_grammar_callback_failure(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
