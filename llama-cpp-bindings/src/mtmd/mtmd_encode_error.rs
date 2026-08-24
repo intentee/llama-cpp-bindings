@@ -8,6 +8,8 @@ pub enum MtmdEncodeError {
     EncodingFailed { code: i32 },
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
 }

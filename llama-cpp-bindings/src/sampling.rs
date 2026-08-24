@@ -23,6 +23,9 @@ fn check_sampler_accept_status(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_ERROR_STRING_ALLOCATION_FAILED => {
             Err(SamplerAcceptError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_OUT_OF_MEMORY => {
+            Err(SamplerAcceptError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -64,6 +67,9 @@ fn sampler_sample_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_OK => Ok(LlamaToken(token)),
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(SampleError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_VENDORED_OUT_OF_MEMORY => {
+            Err(SampleError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -126,6 +132,9 @@ fn sampler_init_grammar_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GrammarError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_OUT_OF_MEMORY => {
+            Err(GrammarError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -172,6 +181,9 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GrammarError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_OUT_OF_MEMORY => {
+            Err(GrammarError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_INVALID_TRIGGER_PATTERN => {
             let message = unsafe { read_and_free_cpp_string(error_ptr, "llama_rs_sampler_init_grammar_lazy_patterns", "reported a thrown C++ exception without an error message") }?;

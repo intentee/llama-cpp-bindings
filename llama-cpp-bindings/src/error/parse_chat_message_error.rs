@@ -15,6 +15,8 @@ pub enum ParseChatMessageError {
     NoVocab,
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("the chat parser could not be constructed: {message}")]
     ParserCreationFailed { message: String },
     #[error("the chat parser did not recognize the message: {message}")]

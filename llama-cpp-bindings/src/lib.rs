@@ -52,6 +52,7 @@ pub mod sampling;
 pub mod send_logs_to_log;
 pub mod streaming_json_probe;
 pub mod streaming_markers;
+pub mod synthetic_tool_call_renders;
 pub mod timing;
 pub mod token;
 pub mod tool_call_format;
@@ -80,6 +81,7 @@ pub use raw_chat_message::RawChatMessage;
 pub use sampled_token::SampledToken;
 pub use sampled_token_classifier::SampledTokenClassifier;
 pub use sampled_token_section::SampledTokenSection;
+pub use synthetic_tool_call_renders::SyntheticToolCallRenders;
 
 pub use ggml_time_us::ggml_time_us;
 pub use ingest_prompt_chunk::ingest_prompt_chunk;

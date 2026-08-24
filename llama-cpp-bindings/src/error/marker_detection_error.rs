@@ -14,6 +14,12 @@ pub enum MarkerDetectionError {
     MarkerUtf8Error(#[from] FromUtf8Error),
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("{operation} could not run because the model has no chat template")]
+    ModelHasNoChatTemplate { operation: &'static str },
+    #[error("{operation} could not run because the model has no vocab")]
+    ModelHasNoVocab { operation: &'static str },
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("reasoning-marker detection failed: {message}")]
     ReasoningMarkerDetectionFailed { message: String },
     #[error("tool-call haystack computation failed: {message}")]

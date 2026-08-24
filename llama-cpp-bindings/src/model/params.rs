@@ -305,6 +305,9 @@ fn fit_params_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(FitError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY => {
+            Err(FitError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -314,6 +317,41 @@ fn fit_params_status_to_result(
                 )
             }?;
             Err(FitError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null path_model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null mparams argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null cparams argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null out_unrecognized_status_code argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_fit_params",

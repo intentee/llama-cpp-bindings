@@ -50,6 +50,9 @@ fn new_context_with_model_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_ERROR_STRING_ALLOCATION_FAILED => {
             Err(LlamaContextLoadError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_OUT_OF_MEMORY => {
+            Err(LlamaContextLoadError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -111,6 +114,9 @@ fn decode_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(DecodeError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_OUT_OF_MEMORY => {
+            Err(DecodeError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -166,6 +172,9 @@ fn encode_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(EncodeError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_OUT_OF_MEMORY => {
+            Err(EncodeError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -179,6 +188,11 @@ fn encode_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_CTX_ARG => Err(crate::FfiContractError {
             operation: "llama_rs_encode",
             detail: "was given a null ctx argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_MODEL => Err(crate::FfiContractError {
+            operation: "llama_rs_encode",
+            detail: "was given a null model argument",
         }
         .into()),
         other => Err(crate::FfiStatusError {

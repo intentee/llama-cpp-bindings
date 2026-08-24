@@ -134,12 +134,12 @@ extern "C" auto llama_rs_compute_tool_call_haystack(
     try {
         const char * tmpl_src = llama_model_chat_template(model, nullptr);
         if (tmpl_src == nullptr) {
-            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK;
+            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_MODEL_HAS_NO_CHAT_TEMPLATE;
         }
 
         const llama_vocab * vocab = llama_model_get_vocab(model);
         if (vocab == nullptr) {
-            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK;
+            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_MODEL_HAS_NO_VOCAB;
         }
 
         std::string const bos_token = token_text_or_empty(vocab, llama_vocab_bos(vocab));
@@ -163,7 +163,7 @@ extern "C" auto llama_rs_compute_tool_call_haystack(
 
         return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {
@@ -209,12 +209,12 @@ extern "C" auto llama_rs_diagnose_tool_call_synthetic_renders(
     try {
         const char * tmpl_src = llama_model_chat_template(model, nullptr);
         if (tmpl_src == nullptr) {
-            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK;
+            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_MODEL_HAS_NO_CHAT_TEMPLATE;
         }
 
         const llama_vocab * vocab = llama_model_get_vocab(model);
         if (vocab == nullptr) {
-            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK;
+            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_MODEL_HAS_NO_VOCAB;
         }
 
         std::string const bos_token = token_text_or_empty(vocab, llama_vocab_bos(vocab));
@@ -287,7 +287,7 @@ extern "C" auto llama_rs_diagnose_tool_call_synthetic_renders(
 
         return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {

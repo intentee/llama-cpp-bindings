@@ -2180,11 +2180,28 @@ fn discard_pending_prompt_tokens_clears_count_without_recording_usage(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn diagnose_tool_call_synthetic_renders_returns_a_pair_of_strings(
+fn diagnose_tool_call_synthetic_renders_differ_between_the_probes(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let (left, right) = fixture.model.diagnose_tool_call_synthetic_renders()?;
-    let _ = left;
-    let _ = right;
+    let renders = fixture.model.diagnose_tool_call_synthetic_renders()?;
+
+    assert!(
+        !renders.without_tools.is_empty(),
+        "the probe render without tool calls must not be empty"
+    );
+    assert!(
+        !renders.with_tools.is_empty(),
+        "the probe render with a tool call must not be empty"
+    );
+    assert_ne!(
+        renders.without_tools, renders.with_tools,
+        "the two probe renders must differ, otherwise the diff cannot expose tool-call markers"
+    );
+    assert!(
+        renders.with_tools.contains("tool_first"),
+        "the with-tools render must contain the synthetic tool name; got: {:?}",
+        renders.with_tools
+    );
+
     Ok(())
 }

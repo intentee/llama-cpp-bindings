@@ -21,6 +21,8 @@ pub enum EncodeError {
     UnknownStatus { code: c_int },
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
 }

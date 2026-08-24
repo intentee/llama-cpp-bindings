@@ -52,6 +52,9 @@ fn validation_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GbnfValidationError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_VENDORED_OUT_OF_MEMORY => {
+            Err(GbnfValidationError::VendoredOutOfMemory)
+        }
         LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(

@@ -6,6 +6,8 @@ pub enum SamplerAcceptError {
     FfiContract(#[from] crate::FfiContractError),
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("grammar state corrupted during accept: {message}")]
     GrammarStateCorrupted { message: String },
     #[error("the grammar sampler callback failed during accept: {message}")]

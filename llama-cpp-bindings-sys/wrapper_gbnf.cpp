@@ -48,7 +48,7 @@ extern "C" auto llama_rs_validate_gbnf(
 
         return LLAMA_RS_GBNF_VALIDATION_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_GBNF_VALIDATION_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {

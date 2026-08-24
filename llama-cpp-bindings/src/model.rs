@@ -40,6 +40,7 @@ use crate::resolved_tool_call_markers::ResolvedToolCallMarkers;
 use crate::sampled_token::SampledToken;
 use crate::sampled_token_classifier::SampledTokenClassifier;
 use crate::streaming_markers::StreamingMarkers;
+use crate::synthetic_tool_call_renders::SyntheticToolCallRenders;
 use crate::token::LlamaToken;
 use crate::tool_call_format;
 use crate::tool_call_format::ToolCallFormatOutcome;
@@ -105,6 +106,9 @@ unsafe fn parsed_chat_free_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ParseChatMessageError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_VENDORED_OUT_OF_MEMORY => {
+            Err(ParseChatMessageError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -137,6 +141,9 @@ unsafe fn chat_parser_free_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ParseChatMessageError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_VENDORED_OUT_OF_MEMORY => {
+            Err(ParseChatMessageError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -220,6 +227,9 @@ unsafe fn load_model_from_file_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(LlamaModelLoadError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_VENDORED_OUT_OF_MEMORY => {
+            Err(LlamaModelLoadError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -282,6 +292,9 @@ unsafe fn parse_chat_message_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ParseChatMessageError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_VENDORED_OUT_OF_MEMORY => {
+            Err(ParseChatMessageError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -356,6 +369,9 @@ unsafe fn chat_parser_create_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ParseChatMessageError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_VENDORED_OUT_OF_MEMORY => {
+            Err(ParseChatMessageError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -444,6 +460,9 @@ unsafe fn apply_chat_template_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ApplyChatTemplateError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_OUT_OF_MEMORY => {
+            Err(ApplyChatTemplateError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -1209,11 +1228,8 @@ impl LlamaModel {
     /// returns a non-OK status.
     pub fn diagnose_tool_call_synthetic_renders(
         &self,
-    ) -> Result<(String, String), MarkerDetectionError> {
-        let (no_tools, with_tools) =
-            invoke_diagnose_tool_call_synthetic_renders(self.model.as_ptr())?;
-
-        Ok((no_tools.unwrap_or_default(), with_tools.unwrap_or_default()))
+    ) -> Result<SyntheticToolCallRenders, MarkerDetectionError> {
+        invoke_diagnose_tool_call_synthetic_renders(self.model.as_ptr())
     }
 }
 
@@ -1338,6 +1354,10 @@ unsafe fn parsed_chat_content_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(ParseChatMessageError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_VENDORED_OUT_OF_MEMORY => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(ParseChatMessageError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -1409,6 +1429,10 @@ unsafe fn parsed_chat_reasoning_content_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(ParseChatMessageError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_VENDORED_OUT_OF_MEMORY => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(ParseChatMessageError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
                 unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_reasoning_content", "reported a thrown C++ exception without an error message") }?;
@@ -1472,6 +1496,10 @@ unsafe fn parsed_chat_tool_call_count_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_ERROR_STRING_ALLOCATION_FAILED => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(ParseChatMessageError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_VENDORED_OUT_OF_MEMORY => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(ParseChatMessageError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
@@ -1539,6 +1567,10 @@ unsafe fn parsed_chat_tool_call_id_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_ERROR_STRING_ALLOCATION_FAILED => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(ParseChatMessageError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_VENDORED_OUT_OF_MEMORY => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(ParseChatMessageError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
@@ -1612,6 +1644,10 @@ unsafe fn parsed_chat_tool_call_name_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(ParseChatMessageError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_VENDORED_OUT_OF_MEMORY => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(ParseChatMessageError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
                 unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_name", "reported a thrown C++ exception without an error message") }?;
@@ -1683,6 +1719,10 @@ unsafe fn parsed_chat_tool_call_arguments_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_ERROR_STRING_ALLOCATION_FAILED => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(ParseChatMessageError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_VENDORED_OUT_OF_MEMORY => {
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
+            Err(ParseChatMessageError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
@@ -1875,8 +1915,17 @@ unsafe fn detect_reasoning_markers_status_to_result(
                 argument: "out_error",
             })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_MODEL_HAS_NO_CHAT_TEMPLATE => Ok(None),
+        llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_MODEL_HAS_NO_VOCAB => {
+            Err(MarkerDetectionError::ModelHasNoVocab {
+                operation: "llama_rs_detect_reasoning_markers",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MarkerDetectionError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_OUT_OF_MEMORY => {
+            Err(MarkerDetectionError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_detect_reasoning_markers", "reported a thrown C++ exception without an error message") }?;
@@ -1975,6 +2024,9 @@ unsafe fn reasoning_markers_free_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MarkerDetectionError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_VENDORED_OUT_OF_MEMORY => {
+            Err(MarkerDetectionError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -2046,8 +2098,17 @@ unsafe fn compute_tool_call_haystack_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK => {
             read_optional_owned_cstr(out_haystack)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_MODEL_HAS_NO_CHAT_TEMPLATE => Ok(None),
+        llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_MODEL_HAS_NO_VOCAB => {
+            Err(MarkerDetectionError::ModelHasNoVocab {
+                operation: "llama_rs_compute_tool_call_haystack",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MarkerDetectionError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_OUT_OF_MEMORY => {
+            Err(MarkerDetectionError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_compute_tool_call_haystack", "reported a thrown C++ exception without an error message") }?;
@@ -2110,13 +2171,26 @@ unsafe fn diagnose_tool_call_synthetic_renders_status_to_result(
     out_no_tools: *const c_char,
     out_with_tools: *const c_char,
     out_error: *mut c_char,
-) -> Result<(Option<String>, Option<String>), MarkerDetectionError> {
+) -> Result<SyntheticToolCallRenders, MarkerDetectionError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK => {
-            collect_optional_cstr_pair(out_no_tools, out_with_tools)
+            collect_synthetic_tool_call_renders(out_no_tools, out_with_tools)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_MODEL_HAS_NO_CHAT_TEMPLATE => {
+            Err(MarkerDetectionError::ModelHasNoChatTemplate {
+                operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_MODEL_HAS_NO_VOCAB => {
+            Err(MarkerDetectionError::ModelHasNoVocab {
+                operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MarkerDetectionError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_OUT_OF_MEMORY => {
+            Err(MarkerDetectionError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_diagnose_tool_call_synthetic_renders", "reported a thrown C++ exception without an error message") }?;
@@ -2152,7 +2226,7 @@ unsafe fn diagnose_tool_call_synthetic_renders_status_to_result(
 
 fn invoke_diagnose_tool_call_synthetic_renders(
     model: *const llama_cpp_bindings_sys::llama_model,
-) -> Result<(Option<String>, Option<String>), MarkerDetectionError> {
+) -> Result<SyntheticToolCallRenders, MarkerDetectionError> {
     let mut out_no_tools: *mut c_char = ptr::null_mut();
     let mut out_with_tools: *mut c_char = ptr::null_mut();
     let mut out_error: *mut c_char = ptr::null_mut();
@@ -2206,6 +2280,9 @@ unsafe fn tokenize_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_OK => Ok(out_count),
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(StringToTokenError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_VENDORED_OUT_OF_MEMORY => {
+            Err(StringToTokenError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -2331,13 +2408,24 @@ fn tokenize_into_buffer(
     Ok(buffer)
 }
 
-fn collect_optional_cstr_pair(
-    first_ptr: *const c_char,
-    second_ptr: *const c_char,
-) -> Result<(Option<String>, Option<String>), MarkerDetectionError> {
-    let first = read_optional_owned_cstr(first_ptr)?;
-    let second = read_optional_owned_cstr(second_ptr)?;
-    Ok((first, second))
+fn collect_synthetic_tool_call_renders(
+    without_tools_ptr: *const c_char,
+    with_tools_ptr: *const c_char,
+) -> Result<SyntheticToolCallRenders, MarkerDetectionError> {
+    let without_tools =
+        read_optional_owned_cstr(without_tools_ptr)?.ok_or(crate::FfiContractError {
+            operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+            detail: "success status contained a null render without tools",
+        })?;
+    let with_tools = read_optional_owned_cstr(with_tools_ptr)?.ok_or(crate::FfiContractError {
+        operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+        detail: "success status contained a null render with tools",
+    })?;
+
+    Ok(SyntheticToolCallRenders {
+        without_tools,
+        with_tools,
+    })
 }
 
 fn extract_meta_string<TCFunction>(
@@ -2563,10 +2651,10 @@ mod extract_meta_string_tests {
     }
 
     #[test]
-    fn collect_optional_cstr_pair_first_invalid_utf8_returns_error() {
+    fn collect_synthetic_tool_call_renders_first_invalid_utf8_returns_error() {
         let invalid_utf8_with_terminator: [u8; 3] = [0xFF, 0xFE, 0x00];
         let valid_with_terminator: [u8; 3] = [b'o', b'k', 0x00];
-        let result = super::collect_optional_cstr_pair(
+        let result = super::collect_synthetic_tool_call_renders(
             invalid_utf8_with_terminator
                 .as_ptr()
                 .cast::<std::ffi::c_char>(),
@@ -2582,10 +2670,10 @@ mod extract_meta_string_tests {
     }
 
     #[test]
-    fn collect_optional_cstr_pair_second_invalid_utf8_returns_error() {
+    fn collect_synthetic_tool_call_renders_second_invalid_utf8_returns_error() {
         let valid_with_terminator: [u8; 3] = [b'o', b'k', 0x00];
         let invalid_utf8_with_terminator: [u8; 3] = [0xFF, 0xFE, 0x00];
-        let result = super::collect_optional_cstr_pair(
+        let result = super::collect_synthetic_tool_call_renders(
             valid_with_terminator.as_ptr().cast::<std::ffi::c_char>(),
             invalid_utf8_with_terminator
                 .as_ptr()
@@ -3713,7 +3801,7 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn diagnose_tool_call_synthetic_renders_ok_with_null_pointers_is_none_pair() {
+    fn diagnose_tool_call_synthetic_renders_ok_with_null_pointers_is_a_contract_error() {
         let result = unsafe {
             diagnose_tool_call_synthetic_renders_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK,
@@ -3723,7 +3811,14 @@ mod ffi_status_mapping_tests {
             )
         };
 
-        assert_eq!(result, Ok((None, None)));
+        assert_eq!(
+            result,
+            Err(crate::FfiContractError {
+                operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+                detail: "success status contained a null render without tools",
+            }
+            .into())
+        );
     }
 
     #[test]

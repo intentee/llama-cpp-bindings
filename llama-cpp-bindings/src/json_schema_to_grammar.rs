@@ -30,6 +30,9 @@ unsafe fn json_schema_to_grammar_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED => {
             Err(JsonSchemaToGrammarError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_OUT_OF_MEMORY => {
+            Err(JsonSchemaToGrammarError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
             let message = unsafe {
                 read_and_free_cpp_string(

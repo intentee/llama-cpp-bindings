@@ -9,6 +9,8 @@ pub enum SampleError {
     FfiContract(#[from] crate::FfiContractError),
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("applying the sampler to the token data array failed: {0}")]
     SamplerApply(#[from] SamplerApplyError),
     #[error("token detokenization failed during classification: {0}")]

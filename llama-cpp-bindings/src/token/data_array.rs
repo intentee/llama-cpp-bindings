@@ -20,6 +20,9 @@ fn sampler_apply_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED => {
             Err(SamplerApplyError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_OUT_OF_MEMORY => {
+            Err(SamplerApplyError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(

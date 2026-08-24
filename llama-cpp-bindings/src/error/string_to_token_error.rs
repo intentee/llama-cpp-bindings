@@ -12,6 +12,8 @@ pub enum StringToTokenError {
     CIntConversionError(#[from] std::num::TryFromIntError),
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
 }

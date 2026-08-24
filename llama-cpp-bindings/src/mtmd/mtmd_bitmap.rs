@@ -50,6 +50,9 @@ unsafe fn from_file_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdBitmapError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY => {
+            Err(MtmdBitmapError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_mtmd_bitmap_init_from_file", "reported a thrown C++ exception without an error message") }?;
             Err(MtmdBitmapError::Reported { message })

@@ -50,6 +50,9 @@ fn eval_chunk_single_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdEvalError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_OUT_OF_MEMORY => {
+            Err(MtmdEvalError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(

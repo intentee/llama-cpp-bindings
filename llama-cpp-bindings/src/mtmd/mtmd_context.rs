@@ -35,6 +35,9 @@ fn map_tokenize_status(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdTokenizeError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_OUT_OF_MEMORY => {
+            Err(MtmdTokenizeError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_mtmd_tokenize", "reported a thrown C++ exception without an error message") }?;
             Err(MtmdTokenizeError::Reported { message })
@@ -83,6 +86,9 @@ fn map_encode_chunk_status(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdEncodeError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_OUT_OF_MEMORY => {
+            Err(MtmdEncodeError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -139,6 +145,9 @@ fn map_init_from_file_status(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdInitError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY => {
+            Err(MtmdInitError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {

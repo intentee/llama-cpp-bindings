@@ -10,6 +10,8 @@ pub enum ApplyChatTemplateError {
     TemplateApplicationFailed,
     #[error("not enough memory to render the chat template")]
     NotEnoughMemory,
+    #[error("the vendored chat-template renderer ran out of memory")]
+    VendoredOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
 }

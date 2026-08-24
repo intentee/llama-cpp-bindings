@@ -36,6 +36,9 @@ fn kv_cache_seq_add_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED => {
             Err(KvCacheSeqAddError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_OUT_OF_MEMORY => {
+            Err(KvCacheSeqAddError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -50,6 +53,13 @@ fn kv_cache_seq_add_status_to_result(
             Err(crate::FfiContractError {
                 operation: "llama_rs_memory_seq_add",
                 detail: "was given a null ctx argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_add",
+                detail: "was given a null model argument",
             }
             .into())
         }
@@ -76,6 +86,9 @@ fn kv_cache_seq_div_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED => {
             Err(KvCacheSeqDivError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_OUT_OF_MEMORY => {
+            Err(KvCacheSeqDivError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -90,6 +103,13 @@ fn kv_cache_seq_div_status_to_result(
             Err(crate::FfiContractError {
                 operation: "llama_rs_memory_seq_div",
                 detail: "was given a null ctx argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_div",
+                detail: "was given a null model argument",
             }
             .into())
         }
@@ -138,6 +158,9 @@ fn kv_cache_seq_pos_max_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED => {
             Err(KvCacheSeqPosMaxError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_OUT_OF_MEMORY => {
+            Err(KvCacheSeqPosMaxError::VendoredOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_THREW_CXX_EXCEPTION => {
             let message = unsafe {

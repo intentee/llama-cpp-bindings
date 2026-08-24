@@ -1,4 +1,5 @@
 #include "wrapper_reasoning.h"
+#include "wrapper_token_text.h"
 
 #include "llama.cpp/common/chat-auto-parser.h"
 #include "llama.cpp/common/chat.h"
@@ -15,25 +16,14 @@
 #include <utility>
 #include <vector>
 
+using wrapper_helpers::token_text_or_empty;
+
 struct llama_rs_reasoning_markers {
     std::string open;
     std::vector<std::string> closes;
 };
 
 namespace {
-
-auto token_text_or_empty(const llama_vocab * vocab, llama_token token) -> std::string {
-    if (token == LLAMA_TOKEN_NULL) {
-        return {};
-    }
-
-    const char * text = llama_vocab_get_text(vocab, token);
-    if (text == nullptr) {
-        return {};
-    }
-
-    return {text};
-}
 
 auto find_reasoning_markers(
     const common_chat_template & tmpl,
@@ -99,12 +89,12 @@ extern "C" auto llama_rs_detect_reasoning_markers(
     try {
         const char * tmpl_src = llama_model_chat_template(model, nullptr);
         if (tmpl_src == nullptr) {
-            return LLAMA_RS_DETECT_REASONING_MARKERS_OK;
+            return LLAMA_RS_DETECT_REASONING_MARKERS_MODEL_HAS_NO_CHAT_TEMPLATE;
         }
 
         const llama_vocab * vocab = llama_model_get_vocab(model);
         if (vocab == nullptr) {
-            return LLAMA_RS_DETECT_REASONING_MARKERS_OK;
+            return LLAMA_RS_DETECT_REASONING_MARKERS_MODEL_HAS_NO_VOCAB;
         }
 
         std::string const bos_token = token_text_or_empty(vocab, llama_vocab_bos(vocab));
@@ -121,7 +111,7 @@ extern "C" auto llama_rs_detect_reasoning_markers(
 
         return LLAMA_RS_DETECT_REASONING_MARKERS_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {
@@ -172,7 +162,7 @@ extern "C" auto llama_rs_reasoning_markers_free(
         const std::unique_ptr<llama_rs_reasoning_markers> reclaimed(markers);
         return LLAMA_RS_REASONING_MARKERS_FREE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_REASONING_MARKERS_FREE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());

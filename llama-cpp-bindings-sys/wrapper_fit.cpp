@@ -27,6 +27,21 @@ extern "C" auto llama_rs_fit_params(
     if (out_unrecognized_status_code != nullptr) {
         *out_unrecognized_status_code = 0;
     }
+    if (path_model == nullptr) {
+        return LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG;
+    }
+    if (mparams == nullptr) {
+        return LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG;
+    }
+    if (cparams == nullptr) {
+        return LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG;
+    }
+    if (out_unrecognized_status_code == nullptr) {
+        return LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG;
+    }
+    if (out_error == nullptr) {
+        return LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG;
+    }
 
     try {
         const common_params_fit_status status = common_fit_params(
@@ -40,26 +55,20 @@ extern "C" auto llama_rs_fit_params(
             case COMMON_PARAMS_FIT_STATUS_ERROR:
                 return LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR;
         }
-        if (out_unrecognized_status_code != nullptr) {
-            *out_unrecognized_status_code = static_cast<int32_t>(status);
-        }
+        *out_unrecognized_status_code = static_cast<int32_t>(status);
         return LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED;
-            }
+        *out_error = llama_rs_dup_string(err.what());
+        if (*out_error == nullptr) {
+            return LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED;
         }
         return LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED;
-            }
+        *out_error = llama_rs_dup_string("unknown c++ exception");
+        if (*out_error == nullptr) {
+            return LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED;
         }
         return LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION;
     }

@@ -38,7 +38,7 @@ extern "C" auto llama_rs_mtmd_init_from_file(
         *out_ctx = ctx;
         return LLAMA_RS_MTMD_INIT_FROM_FILE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -87,7 +87,7 @@ extern "C" auto llama_rs_mtmd_bitmap_init_from_file(
         *out_bitmap = bitmap;
         return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -150,7 +150,7 @@ extern "C" auto llama_rs_mtmd_tokenize(
                 return LLAMA_RS_MTMD_TOKENIZE_VENDORED_RETURNED_UNDOCUMENTED_NONZERO_CODE;
         }
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_MTMD_TOKENIZE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -198,7 +198,7 @@ extern "C" auto llama_rs_mtmd_encode_chunk(
         }
         return LLAMA_RS_MTMD_ENCODE_CHUNK_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -259,7 +259,7 @@ extern "C" auto llama_rs_mtmd_eval_chunk_single(
         }
         return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
