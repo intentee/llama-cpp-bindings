@@ -29,7 +29,7 @@ fn check_sampler_accept_status(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_sampler_accept",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -51,7 +51,7 @@ fn sampler_sample_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_sampler_sample",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -78,7 +78,7 @@ fn sampler_init_grammar_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_sampler_init_grammar",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -109,7 +109,7 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_sampler_init_grammar_lazy_patterns",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -861,7 +861,7 @@ mod tests {
             result,
             Err(SamplerAcceptError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_sampler_accept",
-                code: status,
+                code: i64::from(status),
             }))
         );
     }
@@ -902,7 +902,7 @@ mod tests {
             result,
             Err(SampleError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_sampler_sample",
-                code: status,
+                code: i64::from(status),
             }))
         );
     }
@@ -958,7 +958,7 @@ mod tests {
             result.unwrap_err(),
             GrammarError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_sampler_init_grammar",
-                code: status,
+                code: i64::from(status),
             })
         );
     }
@@ -1014,7 +1014,7 @@ mod tests {
             result.unwrap_err(),
             GrammarError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_sampler_init_grammar_lazy_patterns",
-                code: status,
+                code: i64::from(status),
             })
         );
     }

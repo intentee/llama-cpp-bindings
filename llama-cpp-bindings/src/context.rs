@@ -54,7 +54,7 @@ fn new_context_with_model_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_new_context_with_model",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -88,7 +88,7 @@ fn decode_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_decode",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -125,7 +125,7 @@ fn encode_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_encode",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -593,7 +593,7 @@ mod unit_tests {
     #[test]
     fn new_context_unknown_status_is_preserved() {
         let result = new_context_with_model_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_new_context_with_model_status::MAX,
+            255,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
         );
@@ -602,7 +602,7 @@ mod unit_tests {
             result,
             Err(LlamaContextLoadError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_new_context_with_model",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -686,17 +686,13 @@ mod unit_tests {
 
     #[test]
     fn decode_unknown_status_is_preserved() {
-        let result = decode_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_decode_status::MAX,
-            0,
-            std::ptr::null_mut(),
-        );
+        let result = decode_status_to_result(255, 0, std::ptr::null_mut());
 
         assert_eq!(
             result,
             Err(DecodeError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_decode",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -791,17 +787,13 @@ mod unit_tests {
 
     #[test]
     fn encode_unknown_status_is_preserved() {
-        let result = encode_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_encode_status::MAX,
-            0,
-            std::ptr::null_mut(),
-        );
+        let result = encode_status_to_result(255, 0, std::ptr::null_mut());
 
         assert_eq!(
             result,
             Err(EncodeError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_encode",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }

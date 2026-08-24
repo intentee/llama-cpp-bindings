@@ -2,5 +2,5 @@
 #[error("{operation} returned unknown FFI status {code}")]
 pub struct FfiStatusError {
     pub operation: &'static str,
-    pub code: u32,
+    pub code: i64,
 }

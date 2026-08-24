@@ -147,7 +147,7 @@ unsafe fn load_model_from_file_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_load_model_from_file",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -184,7 +184,7 @@ unsafe fn parse_chat_message_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_parse_chat_message",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -224,7 +224,7 @@ unsafe fn chat_parser_create_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_chat_parser_create",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -288,7 +288,7 @@ unsafe fn apply_chat_template_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_apply_chat_template",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -1123,7 +1123,7 @@ unsafe fn parsed_chat_content_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_content",
-                code: other,
+                code: i64::from(other),
             }
             .into())
         }
@@ -1171,7 +1171,7 @@ unsafe fn parsed_chat_reasoning_content_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_reasoning_content",
-                code: other,
+                code: i64::from(other),
             }
             .into())
         }
@@ -1216,7 +1216,7 @@ unsafe fn parsed_chat_tool_call_count_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_tool_call_count",
-                code: other,
+                code: i64::from(other),
             }
             .into())
         }
@@ -1268,7 +1268,7 @@ unsafe fn parsed_chat_tool_call_id_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_tool_call_id",
-                code: other,
+                code: i64::from(other),
             }
             .into())
         }
@@ -1322,7 +1322,7 @@ unsafe fn parsed_chat_tool_call_name_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_tool_call_name",
-                code: other,
+                code: i64::from(other),
             }
             .into())
         }
@@ -1376,7 +1376,7 @@ unsafe fn parsed_chat_tool_call_arguments_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_tool_call_arguments",
-                code: other,
+                code: i64::from(other),
             }
             .into())
         }
@@ -1548,7 +1548,7 @@ unsafe fn detect_reasoning_markers_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_detect_reasoning_markers",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -1672,7 +1672,7 @@ unsafe fn compute_tool_call_haystack_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_compute_tool_call_haystack",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -1726,7 +1726,7 @@ unsafe fn diagnose_tool_call_synthetic_renders_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_diagnose_tool_call_synthetic_renders",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -1797,7 +1797,7 @@ unsafe fn tokenize_status_to_result(
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
             Err(crate::FfiStatusError {
                 operation: "llama_rs_tokenize",
-                code: other,
+                code: i64::from(other),
             }
             .into())
         }
@@ -2299,7 +2299,7 @@ mod ffi_status_mapping_tests {
     fn load_model_from_file_unknown_status_is_preserved() {
         let result = unsafe {
             load_model_from_file_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_load_model_from_file_status::MAX,
+                255,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 Path::new("/some/path"),
@@ -2310,7 +2310,7 @@ mod ffi_status_mapping_tests {
             result.unwrap_err(),
             LlamaModelLoadError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_load_model_from_file",
-                code: u32::MAX,
+                code: 255,
             })
         );
     }
@@ -2434,18 +2434,14 @@ mod ffi_status_mapping_tests {
     fn chat_parser_create_unknown_status_is_preserved() {
         let mut out_error: *mut c_char = ptr::null_mut();
         let result = unsafe {
-            chat_parser_create_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_chat_parser_create_status::MAX,
-                ptr::null_mut(),
-                &raw mut out_error,
-            )
+            chat_parser_create_status_to_result(255, ptr::null_mut(), &raw mut out_error)
         };
 
         assert_eq!(
             discriminant(&result.unwrap_err()),
             discriminant(&ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_chat_parser_create",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -2491,18 +2487,14 @@ mod ffi_status_mapping_tests {
     fn parse_chat_message_unknown_status_is_preserved() {
         let mut out_error: *mut c_char = ptr::null_mut();
         let result = unsafe {
-            parse_chat_message_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_parse_chat_message_status::MAX,
-                ptr::null_mut(),
-                &raw mut out_error,
-            )
+            parse_chat_message_status_to_result(255, ptr::null_mut(), &raw mut out_error)
         };
 
         assert_eq!(
             discriminant(&result.unwrap_err()),
             discriminant(&ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_parse_chat_message",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -2564,19 +2556,14 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parsed_chat_content_unknown_status_is_preserved() {
-        let result = unsafe {
-            parsed_chat_content_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_parsed_chat_content_status::MAX,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
+        let result =
+            unsafe { parsed_chat_content_status_to_result(255, ptr::null_mut(), ptr::null_mut()) };
 
         assert!(matches!(
             result,
             Err(ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_content",
-                code: u32::MAX,
+                code: 255,
             }))
         ));
     }
@@ -2639,18 +2626,14 @@ mod ffi_status_mapping_tests {
     #[test]
     fn parsed_chat_reasoning_content_unknown_status_is_preserved() {
         let result = unsafe {
-            parsed_chat_reasoning_content_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_parsed_chat_reasoning_content_status::MAX,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
+            parsed_chat_reasoning_content_status_to_result(255, ptr::null_mut(), ptr::null_mut())
         };
 
         assert!(matches!(
             result,
             Err(ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_reasoning_content",
-                code: u32::MAX,
+                code: 255,
             }))
         ));
     }
@@ -2704,19 +2687,14 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parsed_chat_tool_call_count_unknown_status_is_preserved() {
-        let result = unsafe {
-            parsed_chat_tool_call_count_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_count_status::MAX,
-                0,
-                ptr::null_mut(),
-            )
-        };
+        let result =
+            unsafe { parsed_chat_tool_call_count_status_to_result(255, 0, ptr::null_mut()) };
 
         assert!(matches!(
             result,
             Err(ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_tool_call_count",
-                code: u32::MAX,
+                code: 255,
             }))
         ));
     }
@@ -2799,19 +2777,14 @@ mod ffi_status_mapping_tests {
     #[test]
     fn parsed_chat_tool_call_id_unknown_status_is_preserved() {
         let result = unsafe {
-            parsed_chat_tool_call_id_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_id_status::MAX,
-                0,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
+            parsed_chat_tool_call_id_status_to_result(255, 0, ptr::null_mut(), ptr::null_mut())
         };
 
         assert!(matches!(
             result,
             Err(ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_tool_call_id",
-                code: u32::MAX,
+                code: 255,
             }))
         ));
     }
@@ -2894,19 +2867,14 @@ mod ffi_status_mapping_tests {
     #[test]
     fn parsed_chat_tool_call_name_unknown_status_is_preserved() {
         let result = unsafe {
-            parsed_chat_tool_call_name_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_name_status::MAX,
-                0,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
+            parsed_chat_tool_call_name_status_to_result(255, 0, ptr::null_mut(), ptr::null_mut())
         };
 
         assert!(matches!(
             result,
             Err(ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_tool_call_name",
-                code: u32::MAX,
+                code: 255,
             }))
         ));
     }
@@ -2990,7 +2958,7 @@ mod ffi_status_mapping_tests {
     fn parsed_chat_tool_call_arguments_unknown_status_is_preserved() {
         let result = unsafe {
             parsed_chat_tool_call_arguments_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_arguments_status::MAX,
+                255,
                 0,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -3001,7 +2969,7 @@ mod ffi_status_mapping_tests {
             result,
             Err(ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_tool_call_arguments",
-                code: u32::MAX,
+                code: 255,
             }))
         ));
     }
@@ -3052,19 +3020,14 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn detect_reasoning_markers_unknown_status_is_preserved() {
-        let result = unsafe {
-            detect_reasoning_markers_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_detect_reasoning_markers_status::MAX,
-                ptr::null(),
-                ptr::null_mut(),
-            )
-        };
+        let result =
+            unsafe { detect_reasoning_markers_status_to_result(255, ptr::null(), ptr::null_mut()) };
 
         assert_eq!(
             result,
             Err(MarkerDetectionError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_detect_reasoning_markers",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -3256,18 +3219,14 @@ mod ffi_status_mapping_tests {
     #[test]
     fn compute_tool_call_haystack_unknown_status_is_preserved() {
         let result = unsafe {
-            compute_tool_call_haystack_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_compute_tool_call_haystack_status::MAX,
-                ptr::null(),
-                ptr::null_mut(),
-            )
+            compute_tool_call_haystack_status_to_result(255, ptr::null(), ptr::null_mut())
         };
 
         assert_eq!(
             result,
             Err(MarkerDetectionError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_compute_tool_call_haystack",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -3325,7 +3284,7 @@ mod ffi_status_mapping_tests {
     fn diagnose_tool_call_synthetic_renders_unknown_status_is_preserved() {
         let result = unsafe {
             diagnose_tool_call_synthetic_renders_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_diagnose_tool_call_synthetic_renders_status::MAX,
+                255,
                 ptr::null(),
                 ptr::null(),
                 ptr::null_mut(),
@@ -3336,7 +3295,7 @@ mod ffi_status_mapping_tests {
             result,
             Err(MarkerDetectionError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_diagnose_tool_call_synthetic_renders",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -3387,19 +3346,13 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn tokenize_unknown_status_is_preserved() {
-        let result = unsafe {
-            tokenize_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_tokenize_status::MAX,
-                0,
-                ptr::null_mut(),
-            )
-        };
+        let result = unsafe { tokenize_status_to_result(255, 0, ptr::null_mut()) };
 
         assert_eq!(
             result,
             Err(StringToTokenError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_tokenize",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -3511,11 +3464,7 @@ mod ffi_status_mapping_tests {
     #[test]
     fn apply_chat_template_unknown_status_is_preserved() {
         let result = unsafe {
-            super::apply_chat_template_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_apply_chat_template_status::MAX,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
+            super::apply_chat_template_status_to_result(255, ptr::null_mut(), ptr::null_mut())
         };
 
         assert_eq!(
@@ -3523,7 +3472,7 @@ mod ffi_status_mapping_tests {
             Err(crate::ApplyChatTemplateError::FfiStatus(
                 crate::FfiStatusError {
                     operation: "llama_rs_apply_chat_template",
-                    code: u32::MAX,
+                    code: 255,
                 }
             ))
         );

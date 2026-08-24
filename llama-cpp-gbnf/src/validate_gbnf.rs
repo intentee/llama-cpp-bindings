@@ -48,7 +48,9 @@ fn validation_status_to_result(
             let message = unsafe { read_and_free_error(out_error) };
             Err(GbnfValidationError::Reported { message })
         }
-        other => Err(GbnfValidationError::FfiStatus { code: other }),
+        other => Err(GbnfValidationError::FfiStatus {
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -86,12 +88,10 @@ pub fn validate_gbnf(grammar: &str, root: &str) -> Result<(), GbnfValidationErro
 mod tests {
     use std::ffi::{CString, c_char};
 
-    use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
-    use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
-
     use super::validate_gbnf;
     use super::validation_status_to_result;
     use crate::gbnf_validation_error::GbnfValidationError;
+    use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
 
     unsafe extern "C" {
         fn strdup(source: *const c_char) -> *mut c_char;
@@ -248,12 +248,8 @@ mod tests {
     #[test]
     fn unknown_status_is_preserved() {
         assert_eq!(
-            validation_status_to_result(
-                llama_rs_gbnf_validation_status::MAX,
-                "root",
-                std::ptr::null_mut(),
-            ),
-            Err(GbnfValidationError::FfiStatus { code: u32::MAX })
+            validation_status_to_result(255, "root", std::ptr::null_mut(),),
+            Err(GbnfValidationError::FfiStatus { code: 255 })
         );
     }
 }

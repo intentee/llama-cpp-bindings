@@ -3,7 +3,7 @@ use std::ffi::NulError;
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GbnfValidationError {
     #[error("llama_rs_validate_gbnf returned unknown FFI status {code}")]
-    FfiStatus { code: u32 },
+    FfiStatus { code: i64 },
     #[error("llama_rs_validate_gbnf violated its FFI contract: {detail}")]
     FfiContract { detail: &'static str },
     #[error("grammar string contains an interior NUL byte")]

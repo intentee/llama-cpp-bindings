@@ -56,7 +56,7 @@ fn eval_chunk_single_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_eval_chunk_single",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -290,18 +290,13 @@ mod unit_tests {
 
     #[test]
     fn eval_chunk_single_unknown_status_is_preserved() {
-        let result = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status::MAX,
-            0,
-            0,
-            std::ptr::null_mut(),
-        );
+        let result = eval_chunk_single_status_to_result(255, 0, 0, std::ptr::null_mut());
 
         assert_eq!(
             result,
             Err(MtmdEvalError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_mtmd_eval_chunk_single",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }

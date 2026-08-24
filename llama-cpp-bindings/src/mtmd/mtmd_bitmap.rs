@@ -56,7 +56,7 @@ unsafe fn from_file_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_bitmap_init_from_file",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -398,7 +398,7 @@ mod tests {
             result.unwrap_err(),
             MtmdBitmapError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_mtmd_bitmap_init_from_file",
-                code: status,
+                code: i64::from(status),
             })
         );
     }

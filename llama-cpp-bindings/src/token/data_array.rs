@@ -25,7 +25,7 @@ fn sampler_apply_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_sampler_apply",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -199,16 +199,13 @@ mod tests {
 
     #[test]
     fn sampler_apply_unknown_status_is_preserved() {
-        let result = sampler_apply_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_sampler_apply_status::MAX,
-            std::ptr::null_mut(),
-        );
+        let result = sampler_apply_status_to_result(255, std::ptr::null_mut());
 
         assert_eq!(
             result,
             Err(SamplerApplyError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_sampler_apply",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }

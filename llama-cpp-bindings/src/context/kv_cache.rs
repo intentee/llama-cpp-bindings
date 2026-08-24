@@ -38,7 +38,7 @@ fn kv_cache_seq_add_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_memory_seq_add",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -65,7 +65,7 @@ fn kv_cache_seq_div_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_memory_seq_div",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -115,7 +115,7 @@ fn kv_cache_seq_pos_max_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_memory_seq_pos_max",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -319,16 +319,13 @@ mod tests {
 
     #[test]
     fn add_unknown_status_is_preserved() {
-        let result = kv_cache_seq_add_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_memory_seq_add_status::MAX,
-            ptr::null_mut(),
-        );
+        let result = kv_cache_seq_add_status_to_result(255, ptr::null_mut());
 
         assert_eq!(
             result,
             Err(KvCacheSeqAddError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_memory_seq_add",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -391,16 +388,13 @@ mod tests {
 
     #[test]
     fn div_unknown_status_is_preserved() {
-        let result = kv_cache_seq_div_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_memory_seq_div_status::MAX,
-            ptr::null_mut(),
-        );
+        let result = kv_cache_seq_div_status_to_result(255, ptr::null_mut());
 
         assert_eq!(
             result,
             Err(KvCacheSeqDivError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_memory_seq_div",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -529,15 +523,10 @@ mod tests {
     #[test]
     fn seq_pos_max_unknown_status_is_preserved() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_memory_seq_pos_max_status::MAX,
-                -1,
-                2,
-                ptr::null_mut(),
-            ),
+            kv_cache_seq_pos_max_status_to_result(255, -1, 2, ptr::null_mut(),),
             Err(KvCacheSeqPosMaxError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_memory_seq_pos_max",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }

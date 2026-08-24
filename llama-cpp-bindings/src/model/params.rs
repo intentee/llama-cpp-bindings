@@ -310,7 +310,7 @@ fn fit_params_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_fit_params",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -829,17 +829,13 @@ mod tests {
 
     #[test]
     fn fit_params_unknown_wrapper_status_is_preserved() {
-        let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_fit_params_status::MAX,
-            0,
-            std::ptr::null_mut(),
-        );
+        let result = super::fit_params_status_to_result(255, 0, std::ptr::null_mut());
 
         assert_eq!(
             result,
             Err(crate::error::FitError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_fit_params",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }

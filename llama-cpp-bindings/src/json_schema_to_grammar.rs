@@ -40,7 +40,7 @@ unsafe fn json_schema_to_grammar_status_to_result(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_json_schema_to_grammar",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -251,18 +251,14 @@ mod tests {
     #[test]
     fn unknown_status_is_preserved() {
         let result = unsafe {
-            json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status::MAX,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            )
+            json_schema_to_grammar_status_to_result(255, std::ptr::null_mut(), std::ptr::null_mut())
         };
 
         assert_eq!(
             result,
             Err(JsonSchemaToGrammarError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_json_schema_to_grammar",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }

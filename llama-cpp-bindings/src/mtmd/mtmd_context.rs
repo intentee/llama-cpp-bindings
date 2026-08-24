@@ -48,7 +48,7 @@ fn map_tokenize_status(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_tokenize",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -75,7 +75,7 @@ fn map_encode_chunk_status(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_encode_chunk",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -111,7 +111,7 @@ fn map_init_from_file_status(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_mtmd_init_from_file",
-            code: other,
+            code: i64::from(other),
         }
         .into()),
     }
@@ -376,17 +376,13 @@ mod unit_tests {
 
     #[test]
     fn tokenize_unknown_status_is_preserved() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::llama_rs_mtmd_tokenize_status::MAX,
-            0,
-            std::ptr::null_mut(),
-        );
+        let result = map_tokenize_status(255, 0, std::ptr::null_mut());
 
         assert_eq!(
             result,
             Err(MtmdTokenizeError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_mtmd_tokenize",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -420,17 +416,13 @@ mod unit_tests {
 
     #[test]
     fn encode_chunk_unknown_status_is_preserved() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk_status::MAX,
-            0,
-            std::ptr::null_mut(),
-        );
+        let result = map_encode_chunk_status(255, 0, std::ptr::null_mut());
 
         assert_eq!(
             result,
             Err(MtmdEncodeError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_mtmd_encode_chunk",
-                code: u32::MAX,
+                code: 255,
             }))
         );
     }
@@ -485,7 +477,7 @@ mod unit_tests {
     #[test]
     fn init_from_file_unknown_status_is_preserved() {
         let result = map_init_from_file_status(
-            llama_cpp_bindings_sys::llama_rs_mtmd_init_from_file_status::MAX,
+            255,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             "mmproj.gguf",
@@ -495,7 +487,7 @@ mod unit_tests {
             result.unwrap_err(),
             MtmdInitError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_mtmd_init_from_file",
-                code: u32::MAX,
+                code: 255,
             })
         );
     }
