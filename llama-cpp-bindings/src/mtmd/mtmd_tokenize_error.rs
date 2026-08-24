@@ -2,6 +2,10 @@ use crate::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdTokenizeError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("Failed to create CString from input text: {0}")]
     CStringError(#[from] std::ffi::NulError),
     #[error("{0}")]

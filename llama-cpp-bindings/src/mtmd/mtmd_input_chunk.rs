@@ -54,9 +54,11 @@ fn eval_chunk_single_status_to_result(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdEvalError::Reported { message })
         }
-        other => {
-            unreachable!("llama_rs_mtmd_eval_chunk_single returned unrecognized status: {other}")
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_mtmd_eval_chunk_single",
+            code: other,
         }
+        .into()),
     }
 }
 
@@ -287,13 +289,20 @@ mod unit_tests {
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_mtmd_eval_chunk_single returned unrecognized status")]
-    fn eval_chunk_single_status_unrecognized_panics() {
-        let _ = eval_chunk_single_status_to_result(
+    fn eval_chunk_single_unknown_status_is_preserved() {
+        let result = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status::MAX,
             0,
             0,
             std::ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(MtmdEvalError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                code: u32::MAX,
+            }))
         );
     }
 

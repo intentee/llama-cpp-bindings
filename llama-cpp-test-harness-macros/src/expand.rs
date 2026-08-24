@@ -113,8 +113,7 @@ fn build_registration(args: &ParsedArgs, fn_name: &Ident) -> TokenStream {
     let model_source_literal = build_model_source_literal(&args.model_source);
     let mmproj_source_literal = build_mmproj_source_literal(args.mmproj_source.as_ref());
     let gpu_layers = args.model_load_params.n_gpu_layers;
-    let use_mmap = args.model_load_params.use_mmap;
-    let use_mlock = args.model_load_params.use_mlock;
+    let load_mode = args.model_load_params.load_mode.tokens();
     let context_size = args.context_params.n_ctx;
     let logical_batch = args.context_params.n_batch;
     let physical_batch = args.context_params.n_ubatch;
@@ -135,8 +134,7 @@ fn build_registration(args: &ParsedArgs, fn_name: &Ident) -> TokenStream {
                     mmproj_source: #mmproj_source_literal,
                     model_load_params: ::llama_cpp_test_harness::ModelLoadParams {
                         n_gpu_layers: #gpu_layers,
-                        use_mmap: #use_mmap,
-                        use_mlock: #use_mlock,
+                        load_mode: #load_mode,
                     },
                 },
                 context_params: ::llama_cpp_test_harness::ContextParams {
@@ -181,8 +179,7 @@ mod tests {
         quote! {
             model_source = HuggingFace("foo", "bar.gguf"),
             n_gpu_layers = 0,
-            use_mmap = true,
-            use_mlock = false,
+            load_mode = Mmap,
             n_ctx = 1,
             n_batch = 1,
             n_ubatch = 1
@@ -228,8 +225,7 @@ mod tests {
         let attribute = quote! {
             model_source = LocalPath("/abs/local.gguf"),
             n_gpu_layers = 0,
-            use_mmap = true,
-            use_mlock = false,
+            load_mode = Mmap,
             n_ctx = 1,
             n_batch = 1,
             n_ubatch = 1
@@ -253,8 +249,7 @@ mod tests {
         let attribute = quote! {
             model_source = HuggingFace("r", "f"),
             n_gpu_layers = 0,
-            use_mmap = true,
-            use_mlock = false,
+            load_mode = Mmap,
             n_ctx = 1,
             n_batch = 1,
             n_ubatch = 1,
@@ -279,8 +274,7 @@ mod tests {
         let attribute = quote! {
             model_source = HuggingFace("r", "f"),
             n_gpu_layers = 0,
-            use_mmap = true,
-            use_mlock = false,
+            load_mode = Mmap,
             n_ctx = 1,
             n_batch = 1,
             n_ubatch = 1,
@@ -402,8 +396,7 @@ mod tests {
         let second_attribute = quote! {
             model_source = HuggingFace("second", "second.gguf"),
             n_gpu_layers = 1,
-            use_mmap = false,
-            use_mlock = false,
+            load_mode = None,
             n_ctx = 2,
             n_batch = 2,
             n_ubatch = 2

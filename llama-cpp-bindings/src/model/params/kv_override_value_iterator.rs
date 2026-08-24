@@ -3,6 +3,7 @@ use std::fmt::Debug;
 
 use crate::model::params::LlamaModelParams;
 use crate::model::params::param_override_value::ParamOverrideValue;
+use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
 #[derive(Debug)]
 pub struct KvOverrideValueIterator<'model_params> {
@@ -21,7 +22,7 @@ impl<'model_params> KvOverrideValueIterator<'model_params> {
 }
 
 impl Iterator for KvOverrideValueIterator<'_> {
-    type Item = (CString, ParamOverrideValue);
+    type Item = Result<(CString, ParamOverrideValue), UnknownKvOverrideTag>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let overrides = self.model_params.params.kv_overrides;
@@ -30,21 +31,19 @@ impl Iterator for KvOverrideValueIterator<'_> {
             return None;
         }
 
-        loop {
-            // SAFETY: llama.cpp guarantees the last element contains an empty key.
-            let current = unsafe { *overrides.add(self.current) };
+        let current = unsafe { *overrides.add(self.current) };
 
-            if current.key[0] == 0 {
-                return None;
-            }
-
-            self.current += 1;
-
-            if let Ok(value) = ParamOverrideValue::try_from(&current) {
-                let key = unsafe { CStr::from_ptr(current.key.as_ptr()).to_owned() };
-
-                return Some((key, value));
-            }
+        if current.key[0] == 0 {
+            return None;
         }
+
+        self.current += 1;
+        let value = ParamOverrideValue::try_from(&current);
+
+        Some(value.map(|value| {
+            let key = unsafe { CStr::from_ptr(current.key.as_ptr()).to_owned() };
+
+            (key, value)
+        }))
     }
 }

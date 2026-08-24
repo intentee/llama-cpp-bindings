@@ -6,6 +6,8 @@ use std::ptr::null;
 use crate::LlamaCppError;
 use crate::context::params::LlamaContextParams;
 use crate::error::{FitError, ModelParamsError};
+use crate::model::llama_load_mode::LlamaLoadMode;
+use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
@@ -33,8 +35,8 @@ impl Debug for LlamaModelParams {
             .field("n_gpu_layers", &self.params.n_gpu_layers)
             .field("main_gpu", &self.params.main_gpu)
             .field("vocab_only", &self.params.vocab_only)
-            .field("use_mmap", &self.params.use_mmap)
-            .field("use_mlock", &self.params.use_mlock)
+            .field("load_mode", &self.load_mode())
+            .field("load_mtp", &self.params.load_mtp)
             .field("split_mode", &self.split_mode())
             .field("devices", &self.devices)
             .field("kv_overrides", &"vec of kv_overrides")
@@ -169,14 +171,15 @@ impl LlamaModelParams {
         self.params.vocab_only
     }
 
-    #[must_use]
-    pub const fn use_mmap(&self) -> bool {
-        self.params.use_mmap
+    /// # Errors
+    /// Returns [`LlamaLoadModeParseError`] when llama.cpp returns an unknown load mode.
+    pub fn load_mode(&self) -> Result<LlamaLoadMode, LlamaLoadModeParseError> {
+        LlamaLoadMode::try_from(self.params.load_mode)
     }
 
     #[must_use]
-    pub const fn use_mlock(&self) -> bool {
-        self.params.use_mlock
+    pub const fn load_mtp(&self) -> bool {
+        self.params.load_mtp
     }
 
     /// # Errors
@@ -229,12 +232,6 @@ impl LlamaModelParams {
     }
 
     #[must_use]
-    pub const fn with_use_mmap(mut self, use_mmap: bool) -> Self {
-        self.params.use_mmap = use_mmap;
-        self
-    }
-
-    #[must_use]
     pub const fn no_alloc(&self) -> bool {
         self.params.no_alloc
     }
@@ -242,15 +239,18 @@ impl LlamaModelParams {
     #[must_use]
     pub const fn with_no_alloc(mut self, no_alloc: bool) -> Self {
         self.params.no_alloc = no_alloc;
-        if no_alloc {
-            self.params.use_mmap = false;
-        }
         self
     }
 
     #[must_use]
-    pub const fn with_use_mlock(mut self, use_mlock: bool) -> Self {
-        self.params.use_mlock = use_mlock;
+    pub fn with_load_mode(mut self, load_mode: LlamaLoadMode) -> Self {
+        self.params.load_mode = load_mode.into();
+        self
+    }
+
+    #[must_use]
+    pub const fn with_load_mtp(mut self, load_mtp: bool) -> Self {
+        self.params.load_mtp = load_mtp;
         self
     }
 
@@ -308,7 +308,11 @@ fn fit_params_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(FitError::Reported { message })
         }
-        other => unreachable!("llama_rs_fit_params returned unrecognized wrapper status: {other}"),
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_fit_params",
+            code: other,
+        }
+        .into()),
     }
 }
 
@@ -395,6 +399,7 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::llama_load_mode::LlamaLoadMode;
     use crate::model::split_mode::LlamaSplitMode;
 
     use super::{LLAMA_CPP_MAX_DEVICES, LlamaModelParams};
@@ -417,8 +422,7 @@ mod tests {
         assert_eq!(params.n_gpu_layers(), -1);
         assert_eq!(params.main_gpu(), 0);
         assert!(!params.vocab_only());
-        assert!(params.use_mmap());
-        assert!(!params.use_mlock());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Auto));
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Layer));
         assert!(params.devices().is_empty());
     }
@@ -473,20 +477,6 @@ mod tests {
     }
 
     #[test]
-    fn with_use_mmap_enables() {
-        let params = LlamaModelParams::default().with_use_mmap(true);
-
-        assert!(params.use_mmap());
-    }
-
-    #[test]
-    fn with_use_mmap_disables() {
-        let params = LlamaModelParams::default().with_use_mmap(false);
-
-        assert!(!params.use_mmap());
-    }
-
-    #[test]
     fn with_no_alloc_enables() {
         let params = LlamaModelParams::default().with_no_alloc(true);
 
@@ -501,13 +491,27 @@ mod tests {
     }
 
     #[test]
-    fn with_no_alloc_true_disables_mmap() {
+    fn with_no_alloc_preserves_load_mode() {
         let params = LlamaModelParams::default()
-            .with_use_mmap(true)
+            .with_load_mode(LlamaLoadMode::Mmap)
             .with_no_alloc(true);
 
         assert!(params.no_alloc());
-        assert!(!params.use_mmap());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Mmap));
+    }
+
+    #[test]
+    fn with_load_mtp_enables_mtp_loading() {
+        let params = LlamaModelParams::default().with_load_mtp(true);
+
+        assert!(params.load_mtp());
+    }
+
+    #[test]
+    fn with_load_mtp_disables_mtp_loading() {
+        let params = LlamaModelParams::default().with_load_mtp(false);
+
+        assert!(!params.load_mtp());
     }
 
     #[test]
@@ -518,20 +522,6 @@ mod tests {
     }
 
     #[test]
-    fn with_use_mlock_enables() {
-        let params = LlamaModelParams::default().with_use_mlock(true);
-
-        assert!(params.use_mlock());
-    }
-
-    #[test]
-    fn with_use_mlock_disables() {
-        let params = LlamaModelParams::default().with_use_mlock(false);
-
-        assert!(!params.use_mlock());
-    }
-
-    #[test]
     fn debug_format_contains_field_names() {
         let params = LlamaModelParams::default();
         let debug_output = format!("{params:?}");
@@ -539,8 +529,7 @@ mod tests {
         assert!(debug_output.contains("n_gpu_layers"));
         assert!(debug_output.contains("main_gpu"));
         assert!(debug_output.contains("vocab_only"));
-        assert!(debug_output.contains("use_mmap"));
-        assert!(debug_output.contains("use_mlock"));
+        assert!(debug_output.contains("load_mode"));
         assert!(debug_output.contains("split_mode"));
     }
 
@@ -551,13 +540,13 @@ mod tests {
             .with_main_gpu(1)
             .with_split_mode(LlamaSplitMode::Row)
             .with_vocab_only(true)
-            .with_use_mlock(true);
+            .with_load_mode(LlamaLoadMode::MmapMlock);
 
         assert_eq!(params.n_gpu_layers(), 10);
         assert_eq!(params.main_gpu(), 1);
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Row));
         assert!(params.vocab_only());
-        assert!(params.use_mlock());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::MmapMlock));
     }
 
     #[test]
@@ -839,12 +828,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "unrecognized wrapper status")]
-    fn fit_params_status_out_of_range_panics() {
-        let _ = super::fit_params_status_to_result(
+    fn fit_params_unknown_wrapper_status_is_preserved() {
+        let result = super::fit_params_status_to_result(
             llama_cpp_bindings_sys::llama_rs_fit_params_status::MAX,
             0,
             std::ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(crate::error::FitError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_fit_params",
+                code: u32::MAX,
+            }))
         );
     }
 }

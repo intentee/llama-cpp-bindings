@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn try_parse_returns_no_match_for_plain_content_under_every_known_shape() {
-        use crate::tool_call_template_overrides::known_marker_candidates;
+        use crate::chat_template_tool_calls::known_marker_candidates;
 
         let plain_content = "Sorry, I cannot help with that request.";
 
@@ -247,7 +247,7 @@ mod tests {
     fn duck_type_resolves_qwen_xml_input_via_xml_tags_shape_first() {
         use llama_cpp_bindings_types::ToolCallArguments;
 
-        use crate::tool_call_template_overrides::known_marker_candidates;
+        use crate::chat_template_tool_calls::known_marker_candidates;
 
         let qwen_input = "<tool_call>\n\
             <function=get_weather>\n\
@@ -290,7 +290,7 @@ mod tests {
     fn duck_type_resolves_glm_input_via_key_value_xml_tags_shape() {
         use llama_cpp_bindings_types::ToolCallArguments;
 
-        use crate::tool_call_template_overrides::known_marker_candidates;
+        use crate::chat_template_tool_calls::known_marker_candidates;
 
         let glm_input = "<tool_call>get_weather\
             <arg_key>location</arg_key>\
@@ -329,7 +329,7 @@ mod tests {
     fn duck_type_resolves_mistral_input_via_bracketed_json_shape() {
         use llama_cpp_bindings_types::ToolCallArguments;
 
-        use crate::tool_call_template_overrides::known_marker_candidates;
+        use crate::chat_template_tool_calls::known_marker_candidates;
 
         let mistral_input = r#"[TOOL_CALLS]get_weather[ARGS]{"location":"Paris"}"#;
 
@@ -364,7 +364,7 @@ mod tests {
     fn duck_type_resolves_gemma_input_via_paired_quote_shape() {
         use llama_cpp_bindings_types::ToolCallArguments;
 
-        use crate::tool_call_template_overrides::known_marker_candidates;
+        use crate::chat_template_tool_calls::known_marker_candidates;
 
         let gemma_input = "<|tool_call>call:get_weather{location:<|\"|>Paris<|\"|>}";
 

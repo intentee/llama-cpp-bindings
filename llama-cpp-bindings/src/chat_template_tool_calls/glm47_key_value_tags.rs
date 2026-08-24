@@ -2,9 +2,9 @@ use llama_cpp_bindings_types::KeyValueXmlTagsShape;
 use llama_cpp_bindings_types::ToolCallArgsShape;
 use llama_cpp_bindings_types::ToolCallMarkers;
 
-pub struct Glm47KeyValueTagsOverride;
+pub struct Glm47KeyValueTagsFormat;
 
-impl Glm47KeyValueTagsOverride {
+impl Glm47KeyValueTagsFormat {
     const TEMPLATE_FINGERPRINT: &'static str = "<arg_key>";
 
     #[must_use]
@@ -35,13 +35,13 @@ mod tests {
     use llama_cpp_bindings_types::KeyValueXmlTagsShape;
     use llama_cpp_bindings_types::ToolCallArgsShape;
 
-    use super::Glm47KeyValueTagsOverride;
+    use super::Glm47KeyValueTagsFormat;
 
     #[test]
     fn detects_glm47_template_with_arg_key_literal() {
         let template = "{{- '<tool_call>' + tool_call.name }}{% for k, v in args.items() %}<arg_key>{{ k }}</arg_key><arg_value>{{ v }}</arg_value>{% endfor %}</tool_call>";
         let markers =
-            Glm47KeyValueTagsOverride::detect(template).expect("GLM-4.7 template must be detected");
+            Glm47KeyValueTagsFormat::detect(template).expect("GLM-4.7 template must be detected");
 
         assert_eq!(markers.open, "<tool_call>");
         assert_eq!(markers.close, "</tool_call>");
@@ -58,11 +58,11 @@ mod tests {
 
     #[test]
     fn returns_none_for_template_without_fingerprint() {
-        assert!(Glm47KeyValueTagsOverride::detect("just some plain template body").is_none());
+        assert!(Glm47KeyValueTagsFormat::detect("just some plain template body").is_none());
     }
 
     #[test]
     fn returns_none_for_empty_template() {
-        assert!(Glm47KeyValueTagsOverride::detect("").is_none());
+        assert!(Glm47KeyValueTagsFormat::detect("").is_none());
     }
 }

@@ -3,9 +3,9 @@ use llama_cpp_bindings_types::ToolCallArgsShape;
 use llama_cpp_bindings_types::ToolCallMarkers;
 use llama_cpp_bindings_types::ToolCallValueQuote;
 
-pub struct Gemma4CallBlockOverride;
+pub struct Gemma4CallBlockFormat;
 
-impl Gemma4CallBlockOverride {
+impl Gemma4CallBlockFormat {
     const TEMPLATE_FINGERPRINT: &'static str = "'<|tool_call>call:'";
 
     #[must_use]
@@ -36,7 +36,7 @@ impl Gemma4CallBlockOverride {
 mod tests {
     use llama_cpp_bindings_types::ToolCallArgsShape;
 
-    use super::Gemma4CallBlockOverride;
+    use super::Gemma4CallBlockFormat;
 
     #[test]
     fn detects_gemma4_template_with_tool_call_call_literal() {
@@ -45,7 +45,7 @@ mod tests {
 
         let template = "...{{- '<|tool_call>call:' + function['name'] + '{' -}}...";
         let markers =
-            Gemma4CallBlockOverride::detect(template).expect("Gemma 4 template must be detected");
+            Gemma4CallBlockFormat::detect(template).expect("Gemma 4 template must be detected");
 
         assert_eq!(markers.open, "<|tool_call>call:");
         assert_eq!(markers.close, "}");
@@ -63,17 +63,17 @@ mod tests {
 
     #[test]
     fn returns_none_for_template_without_fingerprint() {
-        assert!(Gemma4CallBlockOverride::detect("just some plain template body").is_none());
+        assert!(Gemma4CallBlockFormat::detect("just some plain template body").is_none());
     }
 
     #[test]
     fn returns_none_for_empty_template() {
-        assert!(Gemma4CallBlockOverride::detect("").is_none());
+        assert!(Gemma4CallBlockFormat::detect("").is_none());
     }
 
     #[test]
     fn returns_none_when_fingerprint_substring_appears_without_jinja_apostrophes() {
         let template = "doc explaining the <|tool_call>call: format in prose, not as a literal";
-        assert!(Gemma4CallBlockOverride::detect(template).is_none());
+        assert!(Gemma4CallBlockFormat::detect(template).is_none());
     }
 }

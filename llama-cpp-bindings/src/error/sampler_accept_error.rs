@@ -1,5 +1,7 @@
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum SamplerAcceptError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("grammar state corrupted during accept: {message}")]

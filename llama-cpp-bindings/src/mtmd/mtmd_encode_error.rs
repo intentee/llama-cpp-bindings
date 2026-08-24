@@ -1,5 +1,7 @@
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdEncodeError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
     #[error("multimodal chunk encoding failed with code: {code}")]
     EncodingFailed { code: i32 },
     #[error("not enough memory")]

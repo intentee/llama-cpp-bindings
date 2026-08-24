@@ -2,9 +2,9 @@ use llama_cpp_bindings_types::ToolCallArgsShape;
 use llama_cpp_bindings_types::ToolCallMarkers;
 use llama_cpp_bindings_types::XmlTagsShape;
 
-pub struct QwenXmlTagsOverride;
+pub struct QwenXmlTagsFormat;
 
-impl QwenXmlTagsOverride {
+impl QwenXmlTagsFormat {
     const TEMPLATE_FINGERPRINT: &'static str = "<function=";
 
     #[must_use]
@@ -35,13 +35,13 @@ mod tests {
     use llama_cpp_bindings_types::ToolCallArgsShape;
     use llama_cpp_bindings_types::XmlTagsShape;
 
-    use super::QwenXmlTagsOverride;
+    use super::QwenXmlTagsFormat;
 
     #[test]
     fn detects_qwen_xml_template_with_function_tag_literal() {
         let template = "{{- '<tool_call>\\n<function=' + tool_call.name + '>\\n' }}";
         let markers =
-            QwenXmlTagsOverride::detect(template).expect("Qwen XML template must be detected");
+            QwenXmlTagsFormat::detect(template).expect("Qwen XML template must be detected");
 
         assert_eq!(markers.open, "<tool_call>");
         assert_eq!(markers.close, "</tool_call>");
@@ -58,17 +58,17 @@ mod tests {
 
     #[test]
     fn returns_none_for_template_without_fingerprint() {
-        assert!(QwenXmlTagsOverride::detect("just some plain template body").is_none());
+        assert!(QwenXmlTagsFormat::detect("just some plain template body").is_none());
     }
 
     #[test]
     fn returns_none_for_empty_template() {
-        assert!(QwenXmlTagsOverride::detect("").is_none());
+        assert!(QwenXmlTagsFormat::detect("").is_none());
     }
 
     #[test]
     fn detects_qwen_xml_template_with_concatenated_string_literal() {
         let template = "{{- '\\n\\n<tool_call>\\n<function=' + tool_call.name + '>\\n' }}";
-        assert!(QwenXmlTagsOverride::detect(template).is_some());
+        assert!(QwenXmlTagsFormat::detect(template).is_some());
     }
 }

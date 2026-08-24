@@ -1,5 +1,7 @@
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FitError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
     #[error("no parameter combination fits available memory")]
     NoFittingMemoryLayout,
     #[error("parameter fitting aborted")]

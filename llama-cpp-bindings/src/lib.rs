@@ -5,14 +5,12 @@
 
 pub mod batch_add_error;
 pub mod chat_message_parse_outcome;
+pub mod chat_template_tool_calls;
 pub mod context;
 pub mod error;
 pub mod eval_multimodal_chunks_params;
-pub mod extract_reasoning_markers_from_probe_renders;
 pub mod extract_tool_call_markers_from_haystack;
 pub mod ffi_error_reader;
-pub mod ffi_status_is_ok;
-pub mod ffi_status_to_i32;
 pub mod ggml_time_us;
 pub mod gguf_context;
 pub mod gguf_context_error;
@@ -59,16 +57,15 @@ pub mod timing;
 pub mod token;
 pub mod tool_call_format;
 pub mod tool_call_marker_pair;
-pub mod tool_call_template_overrides;
 
 pub use error::{
     ApplyChatTemplateError, ChatTemplateError, DecodeError, EmbeddingsError, EncodeError,
-    EvalMultimodalChunksError, GrammarError, JsonSchemaToGrammarError, KvCacheSeqAddError,
-    KvCacheSeqDivError, LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError,
-    LlamaLoraAdapterRemoveError, LlamaLoraAdapterSetError, LlamaModelLoadError, LogitsError,
-    MarkerDetectionError, MetaValError, ModelParamsError, NewLlamaChatMessageError,
-    ParseChatMessageError, Result, SampleError, SamplerAcceptError, SamplingError,
-    StringToTokenError, TokenSamplingError, TokenToStringError,
+    EvalMultimodalChunksError, FfiContractError, FfiStatusError, GrammarError,
+    JsonSchemaToGrammarError, KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError,
+    LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError, LlamaLoraAdaptersError,
+    LlamaModelLoadError, LogitsError, MarkerDetectionError, MetaValError, ModelParamsError,
+    NewLlamaChatMessageError, ParseChatMessageError, Result, SampleError, SamplerAcceptError,
+    SamplingError, StringToTokenError, TokenSamplingError, TokenToStringError,
 };
 
 pub use chat_message_parse_outcome::ChatMessageParseOutcome;
@@ -85,8 +82,6 @@ pub use sampled_token::SampledToken;
 pub use sampled_token_classifier::SampledTokenClassifier;
 pub use sampled_token_section::SampledTokenSection;
 
-pub use ffi_status_is_ok::status_is_ok;
-pub use ffi_status_to_i32::status_to_i32;
 pub use ggml_time_us::ggml_time_us;
 pub use ingest_prompt_chunk::ingest_prompt_chunk;
 pub use json_schema_to_grammar::json_schema_to_grammar;

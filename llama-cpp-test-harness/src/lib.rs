@@ -39,6 +39,7 @@ pub use crate::no_op::no_op;
 pub use crate::phase_state::PhaseState;
 pub use crate::run::run;
 pub use crate::run_to_conclusions::run_to_conclusions;
+pub use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 pub use llama_cpp_test_harness_macros::llama_test;
 
 #[doc(hidden)]

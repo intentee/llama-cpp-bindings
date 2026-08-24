@@ -5,6 +5,10 @@ use crate::error::tool_call_format_failure::ToolCallFormatFailure;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseChatMessageError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("model has no chat template")]
     NoChatTemplate,
     #[error("model has no vocab")]
@@ -13,8 +17,6 @@ pub enum ParseChatMessageError {
     NotEnoughMemory,
     #[error("chat-template parse failed: {message}")]
     ParseFailed { message: String },
-    #[error("parsed-chat destructor failed: {message}")]
-    DestructorFailed { message: String },
     #[error("tool-call id index {index} out of bounds")]
     ToolCallIdIndexOutOfBounds { index: usize },
     #[error("tool-call name index {index} out of bounds")]
@@ -29,8 +31,8 @@ pub enum ParseChatMessageError {
     ToolsJsonNotArray,
     #[error("could not serialize tools to JSON: {0}")]
     ToolsSerialization(String),
-    #[error("template-override fallback parser failed: {0}")]
-    TemplateOverrideFailed(#[from] ToolCallFormatFailure),
+    #[error("tool-call format parser failed: {0}")]
+    ToolCallFormat(#[from] ToolCallFormatFailure),
     #[error("reasoning-marker detection failed: {0}")]
     MarkerDetection(#[from] MarkerDetectionError),
     #[error("{message}")]

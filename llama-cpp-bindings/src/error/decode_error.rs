@@ -3,6 +3,10 @@ use std::os::raw::c_int;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum DecodeError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("no KV cache slot was available")]
     NoKvCacheSlot,
     #[error("decode aborted by callback")]

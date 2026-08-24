@@ -2,22 +2,58 @@ mod android_ndk;
 mod bindgen_config;
 mod cmake_config;
 mod cpp_wrapper;
-mod cpp_wrapper_mtmd;
-mod glob_paths;
-mod library_asset_extraction;
 mod library_linking;
-mod library_name_extraction;
+mod native_sources;
 mod rebuild_tracking;
-mod shared_libs;
-mod stable_cmake_build_dir;
 mod target_os;
 
 use std::env;
 use std::path::{Path, PathBuf};
 
 use android_ndk::AndroidNdk;
-use stable_cmake_build_dir::stable_cmake_build_dir;
 use target_os::TargetOs;
+
+#[derive(Debug, thiserror::Error)]
+pub enum BuildError {
+    #[error("environment variable {name} could not be read: {source}")]
+    Environment {
+        name: &'static str,
+        #[source]
+        source: env::VarError,
+    },
+    #[error("{0}")]
+    Target(String),
+    #[error(transparent)]
+    AndroidNdk(#[from] android_ndk::AndroidNdkDetectionError),
+    #[error("bindgen failed: {0}")]
+    Bindgen(#[source] bindgen::BindgenError),
+    #[error("generated bindings could not be written: {0}")]
+    BindingsWrite(#[source] std::io::Error),
+    #[error("native compiler setup failed: {0}")]
+    NativeCompiler(#[source] cc::Error),
+    #[error("native wrapper compilation failed: {0}")]
+    NativeWrapper(#[source] cc::Error),
+    #[error("filesystem operation failed for {path}: {source}")]
+    Filesystem {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("environment path {name} does not name a directory: {path}")]
+    EnvironmentDirectory { name: &'static str, path: PathBuf },
+}
+
+fn required_env(name: &'static str) -> Result<String, BuildError> {
+    env::var(name).map_err(|source| BuildError::Environment { name, source })
+}
+
+fn optional_env(name: &'static str) -> Result<Option<String>, BuildError> {
+    match env::var(name) {
+        Ok(value) => Ok(Some(value)),
+        Err(env::VarError::NotPresent) => Ok(None),
+        Err(source) => Err(BuildError::Environment { name, source }),
+    }
+}
 
 #[macro_export]
 macro_rules! debug_log {
@@ -31,7 +67,6 @@ macro_rules! debug_log {
 #[derive(Debug)]
 pub struct BuildContext {
     pub out_dir: PathBuf,
-    pub target_dir: PathBuf,
     pub cmake_dir: PathBuf,
     pub llama_src: PathBuf,
     pub target_os: TargetOs,
@@ -43,55 +78,36 @@ pub struct BuildContext {
 }
 
 impl BuildContext {
-    fn detect() -> Self {
-        let target_triple =
-            env::var("TARGET").expect("TARGET env var is required in build scripts");
-        let target_os = TargetOs::from_target_triple(&target_triple)
-            .unwrap_or_else(|error| panic!("Failed to parse target OS: {error}"));
-        let out_dir = PathBuf::from(
-            env::var("OUT_DIR").expect("OUT_DIR env var is required in build scripts"),
-        );
-        let target_dir = cargo_target_dir(&out_dir);
-        let manifest_dir = env::var("CARGO_MANIFEST_DIR")
-            .expect("CARGO_MANIFEST_DIR env var is required in build scripts");
+    fn detect() -> Result<Self, BuildError> {
+        let target_triple = required_env("TARGET")?;
+        let target_os = TargetOs::from_target_triple(&target_triple).map_err(BuildError::Target)?;
+        let out_dir = PathBuf::from(required_env("OUT_DIR")?);
+        let manifest_dir = required_env("CARGO_MANIFEST_DIR")?;
         let llama_src = Path::new(&manifest_dir).join("llama.cpp");
 
-        let build_shared_libs = env::var("LLAMA_BUILD_SHARED_LIBS")
-            .map_or_else(|_| cfg!(feature = "dynamic-link"), |value| value == "1");
-
-        let profile = env::var("LLAMA_LIB_PROFILE").unwrap_or_else(|_| "Release".to_string());
-
-        let static_crt = env::var("LLAMA_STATIC_CRT")
-            .map(|value| value == "1")
-            .unwrap_or(false);
+        let build_shared_libs = cfg!(feature = "dynamic-link");
+        let profile = native_profile(&required_env("PROFILE")?);
+        let static_crt = optional_env("CARGO_CFG_TARGET_FEATURE")?
+            .unwrap_or_default()
+            .split(',')
+            .any(|feature| feature == "crt-static");
 
         let android_ndk = if target_os.is_android() {
-            Some(
-                AndroidNdk::detect(&target_triple)
-                    .unwrap_or_else(|error| panic!("Android NDK detection failed: {error}")),
-            )
+            Some(AndroidNdk::detect(&target_triple)?)
         } else {
             None
         };
 
-        let cmake_dir = stable_cmake_build_dir(
-            &target_dir,
-            &target_triple,
-            &profile,
-            static_crt,
-            build_shared_libs,
-        );
+        let cmake_dir = out_dir.join("cmake");
 
         debug_log!("TARGET: {}", target_triple);
         debug_log!("CARGO_MANIFEST_DIR: {}", manifest_dir);
-        debug_log!("TARGET_DIR: {}", target_dir.display());
         debug_log!("OUT_DIR: {}", out_dir.display());
         debug_log!("CMAKE_DIR: {}", cmake_dir.display());
         debug_log!("BUILD_SHARED: {}", build_shared_libs);
 
-        Self {
+        Ok(Self {
             out_dir,
-            target_dir,
             cmake_dir,
             llama_src,
             target_os,
@@ -100,20 +116,20 @@ impl BuildContext {
             profile,
             static_crt,
             android_ndk,
-        }
+        })
     }
 }
 
-fn cargo_target_dir(out_dir: &Path) -> PathBuf {
-    out_dir
-        .ancestors()
-        .nth(3)
-        .expect("OUT_DIR is not deep enough to determine target directory")
-        .to_path_buf()
+fn native_profile(cargo_profile: &str) -> String {
+    match cargo_profile {
+        "debug" => "Release".to_owned(),
+        "release" => "Release".to_owned(),
+        other => other.to_owned(),
+    }
 }
 
-pub fn build() {
-    let context = BuildContext::detect();
+pub fn build() -> Result<(), BuildError> {
+    let context = BuildContext::detect()?;
 
     rebuild_tracking::register_rebuild_triggers(&context.llama_src);
 
@@ -123,13 +139,11 @@ pub fn build() {
         &context.target_os,
         &context.target_triple,
         context.android_ndk.as_ref(),
-    );
+    )?;
 
-    cpp_wrapper::compile_cpp_wrappers(&context.llama_src, &context.target_os);
+    cpp_wrapper::compile_cpp_wrappers(&context.llama_src, &context.target_os)?;
 
-    let build_dir = cmake_config::configure_and_build(&context);
-
-    cpp_wrapper_mtmd::compile_mtmd(&context.llama_src, &context.target_os);
+    let build_dir = cmake_config::configure_and_build(&context)?;
 
     library_linking::link_libraries(
         &context.cmake_dir,
@@ -138,9 +152,23 @@ pub fn build() {
         &context.target_triple,
         context.build_shared_libs,
         &context.profile,
-    );
+    )?;
 
-    if context.build_shared_libs {
-        shared_libs::copy_shared_libraries(&context.cmake_dir, &context.target_dir);
+    Ok(())
+}
+
+#[cfg(test)]
+mod build_context_value_tests {
+    use super::native_profile;
+
+    #[test]
+    fn cargo_debug_and_release_profiles_both_use_optimized_native_code() {
+        assert_eq!(native_profile("debug"), "Release");
+        assert_eq!(native_profile("release"), "Release");
+    }
+
+    #[test]
+    fn custom_cargo_profile_name_is_preserved_for_cmake() {
+        assert_eq!(native_profile("RelWithDebInfo"), "RelWithDebInfo");
     }
 }

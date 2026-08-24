@@ -1,19 +1,19 @@
 use llama_cpp_bindings_types::ToolCallMarkers;
 
-use crate::tool_call_template_overrides::gemma4_call_block::Gemma4CallBlockOverride;
-use crate::tool_call_template_overrides::glm47_key_value_tags::Glm47KeyValueTagsOverride;
-use crate::tool_call_template_overrides::mistral3_arrow_args::Mistral3ArrowArgsOverride;
-use crate::tool_call_template_overrides::qwen_xml_tags::QwenXmlTagsOverride;
-use crate::tool_call_template_overrides::qwen3_json_inside_tool_call::Qwen3JsonInsideToolCallOverride;
+use crate::chat_template_tool_calls::gemma4_call_block::Gemma4CallBlockFormat;
+use crate::chat_template_tool_calls::glm47_key_value_tags::Glm47KeyValueTagsFormat;
+use crate::chat_template_tool_calls::mistral3_arrow_args::Mistral3ArrowArgsFormat;
+use crate::chat_template_tool_calls::qwen_xml_tags::QwenXmlTagsFormat;
+use crate::chat_template_tool_calls::qwen3_json_inside_tool_call::Qwen3JsonInsideToolCallFormat;
 
 #[must_use]
 pub fn known_marker_candidates() -> Vec<ToolCallMarkers> {
     vec![
-        Qwen3JsonInsideToolCallOverride::markers(),
-        QwenXmlTagsOverride::markers(),
-        Glm47KeyValueTagsOverride::markers(),
-        Mistral3ArrowArgsOverride::markers(),
-        Gemma4CallBlockOverride::markers(),
+        Qwen3JsonInsideToolCallFormat::markers(),
+        QwenXmlTagsFormat::markers(),
+        Glm47KeyValueTagsFormat::markers(),
+        Mistral3ArrowArgsFormat::markers(),
+        Gemma4CallBlockFormat::markers(),
     ]
 }
 

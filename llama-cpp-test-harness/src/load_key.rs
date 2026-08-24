@@ -53,6 +53,8 @@ impl LoadKey {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::model::LlamaLoadMode;
+
     use crate::mmproj_source::MmprojSource;
     use crate::model_load_params::ModelLoadParams;
     use crate::model_source::ModelSource;
@@ -68,8 +70,7 @@ mod tests {
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         }
     }
@@ -138,8 +139,7 @@ mod tests {
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         };
 
@@ -165,8 +165,7 @@ mod tests {
             }),
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         };
 
@@ -190,8 +189,7 @@ mod tests {
             mmproj_source: Some(MmprojSource::LocalPath(NON_GGUF_PATH)),
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         };
 

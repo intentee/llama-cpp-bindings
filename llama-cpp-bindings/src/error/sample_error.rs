@@ -3,6 +3,8 @@ use crate::error::token_to_string_error::TokenToStringError;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum SampleError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("applying the sampler to the token data array failed: {0}")]

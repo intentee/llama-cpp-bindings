@@ -105,6 +105,8 @@ static mut LLG_SAMPLER_I: llama_cpp_bindings_sys::llama_sampler_i =
         backend_accept: None,
         backend_apply: None,
         backend_set_input: None,
+        backend_reset: None,
+        copy_state: None,
     };
 
 /// # Errors
@@ -142,9 +144,5 @@ pub fn create_llg_sampler(
         )
     };
 
-    if sampler.is_null() {
-        Err(GrammarError::LlguidanceSamplerUnavailable)
-    } else {
-        Ok(LlamaSampler { sampler })
-    }
+    LlamaSampler::from_raw(sampler, "llguidance").map_err(Into::into)
 }

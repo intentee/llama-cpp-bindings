@@ -48,26 +48,6 @@ llama_rs_sampler_init_grammar_status llama_rs_sampler_init_grammar(
     struct llama_sampler ** out_sampler,
     char ** out_error);
 
-typedef enum llama_rs_sampler_init_grammar_lazy_status {
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_OK = 0,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_NULL_OUT_SAMPLER_ARG,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_NULL_OUT_ERROR_ARG,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_VENDORED_RETURNED_NULL,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_ERROR_STRING_ALLOCATION_FAILED,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_VENDORED_THREW_CXX_EXCEPTION,
-} llama_rs_sampler_init_grammar_lazy_status;
-
-llama_rs_sampler_init_grammar_lazy_status llama_rs_sampler_init_grammar_lazy(
-    const struct llama_vocab * vocab,
-    const char * grammar_str,
-    const char * grammar_root,
-    const char ** trigger_words,
-    size_t num_trigger_words,
-    const llama_token * trigger_tokens,
-    size_t num_trigger_tokens,
-    struct llama_sampler ** out_sampler,
-    char ** out_error);
-
 typedef enum llama_rs_sampler_init_grammar_lazy_patterns_status {
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_OK = 0,
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_SAMPLER_ARG,
@@ -121,9 +101,22 @@ llama_rs_sampler_sample_status llama_rs_sampler_sample(
 
 void llama_rs_string_free(char * ptr);
 
-llama_pos llama_rs_memory_seq_pos_max(
+typedef enum llama_rs_memory_seq_pos_max_status {
+    LLAMA_RS_MEMORY_SEQ_POS_MAX_OK = 0,
+    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG,
+    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG,
+    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG,
+    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM,
+    LLAMA_RS_MEMORY_SEQ_POS_MAX_SEQ_ID_OUT_OF_RANGE,
+    LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_THREW_CXX_EXCEPTION,
+} llama_rs_memory_seq_pos_max_status;
+
+llama_rs_memory_seq_pos_max_status llama_rs_memory_seq_pos_max(
     const struct llama_context * ctx,
-    llama_seq_id seq_id);
+    llama_seq_id seq_id,
+    llama_pos * out_position,
+    char ** out_error);
 
 typedef enum llama_rs_encode_status {
     LLAMA_RS_ENCODE_OK = 0,

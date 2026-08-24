@@ -16,6 +16,13 @@ unsafe fn json_schema_to_grammar_status_to_result(
 ) -> Result<String, JsonSchemaToGrammarError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK => {
+            if out.is_null() {
+                return Err(crate::FfiContractError {
+                    operation: "llama_rs_json_schema_to_grammar",
+                    detail: "success status contained a null grammar string",
+                }
+                .into());
+            }
             let grammar_bytes = unsafe { CStr::from_ptr(out) }.to_bytes().to_vec();
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out) };
             Ok(String::from_utf8(grammar_bytes)?)
@@ -31,9 +38,11 @@ unsafe fn json_schema_to_grammar_status_to_result(
             let message = unsafe { read_and_free_cpp_error(error_ptr) };
             Err(JsonSchemaToGrammarError::Reported { message })
         }
-        other => {
-            unreachable!("llama_rs_json_schema_to_grammar returned unrecognized status {other}")
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_json_schema_to_grammar",
+            code: other,
         }
+        .into()),
     }
 }
 
@@ -219,14 +228,42 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_json_schema_to_grammar returned unrecognized status")]
-    fn unrecognized_status_panics() {
-        let _result = unsafe {
+    fn ok_status_with_null_grammar_is_contract_error() {
+        let result = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+
+        assert_eq!(
+            result,
+            Err(JsonSchemaToGrammarError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_json_schema_to_grammar",
+                    detail: "success status contained a null grammar string",
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn unknown_status_is_preserved() {
+        let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status::MAX,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
             )
         };
+
+        assert_eq!(
+            result,
+            Err(JsonSchemaToGrammarError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_json_schema_to_grammar",
+                code: u32::MAX,
+            }))
+        );
     }
 }

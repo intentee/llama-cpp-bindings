@@ -35,9 +35,10 @@ unsafe fn from_file_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_OK => {
             let bitmap = NonNull::new(out_bitmap).ok_or_else(|| {
-                MtmdBitmapError::FileUnreadable {
-                    path: PathBuf::from(path),
-                }
+                MtmdBitmapError::from(crate::FfiContractError {
+                    operation: "llama_rs_mtmd_bitmap_init_from_file",
+                    detail: "success status contained a null bitmap",
+                })
             })?;
             Ok(MtmdBitmap { bitmap })
         }
@@ -53,9 +54,11 @@ unsafe fn from_file_status_to_result(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdBitmapError::Reported { message })
         }
-        other => unreachable!(
-            "llama_rs_mtmd_bitmap_init_from_file returned unrecognized status: {other}"
-        ),
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_mtmd_bitmap_init_from_file",
+            code: other,
+        }
+        .into()),
     }
 }
 
@@ -308,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn from_file_status_ok_with_null_bitmap_returns_file_unreadable() {
+    fn from_file_success_with_null_bitmap_is_contract_error() {
         let result = unsafe {
             super::from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_OK,
@@ -320,9 +323,10 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            MtmdBitmapError::FileUnreadable {
-                path: PathBuf::from("/missing/image.png")
-            }
+            MtmdBitmapError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_mtmd_bitmap_init_from_file",
+                detail: "success status contained a null bitmap",
+            })
         );
     }
 
@@ -379,15 +383,23 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "returned unrecognized status")]
-    fn from_file_status_null_ctx_arg_panics_as_unreachable() {
-        let _result = unsafe {
+    fn from_file_null_context_status_is_preserved() {
+        let status = llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG;
+        let result = unsafe {
             super::from_file_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG,
+                status,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
                 "/missing/image.png",
             )
         };
+
+        assert_eq!(
+            result.unwrap_err(),
+            MtmdBitmapError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_bitmap_init_from_file",
+                code: status,
+            })
+        );
     }
 }

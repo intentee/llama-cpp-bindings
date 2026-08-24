@@ -2,6 +2,10 @@ use std::ffi::NulError;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GbnfValidationError {
+    #[error("llama_rs_validate_gbnf returned unknown FFI status {code}")]
+    FfiStatus { code: u32 },
+    #[error("llama_rs_validate_gbnf violated its FFI contract: {detail}")]
+    FfiContract { detail: &'static str },
     #[error("grammar string contains an interior NUL byte")]
     GrammarContainsNul(#[source] NulError),
     #[error("grammar root name contains an interior NUL byte")]
@@ -14,6 +18,8 @@ pub enum GbnfValidationError {
     RootSymbolMissing { root: String },
     #[error("grammar is left-recursive and cannot be compiled by llama.cpp")]
     LeftRecursion,
-    #[error("the llama.cpp grammar engine threw an exception")]
-    GrammarEngineThrew,
+    #[error("not enough memory")]
+    NotEnoughMemory,
+    #[error("the llama.cpp grammar engine failed: {message}")]
+    Reported { message: String },
 }

@@ -2,6 +2,8 @@ use crate::mtmd::image_chunk_batch_size_mismatch::ImageChunkBatchSizeMismatch;
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdEvalError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
     #[error("batch size {requested} exceeds context batch size {context_max}")]
     BatchSizeExceedsContextLimit { requested: i32, context_max: u32 },
     #[error(

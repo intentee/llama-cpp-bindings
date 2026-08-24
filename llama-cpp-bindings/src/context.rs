@@ -16,21 +16,13 @@ use crate::token::LlamaToken;
 use crate::token::data::LlamaTokenData;
 use crate::token::data_array::LlamaTokenDataArray;
 use crate::{
-    DecodeError, EmbeddingsError, EncodeError, LlamaContextLoadError, LlamaLoraAdapterRemoveError,
-    LlamaLoraAdapterSetError, LogitsError,
+    DecodeError, EmbeddingsError, EncodeError, LlamaContextLoadError, LlamaLoraAdaptersError,
+    LogitsError,
 };
 
-const fn check_lora_set_result(err_code: i32) -> Result<(), LlamaLoraAdapterSetError> {
+const fn check_lora_adapters_result(err_code: i32) -> Result<(), LlamaLoraAdaptersError> {
     if err_code != 0 {
-        return Err(LlamaLoraAdapterSetError::ErrorResult(err_code));
-    }
-
-    Ok(())
-}
-
-const fn check_lora_remove_result(err_code: i32) -> Result<(), LlamaLoraAdapterRemoveError> {
-    if err_code != 0 {
-        return Err(LlamaLoraAdapterRemoveError::ErrorResult(err_code));
+        return Err(LlamaLoraAdaptersError::ErrorResult(err_code));
     }
 
     Ok(())
@@ -42,9 +34,14 @@ fn new_context_with_model_status_to_result(
     out_error: *mut std::os::raw::c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_context>, LlamaContextLoadError> {
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK => {
-            NonNull::new(out_ctx).ok_or(LlamaContextLoadError::Unconstructible)
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK => NonNull::new(out_ctx)
+            .ok_or_else(|| {
+                crate::FfiContractError {
+                    operation: "llama_rs_new_context_with_model",
+                    detail: "success status contained a null context",
+                }
+                .into()
+            }),
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_RETURNED_NULL => {
             Err(LlamaContextLoadError::Unconstructible)
         }
@@ -55,9 +52,11 @@ fn new_context_with_model_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(LlamaContextLoadError::Reported { message })
         }
-        other => {
-            unreachable!("llama_rs_new_context_with_model returned unrecognized status {other}")
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_new_context_with_model",
+            code: other,
         }
+        .into()),
     }
 }
 
@@ -69,11 +68,11 @@ fn decode_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_RETURNED_NONZERO_CODE => {
-            let code = NonZeroI32::new(out_vendored_return_code).unwrap_or_else(|| {
-                unreachable!(
-                    "llama_rs_decode reported a nonzero return code but the value was zero"
-                )
-            });
+            let code =
+                NonZeroI32::new(out_vendored_return_code).ok_or(crate::FfiContractError {
+                    operation: "llama_rs_decode",
+                    detail: "nonzero vendored return status contained zero",
+                })?;
             Err(DecodeError::from(code))
         }
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_OUT_OF_MEMORY => {
@@ -87,7 +86,11 @@ fn decode_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(DecodeError::Reported { message })
         }
-        other => unreachable!("llama_rs_decode returned unrecognized status {other}"),
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_decode",
+            code: other,
+        }
+        .into()),
     }
 }
 
@@ -102,11 +105,11 @@ fn encode_status_to_result(
             Err(EncodeError::ModelHasNoEncoder)
         }
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_RETURNED_NONZERO_CODE => {
-            let code = NonZeroI32::new(out_vendored_return_code).unwrap_or_else(|| {
-                unreachable!(
-                    "llama_rs_encode reported a nonzero return code but the value was zero"
-                )
-            });
+            let code =
+                NonZeroI32::new(out_vendored_return_code).ok_or(crate::FfiContractError {
+                    operation: "llama_rs_encode",
+                    detail: "nonzero vendored return status contained zero",
+                })?;
             Err(EncodeError::from(code))
         }
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_OUT_OF_MEMORY => {
@@ -120,7 +123,11 @@ fn encode_status_to_result(
             let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
             Err(EncodeError::Reported { message })
         }
-        other => unreachable!("llama_rs_encode returned unrecognized status {other}"),
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_encode",
+            code: other,
+        }
+        .into()),
     }
 }
 
@@ -463,46 +470,33 @@ impl<'model> LlamaContext<'model> {
 
     /// # Errors
     ///
-    /// See [`LlamaLoraAdapterSetError`] for more information.
-    pub fn lora_adapter_set(
+    /// See [`LlamaLoraAdaptersError`] for more information.
+    pub fn set_lora_adapters(
         &self,
-        adapter: &mut LlamaLoraAdapter,
-        scale: f32,
-    ) -> Result<(), LlamaLoraAdapterSetError> {
-        let mut adapters = [adapter.lora_adapter.as_ptr()];
-        let mut scales = [scale];
+        adapters: &[(&LlamaLoraAdapter<'_>, f32)],
+    ) -> Result<(), LlamaLoraAdaptersError> {
+        let mut raw_adapters = adapters
+            .iter()
+            .map(|(adapter, _)| adapter.as_ptr())
+            .collect::<Vec<_>>();
+        let mut scales = adapters.iter().map(|(_, scale)| *scale).collect::<Vec<_>>();
+        let raw_adapters_ptr = raw_adapters
+            .first_mut()
+            .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+        let scales_ptr = scales
+            .first_mut()
+            .map_or(std::ptr::null_mut(), std::ptr::from_mut);
         let err_code = unsafe {
             llama_cpp_bindings_sys::llama_set_adapters_lora(
                 self.context.as_ptr(),
-                adapters.as_mut_ptr(),
-                1,
-                scales.as_mut_ptr(),
+                raw_adapters_ptr,
+                raw_adapters.len(),
+                scales_ptr,
             )
         };
-        check_lora_set_result(err_code)?;
+        check_lora_adapters_result(err_code)?;
 
-        log::debug!("Set lora adapter");
-        Ok(())
-    }
-
-    /// # Errors
-    ///
-    /// See [`LlamaLoraAdapterRemoveError`] for more information.
-    pub fn lora_adapter_remove(
-        &self,
-        _adapter: &mut LlamaLoraAdapter,
-    ) -> Result<(), LlamaLoraAdapterRemoveError> {
-        let err_code = unsafe {
-            llama_cpp_bindings_sys::llama_set_adapters_lora(
-                self.context.as_ptr(),
-                std::ptr::null_mut(),
-                0,
-                std::ptr::null_mut(),
-            )
-        };
-        check_lora_remove_result(err_code)?;
-
-        log::debug!("Remove lora adapter");
+        log::debug!("Updated lora adapters");
         Ok(())
     }
 }
@@ -518,49 +512,44 @@ mod unit_tests {
     use crate::DecodeError;
     use crate::EncodeError;
     use crate::LlamaContextLoadError;
-    use crate::LlamaLoraAdapterRemoveError;
-    use crate::LlamaLoraAdapterSetError;
+    use crate::LlamaLoraAdaptersError;
     use crate::LogitsError;
 
     use super::{
-        check_lora_remove_result, check_lora_set_result, decode_status_to_result,
-        encode_status_to_result, logits_slice_from_raw_parts,
-        new_context_with_model_status_to_result, token_index_within_context,
+        check_lora_adapters_result, decode_status_to_result, encode_status_to_result,
+        logits_slice_from_raw_parts, new_context_with_model_status_to_result,
+        token_index_within_context,
     };
 
     #[test]
-    fn check_lora_set_result_ok_for_zero() {
-        assert!(check_lora_set_result(0).is_ok());
+    fn check_lora_adapters_result_ok_for_zero() {
+        assert!(check_lora_adapters_result(0).is_ok());
     }
 
     #[test]
-    fn check_lora_set_result_error_for_nonzero() {
-        let result = check_lora_set_result(-1);
+    fn check_lora_adapters_result_error_for_nonzero() {
+        let result = check_lora_adapters_result(-1);
 
-        assert_eq!(result, Err(LlamaLoraAdapterSetError::ErrorResult(-1)));
+        assert_eq!(result, Err(LlamaLoraAdaptersError::ErrorResult(-1)));
     }
 
     #[test]
-    fn check_lora_remove_result_ok_for_zero() {
-        assert!(check_lora_remove_result(0).is_ok());
-    }
-
-    #[test]
-    fn check_lora_remove_result_error_for_nonzero() {
-        let result = check_lora_remove_result(-1);
-
-        assert_eq!(result, Err(LlamaLoraAdapterRemoveError::ErrorResult(-1)));
-    }
-
-    #[test]
-    fn new_context_ok_with_null_ctx_maps_unconstructible() {
+    fn new_context_success_with_null_context_is_contract_error() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
         );
 
-        assert_eq!(result, Err(LlamaContextLoadError::Unconstructible));
+        assert_eq!(
+            result,
+            Err(LlamaContextLoadError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_new_context_with_model",
+                    detail: "success status contained a null context",
+                }
+            ))
+        );
     }
 
     #[test]
@@ -602,12 +591,19 @@ mod unit_tests {
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_new_context_with_model returned unrecognized status")]
-    fn new_context_unrecognized_status_panics() {
-        let _result = new_context_with_model_status_to_result(
+    fn new_context_unknown_status_is_preserved() {
+        let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::llama_rs_new_context_with_model_status::MAX,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(LlamaContextLoadError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_new_context_with_model",
+                code: u32::MAX,
+            }))
         );
     }
 
@@ -672,22 +668,36 @@ mod unit_tests {
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_decode reported a nonzero return code")]
-    fn decode_nonzero_code_with_zero_value_panics() {
-        let _result = decode_status_to_result(
+    fn decode_nonzero_status_with_zero_code_is_contract_error() {
+        let result = decode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_RETURNED_NONZERO_CODE,
             0,
             std::ptr::null_mut(),
         );
+
+        assert_eq!(
+            result,
+            Err(DecodeError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_decode",
+                detail: "nonzero vendored return status contained zero",
+            }))
+        );
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_decode returned unrecognized status")]
-    fn decode_unrecognized_status_panics() {
-        let _result = decode_status_to_result(
+    fn decode_unknown_status_is_preserved() {
+        let result = decode_status_to_result(
             llama_cpp_bindings_sys::llama_rs_decode_status::MAX,
             0,
             std::ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(DecodeError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_decode",
+                code: u32::MAX,
+            }))
         );
     }
 
@@ -763,22 +773,36 @@ mod unit_tests {
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_encode reported a nonzero return code")]
-    fn encode_nonzero_code_with_zero_value_panics() {
-        let _result = encode_status_to_result(
+    fn encode_nonzero_status_with_zero_code_is_contract_error() {
+        let result = encode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_RETURNED_NONZERO_CODE,
             0,
             std::ptr::null_mut(),
         );
+
+        assert_eq!(
+            result,
+            Err(EncodeError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_encode",
+                detail: "nonzero vendored return status contained zero",
+            }))
+        );
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_encode returned unrecognized status")]
-    fn encode_unrecognized_status_panics() {
-        let _result = encode_status_to_result(
+    fn encode_unknown_status_is_preserved() {
+        let result = encode_status_to_result(
             llama_cpp_bindings_sys::llama_rs_encode_status::MAX,
             0,
             std::ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(EncodeError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_encode",
+                code: u32::MAX,
+            }))
         );
     }
 

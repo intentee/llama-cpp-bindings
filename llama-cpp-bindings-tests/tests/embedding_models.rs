@@ -32,8 +32,7 @@ fn cosine_similarity(vec_a: &[f32], vec_b: &[f32]) -> f32 {
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -114,8 +113,7 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -239,8 +237,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -266,8 +263,7 @@ fn decode_with_embeddings_enabled(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -294,8 +290,7 @@ fn embeddings_seq_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Re
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -359,8 +354,7 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -439,8 +433,7 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -468,8 +461,7 @@ fn embeddings_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Result
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -494,8 +486,7 @@ fn embeddings_ith_returns_null_embedding_error_for_non_embedding_token(
 #[llama_test(
     model_source = HuggingFace("Xiaojian9992024/t5-small-GGUF", "t5-small.bf16.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
@@ -521,8 +512,7 @@ fn encode_succeeds_with_encoder_model(fixture: &LlamaFixture<'_>) -> Result<()> 
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,
     n_ubatch = 128,
@@ -542,8 +532,7 @@ fn kv_cache_seq_add_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> R
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,
     n_ubatch = 128,
@@ -564,14 +553,19 @@ fn kv_cache_seq_div_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> R
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,
     n_ubatch = 128
 )]
-fn embedding_model_tool_call_markers_call_does_not_panic(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let _markers = fixture.model.tool_call_markers()?;
+fn embedding_model_exposes_tool_call_markers(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let markers = fixture
+        .model
+        .tool_call_markers()?
+        .expect("Qwen3 embedding model must expose tool-call markers");
+
+    assert!(!markers.open.is_empty());
+    assert!(!markers.close.is_empty());
 
     Ok(())
 }
@@ -579,16 +573,15 @@ fn embedding_model_tool_call_markers_call_does_not_panic(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,
     n_ubatch = 128
 )]
-fn embedding_model_streaming_markers_returns_ok_for_a_model_without_tool_calls(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let _markers = fixture.model.streaming_markers()?;
+fn embedding_model_exposes_streaming_markers(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let markers = fixture.model.streaming_markers()?;
+
+    assert!(markers.has_any());
 
     Ok(())
 }
@@ -596,8 +589,7 @@ fn embedding_model_streaming_markers_returns_ok_for_a_model_without_tool_calls(
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,
     n_ubatch = 128
@@ -611,7 +603,7 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
     assert!(
         std::sync::Arc::ptr_eq(&env, &env_again),
         "approximate_tok_env must return the same cached Arc for any model, including \
-         the embedding model which lacks an EOT token (forcing the fallback-to-EOS path)"
+         the embedding model which lacks an EOT token (selecting EOS instead)"
     );
 
     Ok(())

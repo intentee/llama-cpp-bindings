@@ -39,8 +39,18 @@ fn map_tokenize_status(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdTokenizeError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO => unreachable!("llama_rs_mtmd_tokenize NULL_BITMAPS_ARG: Rust always passes a non-null bitmaps pointer when count > 0"),
-        other => unreachable!("llama_rs_mtmd_tokenize returned unrecognized status: {other}"),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_tokenize",
+                detail: "nonzero bitmap count was observed with a null bitmap array",
+            }
+            .into())
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_mtmd_tokenize",
+            code: other,
+        }
+        .into()),
     }
 }
 
@@ -63,7 +73,11 @@ fn map_encode_chunk_status(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdEncodeError::Reported { message })
         }
-        other => unreachable!("llama_rs_mtmd_encode_chunk returned unrecognized status: {other}"),
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_mtmd_encode_chunk",
+            code: other,
+        }
+        .into()),
     }
 }
 
@@ -75,8 +89,11 @@ fn map_init_from_file_status(
 ) -> Result<MtmdContext, MtmdInitError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_OK => {
-            let context = NonNull::new(out_ctx).ok_or_else(|| MtmdInitError::Unloadable {
-                path: std::path::PathBuf::from(mmproj_path),
+            let context = NonNull::new(out_ctx).ok_or_else(|| {
+                MtmdInitError::from(crate::FfiContractError {
+                    operation: "llama_rs_mtmd_init_from_file",
+                    detail: "success status contained a null multimodal context",
+                })
             })?;
             Ok(MtmdContext { context })
         }
@@ -92,9 +109,11 @@ fn map_init_from_file_status(
             let message = unsafe { read_and_free_cpp_error(out_error) };
             Err(MtmdInitError::Reported { message })
         }
-        other => {
-            unreachable!("llama_rs_mtmd_init_from_file returned unrecognized status: {other}")
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_mtmd_init_from_file",
+            code: other,
         }
+        .into()),
     }
 }
 
@@ -339,22 +358,36 @@ mod unit_tests {
     }
 
     #[test]
-    #[should_panic(expected = "NULL_BITMAPS_ARG")]
-    fn tokenize_status_null_bitmaps_arg_panics() {
-        let _result = map_tokenize_status(
+    fn tokenize_null_bitmaps_status_is_contract_error() {
+        let result = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO,
             0,
             std::ptr::null_mut(),
         );
+
+        assert_eq!(
+            result,
+            Err(MtmdTokenizeError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_mtmd_tokenize",
+                detail: "nonzero bitmap count was observed with a null bitmap array",
+            }))
+        );
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_mtmd_tokenize returned unrecognized status")]
-    fn tokenize_status_unrecognized_panics() {
-        let _result = map_tokenize_status(
+    fn tokenize_unknown_status_is_preserved() {
+        let result = map_tokenize_status(
             llama_cpp_bindings_sys::llama_rs_mtmd_tokenize_status::MAX,
             0,
             std::ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(MtmdTokenizeError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_tokenize",
+                code: u32::MAX,
+            }))
         );
     }
 
@@ -386,17 +419,24 @@ mod unit_tests {
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_mtmd_encode_chunk returned unrecognized status")]
-    fn encode_chunk_status_unrecognized_panics() {
-        let _result = map_encode_chunk_status(
+    fn encode_chunk_unknown_status_is_preserved() {
+        let result = map_encode_chunk_status(
             llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk_status::MAX,
             0,
             std::ptr::null_mut(),
         );
+
+        assert_eq!(
+            result,
+            Err(MtmdEncodeError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_encode_chunk",
+                code: u32::MAX,
+            }))
+        );
     }
 
     #[test]
-    fn init_from_file_status_ok_with_null_ctx_maps_unloadable() {
+    fn init_from_file_success_with_null_context_is_contract_error() {
         let result = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_OK,
             std::ptr::null_mut(),
@@ -406,9 +446,10 @@ mod unit_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            MtmdInitError::Unloadable {
-                path: std::path::PathBuf::from("mmproj.gguf")
-            }
+            MtmdInitError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_mtmd_init_from_file",
+                detail: "success status contained a null multimodal context",
+            })
         );
     }
 
@@ -442,13 +483,20 @@ mod unit_tests {
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_mtmd_init_from_file returned unrecognized status")]
-    fn init_from_file_status_unrecognized_panics() {
-        let _result = map_init_from_file_status(
+    fn init_from_file_unknown_status_is_preserved() {
+        let result = map_init_from_file_status(
             llama_cpp_bindings_sys::llama_rs_mtmd_init_from_file_status::MAX,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             "mmproj.gguf",
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            MtmdInitError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_init_from_file",
+                code: u32::MAX,
+            })
         );
     }
 }

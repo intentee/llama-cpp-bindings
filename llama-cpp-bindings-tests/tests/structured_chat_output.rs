@@ -9,6 +9,7 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaChatMessage;
+use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoopOutcome;
@@ -17,11 +18,29 @@ use llama_cpp_test_harness::llama_test;
 use serde_json::Value;
 use serde_json::json;
 
+fn parse_partial_reasoning_response(
+    model: &LlamaModel,
+    generated: &str,
+) -> Result<ParsedChatMessage> {
+    let Some(markers) = model.reasoning_markers()? else {
+        bail!("model must expose reasoning markers");
+    };
+    let response = if generated.trim_start().starts_with(markers.open.trim()) {
+        generated.to_owned()
+    } else {
+        format!("{}{generated}", markers.open)
+    };
+    let parse_outcome = model.parse_chat_message("[]", &response, true)?;
+    let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
+        bail!("model chat template must recognize a partial reasoning response");
+    };
+    Ok(parsed)
+}
+
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -63,13 +82,13 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::min_p(0.05, 1),
-        LlamaSampler::temp(0.7),
-        LlamaSampler::dist(0x00C0_FFEE),
-    ]);
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
+        LlamaSampler::top_k(40)?,
+        LlamaSampler::top_p(0.9, 1)?,
+        LlamaSampler::min_p(0.05, 1)?,
+        LlamaSampler::temp(0.7)?,
+        LlamaSampler::dist(0x00C0_FFEE)?,
+    ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -135,8 +154,7 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -174,13 +192,13 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::min_p(0.05, 1),
-        LlamaSampler::temp(0.7),
-        LlamaSampler::dist(0x00C0_FFEE),
-    ]);
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
+        LlamaSampler::top_k(40)?,
+        LlamaSampler::top_p(0.9, 1)?,
+        LlamaSampler::min_p(0.05, 1)?,
+        LlamaSampler::temp(0.7)?,
+        LlamaSampler::dist(0x00C0_FFEE)?,
+    ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -194,10 +212,7 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     .run()?;
 
     let usage = classifier.usage();
-    let parse_outcome = model.parse_chat_message("[]", &outcome.generated_raw, false)?;
-    let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
-        bail!("DeepSeek-R1-8B chat template must be recognised by the parser; got Unrecognized");
-    };
+    let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
     assert_deepseek_r1_token_counts(&outcome, usage);
     assert_deepseek_r1_streams(&outcome, &parsed, MAX_GENERATED_TOKENS, FORBIDDEN_MARKERS);
@@ -242,23 +257,20 @@ fn assert_deepseek_r1_streams(
     max_generated_tokens: i32,
     forbidden_markers: &[&str],
 ) {
-    if parsed.reasoning_content.is_empty() {
-        eprintln!(
-            "DeepSeek-R1-8B didn't close its reasoning block within {max_generated_tokens} \
-             tokens — skipping strict parser-equality assertions"
-        );
-    } else {
-        assert_eq!(
-            outcome.reasoning_stream, parsed.reasoning_content,
-            "DeepSeek-R1-8B: per-token reasoning stream must equal parser-side reasoning_content \
-             (any difference means a marker leaked into the user-visible stream)",
-        );
-        assert_eq!(
-            outcome.content_stream, parsed.content,
-            "DeepSeek-R1-8B: per-token content stream must equal parser-side content \
-             (any difference means a marker leaked into the user-visible stream)",
-        );
-    }
+    assert!(
+        !parsed.reasoning_content.is_empty(),
+        "DeepSeek-R1-8B partial response must expose reasoning within {max_generated_tokens} tokens"
+    );
+    assert_eq!(
+        outcome.reasoning_stream, parsed.reasoning_content,
+        "DeepSeek-R1-8B: per-token reasoning stream must equal parser-side reasoning_content \
+         (any difference means a marker leaked into the user-visible stream)",
+    );
+    assert_eq!(
+        outcome.content_stream, parsed.content,
+        "DeepSeek-R1-8B: per-token content stream must equal parser-side content \
+         (any difference means a marker leaked into the user-visible stream)",
+    );
 
     for forbidden in forbidden_markers {
         assert!(
@@ -279,8 +291,7 @@ fn assert_deepseek_r1_streams(
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -341,8 +352,7 @@ fn deepseek_r1_8b_duck_types_gemma_paired_quote(fixture: &LlamaFixture<'_>) -> R
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -404,8 +414,7 @@ fn deepseek_r1_8b_duck_types_glm_key_value_tags(fixture: &LlamaFixture<'_>) -> R
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -466,8 +475,7 @@ fn deepseek_r1_8b_duck_types_mistral_bracketed_json(fixture: &LlamaFixture<'_>) 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -532,8 +540,7 @@ Paris\n\
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -582,8 +589,7 @@ fn deepseek_r1_8b_recognizes_empty_tool_calls_when_input_is_plain_content_with_t
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -612,8 +618,7 @@ fn deepseek_r1_8b_recognizes_empty_tool_calls_when_tools_not_requested(
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -650,7 +655,7 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
 
-    let mut sampler = LlamaSampler::greedy();
+    let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -716,8 +721,7 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -752,7 +756,7 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
 
-    let mut sampler = LlamaSampler::greedy();
+    let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -766,10 +770,7 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
     .run()?;
 
     let usage = classifier.usage();
-    let parse_outcome = model.parse_chat_message("[]", &outcome.generated_raw, false)?;
-    let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
-        bail!("Gemma 4 chat template must be recognised by the parser; got Unrecognized");
-    };
+    let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
     assert!(
         !outcome.generated_raw.is_empty(),
@@ -799,13 +800,12 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
         outcome.observed_content + outcome.observed_reasoning,
         "Gemma 4: completion tokens must equal observed Content + Reasoning"
     );
-    if parsed.reasoning_content.is_empty() {
-        eprintln!(
-            "Gemma 4 did not close its reasoning block within {MAX_GENERATED_TOKENS} tokens; \
-             the reasoning-token classification is verified, so the strict close assertion is \
-             skipped"
-        );
-    }
+    assert!(
+        !parsed.reasoning_content.is_empty(),
+        "Gemma 4 partial response must expose reasoning within {MAX_GENERATED_TOKENS} tokens"
+    );
+    assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
+    assert_eq!(outcome.content_stream, parsed.content);
 
     for forbidden in FORBIDDEN_MARKERS {
         assert!(
@@ -828,8 +828,7 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -887,13 +886,12 @@ fn gemma4_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn gemma4_template_override_returns_full_markers(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn gemma4_template_format_returns_full_markers(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let template = model
         .chat_template(None)
@@ -908,7 +906,7 @@ fn gemma4_template_override_returns_full_markers(fixture: &LlamaFixture<'_>) -> 
 
     let markers = model
         .tool_call_markers()?
-        .expect("Gemma 4 must produce ToolCallMarkers via override registry");
+        .expect("Gemma 4 must produce ToolCallMarkers from its template format");
 
     assert_eq!(markers.open, "<|tool_call>call:");
     assert_eq!(markers.close, "}");
@@ -925,8 +923,7 @@ fn gemma4_template_override_returns_full_markers(fixture: &LlamaFixture<'_>) -> 
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -968,13 +965,13 @@ What is 2 + 2?
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::min_p(0.05, 1),
-        LlamaSampler::temp(0.7),
-        LlamaSampler::dist(0x00C0_FFEE),
-    ]);
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
+        LlamaSampler::top_k(40)?,
+        LlamaSampler::top_p(0.9, 1)?,
+        LlamaSampler::min_p(0.05, 1)?,
+        LlamaSampler::temp(0.7)?,
+        LlamaSampler::dist(0x00C0_FFEE)?,
+    ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -1007,8 +1004,7 @@ What is 2 + 2?
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1049,13 +1045,13 @@ What is 2 + 2?
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::min_p(0.05, 1),
-        LlamaSampler::temp(0.7),
-        LlamaSampler::dist(0x00C0_FFEE),
-    ]);
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
+        LlamaSampler::top_k(40)?,
+        LlamaSampler::top_p(0.9, 1)?,
+        LlamaSampler::min_p(0.05, 1)?,
+        LlamaSampler::temp(0.7)?,
+        LlamaSampler::dist(0x00C0_FFEE)?,
+    ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -1069,10 +1065,7 @@ What is 2 + 2?
     .run()?;
 
     let usage = classifier.usage();
-    let parse_outcome = model.parse_chat_message("[]", &outcome.generated_raw, false)?;
-    let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
-        bail!("GLM-4.7 chat template must be recognised by the parser; got Unrecognized");
-    };
+    let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
     assert!(!outcome.generated_raw.is_empty());
     assert!(outcome.observed_reasoning > 0);
@@ -1084,15 +1077,12 @@ What is 2 + 2?
         outcome.observed_content + outcome.observed_reasoning
     );
 
-    if parsed.reasoning_content.is_empty() {
-        eprintln!(
-            "GLM-4.7 didn't close its reasoning block within {MAX_GENERATED_TOKENS} tokens — \
-             skipping strict parser-equality assertions"
-        );
-    } else {
-        assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
-        assert_eq!(outcome.content_stream, parsed.content);
-    }
+    assert!(
+        !parsed.reasoning_content.is_empty(),
+        "GLM-4.7 partial response must expose reasoning within {MAX_GENERATED_TOKENS} tokens"
+    );
+    assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
+    assert_eq!(outcome.content_stream, parsed.content);
 
     for forbidden in FORBIDDEN_MARKERS {
         assert!(!outcome.reasoning_stream.contains(forbidden));
@@ -1105,8 +1095,7 @@ What is 2 + 2?
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1162,13 +1151,12 @@ fn glm47_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn glm47_template_override_returns_full_markers(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn glm47_template_format_returns_full_markers(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let template = model
         .chat_template(None)
@@ -1178,7 +1166,7 @@ fn glm47_template_override_returns_full_markers(fixture: &LlamaFixture<'_>) -> R
 
     let markers = model
         .tool_call_markers()?
-        .expect("GLM-4.7 must produce ToolCallMarkers via override registry");
+        .expect("GLM-4.7 must produce ToolCallMarkers from its template format");
 
     assert_eq!(markers.open, "<tool_call>");
     assert_eq!(markers.close, "</tool_call>");
@@ -1199,8 +1187,7 @@ fn glm47_template_override_returns_full_markers(fixture: &LlamaFixture<'_>) -> R
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1236,7 +1223,7 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
 
-    let mut sampler = LlamaSampler::greedy();
+    let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -1269,8 +1256,7 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1314,7 +1300,7 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
 
-    let mut sampler = LlamaSampler::greedy();
+    let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -1328,10 +1314,7 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     .run()?;
 
     let usage = classifier.usage();
-    let parse_outcome = model.parse_chat_message("[]", &outcome.generated_raw, false)?;
-    let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
-        bail!("Mistral 3 chat template must be recognised by the parser; got Unrecognized");
-    };
+    let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
     assert!(!outcome.generated_raw.is_empty());
     assert!(outcome.observed_reasoning > 0);
@@ -1357,8 +1340,7 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1413,8 +1395,7 @@ fn mistral3_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,
     n_ubatch = 128,
@@ -1450,7 +1431,7 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
 
-    let mut sampler = LlamaSampler::greedy();
+    let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -1479,8 +1460,39 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn qwen35_streaming_markers_tokenize_every_reasoning_boundary(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let reasoning_markers = fixture
+        .model
+        .reasoning_markers()?
+        .expect("Qwen3.5 must expose reasoning markers");
+    let streaming_markers = fixture.model.streaming_markers()?;
+
+    assert!(streaming_markers.reasoning_open.is_some());
+    assert_eq!(
+        streaming_markers.reasoning_closes.len(),
+        reasoning_markers.closes.len()
+    );
+    assert!(
+        streaming_markers
+            .reasoning_closes
+            .iter()
+            .all(|tokens| !tokens.is_empty())
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1524,13 +1536,13 @@ What is 2 + 2?<|im_end|>
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::min_p(0.05, 1),
-        LlamaSampler::temp(0.7),
-        LlamaSampler::dist(0x00C0_FFEE),
-    ]);
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
+        LlamaSampler::top_k(40)?,
+        LlamaSampler::top_p(0.9, 1)?,
+        LlamaSampler::min_p(0.05, 1)?,
+        LlamaSampler::temp(0.7)?,
+        LlamaSampler::dist(0x00C0_FFEE)?,
+    ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -1563,8 +1575,7 @@ What is 2 + 2?<|im_end|>
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -1605,13 +1616,13 @@ What is 2 + 2?<|im_end|>
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::min_p(0.05, 1),
-        LlamaSampler::temp(0.7),
-        LlamaSampler::dist(0x00C0_FFEE),
-    ]);
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
+        LlamaSampler::top_k(40)?,
+        LlamaSampler::top_p(0.9, 1)?,
+        LlamaSampler::min_p(0.05, 1)?,
+        LlamaSampler::temp(0.7)?,
+        LlamaSampler::dist(0x00C0_FFEE)?,
+    ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -1625,10 +1636,7 @@ What is 2 + 2?<|im_end|>
     .run()?;
 
     let usage = classifier.usage();
-    let parse_outcome = model.parse_chat_message("[]", &outcome.generated_raw, false)?;
-    let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
-        bail!("Qwen3.5 chat template must be recognised by the parser; got Unrecognized");
-    };
+    let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
     assert!(!outcome.generated_raw.is_empty());
     assert!(outcome.observed_reasoning > 0);
@@ -1640,15 +1648,12 @@ What is 2 + 2?<|im_end|>
         outcome.observed_content + outcome.observed_reasoning,
     );
 
-    if parsed.reasoning_content.is_empty() {
-        eprintln!(
-            "Qwen3.5 didn't close its reasoning block within {MAX_GENERATED_TOKENS} tokens — \
-             skipping strict parser-equality assertions"
-        );
-    } else {
-        assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
-        assert_eq!(outcome.content_stream, parsed.content);
-    }
+    assert!(
+        !parsed.reasoning_content.is_empty(),
+        "Qwen3.5 must close its reasoning block within {MAX_GENERATED_TOKENS} tokens"
+    );
+    assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
+    assert_eq!(outcome.content_stream, parsed.content);
 
     for forbidden in FORBIDDEN_MARKERS {
         assert!(!outcome.reasoning_stream.contains(forbidden));
@@ -1670,8 +1675,7 @@ fn arguments_as_json(arguments: &ToolCallArguments) -> Result<&Value> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1754,8 +1758,7 @@ get off the keyboard\n\
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1812,8 +1815,7 @@ Paris\n\
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1853,8 +1855,7 @@ fn qwen35_parses_partial_tool_call_returns_pending_state(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1913,8 +1914,7 @@ Berlin\n\
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -1963,8 +1963,7 @@ fn qwen35_recognizes_empty_tool_calls_when_input_is_plain_content_with_tools_req
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,
     n_ubatch = 128,
@@ -2000,7 +1999,7 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
 
-    let mut sampler = LlamaSampler::greedy();
+    let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -2019,10 +2018,7 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     assert_eq!(outcome.observed_undeterminable, 0);
     assert_eq!(outcome.observed_tool_call, 0);
 
-    let parse_outcome = model.parse_chat_message("[]", &outcome.generated_raw, false)?;
-    let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
-        bail!("Qwen3.6 chat template must be recognised by the parser; got Unrecognized");
-    };
+    let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
     assert!(!parsed.content.is_empty());
 
     let usage = classifier.into_usage();
@@ -2036,8 +2032,7 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -2081,13 +2076,13 @@ What is 2 + 2?<|im_end|>
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::min_p(0.05, 1),
-        LlamaSampler::temp(0.7),
-        LlamaSampler::dist(0x00C0_FFEE),
-    ]);
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
+        LlamaSampler::top_k(40)?,
+        LlamaSampler::top_p(0.9, 1)?,
+        LlamaSampler::min_p(0.05, 1)?,
+        LlamaSampler::temp(0.7)?,
+        LlamaSampler::dist(0x00C0_FFEE)?,
+    ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -2120,8 +2115,7 @@ What is 2 + 2?<|im_end|>
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
     n_ubatch = 512,
@@ -2162,13 +2156,13 @@ What is 2 + 2?<|im_end|>
     assert_eq!(promoted, prompt_token_count);
 
     let mut sampler = LlamaSampler::chain_simple([
-        LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(0.9, 1),
-        LlamaSampler::min_p(0.05, 1),
-        LlamaSampler::temp(0.7),
-        LlamaSampler::dist(0x00C0_FFEE),
-    ]);
+        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
+        LlamaSampler::top_k(40)?,
+        LlamaSampler::top_p(0.9, 1)?,
+        LlamaSampler::min_p(0.05, 1)?,
+        LlamaSampler::temp(0.7)?,
+        LlamaSampler::dist(0x00C0_FFEE)?,
+    ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         model,
@@ -2182,10 +2176,7 @@ What is 2 + 2?<|im_end|>
     .run()?;
 
     let usage = classifier.usage();
-    let parse_outcome = model.parse_chat_message("[]", &outcome.generated_raw, true)?;
-    let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
-        bail!("Qwen3.6 chat template must be recognised by the parser; got Unrecognized");
-    };
+    let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
     assert!(!outcome.generated_raw.is_empty());
     assert!(outcome.observed_reasoning > 0);
@@ -2197,12 +2188,9 @@ What is 2 + 2?<|im_end|>
         outcome.observed_content + outcome.observed_reasoning,
     );
 
-    if parsed.reasoning_content.is_empty() {
-        eprintln!("Qwen3.6 parser returned empty reasoning_content — relying on FORBIDDEN_MARKERS");
-    } else {
-        assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
-        assert_eq!(outcome.content_stream, parsed.content);
-    }
+    assert!(!parsed.reasoning_content.is_empty());
+    assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
+    assert_eq!(outcome.content_stream, parsed.content);
 
     for forbidden in FORBIDDEN_MARKERS {
         assert!(!outcome.reasoning_stream.contains(forbidden));

@@ -10,8 +10,7 @@ use llama_cpp_test_harness::llama_test;
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -19,8 +18,7 @@ use llama_cpp_test_harness::llama_test;
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -28,8 +26,7 @@ use llama_cpp_test_harness::llama_test;
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -37,8 +34,7 @@ use llama_cpp_test_harness::llama_test;
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -52,8 +48,7 @@ fn chat_template_returns_non_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -61,8 +56,7 @@ fn chat_template_returns_non_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -70,8 +64,7 @@ fn chat_template_returns_non_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -79,8 +72,7 @@ fn chat_template_returns_non_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -88,8 +80,7 @@ fn chat_template_returns_non_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -100,8 +91,7 @@ fn chat_template_returns_non_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
         "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"
     ),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -123,8 +113,7 @@ fn apply_chat_template_produces_prompt(fixture: &LlamaFixture<'_>) -> Result<()>
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 64,
     n_batch = 64,
     n_ubatch = 64,
@@ -142,8 +131,7 @@ fn build_user_prompt_surfaces_message_construction_error(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -151,8 +139,7 @@ fn build_user_prompt_surfaces_message_construction_error(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -160,8 +147,7 @@ fn build_user_prompt_surfaces_message_construction_error(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -169,8 +155,7 @@ fn build_user_prompt_surfaces_message_construction_error(fixture: &LlamaFixture<
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -192,8 +177,7 @@ fn apply_chat_template_renders_long_messages(fixture: &LlamaFixture<'_>) -> Resu
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -201,8 +185,7 @@ fn apply_chat_template_renders_long_messages(fixture: &LlamaFixture<'_>) -> Resu
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -210,8 +193,7 @@ fn apply_chat_template_renders_long_messages(fixture: &LlamaFixture<'_>) -> Resu
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -219,8 +201,7 @@ fn apply_chat_template_renders_long_messages(fixture: &LlamaFixture<'_>) -> Resu
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -236,8 +217,7 @@ fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>)
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -245,8 +225,7 @@ fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>)
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -254,8 +233,7 @@ fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>)
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -263,8 +241,7 @@ fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>)
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -287,8 +264,7 @@ fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -296,8 +272,7 @@ fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -305,8 +280,7 @@ fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -314,8 +288,7 @@ fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -340,8 +313,7 @@ fn parses_reasoning_section_into_reasoning_content(fixture: &LlamaFixture<'_>) -
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -349,8 +321,7 @@ fn parses_reasoning_section_into_reasoning_content(fixture: &LlamaFixture<'_>) -
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -358,8 +329,7 @@ fn parses_reasoning_section_into_reasoning_content(fixture: &LlamaFixture<'_>) -
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -367,8 +337,7 @@ fn parses_reasoning_section_into_reasoning_content(fixture: &LlamaFixture<'_>) -
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -387,8 +356,7 @@ fn parses_empty_input_yields_empty_message(fixture: &LlamaFixture<'_>) -> Result
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -396,8 +364,7 @@ fn parses_empty_input_yields_empty_message(fixture: &LlamaFixture<'_>) -> Result
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -405,8 +372,7 @@ fn parses_empty_input_yields_empty_message(fixture: &LlamaFixture<'_>) -> Result
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -414,8 +380,7 @@ fn parses_empty_input_yields_empty_message(fixture: &LlamaFixture<'_>) -> Result
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -439,8 +404,7 @@ fn parses_malformed_tools_json_returns_tools_json_invalid_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -448,8 +412,7 @@ fn parses_malformed_tools_json_returns_tools_json_invalid_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -457,8 +420,7 @@ fn parses_malformed_tools_json_returns_tools_json_invalid_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -466,8 +428,7 @@ fn parses_malformed_tools_json_returns_tools_json_invalid_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -489,8 +450,7 @@ fn parses_non_array_tools_json_returns_tools_json_not_array_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -498,8 +458,7 @@ fn parses_non_array_tools_json_returns_tools_json_not_array_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -507,8 +466,7 @@ fn parses_non_array_tools_json_returns_tools_json_not_array_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -516,8 +474,7 @@ fn parses_non_array_tools_json_returns_tools_json_not_array_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -541,8 +498,7 @@ fn parses_with_tools_null_byte_returns_tools_json_invalid_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -550,8 +506,7 @@ fn parses_with_tools_null_byte_returns_tools_json_invalid_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -559,8 +514,7 @@ fn parses_with_tools_null_byte_returns_tools_json_invalid_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -568,8 +522,7 @@ fn parses_with_tools_null_byte_returns_tools_json_invalid_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,

@@ -3,6 +3,8 @@
 #include "llama.cpp/include/llama.h"
 #include "wrapper_utils.h"
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -10,18 +12,25 @@ extern "C" {
 typedef enum llama_rs_detect_reasoning_markers_status {
     LLAMA_RS_DETECT_REASONING_MARKERS_OK = 0,
     LLAMA_RS_DETECT_REASONING_MARKERS_NULL_MODEL_ARG,
-    LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_OPEN_ARG,
-    LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_CLOSE_ARG,
+    LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_MARKERS_ARG,
     LLAMA_RS_DETECT_REASONING_MARKERS_NULL_OUT_ERROR_ARG,
     LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_THREW_CXX_EXCEPTION,
 } llama_rs_detect_reasoning_markers_status;
 
+typedef struct llama_rs_reasoning_markers llama_rs_reasoning_markers;
+
 llama_rs_detect_reasoning_markers_status llama_rs_detect_reasoning_markers(
     const struct llama_model * model,
-    char ** out_open,
-    char ** out_close,
+    llama_rs_reasoning_markers ** out_markers,
     char ** out_error);
+
+const char * llama_rs_reasoning_markers_open(const llama_rs_reasoning_markers * markers);
+size_t llama_rs_reasoning_markers_close_count(const llama_rs_reasoning_markers * markers);
+const char * llama_rs_reasoning_markers_close_at(
+    const llama_rs_reasoning_markers * markers,
+    size_t index);
+void llama_rs_reasoning_markers_free(llama_rs_reasoning_markers * markers);
 
 typedef enum llama_rs_render_chat_template_status {
     LLAMA_RS_RENDER_CHAT_TEMPLATE_OK = 0,

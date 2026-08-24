@@ -51,7 +51,8 @@ mod tests {
             .append_kv_override(&key, ParamOverrideValue::Int(42))
             .unwrap();
 
-        let entries: Vec<_> = params.kv_overrides().into_iter().collect();
+        let entries: Result<Vec<_>, _> = params.kv_overrides().into_iter().collect();
+        let entries = entries.expect("known override tags must convert");
 
         assert_eq!(entries.len(), 1);
         let (entry_key, entry_value) = &entries[0];
@@ -69,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn kv_overrides_skips_entry_with_unknown_tag() {
+    fn kv_overrides_preserves_unknown_tag_error() {
         let mut params = pin!(LlamaModelParams::default());
         let key = CString::new("valid_key").unwrap();
 
@@ -80,6 +81,15 @@ mod tests {
 
         params.kv_overrides[0].tag = 9999;
 
-        assert_eq!(params.kv_overrides().into_iter().count(), 0);
+        let entry = params
+            .kv_overrides()
+            .into_iter()
+            .next()
+            .expect("one override must be present");
+
+        assert_eq!(
+            entry.unwrap_err(),
+            crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag(9999)
+        );
     }
 }

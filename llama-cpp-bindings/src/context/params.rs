@@ -284,17 +284,6 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn with_defrag_thold(mut self, defrag_thold: f32) -> Self {
-        self.context_params.defrag_thold = defrag_thold;
-        self
-    }
-
-    #[must_use]
-    pub const fn defrag_thold(&self) -> f32 {
-        self.context_params.defrag_thold
-    }
-
-    #[must_use]
     pub const fn with_no_perf(mut self, no_perf: bool) -> Self {
         self.context_params.no_perf = no_perf;
         self
@@ -654,13 +643,6 @@ mod tests {
         let params = super::LlamaContextParams::default().with_yarn_orig_ctx(4096);
 
         assert_eq!(params.yarn_orig_ctx(), 4096);
-    }
-
-    #[test]
-    fn with_defrag_thold_sets_value() {
-        let params = super::LlamaContextParams::default().with_defrag_thold(0.1);
-
-        assert!((params.defrag_thold() - 0.1).abs() < f32::EPSILON);
     }
 
     #[test]

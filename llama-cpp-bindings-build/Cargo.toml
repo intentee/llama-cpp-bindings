@@ -11,9 +11,7 @@ bindgen = { workspace = true }
 cc = { workspace = true }
 cmake = { workspace = true }
 find_cuda_helper = { workspace = true }
-glob = { workspace = true }
 thiserror = { workspace = true }
-walkdir = { workspace = true }
 
 [features]
 cuda = []

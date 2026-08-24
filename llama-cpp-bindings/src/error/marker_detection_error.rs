@@ -6,6 +6,10 @@ use crate::error::string_to_token_error::StringToTokenError;
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum MarkerDetectionError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("ffi returned non-utf8 marker bytes: {0}")]
     MarkerUtf8Error(#[from] FromUtf8Error),
     #[error("not enough memory")]
@@ -22,4 +26,9 @@ pub enum MarkerDetectionError {
     ToolCallTemplateNotUtf8(#[from] Utf8Error),
     #[error("the chat template could not be retrieved for tool-call marker detection: {0}")]
     ChatTemplateUnavailable(#[source] ChatTemplateError),
+    #[error("{operation} rejected the Rust-owned argument {argument}")]
+    WrapperRejectedArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
 }

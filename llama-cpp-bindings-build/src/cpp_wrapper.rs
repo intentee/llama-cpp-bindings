@@ -1,16 +1,14 @@
 use std::path::Path;
 
-use crate::glob_paths;
+use crate::BuildError;
+use crate::native_sources::WRAPPER_SOURCES;
 use crate::target_os::TargetOs;
 
-const WRAPPER_SOURCE_PATTERNS: &[&str] = &["wrapper_*.cpp"];
-
-pub fn compile_cpp_wrappers(llama_src: &Path, target_os: &TargetOs) {
+pub fn compile_cpp_wrappers(llama_src: &Path, target_os: &TargetOs) -> Result<(), BuildError> {
     let mut build = cc::Build::new();
 
     build
         .cpp(true)
-        .warnings(false)
         .include(".")
         .include("GSL/include")
         .include(llama_src)
@@ -21,15 +19,8 @@ pub fn compile_cpp_wrappers(llama_src: &Path, target_os: &TargetOs) {
         .flag_if_supported("-std=c++17")
         .pic(true);
 
-    for pattern in WRAPPER_SOURCE_PATTERNS {
-        match glob_paths::collect_paths(pattern) {
-            Ok(paths) => {
-                for path in paths {
-                    build.file(&path);
-                }
-            }
-            Err(error) => panic!("cpp wrapper discovery failed: {error}"),
-        }
+    for source in WRAPPER_SOURCES {
+        build.file(source);
     }
 
     if target_os.is_msvc() {
@@ -41,5 +32,7 @@ pub fn compile_cpp_wrappers(llama_src: &Path, target_os: &TargetOs) {
         build.cpp_link_stdlib(None);
     }
 
-    build.compile("llama_cpp_bindings_sys_common_wrapper");
+    build
+        .try_compile("llama_cpp_bindings_sys_common_wrapper")
+        .map_err(BuildError::NativeWrapper)
 }

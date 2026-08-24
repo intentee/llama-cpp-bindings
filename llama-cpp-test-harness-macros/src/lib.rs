@@ -6,6 +6,7 @@
 mod expand;
 mod parsed_args;
 mod parsed_context_params;
+mod parsed_load_mode;
 mod parsed_model_load_params;
 mod parsed_source;
 
@@ -51,8 +52,7 @@ mod tests {
         let attribute = quote! {
             model_source = HuggingFace("r", "f"),
             n_gpu_layers = 0,
-            use_mmap = true,
-            use_mlock = false,
+            load_mode = Mmap,
             n_ctx = 1,
             n_batch = 1,
             n_ubatch = 1
