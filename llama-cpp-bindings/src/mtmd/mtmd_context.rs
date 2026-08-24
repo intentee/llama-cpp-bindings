@@ -2,8 +2,8 @@ use std::ffi::CString;
 use std::ffi::c_char;
 use std::ptr::NonNull;
 
-use crate::ffi_error_reader::read_and_free_cpp_error;
 use crate::model::LlamaModel;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use super::mtmd_bitmap::MtmdBitmap;
 use super::mtmd_context_params::MtmdContextParams;
@@ -36,7 +36,7 @@ fn map_tokenize_status(
             Err(MtmdTokenizeError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_mtmd_tokenize", "reported a thrown C++ exception without an error message") }?;
             Err(MtmdTokenizeError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO => {
@@ -70,7 +70,13 @@ fn map_encode_chunk_status(
             Err(MtmdEncodeError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_mtmd_encode_chunk",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(MtmdEncodeError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -106,7 +112,13 @@ fn map_init_from_file_status(
             Err(MtmdInitError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_mtmd_init_from_file",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(MtmdInitError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -342,7 +354,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn tokenize_status_maps_cxx_exception_to_reported() {
+    fn tokenize_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
         let result = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_THREW_CXX_EXCEPTION,
             0,
@@ -351,9 +363,11 @@ mod unit_tests {
 
         assert_eq!(
             result,
-            Err(MtmdTokenizeError::Reported {
-                message: "unknown error".to_string()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_tokenize",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -399,7 +413,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn encode_chunk_status_maps_cxx_exception_to_reported() {
+    fn encode_chunk_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
         let result = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_THREW_CXX_EXCEPTION,
             0,
@@ -408,9 +422,11 @@ mod unit_tests {
 
         assert_eq!(
             result,
-            Err(MtmdEncodeError::Reported {
-                message: "unknown error".to_string()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_encode_chunk",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -458,7 +474,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn init_from_file_status_maps_cxx_exception_to_reported() {
+    fn init_from_file_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
         let result = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION,
             std::ptr::null_mut(),
@@ -468,9 +484,11 @@ mod unit_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            MtmdInitError::Reported {
-                message: "unknown error".to_string()
+            crate::FfiContractError {
+                operation: "llama_rs_mtmd_init_from_file",
+                detail: "reported a thrown C++ exception without an error message",
             }
+            .into()
         );
     }
 

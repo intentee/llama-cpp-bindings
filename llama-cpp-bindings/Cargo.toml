@@ -12,6 +12,7 @@ enumflags2 = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 llama-cpp-error-recorder = { workspace = true }
+llama-cpp-ffi-status = { workspace = true }
 llama-cpp-log-decoder = { workspace = true }
 llguidance = { workspace = true }
 log = { workspace = true }

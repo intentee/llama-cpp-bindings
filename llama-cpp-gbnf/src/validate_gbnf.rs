@@ -1,4 +1,8 @@
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CString, c_char};
+
+use llama_cpp_ffi_status::FfiContractError;
+use llama_cpp_ffi_status::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_EMPTY_RULE_SET;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION;
@@ -27,41 +31,44 @@ fn validation_status_to_result(
         }
         LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION => Err(GbnfValidationError::LeftRecursion),
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG => {
-            Err(GbnfValidationError::FfiContract {
+            Err(FfiContractError {
+                operation: "llama_rs_validate_gbnf",
                 detail: "grammar pointer was null",
-            })
+            }
+            .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG => {
-            Err(GbnfValidationError::FfiContract {
-                detail: "root pointer was null",
-            })
+        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG => Err(FfiContractError {
+            operation: "llama_rs_validate_gbnf",
+            detail: "root pointer was null",
         }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG => {
-            Err(GbnfValidationError::FfiContract {
+            Err(FfiContractError {
+                operation: "llama_rs_validate_gbnf",
                 detail: "output error pointer was null",
-            })
+            }
+            .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GbnfValidationError::NotEnoughMemory)
         }
         LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_validate_gbnf",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+
             Err(GbnfValidationError::Reported { message })
         }
-        other => Err(GbnfValidationError::FfiStatus {
+        other => Err(FfiStatusError {
+            operation: "llama_rs_validate_gbnf",
             code: i64::from(other),
-        }),
+        }
+        .into()),
     }
-}
-
-unsafe fn read_and_free_error(error: *mut c_char) -> String {
-    if error.is_null() {
-        return "unknown error".to_owned();
-    }
-
-    let bytes = unsafe { CStr::from_ptr(error) }.to_bytes().to_vec();
-    unsafe { llama_cpp_bindings_sys::llama_rs_string_free(error) };
-    String::from_utf8_lossy(&bytes).into_owned()
 }
 
 /// # Errors
@@ -86,16 +93,15 @@ pub fn validate_gbnf(grammar: &str, root: &str) -> Result<(), GbnfValidationErro
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::{CString, c_char};
+    use std::ffi::CString;
+
+    use llama_cpp_ffi_status::FfiContractError;
+    use llama_cpp_ffi_status::FfiStatusError;
 
     use super::validate_gbnf;
     use super::validation_status_to_result;
     use crate::gbnf_validation_error::GbnfValidationError;
     use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
-
-    unsafe extern "C" {
-        fn strdup(source: *const c_char) -> *mut c_char;
-    }
 
     #[test]
     fn valid_grammar_is_accepted() {
@@ -168,15 +174,18 @@ mod tests {
                 "root",
                 std::ptr::null_mut(),
             ),
-            Err(GbnfValidationError::Reported {
-                message: "unknown error".to_owned()
-            })
+            Err(GbnfValidationError::FfiContract(FfiContractError {
+                operation: "llama_rs_validate_gbnf",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
         );
     }
 
     #[test]
     fn exception_status_preserves_reported_message() {
-        let out_error = unsafe { strdup(c"grammar engine exploded".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"grammar engine exploded".as_ptr())
+        };
         assert!(!out_error.is_null());
 
         assert_eq!(
@@ -199,9 +208,10 @@ mod tests {
                 "root",
                 std::ptr::null_mut(),
             ),
-            Err(GbnfValidationError::FfiContract {
-                detail: "grammar pointer was null"
-            })
+            Err(GbnfValidationError::FfiContract(FfiContractError {
+                operation: "llama_rs_validate_gbnf",
+                detail: "grammar pointer was null",
+            }))
         );
     }
 
@@ -213,9 +223,10 @@ mod tests {
                 "root",
                 std::ptr::null_mut(),
             ),
-            Err(GbnfValidationError::FfiContract {
-                detail: "root pointer was null"
-            })
+            Err(GbnfValidationError::FfiContract(FfiContractError {
+                operation: "llama_rs_validate_gbnf",
+                detail: "root pointer was null",
+            }))
         );
     }
 
@@ -227,9 +238,10 @@ mod tests {
                 "root",
                 std::ptr::null_mut(),
             ),
-            Err(GbnfValidationError::FfiContract {
-                detail: "output error pointer was null"
-            })
+            Err(GbnfValidationError::FfiContract(FfiContractError {
+                operation: "llama_rs_validate_gbnf",
+                detail: "output error pointer was null",
+            }))
         );
     }
 
@@ -249,7 +261,10 @@ mod tests {
     fn unknown_status_is_preserved() {
         assert_eq!(
             validation_status_to_result(255, "root", std::ptr::null_mut(),),
-            Err(GbnfValidationError::FfiStatus { code: 255 })
+            Err(GbnfValidationError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_validate_gbnf",
+                code: 255,
+            }))
         );
     }
 }

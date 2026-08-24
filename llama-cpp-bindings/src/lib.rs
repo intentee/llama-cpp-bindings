@@ -10,7 +10,6 @@ pub mod context;
 pub mod error;
 pub mod eval_multimodal_chunks_params;
 pub mod extract_tool_call_markers_from_haystack;
-pub mod ffi_error_reader;
 pub mod ggml_time_us;
 pub mod gguf_context;
 pub mod gguf_context_error;

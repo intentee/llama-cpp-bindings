@@ -4,6 +4,8 @@ use std::num::TryFromIntError;
 pub enum KvCacheSeqAddError {
     #[error(transparent)]
     FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("provided start position is too large for an i32")]
     P0TooLarge(#[source] TryFromIntError),
     #[error("provided end position is too large for an i32")]

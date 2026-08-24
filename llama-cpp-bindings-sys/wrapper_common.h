@@ -99,6 +99,8 @@ llama_rs_sampler_sample_status llama_rs_sampler_sample(
     llama_token * out_token,
     char ** out_error);
 
+char * llama_rs_string_dup(const char * value);
+
 void llama_rs_string_free(char * ptr);
 
 typedef enum llama_rs_memory_seq_pos_max_status {

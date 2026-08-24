@@ -1,6 +1,6 @@
 [package]
-name = "llama-cpp-gbnf"
-description = "Standalone, model-free GBNF grammar validator built on llama.cpp's real parser"
+name = "llama-cpp-ffi-status"
+description = "Shared status and contract errors for the llama.cpp C++ wrapper FFI boundary"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,7 +8,6 @@ repository.workspace = true
 
 [dependencies]
 llama-cpp-bindings-sys = { workspace = true }
-llama-cpp-ffi-status = { workspace = true }
 thiserror = { workspace = true }
 
 [lints.rust]

@@ -23,10 +23,18 @@ pub fn take_from_top() -> Option<RecordedError> {
 pub fn record_into_top(error: RecordedError) {
     FRAMES.with(|cell| {
         let mut frames = cell.borrow_mut();
-        if let Some(top) = frames.last_mut()
-            && top.is_none()
-        {
-            *top = Some(error);
+        let Some(top) = frames.last_mut() else {
+            log::error!("an FFI callback failed outside any error scope: {error}");
+
+            return;
+        };
+
+        if top.is_some() {
+            log::error!("an FFI callback failed again after the root cause was recorded: {error}");
+
+            return;
         }
+
+        *top = Some(error);
     });
 }

@@ -1,7 +1,7 @@
 use std::ffi::{CStr, CString, c_char};
 
 use crate::error::JsonSchemaToGrammarError;
-use crate::ffi_error_reader::read_and_free_cpp_error;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 /// # Safety
 ///
@@ -31,11 +31,23 @@ unsafe fn json_schema_to_grammar_status_to_result(
             Err(JsonSchemaToGrammarError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
-            let message = unsafe { read_and_free_cpp_error(error_ptr) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_json_schema_to_grammar",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(JsonSchemaToGrammarError::InvalidSchema { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(error_ptr) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_json_schema_to_grammar",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(JsonSchemaToGrammarError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -74,10 +86,6 @@ mod tests {
     use super::json_schema_to_grammar;
     use super::json_schema_to_grammar_status_to_result;
     use crate::error::JsonSchemaToGrammarError;
-
-    unsafe extern "C" {
-        fn strdup(source: *const c_char) -> *mut c_char;
-    }
 
     #[test]
     fn simple_object() {
@@ -140,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_schema_status_returns_invalid_schema() {
+    fn invalid_schema_status_without_a_message_is_a_contract_error() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA,
@@ -151,14 +159,16 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(JsonSchemaToGrammarError::InvalidSchema {
-                message: "unknown error".to_owned(),
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
     #[test]
-    fn vendored_exception_status_returns_reported() {
+    fn vendored_exception_status_without_a_message_is_a_contract_error() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION,
@@ -169,9 +179,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(JsonSchemaToGrammarError::Reported {
-                message: "unknown error".to_owned(),
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -191,8 +203,12 @@ mod tests {
     #[test]
     fn ok_status_with_non_utf8_grammar_returns_grammar_not_utf8() {
         let invalid_utf8_grammar: [u8; 2] = [0xFF, 0];
-        let out = unsafe { strdup(invalid_utf8_grammar.as_ptr().cast::<c_char>()) };
-        assert!(!out.is_null(), "strdup must allocate a copy");
+        let out = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(
+                invalid_utf8_grammar.as_ptr().cast::<c_char>(),
+            )
+        };
+        assert!(!out.is_null(), "the wrapper must allocate a copy");
 
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
@@ -213,8 +229,10 @@ mod tests {
     #[test]
     fn ok_status_with_valid_utf8_grammar_returns_grammar_string() {
         let grammar_text: &[u8; 14] = b"root ::= \"x\"\0\0";
-        let out = unsafe { strdup(grammar_text.as_ptr().cast::<c_char>()) };
-        assert!(!out.is_null(), "strdup must allocate a copy");
+        let out = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(grammar_text.as_ptr().cast::<c_char>())
+        };
+        assert!(!out.is_null(), "the wrapper must allocate a copy");
 
         let result = unsafe {
             json_schema_to_grammar_status_to_result(

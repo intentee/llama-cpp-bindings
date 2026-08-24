@@ -7,6 +7,8 @@ use crate::error::token_to_string_error::TokenToStringError;
 pub enum GrammarError {
     #[error(transparent)]
     FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("sampler initialization failed: {0}")]
     SamplerInitialization(#[from] SamplingError),
     #[error("the approximate token environment could not be built: {0}")]

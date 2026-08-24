@@ -7,12 +7,12 @@ use llama_cpp_error_recorder::ErrorScope;
 use llama_cpp_error_recorder::RecordedError;
 
 use crate::context::LlamaContext;
-use crate::ffi_error_reader::read_and_free_cpp_error;
 use crate::model::LlamaModel;
 use crate::token::LlamaToken;
 use crate::token::data_array::LlamaTokenDataArray;
 use crate::token::logit_bias::LlamaLogitBias;
 use crate::{GrammarError, SampleError, SamplerAcceptError, SamplingError};
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 fn check_sampler_accept_status(
     status: llama_cpp_bindings_sys::llama_rs_sampler_accept_status,
@@ -24,7 +24,13 @@ fn check_sampler_accept_status(
             Err(SamplerAcceptError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(error_ptr) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_sampler_accept",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(SamplerAcceptError::GrammarStateCorrupted { message })
         }
         other => Err(crate::FfiStatusError {
@@ -46,7 +52,13 @@ fn sampler_sample_status_to_result(
             Err(SampleError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(error_ptr) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_sampler_sample",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(SampleError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -73,7 +85,13 @@ fn sampler_init_grammar_status_to_result(
             Err(GrammarError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(error_ptr) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_sampler_init_grammar",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(GrammarError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -100,11 +118,11 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
             Err(GrammarError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_INVALID_TRIGGER_PATTERN => {
-            let message = unsafe { read_and_free_cpp_error(error_ptr) };
+            let message = unsafe { read_and_free_cpp_string(error_ptr, "llama_rs_sampler_init_grammar_lazy_patterns", "reported a thrown C++ exception without an error message") }?;
             Err(GrammarError::InvalidTriggerPattern { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(error_ptr) };
+            let message = unsafe { read_and_free_cpp_string(error_ptr, "llama_rs_sampler_init_grammar_lazy_patterns", "reported a thrown C++ exception without an error message") }?;
             Err(GrammarError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -184,9 +202,10 @@ impl LlamaSampler {
                 &raw mut error_ptr,
             )
         };
+        let sampled = sampler_sample_status_to_result(status, token, error_ptr);
         grammar_callback_error_to_result(scope.take())?;
 
-        sampler_sample_status_to_result(status, token, error_ptr)
+        sampled
     }
 
     /// # Errors
@@ -212,9 +231,10 @@ impl LlamaSampler {
                 &raw mut error_ptr,
             )
         };
+        let accepted = check_sampler_accept_status(status, error_ptr);
         grammar_callback_error_to_accept_result(scope.take())?;
 
-        check_sampler_accept_status(status, error_ptr)
+        accepted
     }
 
     /// # Errors
@@ -829,17 +849,19 @@ mod tests {
 
     #[test]
     fn check_sampler_accept_status_exception_maps_to_typed_variant() {
-        let err = super::check_sampler_accept_status(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_THREW_CXX_EXCEPTION,
-            std::ptr::null_mut(),
-        )
-        .unwrap_err();
-        let grammar_state_corrupted_disc =
-            std::mem::discriminant(&SamplerAcceptError::GrammarStateCorrupted {
-                message: String::new(),
-            });
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"grammar state corrupted".as_ptr())
+        };
 
-        assert_eq!(std::mem::discriminant(&err), grammar_state_corrupted_disc);
+        assert_eq!(
+            super::check_sampler_accept_status(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_THREW_CXX_EXCEPTION,
+                out_error,
+            ),
+            Err(SamplerAcceptError::GrammarStateCorrupted {
+                message: "grammar state corrupted".to_owned(),
+            })
+        );
     }
 
     #[test]
@@ -878,7 +900,7 @@ mod tests {
     }
 
     #[test]
-    fn sampler_sample_status_exception_maps_to_reported() {
+    fn sampler_sample_status_exception_without_a_message_is_a_contract_error() {
         let result = super::sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_VENDORED_THREW_CXX_EXCEPTION,
             -1,
@@ -887,9 +909,11 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            SampleError::Reported {
-                message: "unknown error".to_string()
+            crate::FfiContractError {
+                operation: "llama_rs_sampler_sample",
+                detail: "reported a thrown C++ exception without an error message",
             }
+            .into()
         );
     }
 
@@ -930,7 +954,7 @@ mod tests {
     }
 
     #[test]
-    fn sampler_init_grammar_status_exception_maps_to_reported() {
+    fn sampler_init_grammar_status_exception_without_a_message_is_a_contract_error() {
         let result = super::sampler_init_grammar_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION,
             std::ptr::null_mut(),
@@ -939,9 +963,11 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            GrammarError::Reported {
-                message: "unknown error".to_string()
+            crate::FfiContractError {
+                operation: "llama_rs_sampler_init_grammar",
+                detail: "reported a thrown C++ exception without an error message",
             }
+            .into()
         );
     }
 
@@ -986,7 +1012,7 @@ mod tests {
     }
 
     #[test]
-    fn sampler_init_grammar_lazy_patterns_status_exception_maps_to_reported() {
+    fn sampler_init_grammar_lazy_patterns_status_exception_without_a_message_is_a_contract_error() {
         let result = super::sampler_init_grammar_lazy_patterns_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_THREW_CXX_EXCEPTION,
             std::ptr::null_mut(),
@@ -995,9 +1021,11 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            GrammarError::Reported {
-                message: "unknown error".to_string()
+            crate::FfiContractError {
+                operation: "llama_rs_sampler_init_grammar_lazy_patterns",
+                detail: "reported a thrown C++ exception without an error message",
             }
+            .into()
         );
     }
 

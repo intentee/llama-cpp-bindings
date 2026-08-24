@@ -68,6 +68,13 @@ extern "C" auto llama_rs_json_schema_to_grammar(
     }
 }
 
+extern "C" auto llama_rs_string_dup(const char * value) -> char * {
+    if (value == nullptr) {
+        return nullptr;
+    }
+    return llama_rs_dup_string(std::string(value));
+}
+
 extern "C" void llama_rs_string_free(char * ptr) {
     const std::unique_ptr<char[]> reclaimed(ptr);
 }

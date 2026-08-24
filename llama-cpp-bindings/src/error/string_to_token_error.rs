@@ -4,6 +4,8 @@ use std::ffi::NulError;
 pub enum StringToTokenError {
     #[error(transparent)]
     FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("{0}")]
     NulError(#[from] NulError),
     #[error("{0}")]

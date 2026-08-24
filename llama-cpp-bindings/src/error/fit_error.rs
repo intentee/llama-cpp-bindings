@@ -2,6 +2,8 @@
 pub enum FitError {
     #[error(transparent)]
     FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("no parameter combination fits available memory")]
     NoFittingMemoryLayout,
     #[error("parameter fitting aborted")]

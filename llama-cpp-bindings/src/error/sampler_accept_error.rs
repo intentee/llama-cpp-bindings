@@ -2,6 +2,8 @@
 pub enum SamplerAcceptError {
     #[error(transparent)]
     FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("grammar state corrupted during accept: {message}")]

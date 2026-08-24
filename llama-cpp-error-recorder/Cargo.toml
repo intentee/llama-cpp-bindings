@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+log = { workspace = true }
+
 [lints.rust]
 unsafe_op_in_unsafe_fn = "warn"
 unused_qualifications = "warn"

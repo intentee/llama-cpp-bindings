@@ -6,6 +6,7 @@ use crate::sampling::LlamaSampler;
 use crate::token::data::LlamaTokenData;
 
 use super::LlamaToken;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 fn sampler_apply_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_sampler_apply_status,
@@ -20,7 +21,13 @@ fn sampler_apply_status_to_result(
             Err(SamplerApplyError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_sampler_apply",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(SamplerApplyError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -62,21 +69,21 @@ impl LlamaTokenDataArray {
 }
 
 impl LlamaTokenDataArray {
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if some of the safety conditions are not met. (we cannot check all of them at
-    /// runtime so breaking them is UB)
+    /// Returns [`crate::FfiContractError`] when the vendored sampler grows the array beyond the
+    /// capacity this buffer was allocated with, which would make the following `set_len`
+    /// undefined behaviour.
     ///
     /// # Safety
     ///
     /// The returned array formed by the data pointer and the length must entirely consist of
-    /// initialized token data and the length must be less than the capacity of this array's data
-    /// buffer.
+    /// initialized token data.
     /// If the data is not sorted, sorted must be false.
     pub unsafe fn modify_as_c_llama_token_data_array<TResult>(
         &mut self,
         modify: impl FnOnce(&mut llama_cpp_bindings_sys::llama_token_data_array) -> TResult,
-    ) -> TResult {
+    ) -> Result<TResult, crate::FfiContractError> {
         let size = self.data.len();
         let data = self
             .data
@@ -95,8 +102,13 @@ impl LlamaTokenDataArray {
 
         let result = modify(&mut c_llama_token_data_array);
 
-        assert!(c_llama_token_data_array.size <= self.data.capacity());
-        // SAFETY: caller guarantees the returned data and size are valid.
+        if c_llama_token_data_array.size > self.data.capacity() {
+            return Err(crate::FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the vendored sampler grew the token data array beyond its capacity",
+            });
+        }
+
         unsafe {
             if !ptr::eq(c_llama_token_data_array.data, data) {
                 ptr::copy(
@@ -113,9 +125,9 @@ impl LlamaTokenDataArray {
             .selected
             .try_into()
             .ok()
-            .filter(|&s| s < self.data.len());
+            .filter(|&selected_index| selected_index < self.data.len());
 
-        result
+        Ok(result)
     }
 
     /// # Errors
@@ -132,7 +144,7 @@ impl LlamaTokenDataArray {
                     &raw mut out_error,
                 );
                 sampler_apply_status_to_result(status, out_error)
-            })
+            })?
         }
     }
 
@@ -185,15 +197,17 @@ mod tests {
     }
 
     #[test]
-    fn sampler_apply_status_cxx_exception_returns_reported_with_unknown_message() {
+    fn sampler_apply_status_cxx_exception_without_a_message_is_a_contract_error() {
         assert_eq!(
             sampler_apply_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_THREW_CXX_EXCEPTION,
                 std::ptr::null_mut(),
             ),
-            Err(SamplerApplyError::Reported {
-                message: "unknown error".to_owned(),
-            }),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_apply",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into()),
         );
     }
 
@@ -345,11 +359,13 @@ mod tests {
         ];
 
         unsafe {
-            array.modify_as_c_llama_token_data_array(|c_array| {
-                c_array.data = replacement.as_ptr().cast_mut();
-                c_array.size = replacement.len();
-                c_array.selected = 0;
-            });
+            array
+                .modify_as_c_llama_token_data_array(|c_array| {
+                    c_array.data = replacement.as_ptr().cast_mut();
+                    c_array.size = replacement.len();
+                    c_array.selected = 0;
+                })
+                .expect("the replacement fits within the allocated capacity");
         }
 
         assert_eq!(array.data.len(), 2);
@@ -366,9 +382,11 @@ mod tests {
         );
 
         unsafe {
-            array.modify_as_c_llama_token_data_array(|c_array| {
-                c_array.selected = 5;
-            });
+            array
+                .modify_as_c_llama_token_data_array(|c_array| {
+                    c_array.selected = 5;
+                })
+                .expect("the array is left at its original size");
         }
 
         assert_eq!(array.selected, None);
@@ -383,10 +401,36 @@ mod tests {
         };
 
         unsafe {
-            array.modify_as_c_llama_token_data_array(|c_array| {
-                assert_eq!(c_array.selected, -1);
-            });
+            array
+                .modify_as_c_llama_token_data_array(|c_array| {
+                    assert_eq!(c_array.selected, -1);
+                })
+                .expect("the array is left at its original size");
         }
+    }
+
+    #[test]
+    fn oversized_result_is_reported_as_a_contract_error() {
+        let mut array = LlamaTokenDataArray::new(
+            vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
+            false,
+        );
+        let capacity = array.data.capacity();
+
+        let result = unsafe {
+            array.modify_as_c_llama_token_data_array(|c_array| {
+                c_array.size = capacity + 1;
+            })
+        };
+
+        assert_eq!(
+            result,
+            Err(crate::FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the vendored sampler grew the token data array beyond its capacity",
+            })
+        );
+        assert_eq!(array.data.len(), 1);
     }
 
     #[test]
@@ -401,9 +445,11 @@ mod tests {
         };
 
         unsafe {
-            array.modify_as_c_llama_token_data_array(|c_array| {
-                assert_eq!(c_array.selected, 1);
-            });
+            array
+                .modify_as_c_llama_token_data_array(|c_array| {
+                    assert_eq!(c_array.selected, 1);
+                })
+                .expect("the array is left at its original size");
         }
 
         assert_eq!(array.selected, Some(1));

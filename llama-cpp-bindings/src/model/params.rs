@@ -12,6 +12,7 @@ use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
 use crate::model::split_mode::LlamaSplitMode;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 pub mod fit_result;
 pub mod kv_override_value_iterator;
@@ -305,7 +306,13 @@ fn fit_params_status_to_result(
             Err(FitError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_fit_params",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(FitError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -812,7 +819,7 @@ mod tests {
     }
 
     #[test]
-    fn fit_params_status_cxx_exception_returns_reported_with_unknown_error() {
+    fn fit_params_status_cxx_exception_without_a_message_is_a_contract_error_with_unknown_error() {
         let result = super::fit_params_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION,
             0,
@@ -821,9 +828,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(crate::error::FitError::Reported {
-                message: "unknown error".to_owned()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 

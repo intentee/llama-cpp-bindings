@@ -5,7 +5,7 @@ use std::ptr;
 
 use crate::context::LlamaContext;
 use crate::error::{KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError};
-use crate::ffi_error_reader::read_and_free_cpp_error;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum KvCacheConversionError {
@@ -33,7 +33,13 @@ fn kv_cache_seq_add_status_to_result(
             Err(KvCacheSeqAddError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_memory_seq_add",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(KvCacheSeqAddError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -60,7 +66,13 @@ fn kv_cache_seq_div_status_to_result(
             Err(KvCacheSeqDivError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_memory_seq_div",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(KvCacheSeqDivError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -110,7 +122,13 @@ fn kv_cache_seq_pos_max_status_to_result(
             Err(KvCacheSeqPosMaxError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_memory_seq_pos_max",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(KvCacheSeqPosMaxError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -305,15 +323,17 @@ mod tests {
     }
 
     #[test]
-    fn add_vendored_exception_status_maps_to_reported_with_unknown_message() {
+    fn add_vendored_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
         assert_eq!(
             kv_cache_seq_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqAddError::Reported {
-                message: "unknown error".to_owned(),
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_add",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -374,15 +394,17 @@ mod tests {
     }
 
     #[test]
-    fn div_vendored_exception_status_maps_to_reported_with_unknown_message() {
+    fn div_vendored_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
         assert_eq!(
             kv_cache_seq_div_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqDivError::Reported {
-                message: "unknown error".to_owned(),
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_div",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -506,7 +528,7 @@ mod tests {
     }
 
     #[test]
-    fn seq_pos_max_vendored_exception_status_returns_reported_error() {
+    fn seq_pos_max_vendored_exception_status_without_a_message_is_a_contract_error_error() {
         assert_eq!(
             kv_cache_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_THREW_CXX_EXCEPTION,
@@ -514,9 +536,11 @@ mod tests {
                 2,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqPosMaxError::Reported {
-                message: "unknown error".to_owned(),
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_pos_max",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 

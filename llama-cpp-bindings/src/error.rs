@@ -5,8 +5,6 @@ pub mod decode_error;
 pub mod embeddings_error;
 pub mod encode_error;
 pub mod eval_multimodal_chunks_error;
-pub mod ffi_contract_error;
-pub mod ffi_status_error;
 pub mod fit_error;
 pub mod grammar_error;
 pub mod grammar_runtime_error;
@@ -38,6 +36,9 @@ pub mod token_to_string_error;
 pub mod tool_call_format_failure;
 pub mod xml_function_tags_failure;
 
+pub use llama_cpp_ffi_status::FfiContractError;
+pub use llama_cpp_ffi_status::FfiStatusError;
+
 pub use apply_chat_template_error::ApplyChatTemplateError;
 pub use bracketed_args_failure::BracketedArgsFailure;
 pub use chat_template_error::ChatTemplateError;
@@ -45,8 +46,6 @@ pub use decode_error::DecodeError;
 pub use embeddings_error::EmbeddingsError;
 pub use encode_error::EncodeError;
 pub use eval_multimodal_chunks_error::EvalMultimodalChunksError;
-pub use ffi_contract_error::FfiContractError;
-pub use ffi_status_error::FfiStatusError;
 pub use fit_error::FitError;
 pub use grammar_error::GrammarError;
 pub use grammar_runtime_error::GrammarRuntimeError;

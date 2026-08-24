@@ -4,8 +4,8 @@ use std::ptr::NonNull;
 use std::slice;
 
 use crate::context::LlamaContext;
-use crate::ffi_error_reader::read_and_free_cpp_error;
 use crate::token::LlamaToken;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use super::image_chunk_batch_size_mismatch::ImageChunkBatchSizeMismatch;
 use super::mtmd_context::MtmdContext;
@@ -51,7 +51,13 @@ fn eval_chunk_single_status_to_result(
             Err(MtmdEvalError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_mtmd_eval_chunk_single",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(MtmdEvalError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -282,9 +288,11 @@ mod unit_tests {
 
         assert_eq!(
             result,
-            Err(MtmdEvalError::Reported {
-                message: "unknown error".to_string()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 

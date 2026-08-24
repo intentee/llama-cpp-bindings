@@ -7,6 +7,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
+use llama_cpp_ffi_status::read_and_free_cpp_string;
+
 use crate::context::params::LlamaContextParams;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_batch::LlamaBatch;
@@ -49,7 +51,13 @@ fn new_context_with_model_status_to_result(
             Err(LlamaContextLoadError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_new_context_with_model",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(LlamaContextLoadError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -83,7 +91,13 @@ fn decode_status_to_result(
             Err(DecodeError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_decode",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(DecodeError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -120,7 +134,13 @@ fn encode_status_to_result(
             Err(EncodeError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_encode",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(EncodeError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -454,9 +474,8 @@ impl<'model> LlamaContext<'model> {
         let data = unsafe {
             llama_cpp_bindings_sys::llama_get_logits_ith(self.context.as_ptr(), token_index)
         };
-        let len = usize::try_from(self.model.n_vocab()).map_err(LogitsError::VocabSizeOverflow)?;
 
-        Ok(unsafe { slice::from_raw_parts(data, len) })
+        unsafe { logits_slice_from_raw_parts(data, self.model.n_vocab()) }
     }
 
     pub fn reset_timings(&mut self) {
@@ -575,7 +594,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn new_context_cxx_exception_maps_reported() {
+    fn new_context_cxx_exception_without_a_message_is_a_contract_error() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_THREW_CXX_EXCEPTION,
             std::ptr::null_mut(),
@@ -584,9 +603,11 @@ mod unit_tests {
 
         assert_eq!(
             result,
-            Err(LlamaContextLoadError::Reported {
-                message: "unknown error".to_owned(),
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_new_context_with_model",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -652,7 +673,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn decode_cxx_exception_maps_reported() {
+    fn decode_cxx_exception_without_a_message_is_a_contract_error() {
         let result = decode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_THREW_CXX_EXCEPTION,
             0,
@@ -661,9 +682,11 @@ mod unit_tests {
 
         assert_eq!(
             result,
-            Err(DecodeError::Reported {
-                message: "unknown error".to_owned(),
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_decode",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -753,7 +776,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn encode_cxx_exception_maps_reported() {
+    fn encode_cxx_exception_without_a_message_is_a_contract_error() {
         let result = encode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_THREW_CXX_EXCEPTION,
             0,
@@ -762,9 +785,11 @@ mod unit_tests {
 
         assert_eq!(
             result,
-            Err(EncodeError::Reported {
-                message: "unknown error".to_owned(),
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_encode",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 

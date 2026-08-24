@@ -59,6 +59,7 @@ pub use rope_type::RopeType;
 pub use vocab_type::VocabType;
 pub use vocab_type_from_int_error::VocabTypeFromIntError;
 
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 use params::LlamaModelParams;
 
 fn validate_string_length_for_tokenizer(length: usize) -> Result<c_int, StringToTokenError> {
@@ -105,7 +106,13 @@ unsafe fn parsed_chat_free_status_to_result(
             Err(ParseChatMessageError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(free_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    free_error,
+                    "llama_rs_parsed_chat_free",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
 
             Err(ParseChatMessageError::DestructorFailed { message })
         }
@@ -132,7 +139,13 @@ unsafe fn chat_parser_free_status_to_result(
             Err(ParseChatMessageError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_chat_parser_free",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
 
             Err(ParseChatMessageError::DestructorFailed { message })
         }
@@ -208,7 +221,13 @@ unsafe fn load_model_from_file_status_to_result(
             Err(LlamaModelLoadError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_load_model_from_file",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(LlamaModelLoadError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -244,7 +263,13 @@ unsafe fn parse_chat_message_status_to_result(
             Err(ParseChatMessageError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(*out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    *out_error,
+                    "llama_rs_parse_chat_message",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             unsafe { *out_error = ptr::null_mut() };
             Err(ParseChatMessageError::MessageUnrecognized { message })
         }
@@ -284,7 +309,13 @@ unsafe fn chat_parser_create_status_to_result(
             Err(ParseChatMessageError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(*out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    *out_error,
+                    "llama_rs_chat_parser_create",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             unsafe { *out_error = ptr::null_mut() };
             Err(ParseChatMessageError::ParserCreationFailed { message })
         }
@@ -328,17 +359,13 @@ unsafe fn apply_chat_template_status_to_result(
     out_error: *mut c_char,
 ) -> Result<String, ApplyChatTemplateError> {
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_OK => {
-            if out_string.is_null() {
-                Err(crate::FfiContractError {
-                    operation: "llama_rs_apply_chat_template",
-                    detail: "success status contained a null rendered string",
-                }
-                .into())
-            } else {
-                Ok(unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_string) })
-            }
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_OK => Ok(unsafe {
+            read_and_free_cpp_string(
+                out_string,
+                "llama_rs_apply_chat_template",
+                "success status contained a null rendered string",
+            )
+        }?),
         llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_MODEL_HAS_NO_VOCAB => {
             Err(ApplyChatTemplateError::NoVocab)
         }
@@ -349,7 +376,13 @@ unsafe fn apply_chat_template_status_to_result(
             Err(ApplyChatTemplateError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_apply_chat_template",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(ApplyChatTemplateError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
@@ -1201,7 +1234,13 @@ unsafe fn parsed_chat_content_status_to_result(
             Err(ParseChatMessageError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_parsed_chat_content",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(ParseChatMessageError::Reported { message })
         }
         other => {
@@ -1249,7 +1288,7 @@ unsafe fn parsed_chat_reasoning_content_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
-                unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+                unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_reasoning_content", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
         }
         other => {
@@ -1295,7 +1334,7 @@ unsafe fn parsed_chat_tool_call_count_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
-                unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+                unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_count", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
         }
         other => {
@@ -1346,7 +1385,7 @@ unsafe fn parsed_chat_tool_call_id_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
-                unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+                unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_id", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
         }
         other => {
@@ -1400,7 +1439,7 @@ unsafe fn parsed_chat_tool_call_name_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
-                unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+                unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_name", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
         }
         other => {
@@ -1454,7 +1493,7 @@ unsafe fn parsed_chat_tool_call_arguments_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_VENDORED_THREW_CXX_EXCEPTION => {
             let message =
-                unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+                unsafe { read_and_free_cpp_string(out_error, "llama_rs_parsed_chat_tool_call_arguments", "reported a thrown C++ exception without an error message") }?;
             Err(ParseChatMessageError::Reported { message })
         }
         other => {
@@ -1629,7 +1668,7 @@ unsafe fn detect_reasoning_markers_status_to_result(
             Err(MarkerDetectionError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_detect_reasoning_markers", "reported a thrown C++ exception without an error message") }?;
             Err(MarkerDetectionError::ReasoningMarkerDetectionFailed { message })
         }
         other => Err(crate::FfiStatusError {
@@ -1726,7 +1765,13 @@ unsafe fn reasoning_markers_free_status_to_result(
             Err(MarkerDetectionError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(free_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    free_error,
+                    "llama_rs_reasoning_markers_free",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
 
             Err(MarkerDetectionError::ReasoningMarkersFreeFailed { message })
         }
@@ -1794,7 +1839,7 @@ unsafe fn compute_tool_call_haystack_status_to_result(
             Err(MarkerDetectionError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_compute_tool_call_haystack", "reported a thrown C++ exception without an error message") }?;
             Err(MarkerDetectionError::ToolCallHaystackComputationFailed { message })
         }
         other => Err(crate::FfiStatusError {
@@ -1848,7 +1893,7 @@ unsafe fn diagnose_tool_call_synthetic_renders_status_to_result(
             Err(MarkerDetectionError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_diagnose_tool_call_synthetic_renders", "reported a thrown C++ exception without an error message") }?;
             Err(MarkerDetectionError::ToolCallSyntheticRenderDiagnosisFailed { message })
         }
         other => Err(crate::FfiStatusError {
@@ -1917,7 +1962,13 @@ unsafe fn tokenize_status_to_result(
             Err(StringToTokenError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_tokenize",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(StringToTokenError::Reported { message })
         }
         other => {
@@ -2404,7 +2455,7 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn load_model_from_file_cxx_exception_is_reported() {
+    fn load_model_from_file_cxx_exception_without_a_message_is_a_contract_error() {
         let result = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION,
@@ -2416,9 +2467,11 @@ mod ffi_status_mapping_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            LlamaModelLoadError::Reported {
-                message: "unknown error".to_owned()
+            crate::FfiContractError {
+                operation: "llama_rs_load_model_from_file",
+                detail: "reported a thrown C++ exception without an error message",
             }
+            .into()
         );
     }
 
@@ -2517,7 +2570,9 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn chat_parser_create_cxx_exception_is_parser_creation_failed_and_nulls_error() {
-        let mut out_error: *mut c_char = ptr::null_mut();
+        let mut out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"the parser could not be built".as_ptr())
+        };
         let result = unsafe {
             chat_parser_create_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_VENDORED_THREW_CXX_EXCEPTION,
@@ -2526,13 +2581,15 @@ mod ffi_status_mapping_tests {
             )
         };
 
-        assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::ParserCreationFailed {
-                message: String::new()
-            })
+        let Err(ParseChatMessageError::ParserCreationFailed { message }) = result else {
+            panic!("the vendored exception status must surface the wrapper message");
+        };
+
+        assert_eq!(message, "the parser could not be built");
+        assert!(
+            out_error.is_null(),
+            "the reclaimed pointer must be nulled so the caller does not free it twice"
         );
-        assert!(out_error.is_null());
     }
 
     #[test]
@@ -2592,7 +2649,9 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parse_chat_message_cxx_exception_is_message_unrecognized_and_nulls_error() {
-        let mut out_error: *mut c_char = ptr::null_mut();
+        let mut out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"the message could not be parsed".as_ptr())
+        };
         let result = unsafe {
             parse_chat_message_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_VENDORED_THREW_CXX_EXCEPTION,
@@ -2601,13 +2660,15 @@ mod ffi_status_mapping_tests {
             )
         };
 
-        assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::MessageUnrecognized {
-                message: String::new()
-            })
+        let Err(ParseChatMessageError::MessageUnrecognized { message }) = result else {
+            panic!("the vendored exception status must surface the wrapper message");
+        };
+
+        assert_eq!(message, "the message could not be parsed");
+        assert!(
+            out_error.is_null(),
+            "the reclaimed pointer must be nulled so the caller does not free it twice"
         );
-        assert!(out_error.is_null());
     }
 
     #[test]
@@ -2665,20 +2726,21 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parsed_chat_content_cxx_exception_is_reported() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"content read failed".as_ptr()) };
         let result = unsafe {
             parsed_chat_content_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_VENDORED_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
-                ptr::null_mut(),
+                out_error,
             )
         };
 
-        assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::Reported {
-                message: String::new()
-            })
-        );
+        let Err(ParseChatMessageError::Reported { message }) = result else {
+            panic!("the vendored exception status must surface the wrapper message");
+        };
+
+        assert_eq!(message, "content read failed");
     }
 
     #[test]
@@ -2734,20 +2796,22 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parsed_chat_reasoning_content_cxx_exception_is_reported() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"reasoning read failed".as_ptr())
+        };
         let result = unsafe {
             parsed_chat_reasoning_content_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_VENDORED_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
-                ptr::null_mut(),
+                out_error,
             )
         };
 
-        assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::Reported {
-                message: String::new()
-            })
-        );
+        let Err(ParseChatMessageError::Reported { message }) = result else {
+            panic!("the vendored exception status must surface the wrapper message");
+        };
+
+        assert_eq!(message, "reasoning read failed");
     }
 
     #[test]
@@ -2796,20 +2860,22 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parsed_chat_tool_call_count_cxx_exception_is_reported() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"tool-call count failed".as_ptr())
+        };
         let result = unsafe {
             parsed_chat_tool_call_count_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_VENDORED_THREW_CXX_EXCEPTION,
                 0,
-                ptr::null_mut(),
+                out_error,
             )
         };
 
-        assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::Reported {
-                message: String::new()
-            })
-        );
+        let Err(ParseChatMessageError::Reported { message }) = result else {
+            panic!("the vendored exception status must surface the wrapper message");
+        };
+
+        assert_eq!(message, "tool-call count failed");
     }
 
     #[test]
@@ -2884,21 +2950,23 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parsed_chat_tool_call_id_cxx_exception_is_reported() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"tool-call id read failed".as_ptr())
+        };
         let result = unsafe {
             parsed_chat_tool_call_id_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_VENDORED_THREW_CXX_EXCEPTION,
                 0,
                 ptr::null_mut(),
-                ptr::null_mut(),
+                out_error,
             )
         };
 
-        assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::Reported {
-                message: String::new()
-            })
-        );
+        let Err(ParseChatMessageError::Reported { message }) = result else {
+            panic!("the vendored exception status must surface the wrapper message");
+        };
+
+        assert_eq!(message, "tool-call id read failed");
     }
 
     #[test]
@@ -2974,21 +3042,23 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parsed_chat_tool_call_name_cxx_exception_is_reported() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"tool-call name read failed".as_ptr())
+        };
         let result = unsafe {
             parsed_chat_tool_call_name_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_VENDORED_THREW_CXX_EXCEPTION,
                 0,
                 ptr::null_mut(),
-                ptr::null_mut(),
+                out_error,
             )
         };
 
-        assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::Reported {
-                message: String::new()
-            })
-        );
+        let Err(ParseChatMessageError::Reported { message }) = result else {
+            panic!("the vendored exception status must surface the wrapper message");
+        };
+
+        assert_eq!(message, "tool-call name read failed");
     }
 
     #[test]
@@ -3064,21 +3134,23 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn parsed_chat_tool_call_arguments_cxx_exception_is_reported() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"tool-call arguments read failed".as_ptr())
+        };
         let result = unsafe {
             parsed_chat_tool_call_arguments_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_VENDORED_THREW_CXX_EXCEPTION,
                 0,
                 ptr::null_mut(),
-                ptr::null_mut(),
+                out_error,
             )
         };
 
-        assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ParseChatMessageError::Reported {
-                message: String::new()
-            })
-        );
+        let Err(ParseChatMessageError::Reported { message }) = result else {
+            panic!("the vendored exception status must surface the wrapper message");
+        };
+
+        assert_eq!(message, "tool-call arguments read failed");
     }
 
     #[test]
@@ -3128,7 +3200,7 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn detect_reasoning_markers_cxx_exception_is_detection_failed() {
+    fn detect_reasoning_markers_cxx_exception_without_a_message_is_a_contract_error() {
         let result = unsafe {
             detect_reasoning_markers_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_VENDORED_THREW_CXX_EXCEPTION,
@@ -3139,9 +3211,11 @@ mod ffi_status_mapping_tests {
 
         assert_eq!(
             result,
-            Err(MarkerDetectionError::ReasoningMarkerDetectionFailed {
-                message: "unknown error".to_owned()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_detect_reasoning_markers",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -3326,7 +3400,7 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn compute_tool_call_haystack_cxx_exception_is_computation_failed() {
+    fn compute_tool_call_haystack_cxx_exception_without_a_message_is_a_contract_error() {
         let result = unsafe {
             compute_tool_call_haystack_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_THREW_CXX_EXCEPTION,
@@ -3337,9 +3411,11 @@ mod ffi_status_mapping_tests {
 
         assert_eq!(
             result,
-            Err(MarkerDetectionError::ToolCallHaystackComputationFailed {
-                message: "unknown error".to_owned()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_compute_tool_call_haystack",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -3387,7 +3463,7 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn diagnose_tool_call_synthetic_renders_cxx_exception_is_diagnosis_failed() {
+    fn diagnose_tool_call_synthetic_renders_cxx_exception_without_a_message_is_a_contract_error() {
         let result = unsafe {
             diagnose_tool_call_synthetic_renders_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_THREW_CXX_EXCEPTION,
@@ -3399,11 +3475,11 @@ mod ffi_status_mapping_tests {
 
         assert_eq!(
             result,
-            Err(
-                MarkerDetectionError::ToolCallSyntheticRenderDiagnosisFailed {
-                    message: "unknown error".to_owned()
-                }
-            )
+            Err(crate::FfiContractError {
+                operation: "llama_rs_diagnose_tool_call_synthetic_renders",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -3454,7 +3530,7 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
-    fn tokenize_cxx_exception_is_reported() {
+    fn tokenize_cxx_exception_without_a_message_is_a_contract_error() {
         let result = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_VENDORED_THREW_CXX_EXCEPTION,
@@ -3465,9 +3541,11 @@ mod ffi_status_mapping_tests {
 
         assert_eq!(
             result,
-            Err(StringToTokenError::Reported {
-                message: "unknown error".to_owned()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_tokenize",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
@@ -3486,11 +3564,8 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn apply_chat_template_ok_returns_rendered_prompt() {
-        unsafe extern "C" {
-            fn strdup(text: *const c_char) -> *mut c_char;
-        }
         let rendered = std::ffi::CString::new("<bos>rendered prompt").unwrap();
-        let out_string = unsafe { strdup(rendered.as_ptr()) };
+        let out_string = unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(rendered.as_ptr()) };
         let result = unsafe {
             super::apply_chat_template_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_OK,
@@ -3567,11 +3642,8 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn apply_chat_template_cxx_exception_is_reported() {
-        unsafe extern "C" {
-            fn strdup(text: *const c_char) -> *mut c_char;
-        }
         let message = std::ffi::CString::new("renderer exploded").unwrap();
-        let out_error = unsafe { strdup(message.as_ptr()) };
+        let out_error = unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(message.as_ptr()) };
         let result = unsafe {
             super::apply_chat_template_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_THREW_CXX_EXCEPTION,
