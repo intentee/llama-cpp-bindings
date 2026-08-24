@@ -1,4 +1,5 @@
 mod android_ndk;
+mod apple_variant;
 mod bindgen_config;
 mod cmake_config;
 mod cpp_wrapper;
@@ -6,6 +7,7 @@ mod library_linking;
 mod native_sources;
 mod rebuild_tracking;
 mod target_os;
+mod windows_variant;
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -21,8 +23,8 @@ pub enum BuildError {
         #[source]
         source: env::VarError,
     },
-    #[error("{0}")]
-    Target(String),
+    #[error("unsupported target operating system: {cargo_cfg_target_os}")]
+    UnsupportedTargetOs { cargo_cfg_target_os: String },
     #[error(transparent)]
     AndroidNdk(#[from] android_ndk::AndroidNdkDetectionError),
     #[error("bindgen failed: {0}")]
@@ -71,6 +73,8 @@ pub struct BuildContext {
     pub llama_src: PathBuf,
     pub target_os: TargetOs,
     pub target_triple: String,
+    pub cargo_cfg_target_arch: String,
+    pub cargo_cfg_target_env: String,
     pub build_shared_libs: bool,
     pub profile: String,
     pub static_crt: bool,
@@ -80,7 +84,12 @@ pub struct BuildContext {
 impl BuildContext {
     fn detect() -> Result<Self, BuildError> {
         let target_triple = required_env("TARGET")?;
-        let target_os = TargetOs::from_target_triple(&target_triple).map_err(BuildError::Target)?;
+        let cargo_cfg_target_os = required_env("CARGO_CFG_TARGET_OS")?;
+        let cargo_cfg_target_env = optional_env("CARGO_CFG_TARGET_ENV")?.unwrap_or_default();
+        let target_os = TargetOs::from_cargo_cfg(&cargo_cfg_target_os, &cargo_cfg_target_env)
+            .ok_or(BuildError::UnsupportedTargetOs {
+                cargo_cfg_target_os: cargo_cfg_target_os.clone(),
+            })?;
         let out_dir = PathBuf::from(required_env("OUT_DIR")?);
         let manifest_dir = required_env("CARGO_MANIFEST_DIR")?;
         let llama_src = Path::new(&manifest_dir).join("llama.cpp");
@@ -92,8 +101,9 @@ impl BuildContext {
             .split(',')
             .any(|feature| feature == "crt-static");
 
+        let cargo_cfg_target_arch = required_env("CARGO_CFG_TARGET_ARCH")?;
         let android_ndk = if target_os.is_android() {
-            Some(AndroidNdk::detect(&target_triple)?)
+            Some(AndroidNdk::detect(&target_triple, &cargo_cfg_target_arch)?)
         } else {
             None
         };
@@ -112,6 +122,8 @@ impl BuildContext {
             llama_src,
             target_os,
             target_triple,
+            cargo_cfg_target_arch,
+            cargo_cfg_target_env,
             build_shared_libs,
             profile,
             static_crt,
@@ -149,7 +161,7 @@ pub fn build() -> Result<(), BuildError> {
         &context.cmake_dir,
         &build_dir,
         &context.target_os,
-        &context.target_triple,
+        &context.cargo_cfg_target_env,
         context.build_shared_libs,
         &context.profile,
     )?;

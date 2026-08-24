@@ -21,8 +21,13 @@ pub enum AndroidNdkDetectionError {
     NdkToolchainDirectoryMissing { path: PathBuf },
     #[error("Unsupported host platform for Android NDK")]
     UnsupportedHostPlatform,
-    #[error("Unsupported Android target triple: {target_triple}")]
-    UnsupportedAndroidTarget { target_triple: String },
+    #[error("Unsupported Android target architecture: {cargo_cfg_target_arch}")]
+    UnsupportedAndroidTarget { cargo_cfg_target_arch: String },
+    #[error("ANDROID_PLATFORM is set but could not be read: {source}")]
+    AndroidPlatformUnreadable {
+        #[source]
+        source: env::VarError,
+    },
     #[error("Android NDK Clang directory could not be read at {path}: {source}")]
     ClangDirectoryUnreadable {
         path: PathBuf,
@@ -57,17 +62,21 @@ impl AndroidNdk {
     /// # Errors
     ///
     /// Returns [`AndroidNdkDetectionError`] when the NDK installation cannot be
-    /// located, an environment variable is missing, the target triple is
-    /// unsupported, or the host platform is not supported by the NDK.
-    pub fn detect(target_triple: &str) -> Result<Self, AndroidNdkDetectionError> {
+    /// located, an environment variable is missing or malformed, the target
+    /// architecture is unsupported, or the host platform is not supported by the NDK.
+    pub fn detect(
+        target_triple: &str,
+        cargo_cfg_target_arch: &str,
+    ) -> Result<Self, AndroidNdkDetectionError> {
         let ndk_path = detect_ndk_path(target_triple)?;
 
         validate_ndk_installation(&ndk_path)?;
 
-        let api_level = detect_api_level();
-        let abi = target_triple_to_abi(target_triple)?;
+        let architecture = AndroidArchitecture::from_cargo_cfg(cargo_cfg_target_arch)?;
+        let api_level = detect_api_level()?;
+        let abi = architecture.abi();
         let host_tag = detect_host_tag()?;
-        let target_prefix = target_triple_to_ndk_prefix(target_triple)?;
+        let target_prefix = architecture.ndk_prefix();
         let toolchain_path = format!("{ndk_path}/toolchains/llvm/prebuilt/{host_tag}");
 
         if !Path::new(&toolchain_path).exists() {
@@ -127,10 +136,15 @@ fn validate_ndk_installation(ndk_path: &str) -> Result<(), AndroidNdkDetectionEr
     Ok(())
 }
 
-fn detect_api_level() -> String {
-    env::var("ANDROID_PLATFORM")
-        .map(|platform| platform.replace("android-", ""))
-        .unwrap_or_else(|_no_api_level_configured| DEFAULT_ANDROID_API_LEVEL.to_string())
+fn detect_api_level() -> Result<String, AndroidNdkDetectionError> {
+    match env::var("ANDROID_PLATFORM") {
+        Ok(platform) => Ok(platform
+            .strip_prefix("android-")
+            .unwrap_or(&platform)
+            .to_owned()),
+        Err(env::VarError::NotPresent) => Ok(DEFAULT_ANDROID_API_LEVEL.to_string()),
+        Err(source) => Err(AndroidNdkDetectionError::AndroidPlatformUnreadable { source }),
+    }
 }
 
 fn detect_host_tag() -> Result<&'static str, AndroidNdkDetectionError> {
@@ -145,37 +159,43 @@ fn detect_host_tag() -> Result<&'static str, AndroidNdkDetectionError> {
     }
 }
 
-fn target_triple_to_abi(target_triple: &str) -> Result<&'static str, AndroidNdkDetectionError> {
-    if target_triple.contains("aarch64") {
-        Ok("arm64-v8a")
-    } else if target_triple.contains("armv7") {
-        Ok("armeabi-v7a")
-    } else if target_triple.contains("x86_64") {
-        Ok("x86_64")
-    } else if target_triple.contains("i686") {
-        Ok("x86")
-    } else {
-        Err(AndroidNdkDetectionError::UnsupportedAndroidTarget {
-            target_triple: target_triple.to_owned(),
-        })
-    }
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum AndroidArchitecture {
+    Aarch64,
+    Armv7,
+    X86_64,
+    X86,
 }
 
-fn target_triple_to_ndk_prefix(
-    target_triple: &str,
-) -> Result<&'static str, AndroidNdkDetectionError> {
-    if target_triple.contains("aarch64") {
-        Ok("aarch64-linux-android")
-    } else if target_triple.contains("armv7") {
-        Ok("arm-linux-androideabi")
-    } else if target_triple.contains("x86_64") {
-        Ok("x86_64-linux-android")
-    } else if target_triple.contains("i686") {
-        Ok("i686-linux-android")
-    } else {
-        Err(AndroidNdkDetectionError::UnsupportedAndroidTarget {
-            target_triple: target_triple.to_owned(),
-        })
+impl AndroidArchitecture {
+    fn from_cargo_cfg(cargo_cfg_target_arch: &str) -> Result<Self, AndroidNdkDetectionError> {
+        match cargo_cfg_target_arch {
+            "aarch64" => Ok(Self::Aarch64),
+            "arm" => Ok(Self::Armv7),
+            "x86_64" => Ok(Self::X86_64),
+            "x86" => Ok(Self::X86),
+            unsupported => Err(AndroidNdkDetectionError::UnsupportedAndroidTarget {
+                cargo_cfg_target_arch: unsupported.to_owned(),
+            }),
+        }
+    }
+
+    const fn abi(self) -> &'static str {
+        match self {
+            Self::Aarch64 => "arm64-v8a",
+            Self::Armv7 => "armeabi-v7a",
+            Self::X86_64 => "x86_64",
+            Self::X86 => "x86",
+        }
+    }
+
+    const fn ndk_prefix(self) -> &'static str {
+        match self {
+            Self::Aarch64 => "aarch64-linux-android",
+            Self::Armv7 => "arm-linux-androideabi",
+            Self::X86_64 => "x86_64-linux-android",
+            Self::X86 => "i686-linux-android",
+        }
     }
 }
 
@@ -231,11 +251,10 @@ mod android_ndk_resolution_tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use super::AndroidArchitecture;
     use super::AndroidNdk;
     use super::AndroidNdkDetectionError;
     use super::find_clang_builtin_includes;
-    use super::target_triple_to_abi;
-    use super::target_triple_to_ndk_prefix;
     use super::validate_ndk_installation;
 
     static NEXT_DIRECTORY_ID: AtomicUsize = AtomicUsize::new(0);
@@ -249,47 +268,32 @@ mod android_ndk_resolution_tests {
     }
 
     #[test]
-    fn every_supported_android_target_maps_to_its_abi_and_ndk_prefix() {
-        let targets = [
-            (
-                "aarch64-linux-android",
-                "arm64-v8a",
-                "aarch64-linux-android",
-            ),
-            (
-                "armv7-linux-androideabi",
-                "armeabi-v7a",
-                "arm-linux-androideabi",
-            ),
-            ("x86_64-linux-android", "x86_64", "x86_64-linux-android"),
-            ("i686-linux-android", "x86", "i686-linux-android"),
+    fn every_supported_android_architecture_maps_to_its_abi_and_ndk_prefix() {
+        let architectures = [
+            ("aarch64", "arm64-v8a", "aarch64-linux-android"),
+            ("arm", "armeabi-v7a", "arm-linux-androideabi"),
+            ("x86_64", "x86_64", "x86_64-linux-android"),
+            ("x86", "x86", "i686-linux-android"),
         ];
 
-        for (target, abi, prefix) in targets {
-            assert_eq!(target_triple_to_abi(target).expect("supported ABI"), abi);
-            assert_eq!(
-                target_triple_to_ndk_prefix(target).expect("supported NDK prefix"),
-                prefix
-            );
+        for (cargo_cfg_target_arch, abi, prefix) in architectures {
+            let architecture = AndroidArchitecture::from_cargo_cfg(cargo_cfg_target_arch)
+                .expect("the architecture is supported");
+
+            assert_eq!(architecture.abi(), abi);
+            assert_eq!(architecture.ndk_prefix(), prefix);
         }
     }
 
     #[test]
-    fn unsupported_android_target_preserves_the_target_triple() {
-        let abi_error =
-            target_triple_to_abi("riscv64-linux-android").expect_err("unsupported ABI must fail");
-        let prefix_error = target_triple_to_ndk_prefix("riscv64-linux-android")
-            .expect_err("unsupported NDK prefix must fail");
+    fn an_unsupported_android_architecture_preserves_what_cargo_reported() {
+        let error = AndroidArchitecture::from_cargo_cfg("riscv64")
+            .expect_err("riscv64 has no NDK toolchain in this build");
 
         assert!(matches!(
-            abi_error,
-            AndroidNdkDetectionError::UnsupportedAndroidTarget { target_triple }
-                if target_triple == "riscv64-linux-android"
-        ));
-        assert!(matches!(
-            prefix_error,
-            AndroidNdkDetectionError::UnsupportedAndroidTarget { target_triple }
-                if target_triple == "riscv64-linux-android"
+            error,
+            AndroidNdkDetectionError::UnsupportedAndroidTarget { cargo_cfg_target_arch }
+                if cargo_cfg_target_arch == "riscv64"
         ));
     }
 

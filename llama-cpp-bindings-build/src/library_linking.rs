@@ -2,14 +2,16 @@ use std::env;
 use std::path::Path;
 
 use crate::BuildError;
+use crate::apple_variant::AppleVariant;
 use crate::debug_log;
-use crate::target_os::{AppleVariant, TargetOs, WindowsVariant};
+use crate::target_os::TargetOs;
+use crate::windows_variant::WindowsVariant;
 
 pub fn link_libraries(
     cmake_dir: &Path,
     build_dir: &Path,
     target_os: &TargetOs,
-    target_triple: &str,
+    cargo_cfg_target_env: &str,
     build_shared_libs: bool,
     profile: &str,
 ) -> Result<(), BuildError> {
@@ -18,7 +20,7 @@ pub fn link_libraries(
     link_cmake_built_libraries(cmake_dir, build_shared_libs, profile);
     link_cuda_libraries(target_os, build_shared_libs);
     link_rocm_libraries(build_shared_libs)?;
-    link_openmp(target_triple);
+    link_openmp(cargo_cfg_target_env);
     link_platform_system_libraries(target_os);
 
     Ok(())
@@ -203,8 +205,8 @@ fn link_rocm_libraries(build_shared_libs: bool) -> Result<(), BuildError> {
     Ok(())
 }
 
-fn link_openmp(target_triple: &str) {
-    if cfg!(feature = "openmp") && target_triple.contains("gnu") {
+fn link_openmp(cargo_cfg_target_env: &str) {
+    if cfg!(feature = "openmp") && cargo_cfg_target_env == "gnu" {
         println!("cargo:rustc-link-lib=gomp");
     }
 }

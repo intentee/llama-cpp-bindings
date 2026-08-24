@@ -14,7 +14,11 @@ pub fn configure_and_build(context: &BuildContext) -> Result<PathBuf, BuildError
     let mut config = Config::new(&context.llama_src);
 
     configure_base_defines(&mut config);
-    configure_cpu_features(&mut config, &context.target_triple)?;
+    configure_cpu_features(
+        &mut config,
+        &context.cargo_cfg_target_arch,
+        &context.target_os,
+    )?;
     configure_shared_libs(&mut config, context.build_shared_libs);
     configure_platform_specific(
         &mut config,
@@ -76,7 +80,11 @@ fn configure_base_defines(config: &mut Config) {
     config.define("LLAMA_CURL", "OFF");
 }
 
-fn configure_cpu_features(config: &mut Config, target_triple: &str) -> Result<(), BuildError> {
+fn configure_cpu_features(
+    config: &mut Config,
+    cargo_cfg_target_arch: &str,
+    target_os: &TargetOs,
+) -> Result<(), BuildError> {
     let target_cpu = optional_env("CARGO_ENCODED_RUSTFLAGS")?.and_then(|rustflags| {
         rustflags
             .split('\x1f')
@@ -109,8 +117,8 @@ fn configure_cpu_features(config: &mut Config, target_triple: &str) -> Result<()
         }
     }
 
-    if target_triple.contains("aarch64")
-        && target_triple.contains("linux")
+    if cargo_cfg_target_arch == "aarch64"
+        && *target_os == TargetOs::Linux
         && target_cpu.as_deref() != Some("native")
     {
         config.define("GGML_CPU_ARM_ARCH", "armv8-a");
