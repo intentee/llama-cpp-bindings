@@ -2,6 +2,13 @@ TEST_DEVICE ?=
 
 DEVICE_FEATURE = $(if $(TEST_DEVICE),--features $(TEST_DEVICE),)
 
+CPP_INCLUDES = -I. -IGSL/include -Illama.cpp -Illama.cpp/common \
+	-Illama.cpp/include -Illama.cpp/ggml/include -Illama.cpp/vendor
+
+CPP_SYSTEM_INCLUDES = $(shell echo | c++ -std=c++17 -E -v -x c++ - 2>&1 \
+	| sed -n '/\#include <...> search starts here/,/End of search list/p' \
+	| grep '^ /' | sed 's|^ |-isystem |')
+
 node_modules: package-lock.json
 	npm ci
 	touch node_modules
@@ -58,15 +65,13 @@ lint.cpp: lint.cpp.clang-tidy lint.cpp.cppcheck
 .PHONY: lint.cpp.clang-tidy
 lint.cpp.clang-tidy:
 	cd llama-cpp-bindings-sys && clang-tidy wrapper_*.cpp -- \
-		-std=c++17 -I. -IGSL/include -Illama.cpp -Illama.cpp/common \
-		-Illama.cpp/include -Illama.cpp/ggml/include -Illama.cpp/vendor
+		-std=c++17 $(CPP_SYSTEM_INCLUDES) $(CPP_INCLUDES)
 
 .PHONY: lint.cpp.cppcheck
 lint.cpp.cppcheck:
 	cd llama-cpp-bindings-sys && cppcheck --enable=all --inconclusive \
 		--check-level=exhaustive --std=c++17 --error-exitcode=1 \
-		-I. -IGSL/include -Illama.cpp -Illama.cpp/common -Illama.cpp/include \
-		-Illama.cpp/ggml/include -Illama.cpp/vendor \
+		$(CPP_INCLUDES) \
 		--suppress='*:llama.cpp/*' --suppress='*:GSL/*' \
 		--suppress=missingIncludeSystem --suppress=unusedFunction \
 		--suppress=checkersReport --suppress=toomanyconfigs wrapper_*.cpp
