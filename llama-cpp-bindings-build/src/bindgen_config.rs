@@ -85,7 +85,7 @@ impl bindgen::callbacks::ParseCallbacks for BindingCallbacks {
 pub fn generate_bindings(
     llama_src: &Path,
     out_dir: &Path,
-    target_os: &TargetOs,
+    target_os: TargetOs,
     target_triple: &str,
     android_ndk: Option<&AndroidNdk>,
 ) -> Result<(), BuildError> {

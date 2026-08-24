@@ -27,12 +27,12 @@ impl TargetOs {
     }
 
     #[must_use]
-    pub const fn is_android(&self) -> bool {
+    pub const fn is_android(self) -> bool {
         matches!(self, Self::Android)
     }
 
     #[must_use]
-    pub const fn is_msvc(&self) -> bool {
+    pub const fn is_msvc(self) -> bool {
         matches!(self, Self::Windows(WindowsVariant::Msvc))
     }
 }

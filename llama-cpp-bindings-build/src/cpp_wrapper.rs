@@ -4,7 +4,7 @@ use crate::BuildError;
 use crate::native_sources::WRAPPER_SOURCES;
 use crate::target_os::TargetOs;
 
-pub fn compile_cpp_wrappers(llama_src: &Path, target_os: &TargetOs) -> Result<(), BuildError> {
+pub fn compile_cpp_wrappers(llama_src: &Path, target_os: TargetOs) -> Result<(), BuildError> {
     let mut build = cc::Build::new();
 
     build

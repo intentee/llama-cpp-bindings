@@ -87,7 +87,7 @@ impl BuildContext {
         let cargo_cfg_target_os = required_env("CARGO_CFG_TARGET_OS")?;
         let cargo_cfg_target_env = optional_env("CARGO_CFG_TARGET_ENV")?.unwrap_or_default();
         let target_os = TargetOs::from_cargo_cfg(&cargo_cfg_target_os, &cargo_cfg_target_env)
-            .ok_or(BuildError::UnsupportedTargetOs {
+            .ok_or_else(|| BuildError::UnsupportedTargetOs {
                 cargo_cfg_target_os: cargo_cfg_target_os.clone(),
             })?;
         let out_dir = PathBuf::from(required_env("OUT_DIR")?);
@@ -134,12 +134,15 @@ impl BuildContext {
 
 fn native_profile(cargo_profile: &str) -> String {
     match cargo_profile {
-        "debug" => "Release".to_owned(),
-        "release" => "Release".to_owned(),
+        "debug" | "release" => "Release".to_owned(),
         other => other.to_owned(),
     }
 }
 
+/// # Errors
+///
+/// Returns [`BuildError`] when the build environment cannot be read, the target is
+/// unsupported, or any of the native build steps fail.
 pub fn build() -> Result<(), BuildError> {
     let context = BuildContext::detect()?;
 
@@ -148,19 +151,19 @@ pub fn build() -> Result<(), BuildError> {
     bindgen_config::generate_bindings(
         &context.llama_src,
         &context.out_dir,
-        &context.target_os,
+        context.target_os,
         &context.target_triple,
         context.android_ndk.as_ref(),
     )?;
 
-    cpp_wrapper::compile_cpp_wrappers(&context.llama_src, &context.target_os)?;
+    cpp_wrapper::compile_cpp_wrappers(&context.llama_src, context.target_os)?;
 
     let build_dir = cmake_config::configure_and_build(&context)?;
 
     library_linking::link_libraries(
         &context.cmake_dir,
         &build_dir,
-        &context.target_os,
+        context.target_os,
         &context.cargo_cfg_target_env,
         context.build_shared_libs,
         &context.profile,

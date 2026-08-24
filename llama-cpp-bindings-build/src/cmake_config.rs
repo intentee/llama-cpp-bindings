@@ -17,17 +17,17 @@ pub fn configure_and_build(context: &BuildContext) -> Result<PathBuf, BuildError
     configure_cpu_features(
         &mut config,
         &context.cargo_cfg_target_arch,
-        &context.target_os,
+        context.target_os,
     )?;
     configure_shared_libs(&mut config, context.build_shared_libs);
     configure_platform_specific(
         &mut config,
-        &context.target_os,
+        context.target_os,
         &context.target_triple,
         context.android_ndk.as_ref(),
     );
-    configure_gpu_backends(&mut config, &context.target_os)?;
-    configure_openmp(&mut config, &context.target_os);
+    configure_gpu_backends(&mut config, context.target_os)?;
+    configure_openmp(&mut config, context.target_os);
     configure_system_ggml(&mut config)?;
     let backends_dir = configure_dynamic_backends(&mut config, &context.cmake_dir)?;
 
@@ -83,14 +83,14 @@ fn configure_base_defines(config: &mut Config) {
 fn configure_cpu_features(
     config: &mut Config,
     cargo_cfg_target_arch: &str,
-    target_os: &TargetOs,
+    target_os: TargetOs,
 ) -> Result<(), BuildError> {
     let target_cpu = optional_env("CARGO_ENCODED_RUSTFLAGS")?.and_then(|rustflags| {
         rustflags
             .split('\x1f')
             .find(|flag| flag.contains("target-cpu="))
             .and_then(|flag| flag.split("target-cpu=").nth(1))
-            .map(std::string::ToString::to_string)
+            .map(ToString::to_string)
     });
 
     if target_cpu.as_deref() == Some("native") {
@@ -118,7 +118,7 @@ fn configure_cpu_features(
     }
 
     if cargo_cfg_target_arch == "aarch64"
-        && *target_os == TargetOs::Linux
+        && target_os == TargetOs::Linux
         && target_cpu.as_deref() != Some("native")
     {
         config.define("GGML_CPU_ARM_ARCH", "armv8-a");
@@ -152,7 +152,7 @@ fn configure_shared_libs(config: &mut Config, build_shared_libs: bool) {
 
 fn configure_platform_specific(
     config: &mut Config,
-    target_os: &TargetOs,
+    target_os: TargetOs,
     target_triple: &str,
     android_ndk: Option<&AndroidNdk>,
 ) {
@@ -192,7 +192,7 @@ fn configure_android_cmake(config: &mut Config, ndk: &AndroidNdk, _target_triple
     println!("cargo:rustc-link-lib=android");
 }
 
-fn configure_gpu_backends(config: &mut Config, target_os: &TargetOs) -> Result<(), BuildError> {
+fn configure_gpu_backends(config: &mut Config, target_os: TargetOs) -> Result<(), BuildError> {
     if cfg!(feature = "vulkan") {
         config.define("GGML_VULKAN", "ON");
         configure_vulkan_linking(target_os)?;
@@ -213,7 +213,7 @@ fn configure_gpu_backends(config: &mut Config, target_os: &TargetOs) -> Result<(
     Ok(())
 }
 
-fn configure_vulkan_linking(target_os: &TargetOs) -> Result<(), BuildError> {
+fn configure_vulkan_linking(target_os: TargetOs) -> Result<(), BuildError> {
     match target_os {
         TargetOs::Windows(_) => {
             let vulkan_path = env::var("VULKAN_SDK").map_err(|source| BuildError::Environment {
@@ -249,7 +249,7 @@ fn configure_vulkan_linking(target_os: &TargetOs) -> Result<(), BuildError> {
     Ok(())
 }
 
-fn configure_openmp(config: &mut Config, target_os: &TargetOs) {
+fn configure_openmp(config: &mut Config, target_os: TargetOs) {
     let openmp_enabled = cfg!(feature = "openmp") && !target_os.is_android();
 
     config.define("GGML_OPENMP", if openmp_enabled { "ON" } else { "OFF" });

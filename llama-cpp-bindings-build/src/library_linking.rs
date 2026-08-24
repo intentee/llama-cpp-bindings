@@ -10,7 +10,7 @@ use crate::windows_variant::WindowsVariant;
 pub fn link_libraries(
     cmake_dir: &Path,
     build_dir: &Path,
-    target_os: &TargetOs,
+    target_os: TargetOs,
     cargo_cfg_target_env: &str,
     build_shared_libs: bool,
     profile: &str,
@@ -138,7 +138,7 @@ fn emit_search_path_with_profile(lib_dir: &Path, profile: &str) {
     println!("cargo:rustc-link-search=native={}", profile_dir.display());
 }
 
-fn link_cuda_libraries(target_os: &TargetOs, build_shared_libs: bool) {
+fn link_cuda_libraries(target_os: TargetOs, build_shared_libs: bool) {
     if !cfg!(feature = "cuda") || build_shared_libs {
         return;
     }
@@ -211,7 +211,7 @@ fn link_openmp(cargo_cfg_target_env: &str) {
     }
 }
 
-fn link_platform_system_libraries(target_os: &TargetOs) {
+fn link_platform_system_libraries(target_os: TargetOs) {
     match target_os {
         TargetOs::Windows(WindowsVariant::Msvc) => {
             println!("cargo:rustc-link-lib=advapi32");
@@ -220,7 +220,7 @@ fn link_platform_system_libraries(target_os: &TargetOs) {
             println!("cargo:rustc-link-lib=dylib=stdc++");
         }
         TargetOs::Apple(variant) => {
-            link_apple_frameworks(*variant);
+            link_apple_frameworks(variant);
         }
         TargetOs::Android => {
             link_android_cpp_stdlib();

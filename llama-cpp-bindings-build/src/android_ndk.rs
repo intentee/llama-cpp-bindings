@@ -147,7 +147,7 @@ fn detect_api_level() -> Result<String, AndroidNdkDetectionError> {
     }
 }
 
-fn detect_host_tag() -> Result<&'static str, AndroidNdkDetectionError> {
+const fn detect_host_tag() -> Result<&'static str, AndroidNdkDetectionError> {
     if cfg!(target_os = "macos") {
         Ok("darwin-x86_64")
     } else if cfg!(target_os = "linux") {
