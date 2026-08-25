@@ -1,7 +1,6 @@
 use std::string::FromUtf8Error;
 
 use crate::error::marker_detection_error::MarkerDetectionError;
-use crate::error::tool_call_format_failure::ToolCallFormatFailure;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseChatMessageError {
@@ -39,8 +38,6 @@ pub enum ParseChatMessageError {
     ToolsJsonContainsNulByte(#[source] std::ffi::NulError),
     #[error("the message to parse contains an interior NUL byte")]
     InputContainsNulByte(#[source] std::ffi::NulError),
-    #[error("tool-call format parser failed: {0}")]
-    ToolCallFormat(#[from] ToolCallFormatFailure),
     #[error("reasoning-marker detection failed: {0}")]
     MarkerDetection(#[from] MarkerDetectionError),
     #[error("{message}")]

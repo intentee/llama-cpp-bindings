@@ -1711,20 +1711,14 @@ fn set_state_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
     let bytes_copied = unsafe { context.copy_state_data(&mut state_data) }?;
     state_data.truncate(bytes_copied / 2);
 
-    let result = unsafe { context.set_state_data(&state_data) };
-
-    let Err(llama_cpp_bindings::context::state_data_error::StateDataError::Reported { message }) =
-        result
-    else {
-        anyhow::bail!(
-            "a truncated snapshot must surface the vendored failure instead of unwinding; got \
-             {result:?}"
-        );
-    };
-
-    assert!(
-        !message.is_empty(),
-        "the vendored deserializer must explain why it rejected the snapshot"
+    assert_eq!(
+        unsafe { context.set_state_data(&state_data) },
+        Err(
+            llama_cpp_bindings::context::state_data_error::StateDataError::NothingRestored {
+                provided_bytes: state_data.len(),
+            }
+        ),
+        "a truncated snapshot restores nothing, and that must not be reported as success"
     );
 
     Ok(())

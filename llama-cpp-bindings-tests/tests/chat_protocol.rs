@@ -479,19 +479,21 @@ fn parses_non_array_tools_json_returns_tools_json_not_array_error(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parses_with_tools_null_byte_returns_tools_json_invalid_error(
+fn parses_with_tools_null_byte_reports_the_nul_byte_not_a_json_syntax_error(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let result = fixture
         .model
         .parse_chat_message("[]\0extra", "hello", false);
 
-    assert!(matches!(
-        result,
-        Err(llama_cpp_bindings::ParseChatMessageError::ToolsJsonInvalid(
-            _
-        ))
-    ));
+    let Err(llama_cpp_bindings::ParseChatMessageError::ToolsJsonContainsNulByte(nul_error)) =
+        result
+    else {
+        anyhow::bail!("a NUL byte in tools_json must be named as such, not reported as bad JSON");
+    };
+
+    assert_eq!(nul_error.nul_position(), 2);
+
     Ok(())
 }
 

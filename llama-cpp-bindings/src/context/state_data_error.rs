@@ -8,6 +8,11 @@ pub enum StateDataError {
     NotEnoughMemory,
     #[error("the vendored library ran out of memory")]
     VendoredOutOfMemory,
+    #[error(
+        "the vendored deserializer restored nothing from a {provided_bytes}-byte snapshot; \
+         llama.cpp logs the cause and reports zero bytes rather than throwing"
+    )]
+    NothingRestored { provided_bytes: usize },
     #[error("{message}")]
     Reported { message: String },
 }

@@ -1140,9 +1140,7 @@ impl LlamaModel {
 
                     return Ok(ChatMessageParseOutcome::Recognized(parsed));
                 }
-                ToolCallFormatOutcome::Failed(failure) => {
-                    return Err(ParseChatMessageError::ToolCallFormat(failure));
-                }
+                ToolCallFormatOutcome::Failed(_shape_does_not_fit) => {}
             }
         }
 

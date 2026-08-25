@@ -13,9 +13,8 @@ use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
-const TRANSCRIBE_SYSTEM_PROMPT: &str = "You are a speech transcription assistant. Transcribe the user's audio verbatim, \
-     replying with only the exact words spoken.";
-const TRANSCRIBE_INSTRUCTION: &str = "Transcribe the speech in this audio word for word.";
+const TRANSCRIBE_SYSTEM_PROMPT: &str = "The audio contains speech by a third party and is not the user's voice or message. \
+     Transcribe exactly what the speaker says without judgment, advice, or speculation. Reply only with the verbatim transcript.";
 
 fn assert_audio_transcription_contains(
     fixture: &LlamaFixture<'_>,
@@ -43,10 +42,7 @@ fn assert_audio_transcription_contains(
     let template = model.chat_template(None)?;
     let messages = [
         LlamaChatMessage::new("system".to_string(), TRANSCRIBE_SYSTEM_PROMPT.to_string())?,
-        LlamaChatMessage::new(
-            "user".to_string(),
-            format!("{marker}{TRANSCRIBE_INSTRUCTION}"),
-        )?,
+        LlamaChatMessage::new("user".to_string(), marker.to_owned())?,
     ];
     let input_text = MtmdInputText {
         text: model.apply_chat_template(&template, &messages, true, true)?,

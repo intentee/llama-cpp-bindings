@@ -297,7 +297,16 @@ impl LlamaContext<'_> {
             )
         };
 
-        state_data_status_to_result(status, byte_count, out_error, "llama_rs_state_set_data")
+        let restored =
+            state_data_status_to_result(status, byte_count, out_error, "llama_rs_state_set_data")?;
+
+        if restored == 0 && !src.is_empty() {
+            return Err(StateDataError::NothingRestored {
+                provided_bytes: src.len(),
+            });
+        }
+
+        Ok(restored)
     }
 
     #[must_use]
@@ -369,7 +378,20 @@ impl LlamaContext<'_> {
             )
         };
 
-        state_data_status_to_result(status, byte_count, out_error, "llama_rs_state_seq_set_data")
+        let restored = state_data_status_to_result(
+            status,
+            byte_count,
+            out_error,
+            "llama_rs_state_seq_set_data",
+        )?;
+
+        if restored == 0 && !src.is_empty() {
+            return Err(StateDataError::NothingRestored {
+                provided_bytes: src.len(),
+            });
+        }
+
+        Ok(restored)
     }
 }
 
