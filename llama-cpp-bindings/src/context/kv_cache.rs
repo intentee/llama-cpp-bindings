@@ -303,7 +303,7 @@ impl LlamaContext<'_> {
         seq_id: i32,
         p0: Option<u32>,
         p1: Option<u32>,
-        d: NonZeroU8,
+        divisor: NonZeroU8,
     ) -> Result<(), KvCacheSeqDivError> {
         let p0 = p0
             .map_or(Ok(-1), i32::try_from)
@@ -311,7 +311,7 @@ impl LlamaContext<'_> {
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
             .map_err(KvCacheSeqDivError::P1TooLarge)?;
-        let d = c_int::from(d.get());
+        let divisor = c_int::from(divisor.get());
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_memory_seq_div(
@@ -319,7 +319,7 @@ impl LlamaContext<'_> {
                 seq_id,
                 p0,
                 p1,
-                d,
+                divisor,
                 &raw mut out_error,
             )
         };

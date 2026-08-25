@@ -391,66 +391,77 @@ impl LlamaSampler {
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the temperature sampler cannot be initialized.
-    pub fn temp(t: f32) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_temp(t) };
+    pub fn temp(temperature: f32) -> Result<Self, SamplingError> {
+        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_temp(temperature) };
         Self::from_raw(sampler, "temperature")
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the extended temperature sampler cannot be initialized.
-    pub fn temp_ext(t: f32, delta: f32, exponent: f32) -> Result<Self, SamplingError> {
-        let sampler =
-            unsafe { llama_cpp_bindings_sys::llama_sampler_init_temp_ext(t, delta, exponent) };
+    pub fn temp_ext(temperature: f32, delta: f32, exponent: f32) -> Result<Self, SamplingError> {
+        let sampler = unsafe {
+            llama_cpp_bindings_sys::llama_sampler_init_temp_ext(temperature, delta, exponent)
+        };
         Self::from_raw(sampler, "extended temperature")
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the top-k sampler cannot be initialized.
-    pub fn top_k(k: i32) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_k(k) };
+    pub fn top_k(keep_count: i32) -> Result<Self, SamplingError> {
+        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_k(keep_count) };
         Self::from_raw(sampler, "top-k")
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the top-n-sigma sampler cannot be initialized.
-    pub fn top_n_sigma(n: f32) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_n_sigma(n) };
+    pub fn top_n_sigma(sigma_multiplier: f32) -> Result<Self, SamplingError> {
+        let sampler =
+            unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_n_sigma(sigma_multiplier) };
         Self::from_raw(sampler, "top-n-sigma")
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the typical sampler cannot be initialized.
-    pub fn typical(p: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_typical(p, min_keep) };
+    pub fn typical(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
+        let sampler =
+            unsafe { llama_cpp_bindings_sys::llama_sampler_init_typical(probability, min_keep) };
         Self::from_raw(sampler, "typical")
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the top-p sampler cannot be initialized.
-    pub fn top_p(p: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_p(p, min_keep) };
+    pub fn top_p(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
+        let sampler =
+            unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_p(probability, min_keep) };
         Self::from_raw(sampler, "top-p")
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the min-p sampler cannot be initialized.
-    pub fn min_p(p: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_min_p(p, min_keep) };
+    pub fn min_p(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
+        let sampler =
+            unsafe { llama_cpp_bindings_sys::llama_sampler_init_min_p(probability, min_keep) };
         Self::from_raw(sampler, "min-p")
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the XTC sampler cannot be initialized.
-    pub fn xtc(p: f32, t: f32, min_keep: usize, seed: u32) -> Result<Self, SamplingError> {
-        let sampler =
-            unsafe { llama_cpp_bindings_sys::llama_sampler_init_xtc(p, t, min_keep, seed) };
+    pub fn xtc(
+        probability: f32,
+        temperature: f32,
+        min_keep: usize,
+        seed: u32,
+    ) -> Result<Self, SamplingError> {
+        let sampler = unsafe {
+            llama_cpp_bindings_sys::llama_sampler_init_xtc(probability, temperature, min_keep, seed)
+        };
         Self::from_raw(sampler, "XTC")
     }
 

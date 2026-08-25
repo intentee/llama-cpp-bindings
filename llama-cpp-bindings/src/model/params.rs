@@ -193,8 +193,8 @@ impl LlamaModelParams {
     #[must_use]
     pub fn devices(&self) -> Vec<usize> {
         let mut backend_devices = Vec::new();
-        for i in 0..unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
-            let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(i) };
+        for device_index in 0..unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
+            let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
             backend_devices.push(dev);
         }
         let mut devices = Vec::new();

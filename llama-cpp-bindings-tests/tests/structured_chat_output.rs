@@ -338,7 +338,7 @@ fn deepseek_r1_8b_duck_types_gemma_paired_quote(fixture: &LlamaFixture<'_>) -> R
     let location = match &parsed.tool_calls[0].arguments {
         ToolCallArguments::ValidJson(value) => value
             .get("location")
-            .and_then(|v| v.as_str())
+            .and_then(|value| value.as_str())
             .map(str::to_owned),
         ToolCallArguments::InvalidJson(raw) => {
             bail!("expected ValidJson, got InvalidJson: {raw}");
@@ -400,7 +400,7 @@ fn deepseek_r1_8b_duck_types_glm_key_value_tags(fixture: &LlamaFixture<'_>) -> R
     let location = match &parsed.tool_calls[0].arguments {
         ToolCallArguments::ValidJson(value) => value
             .get("location")
-            .and_then(|v| v.as_str())
+            .and_then(|value| value.as_str())
             .map(str::to_owned),
         ToolCallArguments::InvalidJson(raw) => {
             bail!("expected ValidJson, got InvalidJson: {raw}");
@@ -461,7 +461,7 @@ fn deepseek_r1_8b_duck_types_mistral_bracketed_json(fixture: &LlamaFixture<'_>) 
     let location = match &parsed.tool_calls[0].arguments {
         ToolCallArguments::ValidJson(value) => value
             .get("location")
-            .and_then(|v| v.as_str())
+            .and_then(|value| value.as_str())
             .map(str::to_owned),
         ToolCallArguments::InvalidJson(raw) => {
             bail!("expected ValidJson, got InvalidJson: {raw}");
@@ -526,7 +526,7 @@ Paris\n\
     let location = match &parsed.tool_calls[0].arguments {
         ToolCallArguments::ValidJson(value) => value
             .get("location")
-            .and_then(|v| v.as_str())
+            .and_then(|value| value.as_str())
             .map(str::to_owned),
         ToolCallArguments::InvalidJson(raw) => {
             bail!("expected ValidJson, got InvalidJson: {raw}");
@@ -872,7 +872,7 @@ fn gemma4_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
     let location = match &parsed.tool_calls[0].arguments {
         ToolCallArguments::ValidJson(value) => value
             .get("location")
-            .and_then(|v| v.as_str())
+            .and_then(|value| value.as_str())
             .map(str::to_owned),
         ToolCallArguments::InvalidJson(raw) => {
             bail!("expected ValidJson, got InvalidJson: {raw}");
@@ -1137,7 +1137,7 @@ fn glm47_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
     let location = match &parsed.tool_calls[0].arguments {
         ToolCallArguments::ValidJson(value) => value
             .get("location")
-            .and_then(|v| v.as_str())
+            .and_then(|value| value.as_str())
             .map(str::to_owned),
         ToolCallArguments::InvalidJson(raw) => {
             bail!("expected ValidJson, got InvalidJson: {raw}");
@@ -1381,7 +1381,7 @@ fn mistral3_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
     let location = match &parsed.tool_calls[0].arguments {
         ToolCallArguments::ValidJson(value) => value
             .get("location")
-            .and_then(|v| v.as_str())
+            .and_then(|value| value.as_str())
             .map(str::to_owned),
         ToolCallArguments::InvalidJson(raw) => {
             bail!("expected ValidJson, got InvalidJson: {raw}");
@@ -1801,7 +1801,7 @@ Paris\n\
     let location = match &parsed.tool_calls[0].arguments {
         ToolCallArguments::ValidJson(value) => value
             .get("location")
-            .and_then(|v| v.as_str())
+            .and_then(|value| value.as_str())
             .map(str::to_owned),
         ToolCallArguments::InvalidJson(raw) => {
             bail!("expected ValidJson, got InvalidJson: {raw}");
