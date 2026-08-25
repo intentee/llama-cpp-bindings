@@ -1,3 +1,7 @@
+#![expect(
+    clippy::unnecessary_wraps,
+    reason = "harness trial functions must return Result to satisfy LlamaTestFn registration"
+)]
 mod backend_initialization;
 mod chat_protocol;
 mod context_state;

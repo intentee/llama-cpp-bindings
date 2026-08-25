@@ -43,11 +43,5 @@ system-ggml-static = ["system-ggml", "llama-cpp-bindings-sys/system-ggml-static"
 [target.'cfg(all(target_os = "macos", any(target_arch = "aarch64", target_arch = "arm64")))'.dependencies]
 llama-cpp-bindings-sys = { workspace = true, features = ["metal"] }
 
-[lints.rust]
-unsafe_op_in_unsafe_fn = "warn"
-unused_qualifications = "warn"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
+[lints]
+workspace = true

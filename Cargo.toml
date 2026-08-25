@@ -54,3 +54,12 @@ serial_test = "=3.4.0"
 syn = { version = "=2.0.117", features = ["full"] }
 thiserror = "=2.0.18"
 toktrie = "=1.7.0"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

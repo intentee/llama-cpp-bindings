@@ -79,3 +79,6 @@ shared-stdcxx = ["llama-cpp-bindings-build/shared-stdcxx"]
 static-stdcxx = ["llama-cpp-bindings-build/static-stdcxx"]
 system-ggml = ["llama-cpp-bindings-build/system-ggml"]
 system-ggml-static = ["system-ggml", "llama-cpp-bindings-build/system-ggml-static"]
+
+[lints]
+workspace = true

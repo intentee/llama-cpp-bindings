@@ -1,3 +1,7 @@
+#![cfg_attr(
+    not(test),
+    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
+)]
 pub mod build_user_prompt_with_media_marker;
 pub mod chunk_token_breakdown;
 pub mod classify_sample_loop;

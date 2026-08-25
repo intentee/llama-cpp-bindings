@@ -10,16 +10,5 @@ repository.workspace = true
 llama-cpp-bindings-sys = { workspace = true }
 thiserror = { workspace = true }
 
-[lints.rust]
-unsafe_op_in_unsafe_fn = "warn"
-unused_qualifications = "warn"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
-
-unwrap_used = "deny"
-expect_used = "deny"
-panic = "deny"
-indexing_slicing = "deny"
+[lints]
+workspace = true

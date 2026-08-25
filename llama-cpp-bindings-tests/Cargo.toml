@@ -26,12 +26,5 @@ metal = ["llama-cpp-bindings/metal"]
 vulkan = ["llama-cpp-bindings/vulkan"]
 rocm = ["llama-cpp-bindings/rocm"]
 
-[lints.rust]
-unsafe_op_in_unsafe_fn = "warn"
-unused_qualifications = "warn"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }
-nursery = { level = "warn", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-unnecessary_wraps = "allow"
+[lints]
+workspace = true
