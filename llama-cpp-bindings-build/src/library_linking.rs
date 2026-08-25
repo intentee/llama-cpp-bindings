@@ -302,6 +302,7 @@ fn link_apple_frameworks(_variant: AppleVariant) {
 
 #[cfg(test)]
 mod native_link_graph_tests {
+    #[cfg(feature = "cuda")]
     use super::NativeLibrary;
     use super::native_libraries;
 
