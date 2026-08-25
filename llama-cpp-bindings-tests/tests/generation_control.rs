@@ -528,7 +528,7 @@ fn grammar_lazy_with_root_not_found_returns_error(fixture: &LlamaFixture<'_>) ->
     let result =
         LlamaSampler::grammar_lazy(fixture.model, "expr ::= \"hello\"", "root", &patterns, &[]);
 
-    assert!(matches!(result, Err(GrammarError::RootNotFound)));
+    assert_eq!(result.err(), Some(GrammarError::RootNotFound));
 
     Ok(())
 }
@@ -546,10 +546,12 @@ fn grammar_lazy_with_null_byte_in_pattern_returns_error(fixture: &LlamaFixture<'
     let result =
         LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hello\"", "root", &patterns, &[]);
 
-    assert!(matches!(
-        result,
-        Err(GrammarError::TriggerPatternContainsNul(_))
-    ));
+    assert_eq!(
+        result.err(),
+        Some(GrammarError::TriggerPatternContainsNul(
+            std::ffi::CString::new("hel lo").expect_err("the pattern carries a nul byte")
+        ))
+    );
 
     Ok(())
 }
@@ -600,7 +602,13 @@ fn grammar_lazy_with_null_byte_in_grammar_returns_error(fixture: &LlamaFixture<'
     let result =
         LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hel\0lo\"", "root", &[], &[]);
 
-    assert!(matches!(result, Err(GrammarError::GrammarContainsNul(_))));
+    assert_eq!(
+        result.err(),
+        Some(GrammarError::GrammarContainsNul(
+            std::ffi::CString::new("root ::= \"hel lo\"")
+                .expect_err("the grammar carries a nul byte")
+        ))
+    );
 
     Ok(())
 }

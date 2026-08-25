@@ -649,10 +649,13 @@ fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
 
     let result = chunks.eval_chunks(mtmd_ctx, &llama_ctx, 0, 0, huge_batch, false);
 
-    assert!(matches!(
+    assert_eq!(
         result,
-        Err(MtmdEvalError::BatchSizeExceedsContextLimit { .. })
-    ));
+        Err(MtmdEvalError::BatchSizeExceedsContextLimit {
+            requested: huge_batch,
+            context_max: llama_ctx.n_batch(),
+        })
+    );
 
     Ok(())
 }

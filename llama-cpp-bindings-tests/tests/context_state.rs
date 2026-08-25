@@ -614,7 +614,7 @@ fn get_logits_ith_returns_token_not_initialized_for_unknown_index(
 
     let result = context.get_logits_ith(7);
 
-    assert!(matches!(result, Err(LogitsError::TokenNotInitialized(7))));
+    assert_eq!(result, Err(LogitsError::TokenNotInitialized(7)));
 
     Ok(())
 }
@@ -640,10 +640,13 @@ fn get_logits_ith_returns_token_index_exceeds_context_for_huge_index(
     context.mark_logits_initialized(huge_index);
     let result = context.get_logits_ith(huge_index);
 
-    assert!(matches!(
+    assert_eq!(
         result,
-        Err(LogitsError::TokenIndexExceedsContext { .. })
-    ));
+        Err(LogitsError::TokenIndexExceedsContext {
+            token_index: u32::try_from(huge_index)?,
+            context_size: context.n_ctx(),
+        })
+    );
 
     Ok(())
 }
@@ -882,10 +885,10 @@ fn kv_cache_seq_add_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) ->
 
     let result = context.kv_cache_seq_add(0, Some(0), None, 1);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqAddError::IncompatibleRopeType,
-    ));
+        KvCacheSeqAddError::IncompatibleRopeType
+    );
 
     Ok(())
 }
@@ -914,10 +917,10 @@ fn kv_cache_seq_div_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) ->
     let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
     let result = context.kv_cache_seq_div(0, Some(0), None, divisor);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqDivError::IncompatibleRopeType,
-    ));
+        KvCacheSeqDivError::IncompatibleRopeType
+    );
 
     Ok(())
 }
@@ -1090,10 +1093,12 @@ fn copy_kv_cache_seq_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) ->
 
     let result = context.copy_kv_cache_seq(0, 1, Some(u32::MAX), None);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::P0TooLarge(_),
-    ));
+        KvCacheConversionError::P0TooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
@@ -1135,10 +1140,12 @@ fn copy_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) ->
 
     let result = context.copy_kv_cache_seq(0, 1, Some(0), Some(u32::MAX));
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::P1TooLarge(_),
-    ));
+        KvCacheConversionError::P1TooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
@@ -1180,10 +1187,12 @@ fn clear_kv_cache_seq_rejects_src_exceeding_i32_max(fixture: &LlamaFixture<'_>) 
 
     let result = context.clear_kv_cache_seq(Some(u32::MAX), None, None);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::SeqIdTooLarge(_),
-    ));
+        KvCacheConversionError::SeqIdTooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
@@ -1225,10 +1234,12 @@ fn clear_kv_cache_seq_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -
 
     let result = context.clear_kv_cache_seq(Some(0), Some(u32::MAX), None);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::P0TooLarge(_),
-    ));
+        KvCacheConversionError::P0TooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
@@ -1270,10 +1281,12 @@ fn clear_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -
 
     let result = context.clear_kv_cache_seq(Some(0), Some(0), Some(u32::MAX));
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::P1TooLarge(_),
-    ));
+        KvCacheConversionError::P1TooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
@@ -1315,10 +1328,12 @@ fn kv_cache_seq_add_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
 
     let result = context.kv_cache_seq_add(0, Some(u32::MAX), None, 1);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqAddError::P0TooLarge(_),
-    ));
+        KvCacheSeqAddError::P0TooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
@@ -1360,10 +1375,12 @@ fn kv_cache_seq_add_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
 
     let result = context.kv_cache_seq_add(0, Some(0), Some(u32::MAX), 1);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqAddError::P1TooLarge(_),
-    ));
+        KvCacheSeqAddError::P1TooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
@@ -1406,10 +1423,12 @@ fn kv_cache_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
     let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
     let result = context.kv_cache_seq_div(0, Some(u32::MAX), None, divisor);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqDivError::P0TooLarge(_),
-    ));
+        KvCacheSeqDivError::P0TooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
@@ -1452,10 +1471,12 @@ fn kv_cache_seq_div_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
     let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
     let result = context.kv_cache_seq_div(0, Some(0), Some(u32::MAX), divisor);
 
-    assert!(matches!(
+    assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqDivError::P1TooLarge(_),
-    ));
+        KvCacheSeqDivError::P1TooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }
