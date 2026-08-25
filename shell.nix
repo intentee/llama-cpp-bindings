@@ -12,7 +12,6 @@ pkgs.mkShell {
     rustup
     cmake
     gcc
-    clang
     clang-tools
     cppcheck
     pkg-config
