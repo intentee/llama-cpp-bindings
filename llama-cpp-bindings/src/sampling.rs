@@ -14,6 +14,7 @@ use crate::token::data_array::LlamaTokenDataArray;
 use crate::token::logit_bias::LlamaLogitBias;
 use crate::{GrammarError, SampleError, SamplerAcceptError, SamplingError};
 use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
 
 fn check_sampler_accept_status(
     status: llama_cpp_bindings_sys::llama_rs_sampler_accept_status,
@@ -532,8 +533,15 @@ impl LlamaSampler {
         grammar_str: &str,
         grammar_root: &str,
     ) -> Result<SanitizedGrammar, GrammarError> {
-        if !grammar_str.contains(grammar_root) {
-            return Err(GrammarError::RootNotFound);
+        match llama_cpp_gbnf::validate_gbnf::validate_gbnf(grammar_str, grammar_root) {
+            Ok(()) => {}
+            Err(GbnfValidationError::RootSymbolMissing { .. }) => {
+                return Err(GrammarError::RootNotFound);
+            }
+            Err(GbnfValidationError::GrammarContainsNul(nul_error)) => {
+                return Err(GrammarError::GrammarContainsNul(nul_error));
+            }
+            Err(rejected) => return Err(GrammarError::GrammarRejected(rejected)),
         }
 
         Ok(SanitizedGrammar {

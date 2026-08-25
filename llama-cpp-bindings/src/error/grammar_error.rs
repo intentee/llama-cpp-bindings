@@ -15,6 +15,8 @@ pub enum GrammarError {
     TokEnvUnavailable(#[from] TokenToStringError),
     #[error("grammar root not found in grammar string")]
     RootNotFound,
+    #[error("the grammar was rejected by the GBNF parser: {0}")]
+    GrammarRejected(#[source] llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError),
     #[error("the grammar string contains an interior NUL byte")]
     GrammarContainsNul(#[source] NulError),
     #[error("a lazy-grammar trigger pattern contains an interior NUL byte")]
