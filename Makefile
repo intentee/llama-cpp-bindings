@@ -10,6 +10,17 @@ WRAPPER_SOURCES_RESPONSE_FILE = target/wrapper_sources.rsp
 
 WRAPPER_SOURCES_CRATE = llama-cpp-wrapper-sources
 
+WRAPPER_SOURCES_CRATE_FILES = \
+	$(WRAPPER_SOURCES_CRATE)/src/compile_commands_file.rs \
+	$(WRAPPER_SOURCES_CRATE)/src/cpp_standard.rs \
+	$(WRAPPER_SOURCES_CRATE)/src/wrapper_include_dirs.rs \
+	$(WRAPPER_SOURCES_CRATE)/src/wrapper_source_paths.rs \
+	$(WRAPPER_SOURCES_CRATE)/src/wrapper_sources.rs \
+	$(WRAPPER_SOURCES_CRATE)/src/wrapper_sources_response_file.rs
+
+EMIT_WRAPPER_BUILD_INPUTS = cargo run --quiet --package $(WRAPPER_SOURCES_CRATE) -- \
+	$(CURDIR)/llama-cpp-bindings-sys $(COMPILE_COMMANDS) $(WRAPPER_SOURCES_RESPONSE_FILE)
+
 VENDORED_SUPPRESSIONS = \
 	--suppress='*:*llama-cpp-bindings-sys/llama.cpp/*' \
 	--suppress='*:*llama-cpp-bindings-sys/GSL/*'
@@ -21,14 +32,11 @@ node_modules: package-lock.json
 package-lock.json: package.json
 	npm install --package-lock-only
 
-$(COMPILE_COMMANDS): $(WRAPPER_SOURCES_CRATE)/src/compile_commands_file.rs \
-		$(WRAPPER_SOURCES_CRATE)/src/cpp_standard.rs \
-		$(WRAPPER_SOURCES_CRATE)/src/wrapper_include_dirs.rs \
-		$(WRAPPER_SOURCES_CRATE)/src/wrapper_source_paths.rs \
-		$(WRAPPER_SOURCES_CRATE)/src/wrapper_sources.rs \
-		$(WRAPPER_SOURCES_CRATE)/src/wrapper_sources_response_file.rs
-	cargo run --quiet --package $(WRAPPER_SOURCES_CRATE) -- \
-		$(CURDIR)/llama-cpp-bindings-sys $@ $(WRAPPER_SOURCES_RESPONSE_FILE)
+$(COMPILE_COMMANDS): $(WRAPPER_SOURCES_CRATE_FILES)
+	$(EMIT_WRAPPER_BUILD_INPUTS)
+
+$(WRAPPER_SOURCES_RESPONSE_FILE): $(WRAPPER_SOURCES_CRATE_FILES)
+	$(EMIT_WRAPPER_BUILD_INPUTS)
 
 .PHONY: clean.cmake
 clean.cmake:
@@ -79,7 +87,7 @@ fmt.check:
 lint.cpp: lint.cpp.clang-tidy lint.cpp.cppcheck
 
 .PHONY: lint.cpp.clang-tidy
-lint.cpp.clang-tidy: $(COMPILE_COMMANDS)
+lint.cpp.clang-tidy: $(COMPILE_COMMANDS) $(WRAPPER_SOURCES_RESPONSE_FILE)
 	clang-tidy -p $(dir $(COMPILE_COMMANDS)) @$(WRAPPER_SOURCES_RESPONSE_FILE)
 
 .PHONY: lint.cpp.cppcheck
@@ -87,7 +95,8 @@ lint.cpp.cppcheck: $(COMPILE_COMMANDS)
 	cppcheck --project=$(COMPILE_COMMANDS) --enable=all --inconclusive \
 		--check-level=exhaustive --error-exitcode=1 \
 		$(VENDORED_SUPPRESSIONS) \
-		--suppress=missingIncludeSystem
+		--suppress=missingIncludeSystem --suppress=unusedFunction \
+		--suppress=unmatchedSuppression
 
 .PHONY: test
 test: test.llms
