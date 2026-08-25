@@ -81,7 +81,10 @@ coverage: node_modules
 		--gated llama-cpp-error-recorder=100 \
 		--gated llama-cpp-ffi-status=100 \
 		--gated llama-cpp-gbnf=100 \
-		--gated llama-cpp-log-decoder=100
+		--gated llama-cpp-log-decoder=100 \
+		--gated llama-cpp-test-harness=99 \
+		--gated llama-cpp-test-harness-macros=100 \
+		--gated llama-cpp-wrapper-sources=100
 
 .PHONY: coverage-clean
 coverage-clean:
