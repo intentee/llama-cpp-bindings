@@ -1,3 +1,7 @@
+#![cfg_attr(
+    not(test),
+    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
+)]
 mod android_ndk;
 mod apple_variant;
 mod bindgen_config;
@@ -29,6 +33,13 @@ pub enum BuildError {
     AndroidNdk(#[from] android_ndk::AndroidNdkDetectionError),
     #[error("bindgen failed: {0}")]
     Bindgen(#[source] bindgen::BindgenError),
+    #[error(
+        "bindgen never saw field {type_name}::{field_name}, so it can no longer be kept private"
+    )]
+    PrivatizedFieldMissing {
+        type_name: &'static str,
+        field_name: &'static str,
+    },
     #[error("generated bindings could not be written: {0}")]
     BindingsWrite(#[source] std::io::Error),
     #[error("native compiler setup failed: {0}")]

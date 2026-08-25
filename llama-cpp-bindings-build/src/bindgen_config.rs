@@ -1,4 +1,7 @@
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 use crate::BuildError;
 use crate::android_ndk::AndroidNdk;
@@ -53,8 +56,55 @@ const DEPRECATED_FUNCTIONS: &[&str] = &[
     "mtmd_image_tokens_get_ny",
 ];
 
-#[derive(Debug)]
-struct BindingCallbacks;
+struct PrivatizedField {
+    type_name: &'static str,
+    field_name: &'static str,
+}
+
+const PRIVATIZED_FIELDS: &[PrivatizedField] = &[
+    PrivatizedField {
+        type_name: "llama_context_params",
+        field_name: "defrag_thold",
+    },
+    PrivatizedField {
+        type_name: "mtmd_context_params",
+        field_name: "image_marker",
+    },
+];
+
+#[derive(Clone, Debug)]
+struct BindingCallbacks {
+    privatized_field_hits: Arc<Vec<AtomicBool>>,
+}
+
+impl BindingCallbacks {
+    fn new() -> Self {
+        Self {
+            privatized_field_hits: Arc::new(
+                PRIVATIZED_FIELDS
+                    .iter()
+                    .map(|_| AtomicBool::new(false))
+                    .collect(),
+            ),
+        }
+    }
+
+    fn verify_every_privatized_field_was_found(&self) -> Result<(), BuildError> {
+        for (field, was_found) in PRIVATIZED_FIELDS
+            .iter()
+            .zip(self.privatized_field_hits.iter())
+        {
+            if !was_found.load(Ordering::Relaxed) {
+                return Err(BuildError::PrivatizedFieldMissing {
+                    type_name: field.type_name,
+                    field_name: field.field_name,
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
 
 impl bindgen::callbacks::ParseCallbacks for BindingCallbacks {
     fn header_file(&self, filename: &str) {
@@ -73,12 +123,18 @@ impl bindgen::callbacks::ParseCallbacks for BindingCallbacks {
         &self,
         info: bindgen::callbacks::FieldInfo<'_>,
     ) -> Option<bindgen::FieldVisibilityKind> {
-        match (info.type_name, info.field_name) {
-            ("llama_context_params", "defrag_thold") | ("mtmd_context_params", "image_marker") => {
-                Some(bindgen::FieldVisibilityKind::Private)
+        for (field, was_found) in PRIVATIZED_FIELDS
+            .iter()
+            .zip(self.privatized_field_hits.iter())
+        {
+            if field.type_name == info.type_name && field.field_name == info.field_name {
+                was_found.store(true, Ordering::Relaxed);
+
+                return Some(bindgen::FieldVisibilityKind::Private);
             }
-            _ => None,
         }
+
+        None
     }
 }
 
@@ -89,7 +145,8 @@ pub fn generate_bindings(
     target_triple: &str,
     android_ndk: Option<&AndroidNdk>,
 ) -> Result<(), BuildError> {
-    let mut builder = create_base_builder(llama_src);
+    let callbacks = BindingCallbacks::new();
+    let mut builder = create_base_builder(llama_src, callbacks.clone());
 
     if target_os.is_android()
         && let Some(ndk) = android_ndk
@@ -103,6 +160,8 @@ pub fn generate_bindings(
 
     let bindings = builder.generate().map_err(BuildError::Bindgen)?;
 
+    callbacks.verify_every_privatized_field_was_found()?;
+
     bindings
         .write_to_file(out_dir.join("bindings.rs"))
         .map_err(BuildError::BindingsWrite)?;
@@ -112,13 +171,12 @@ pub fn generate_bindings(
     Ok(())
 }
 
-fn create_base_builder(llama_src: &Path) -> bindgen::Builder {
+fn create_base_builder(llama_src: &Path, callbacks: BindingCallbacks) -> bindgen::Builder {
     let mut builder = bindgen::Builder::default()
         .header("wrapper.h")
-        .header("wrapper_mtmd.h")
         .clang_arg(format!("-I{}", llama_src.join("include").display()))
         .clang_arg(format!("-I{}", llama_src.join("ggml/include").display()))
-        .parse_callbacks(Box::new(BindingCallbacks))
+        .parse_callbacks(Box::new(callbacks))
         .derive_partialeq(true)
         .allowlist_function("ggml_.*")
         .allowlist_type("ggml_.*")
@@ -126,8 +184,6 @@ fn create_base_builder(llama_src: &Path) -> bindgen::Builder {
         .allowlist_type("gguf_.*")
         .allowlist_function("llama_.*")
         .allowlist_type("llama_.*")
-        .allowlist_function("llama_rs_.*")
-        .allowlist_type("llama_rs_.*")
         .allowlist_function("mtmd_.*")
         .allowlist_type("mtmd_.*")
         .blocklist_function("ggml_fopen")
@@ -137,11 +193,10 @@ fn create_base_builder(llama_src: &Path) -> bindgen::Builder {
         .blocklist_type("FILE")
         .blocklist_type("_IO_.*")
         .blocklist_type("_iobuf")
-        .blocklist_type("__BindgenBitfieldUnit")
         .prepend_enum_name(false);
 
     for function in DEPRECATED_FUNCTIONS {
-        builder = builder.blocklist_function(format!("^{function}$"));
+        builder = builder.blocklist_function(function);
     }
 
     builder
