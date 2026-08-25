@@ -32,6 +32,7 @@ pub fn configure_and_build(context: &BuildContext) -> Result<PathBuf, BuildError
     let backends_dir = configure_dynamic_backends(&mut config, &context.cmake_dir)?;
 
     config.static_crt(context.static_crt);
+    configure_msvc_config_flags(&mut config, context.target_os, &context.profile);
     config
         .out_dir(&context.cmake_dir)
         .profile(&context.profile)
@@ -141,6 +142,36 @@ fn map_cpu_feature_to_ggml(feature: &str) -> Option<&'static str> {
         "sse4.2" => Some("GGML_SSE42"),
         _ => None,
     }
+}
+
+/// The per-configuration MSVC flags `cmake` overwrites with the cc-rs argument list whenever the
+/// generator is left unset on an MSVC target. Losing `/DNDEBUG` leaves llama.cpp's debug-only
+/// `GGML_ABORT` paths live, so functions such as `llama_get_embeddings_ith` abort the process
+/// instead of returning the null pointer their callers expect.
+fn msvc_config_flags(target_os: TargetOs, profile: &str) -> Option<&'static str> {
+    if !target_os.is_msvc() {
+        return None;
+    }
+
+    match profile {
+        "Debug" => Some("/Ob0 /Od /RTC1"),
+        "MinSizeRel" => Some("/O1 /Ob1 /DNDEBUG"),
+        "Release" => Some("/O2 /Ob2 /DNDEBUG"),
+        "RelWithDebInfo" => Some("/O2 /Ob1 /DNDEBUG"),
+        _ => None,
+    }
+}
+
+/// Defining these variables ourselves is what stops `cmake` from replacing them: it injects its own
+/// value only when the caller has not already defined the variable.
+fn configure_msvc_config_flags(config: &mut Config, target_os: TargetOs, profile: &str) {
+    let Some(flags) = msvc_config_flags(target_os, profile) else {
+        return;
+    };
+    let config_suffix = profile.to_uppercase();
+
+    config.define(format!("CMAKE_C_FLAGS_{config_suffix}"), flags);
+    config.define(format!("CMAKE_CXX_FLAGS_{config_suffix}"), flags);
 }
 
 fn configure_shared_libs(config: &mut Config, build_shared_libs: bool) {
@@ -267,6 +298,42 @@ fn configure_system_ggml(config: &mut Config) -> Result<(), BuildError> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod msvc_config_flag_tests {
+    use crate::target_os::TargetOs;
+    use crate::windows_variant::WindowsVariant;
+
+    use super::msvc_config_flags;
+
+    #[test]
+    fn every_msvc_configuration_keeps_llama_cpp_assertions_compiled_out() {
+        let msvc = TargetOs::Windows(WindowsVariant::Msvc);
+
+        assert_eq!(msvc_config_flags(msvc, "Debug"), Some("/Ob0 /Od /RTC1"));
+        assert_eq!(
+            msvc_config_flags(msvc, "MinSizeRel"),
+            Some("/O1 /Ob1 /DNDEBUG")
+        );
+        assert_eq!(
+            msvc_config_flags(msvc, "Release"),
+            Some("/O2 /Ob2 /DNDEBUG")
+        );
+        assert_eq!(
+            msvc_config_flags(msvc, "RelWithDebInfo"),
+            Some("/O2 /Ob1 /DNDEBUG")
+        );
+    }
+
+    #[test]
+    fn targets_and_profiles_without_msvc_defaults_keep_the_flags_cmake_chose() {
+        assert_eq!(msvc_config_flags(TargetOs::Linux, "Release"), None);
+        assert_eq!(
+            msvc_config_flags(TargetOs::Windows(WindowsVariant::Msvc), "Fastest"),
+            None
+        );
+    }
 }
 
 #[cfg(test)]
