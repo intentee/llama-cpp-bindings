@@ -109,7 +109,14 @@ mod tests {
                 .unwrap_or_default(),
             WRAPPER_INCLUDE_DIRS
                 .iter()
-                .map(|include_dir| format!("-I/repo/llama-cpp-bindings-sys/{include_dir}"))
+                .map(|include_dir| {
+                    format!(
+                        "-I{}",
+                        Path::new("/repo/llama-cpp-bindings-sys")
+                            .join(include_dir)
+                            .display()
+                    )
+                })
                 .collect::<Vec<String>>()
         );
     }
