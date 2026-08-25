@@ -8,6 +8,7 @@ use llama_cpp_error_recorder::RecordedError;
 
 use crate::context::LlamaContext;
 use crate::model::LlamaModel;
+use crate::sanitized_grammar::SanitizedGrammar;
 use crate::token::LlamaToken;
 use crate::token::data_array::LlamaTokenDataArray;
 use crate::token::logit_bias::LlamaLogitBias;
@@ -212,9 +213,7 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
 }
 
 fn checked_usize_as_i32_sampling(value: usize) -> Result<i32, SamplingError> {
-    i32::try_from(value).map_err(|convert_error| {
-        SamplingError::IntegerOverflow(format!("value exceeds i32::MAX: {convert_error}"))
-    })
+    i32::try_from(value).map_err(SamplingError::IntegerOverflow)
 }
 
 pub struct LlamaSampler {
@@ -461,8 +460,10 @@ impl LlamaSampler {
         grammar_str: &str,
         grammar_root: &str,
     ) -> Result<Self, GrammarError> {
-        let (grammar_str, grammar_root) =
-            Self::sanitize_grammar_strings(grammar_str, grammar_root)?;
+        let SanitizedGrammar {
+            grammar: grammar_str,
+            root: grammar_root,
+        } = Self::sanitize_grammar_strings(grammar_str, grammar_root)?;
         let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = std::ptr::null_mut();
         let mut error_ptr: *mut c_char = std::ptr::null_mut();
 
@@ -488,8 +489,10 @@ impl LlamaSampler {
         trigger_patterns: &[String],
         trigger_tokens: &[LlamaToken],
     ) -> Result<Self, GrammarError> {
-        let (grammar_str, grammar_root) =
-            Self::sanitize_grammar_strings(grammar_str, grammar_root)?;
+        let SanitizedGrammar {
+            grammar: grammar_str,
+            root: grammar_root,
+        } = Self::sanitize_grammar_strings(grammar_str, grammar_root)?;
         let trigger_patterns = Self::sanitize_trigger_patterns(trigger_patterns)?;
         let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = std::ptr::null_mut();
         let mut error_ptr: *mut c_char = std::ptr::null_mut();
@@ -528,15 +531,15 @@ impl LlamaSampler {
     fn sanitize_grammar_strings(
         grammar_str: &str,
         grammar_root: &str,
-    ) -> Result<(CString, CString), GrammarError> {
+    ) -> Result<SanitizedGrammar, GrammarError> {
         if !grammar_str.contains(grammar_root) {
             return Err(GrammarError::RootNotFound);
         }
 
-        let grammar = CString::new(grammar_str).map_err(GrammarError::GrammarNullBytes)?;
-        let root = CString::new(grammar_root).map_err(GrammarError::GrammarNullBytes)?;
-
-        Ok((grammar, root))
+        Ok(SanitizedGrammar {
+            grammar: CString::new(grammar_str).map_err(GrammarError::GrammarContainsNul)?,
+            root: CString::new(grammar_root).map_err(GrammarError::GrammarContainsNul)?,
+        })
     }
 
     fn sanitize_trigger_patterns(
@@ -544,7 +547,9 @@ impl LlamaSampler {
     ) -> Result<Vec<CString>, GrammarError> {
         trigger_patterns
             .iter()
-            .map(|pattern| CString::new(pattern.as_str()).map_err(GrammarError::GrammarNullBytes))
+            .map(|pattern| {
+                CString::new(pattern.as_str()).map_err(GrammarError::TriggerPatternContainsNul)
+            })
             .collect()
     }
 
@@ -560,7 +565,9 @@ impl LlamaSampler {
     ) -> Result<Self, GrammarError> {
         let seq_breakers: Vec<CString> = seq_breakers
             .into_iter()
-            .map(|seq_breaker| CString::new(seq_breaker.as_ref()))
+            .map(|seq_breaker| {
+                CString::new(seq_breaker.as_ref()).map_err(GrammarError::SequenceBreakerContainsNul)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let mut seq_breaker_pointers: Vec<*const c_char> = seq_breakers
             .iter()
@@ -672,8 +679,8 @@ impl Drop for LlamaSampler {
 
 #[cfg(test)]
 mod tests {
+    use crate::sanitized_grammar::SanitizedGrammar;
     use std::ffi::CString;
-    use std::mem::Discriminant;
 
     use llama_cpp_error_recorder::RecordedError;
 
@@ -740,45 +747,44 @@ mod tests {
         assert!(grammar_callback_error_to_accept_result(None).is_ok());
     }
 
-    fn nul_error() -> std::ffi::NulError {
-        CString::new(b"a\0b".to_vec()).unwrap_err()
-    }
-
-    fn root_not_found_disc() -> Discriminant<GrammarError> {
-        std::mem::discriminant(&GrammarError::RootNotFound)
-    }
-
-    fn grammar_null_bytes_disc() -> Discriminant<GrammarError> {
-        std::mem::discriminant(&GrammarError::GrammarNullBytes(nul_error()))
-    }
-
     #[test]
     fn sanitize_grammar_strings_valid() {
-        let result = LlamaSampler::sanitize_grammar_strings("root ::= \"hello\"", "root");
-
-        assert!(result.is_ok());
+        assert_eq!(
+            LlamaSampler::sanitize_grammar_strings("root ::= \"hello\"", "root"),
+            Ok(SanitizedGrammar {
+                grammar: CString::new("root ::= \"hello\"").expect("the literal has no nul byte"),
+                root: CString::new("root").expect("the literal has no nul byte"),
+            })
+        );
     }
 
     #[test]
     fn sanitize_grammar_strings_root_not_found() {
-        let err = LlamaSampler::sanitize_grammar_strings("expr ::= \"hello\"", "root").unwrap_err();
-
-        assert_eq!(std::mem::discriminant(&err), root_not_found_disc());
+        assert_eq!(
+            LlamaSampler::sanitize_grammar_strings("expr ::= \"hello\"", "root"),
+            Err(GrammarError::RootNotFound)
+        );
     }
 
     #[test]
     fn sanitize_grammar_strings_null_byte_in_grammar() {
-        let err = LlamaSampler::sanitize_grammar_strings("root ::= \"\0\"", "root").unwrap_err();
-
-        assert_eq!(std::mem::discriminant(&err), grammar_null_bytes_disc());
+        assert_eq!(
+            LlamaSampler::sanitize_grammar_strings("root ::= \"\0\"", "root"),
+            Err(GrammarError::GrammarContainsNul(
+                CString::new("root ::= \"\0\"").expect_err("the grammar carries a nul byte")
+            ))
+        );
     }
 
     #[test]
     fn sanitize_grammar_strings_null_byte_in_root() {
-        let err =
-            LlamaSampler::sanitize_grammar_strings("ro\0ot ::= \"hello\"", "ro\0ot").unwrap_err();
-
-        assert_eq!(std::mem::discriminant(&err), grammar_null_bytes_disc());
+        assert_eq!(
+            LlamaSampler::sanitize_grammar_strings("ro\0ot ::= \"hello\"", "ro\0ot"),
+            Err(GrammarError::GrammarContainsNul(
+                CString::new("ro\0ot ::= \"hello\"").expect_err("the grammar carries a nul byte")
+            )),
+            "the grammar is checked before the root, so the grammar reports first"
+        );
     }
 
     #[test]
@@ -802,9 +808,12 @@ mod tests {
     #[test]
     fn sanitize_trigger_patterns_null_byte() {
         let patterns = vec!["hel\0lo".to_string()];
-        let err = LlamaSampler::sanitize_trigger_patterns(&patterns).unwrap_err();
-
-        assert_eq!(std::mem::discriminant(&err), grammar_null_bytes_disc());
+        assert_eq!(
+            LlamaSampler::sanitize_trigger_patterns(&patterns),
+            Err(GrammarError::TriggerPatternContainsNul(
+                CString::new("hel\0lo").expect_err("the pattern carries a nul byte")
+            ))
+        );
     }
 
     #[test]

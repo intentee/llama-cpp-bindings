@@ -50,6 +50,7 @@ pub mod sampled_token;
 pub mod sampled_token_classifier;
 pub mod sampled_token_section;
 pub mod sampling;
+pub mod sanitized_grammar;
 pub mod send_logs_to_log;
 pub mod streaming_json_probe;
 pub mod streaming_markers;

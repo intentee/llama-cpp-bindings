@@ -15,12 +15,12 @@ pub enum GrammarError {
     TokEnvUnavailable(#[from] TokenToStringError),
     #[error("grammar root not found in grammar string")]
     RootNotFound,
-    #[error("grammar string or root contains null bytes: {0}")]
-    GrammarNullBytes(NulError),
-    #[error("string contains null bytes: {0}")]
-    NulError(#[from] NulError),
-    #[error("integer overflow: {0}")]
-    IntegerOverflow(String),
+    #[error("the grammar string contains an interior NUL byte")]
+    GrammarContainsNul(#[source] NulError),
+    #[error("a lazy-grammar trigger pattern contains an interior NUL byte")]
+    TriggerPatternContainsNul(#[source] NulError),
+    #[error("a DRY sequence breaker contains an interior NUL byte")]
+    SequenceBreakerContainsNul(#[source] NulError),
     #[error("the llguidance parser factory could not be created: {message}")]
     LlguidanceFactoryUnavailable { message: String },
     #[error("the llguidance grammar could not be parsed: {message}")]
