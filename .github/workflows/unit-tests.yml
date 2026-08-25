@@ -34,7 +34,6 @@ jobs:
       run:
         shell: bash
     env:
-      LLAMA_DISABLE_CCACHE: '1'
       RUST_BACKTRACE: '1'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -50,13 +49,16 @@ jobs:
   cppcheck:
     name: cppcheck
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           submodules: recursive
 
-      - uses: ./.github/actions/install-cpp-lint-tools
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: target/cppcheck-src
+          key: cppcheck-${{ runner.os }}-${{ hashFiles('Makefile') }}
 
       - uses: ./.github/actions/install-rust-toolchain
 
@@ -71,8 +73,8 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: ./.github/actions/install-cpp-lint-tools
-
       - uses: ./.github/actions/install-rust-toolchain
 
-      - run: make lint.cpp.clang-tidy
+      - run: make target/lint-venv/bin/clang-tidy
+
+      - run: make lint.cpp.clang-tidy CLANG_TIDY=target/lint-venv/bin/clang-tidy

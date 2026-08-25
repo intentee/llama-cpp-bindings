@@ -10,10 +10,9 @@ in
 pkgs.mkShell {
   buildInputs = with pkgs; [
     rustup
+    clang-tools
     cmake
     gcc
-    clang-tools
-    cppcheck
     pkg-config
     cargo-llvm-cov
     ccache

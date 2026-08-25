@@ -1,9 +1,0 @@
-name: install-cpp-lint-tools
-description: Install the C++ linters that the lint.cpp Makefile targets drive.
-
-runs:
-  using: composite
-  steps:
-    - name: install cpp lint tools
-      shell: bash
-      run: sudo apt-get update && sudo apt-get install -y clang-tidy cppcheck

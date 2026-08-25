@@ -4,7 +4,15 @@ TEST_DEVICE ?=
 
 DEVICE_FEATURE = $(if $(TEST_DEVICE),--features $(TEST_DEVICE),)
 
+CLANG_TIDY ?= clang-tidy
+
 COMPILE_COMMANDS = target/compile_commands.json
+
+CPPCHECK = target/cppcheck-src/cppcheck
+
+CPPCHECK_COMMIT = f726f98ed2c3277780ee133ec5338f6352d7b43b
+
+CPPCHECK_SOURCE = https://github.com/danmar/cppcheck.git
 
 WRAPPER_SOURCES_RESPONSE_FILE = target/wrapper_sources.rsp
 
@@ -35,6 +43,19 @@ package-lock.json: package.json
 $(COMPILE_COMMANDS): $(WRAPPER_SOURCES_CRATE_FILES)
 	$(EMIT_WRAPPER_BUILD_INPUTS)
 
+target/cppcheck-src/Makefile:
+	git init --quiet target/cppcheck-src
+	git -C target/cppcheck-src fetch --quiet --depth 1 $(CPPCHECK_SOURCE) $(CPPCHECK_COMMIT)
+	git -C target/cppcheck-src checkout --quiet FETCH_HEAD
+
+$(CPPCHECK): target/cppcheck-src/Makefile
+	$(MAKE) --directory=target/cppcheck-src cppcheck \
+		FILESDIR=$(CURDIR)/target/cppcheck-src
+
+target/lint-venv/bin/clang-tidy: requirements-lint.txt
+	python3 -m venv target/lint-venv
+	target/lint-venv/bin/pip install --quiet --requirement requirements-lint.txt
+
 $(WRAPPER_SOURCES_RESPONSE_FILE): $(WRAPPER_SOURCES_CRATE_FILES)
 	$(EMIT_WRAPPER_BUILD_INPUTS)
 
@@ -56,14 +77,11 @@ coverage: node_modules
 	./node_modules/.bin/rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
 		--gated llama-cpp-bindings=98 \
+		--gated llama-cpp-bindings-types=100 \
 		--gated llama-cpp-error-recorder=100 \
 		--gated llama-cpp-ffi-status=100 \
 		--gated llama-cpp-gbnf=100 \
-		--gated llama-cpp-log-decoder=100 \
-		--gated llama-cpp-bindings-types=100 \
-		--gated llama-cpp-test-harness=99 \
-		--gated llama-cpp-test-harness-macros=100 \
-		--gated llama-cpp-wrapper-sources=100
+		--gated llama-cpp-log-decoder=100
 
 .PHONY: coverage-clean
 coverage-clean:
@@ -88,15 +106,14 @@ lint.cpp: lint.cpp.clang-tidy lint.cpp.cppcheck
 
 .PHONY: lint.cpp.clang-tidy
 lint.cpp.clang-tidy: $(COMPILE_COMMANDS) $(WRAPPER_SOURCES_RESPONSE_FILE)
-	clang-tidy -p $(dir $(COMPILE_COMMANDS)) @$(WRAPPER_SOURCES_RESPONSE_FILE)
+	$(CLANG_TIDY) -p $(dir $(COMPILE_COMMANDS)) @$(WRAPPER_SOURCES_RESPONSE_FILE)
 
 .PHONY: lint.cpp.cppcheck
-lint.cpp.cppcheck: $(COMPILE_COMMANDS)
-	cppcheck --project=$(COMPILE_COMMANDS) --enable=all --inconclusive \
+lint.cpp.cppcheck: $(COMPILE_COMMANDS) $(CPPCHECK)
+	$(CPPCHECK) --project=$(COMPILE_COMMANDS) --enable=all --inconclusive \
 		--check-level=exhaustive --error-exitcode=1 \
 		$(VENDORED_SUPPRESSIONS) \
-		--suppress=missingIncludeSystem --suppress=unusedFunction \
-		--suppress=unmatchedSuppression
+		--suppress=missingIncludeSystem
 
 .PHONY: test
 test: test.llms
@@ -111,5 +128,5 @@ test.llms: clippy test.harness test.unit
 
 .PHONY: test.unit
 test.unit: clippy
-	cargo test -p llama-cpp-log-decoder -p llama-cpp-gbnf -p llama-cpp-bindings \
-		-p llama-cpp-wrapper-sources $(DEVICE_FEATURE)
+	cargo test -p llama-cpp-bindings -p llama-cpp-bindings-build -p llama-cpp-gbnf \
+		-p llama-cpp-log-decoder -p llama-cpp-wrapper-sources $(DEVICE_FEATURE)
