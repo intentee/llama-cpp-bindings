@@ -4,6 +4,7 @@ mod bindgen_config;
 mod cmake_config;
 mod cpp_wrapper;
 mod library_linking;
+mod native_library;
 mod native_sources;
 mod rebuild_tracking;
 mod target_os;

@@ -1,7 +1,8 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::fmt::Debug;
 
 use crate::model::params::LlamaModelParams;
+use crate::model::params::kv_override_entry::KvOverrideEntry;
 use crate::model::params::param_override_value::ParamOverrideValue;
 use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
@@ -22,7 +23,7 @@ impl<'model_params> KvOverrideValueIterator<'model_params> {
 }
 
 impl Iterator for KvOverrideValueIterator<'_> {
-    type Item = Result<(CString, ParamOverrideValue), UnknownKvOverrideTag>;
+    type Item = Result<KvOverrideEntry, UnknownKvOverrideTag>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let overrides = self.model_params.params.kv_overrides;
@@ -40,10 +41,9 @@ impl Iterator for KvOverrideValueIterator<'_> {
         self.current += 1;
         let value = ParamOverrideValue::try_from(&current);
 
-        Some(value.map(|value| {
-            let key = unsafe { CStr::from_ptr(current.key.as_ptr()).to_owned() };
-
-            (key, value)
+        Some(value.map(|value| KvOverrideEntry {
+            key: unsafe { CStr::from_ptr(current.key.as_ptr()).to_owned() },
+            value,
         }))
     }
 }

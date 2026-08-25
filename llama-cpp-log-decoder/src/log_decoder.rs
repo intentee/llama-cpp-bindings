@@ -6,7 +6,7 @@ use crate::log_level::LogLevel;
 use crate::log_line::LogLine;
 
 pub struct LogDecoder {
-    buffered: Option<(LogLevel, String)>,
+    buffered: Option<LogLine>,
     previous_level: LogLevel,
 }
 
@@ -32,7 +32,11 @@ impl LogDecoder {
     }
 
     fn feed_cont(&mut self, text: &str) -> DecodeResult {
-        if let Some((level, mut buffer)) = self.buffered.take() {
+        if let Some(LogLine {
+            level,
+            text: mut buffer,
+        }) = self.buffered.take()
+        {
             buffer.push_str(text);
             if let Some(without_newline) = buffer.strip_suffix('\n') {
                 DecodeResult {
@@ -43,7 +47,10 @@ impl LogDecoder {
                     anomaly: None,
                 }
             } else {
-                self.buffered = Some((level, buffer));
+                self.buffered = Some(LogLine {
+                    level,
+                    text: buffer,
+                });
                 DecodeResult {
                     output: DecodeOutput::None,
                     anomaly: None,
@@ -65,7 +72,10 @@ impl LogDecoder {
                 anomaly: Some(DecodeAnomaly::OrphanCont),
             }
         } else {
-            self.buffered = Some((level, text.to_owned()));
+            self.buffered = Some(LogLine {
+                level,
+                text: text.to_owned(),
+            });
             DecodeResult {
                 output: DecodeOutput::None,
                 anomaly: Some(DecodeAnomaly::OrphanCont),
@@ -77,7 +87,13 @@ impl LogDecoder {
         self.previous_level = level;
         let stale = self.buffered.take();
         match (text.strip_suffix('\n'), stale) {
-            (Some(without_newline), Some((stale_level, stale_text))) => DecodeResult {
+            (
+                Some(without_newline),
+                Some(LogLine {
+                    level: stale_level,
+                    text: stale_text,
+                }),
+            ) => DecodeResult {
                 output: DecodeOutput::TwoLines {
                     earlier: LogLine {
                         level: stale_level,
@@ -97,8 +113,17 @@ impl LogDecoder {
                 }),
                 anomaly: None,
             },
-            (None, Some((stale_level, stale_text))) => {
-                self.buffered = Some((level, text.to_owned()));
+            (
+                None,
+                Some(LogLine {
+                    level: stale_level,
+                    text: stale_text,
+                }),
+            ) => {
+                self.buffered = Some(LogLine {
+                    level,
+                    text: text.to_owned(),
+                });
                 DecodeResult {
                     output: DecodeOutput::Line(LogLine {
                         level: stale_level,
@@ -108,7 +133,10 @@ impl LogDecoder {
                 }
             }
             (None, None) => {
-                self.buffered = Some((level, text.to_owned()));
+                self.buffered = Some(LogLine {
+                    level,
+                    text: text.to_owned(),
+                });
                 DecodeResult {
                     output: DecodeOutput::None,
                     anomaly: None,

@@ -4,6 +4,7 @@ use std::path::Path;
 use crate::BuildError;
 use crate::apple_variant::AppleVariant;
 use crate::debug_log;
+use crate::native_library::NativeLibrary;
 use crate::target_os::TargetOs;
 use crate::windows_variant::WindowsVariant;
 
@@ -62,26 +63,47 @@ fn link_system_ggml_paths() -> Result<(), BuildError> {
 
 fn link_cmake_built_libraries(cmake_dir: &Path, build_shared_libs: bool, profile: &str) {
     emit_private_dependency_search_paths(cmake_dir, profile);
-    for (link_kind, library) in native_libraries(build_shared_libs) {
-        let link = format!("cargo:rustc-link-lib={link_kind}={library}");
+    for NativeLibrary { link_kind, name } in native_libraries(build_shared_libs) {
+        let link = format!("cargo:rustc-link-lib={link_kind}={name}");
         debug_log!("LINK {link}");
         println!("{link}");
     }
 }
 
-fn native_libraries(build_shared_libs: bool) -> Vec<(&'static str, &'static str)> {
+fn native_libraries(build_shared_libs: bool) -> Vec<NativeLibrary> {
     let cmake_kind = if build_shared_libs { "dylib" } else { "static" };
-    let mut libraries = vec![(cmake_kind, "llama-common")];
+    let mut libraries = vec![NativeLibrary {
+        link_kind: cmake_kind,
+        name: "llama-common",
+    }];
 
     if !build_shared_libs {
-        libraries.extend([("static", "llama-common-base"), ("static", "cpp-httplib")]);
+        libraries.extend([
+            NativeLibrary {
+                link_kind: "static",
+                name: "llama-common-base",
+            },
+            NativeLibrary {
+                link_kind: "static",
+                name: "cpp-httplib",
+            },
+        ]);
     }
 
-    libraries.push((cmake_kind, "mtmd"));
+    libraries.push(NativeLibrary {
+        link_kind: cmake_kind,
+        name: "mtmd",
+    });
     if !build_shared_libs {
-        libraries.push(("static", "vendor-hash"));
+        libraries.push(NativeLibrary {
+            link_kind: "static",
+            name: "vendor-hash",
+        });
     }
-    libraries.push((cmake_kind, "llama"));
+    libraries.push(NativeLibrary {
+        link_kind: cmake_kind,
+        name: "llama",
+    });
 
     if cfg!(feature = "system-ggml") {
         let ggml_kind = if cfg!(feature = "system-ggml-static") {
@@ -90,32 +112,62 @@ fn native_libraries(build_shared_libs: bool) -> Vec<(&'static str, &'static str)
             "dylib"
         };
         libraries.extend([
-            (ggml_kind, "ggml-cpu"),
-            (ggml_kind, "ggml-base"),
-            (ggml_kind, "ggml"),
+            NativeLibrary {
+                link_kind: ggml_kind,
+                name: "ggml-cpu",
+            },
+            NativeLibrary {
+                link_kind: ggml_kind,
+                name: "ggml-base",
+            },
+            NativeLibrary {
+                link_kind: ggml_kind,
+                name: "ggml",
+            },
         ]);
         return libraries;
     }
 
     if !cfg!(feature = "dynamic-backends") {
         if cfg!(feature = "cuda") {
-            libraries.push((cmake_kind, "ggml-cuda"));
+            libraries.push(NativeLibrary {
+                link_kind: cmake_kind,
+                name: "ggml-cuda",
+            });
         }
         if cfg!(feature = "metal") {
-            libraries.push((cmake_kind, "ggml-metal"));
+            libraries.push(NativeLibrary {
+                link_kind: cmake_kind,
+                name: "ggml-metal",
+            });
         }
         if cfg!(feature = "vulkan") {
-            libraries.push((cmake_kind, "ggml-vulkan"));
+            libraries.push(NativeLibrary {
+                link_kind: cmake_kind,
+                name: "ggml-vulkan",
+            });
         }
         if cfg!(feature = "rocm") {
-            libraries.push((cmake_kind, "ggml-hip"));
+            libraries.push(NativeLibrary {
+                link_kind: cmake_kind,
+                name: "ggml-hip",
+            });
         }
     }
 
     libraries.extend([
-        (cmake_kind, "ggml-cpu"),
-        (cmake_kind, "ggml-base"),
-        (cmake_kind, "ggml"),
+        NativeLibrary {
+            link_kind: cmake_kind,
+            name: "ggml-cpu",
+        },
+        NativeLibrary {
+            link_kind: cmake_kind,
+            name: "ggml-base",
+        },
+        NativeLibrary {
+            link_kind: cmake_kind,
+            name: "ggml",
+        },
     ]);
     libraries
 }
@@ -250,6 +302,7 @@ fn link_apple_frameworks(_variant: AppleVariant) {
 
 #[cfg(test)]
 mod native_link_graph_tests {
+    use super::NativeLibrary;
     use super::native_libraries;
 
     #[test]
@@ -257,16 +310,46 @@ mod native_link_graph_tests {
         assert_eq!(
             native_libraries(false),
             vec![
-                ("static", "llama-common"),
-                ("static", "llama-common-base"),
-                ("static", "cpp-httplib"),
-                ("static", "mtmd"),
-                ("static", "vendor-hash"),
-                ("static", "llama"),
-                ("static", "ggml-cuda"),
-                ("static", "ggml-cpu"),
-                ("static", "ggml-base"),
-                ("static", "ggml"),
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "llama-common",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "llama-common-base",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "cpp-httplib",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "mtmd",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "vendor-hash",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "llama",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "ggml-cuda",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "ggml-cpu",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "ggml-base",
+                },
+                NativeLibrary {
+                    link_kind: "static",
+                    name: "ggml",
+                },
             ]
         );
     }
@@ -276,13 +359,34 @@ mod native_link_graph_tests {
         assert_eq!(
             native_libraries(true),
             vec![
-                ("dylib", "llama-common"),
-                ("dylib", "mtmd"),
-                ("dylib", "llama"),
-                ("dylib", "ggml-cuda"),
-                ("dylib", "ggml-cpu"),
-                ("dylib", "ggml-base"),
-                ("dylib", "ggml"),
+                NativeLibrary {
+                    link_kind: "dylib",
+                    name: "llama-common",
+                },
+                NativeLibrary {
+                    link_kind: "dylib",
+                    name: "mtmd",
+                },
+                NativeLibrary {
+                    link_kind: "dylib",
+                    name: "llama",
+                },
+                NativeLibrary {
+                    link_kind: "dylib",
+                    name: "ggml-cuda",
+                },
+                NativeLibrary {
+                    link_kind: "dylib",
+                    name: "ggml-cpu",
+                },
+                NativeLibrary {
+                    link_kind: "dylib",
+                    name: "ggml-base",
+                },
+                NativeLibrary {
+                    link_kind: "dylib",
+                    name: "ggml",
+                },
             ]
         );
     }

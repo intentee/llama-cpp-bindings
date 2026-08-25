@@ -15,6 +15,7 @@ use crate::model::split_mode::LlamaSplitMode;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 pub mod fit_result;
+pub mod kv_override_entry;
 pub mod kv_override_value_iterator;
 pub mod kv_overrides;
 pub mod param_override_value;

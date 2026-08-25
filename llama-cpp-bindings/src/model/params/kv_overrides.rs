@@ -26,6 +26,7 @@ impl<'model_params> IntoIterator for KvOverrides<'model_params> {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::params::kv_override_entry::KvOverrideEntry;
     use std::ffi::CString;
     use std::pin::pin;
 
@@ -54,10 +55,13 @@ mod tests {
         let entries: Result<Vec<_>, _> = params.kv_overrides().into_iter().collect();
         let entries = entries.expect("known override tags must convert");
 
-        assert_eq!(entries.len(), 1);
-        let (entry_key, entry_value) = &entries[0];
-        assert_eq!(entry_key.to_bytes(), b"test_key");
-        assert_eq!(*entry_value, ParamOverrideValue::Int(42));
+        assert_eq!(
+            entries,
+            vec![KvOverrideEntry {
+                key: CString::new("test_key").expect("the literal has no nul byte"),
+                value: ParamOverrideValue::Int(42),
+            }]
+        );
     }
 
     #[test]
