@@ -135,8 +135,8 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
     ])?;
 
     let mut classifier = model.sampled_token_classifier()?;
-    let sampled = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1)?;
-    let mut outcomes = sampled.outcomes;
+    let turn = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1)?;
+    let mut outcomes = turn.outcomes;
     outcomes.extend(classifier.flush());
 
     assert_eq!(
@@ -146,7 +146,7 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
     );
     let outcome = &outcomes[0];
 
-    let raw_as_sampled = SampledToken::Content(sampled.token);
+    let raw_as_sampled = SampledToken::Content(turn.token);
     assert!(
         !model.is_eog_token(&raw_as_sampled),
         "Grammar sampler should not allow EOS as first token"
@@ -233,8 +233,8 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
     ])?;
 
     let mut classifier = model.sampled_token_classifier()?;
-    let sampled = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1)?;
-    let mut outcomes = sampled.outcomes;
+    let turn = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1)?;
+    let mut outcomes = turn.outcomes;
     outcomes.extend(classifier.flush());
 
     assert_eq!(
@@ -244,7 +244,7 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
     );
     let outcome = &outcomes[0];
 
-    let raw_as_sampled = SampledToken::Content(sampled.token);
+    let raw_as_sampled = SampledToken::Content(turn.token);
     assert!(
         !model.is_eog_token(&raw_as_sampled),
         "Grammar sampler should not allow EOS as first token"
@@ -414,8 +414,8 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
     let mut sampled_count: u64 = 0;
 
     for (position, _) in (batch.n_tokens()..).zip(0..5) {
-        let sampled = classifier.sample(&mut sampler, &context, -1)?;
-        let raw_as_sampled = SampledToken::Content(sampled.token);
+        let turn = classifier.sample(&mut sampler, &context, -1)?;
+        let raw_as_sampled = SampledToken::Content(turn.token);
 
         if model.is_eog_token(&raw_as_sampled) {
             break;
