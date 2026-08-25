@@ -14,5 +14,4 @@ Checks: >
   -zircon-*,
   -bugprone-easily-swappable-parameters
 WarningsAsErrors: '*'
-HeaderFilterRegex: '$^'
 FormatStyle: none

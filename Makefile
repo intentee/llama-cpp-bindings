@@ -1,13 +1,18 @@
+.DELETE_ON_ERROR:
+
 TEST_DEVICE ?=
 
 DEVICE_FEATURE = $(if $(TEST_DEVICE),--features $(TEST_DEVICE),)
 
-CPP_INCLUDES = -I. -IGSL/include -Illama.cpp -Illama.cpp/common \
-	-Illama.cpp/include -Illama.cpp/ggml/include -Illama.cpp/vendor
+COMPILE_COMMANDS = target/compile_commands.json
 
-CPP_SYSTEM_INCLUDES = $(shell echo | c++ -std=c++17 -E -v -x c++ - 2>&1 \
-	| sed -n '/\#include <...> search starts here/,/End of search list/p' \
-	| grep '^ /' | sed 's|^ |-isystem |')
+WRAPPER_SOURCES_RESPONSE_FILE = target/wrapper_sources.rsp
+
+WRAPPER_SOURCES_CRATE = llama-cpp-wrapper-sources
+
+VENDORED_SUPPRESSIONS = \
+	--suppress='*:*llama-cpp-bindings-sys/llama.cpp/*' \
+	--suppress='*:*llama-cpp-bindings-sys/GSL/*'
 
 node_modules: package-lock.json
 	npm ci
@@ -16,9 +21,18 @@ node_modules: package-lock.json
 package-lock.json: package.json
 	npm install --package-lock-only
 
+$(COMPILE_COMMANDS): $(WRAPPER_SOURCES_CRATE)/src/compile_commands_file.rs \
+		$(WRAPPER_SOURCES_CRATE)/src/cpp_standard.rs \
+		$(WRAPPER_SOURCES_CRATE)/src/wrapper_include_dirs.rs \
+		$(WRAPPER_SOURCES_CRATE)/src/wrapper_source_paths.rs \
+		$(WRAPPER_SOURCES_CRATE)/src/wrapper_sources.rs \
+		$(WRAPPER_SOURCES_CRATE)/src/wrapper_sources_response_file.rs
+	cargo run --quiet --package $(WRAPPER_SOURCES_CRATE) -- \
+		$(CURDIR)/llama-cpp-bindings-sys $@ $(WRAPPER_SOURCES_RESPONSE_FILE)
+
 .PHONY: clean.cmake
 clean.cmake:
-	rm -rf target/llama-cpp-cmake-build
+	cargo clean --package llama-cpp-bindings-sys
 
 .PHONY: clippy
 clippy:
@@ -31,7 +45,7 @@ coverage: node_modules
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
-	npx rust-coverage-check target/llvm-cov.json \
+	./node_modules/.bin/rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
 		--gated llama-cpp-bindings=98 \
 		--gated llama-cpp-error-recorder=100 \
@@ -40,7 +54,8 @@ coverage: node_modules
 		--gated llama-cpp-log-decoder=100 \
 		--gated llama-cpp-bindings-types=100 \
 		--gated llama-cpp-test-harness=99 \
-		--gated llama-cpp-test-harness-macros=100
+		--gated llama-cpp-test-harness-macros=100 \
+		--gated llama-cpp-wrapper-sources=100
 
 .PHONY: coverage-clean
 coverage-clean:
@@ -64,21 +79,18 @@ fmt.check:
 lint.cpp: lint.cpp.clang-tidy lint.cpp.cppcheck
 
 .PHONY: lint.cpp.clang-tidy
-lint.cpp.clang-tidy:
-	cd llama-cpp-bindings-sys && clang-tidy wrapper_*.cpp -- \
-		-std=c++17 $(CPP_SYSTEM_INCLUDES) $(CPP_INCLUDES)
+lint.cpp.clang-tidy: $(COMPILE_COMMANDS)
+	clang-tidy -p $(dir $(COMPILE_COMMANDS)) @$(WRAPPER_SOURCES_RESPONSE_FILE)
 
 .PHONY: lint.cpp.cppcheck
-lint.cpp.cppcheck:
-	cd llama-cpp-bindings-sys && cppcheck --enable=all --inconclusive \
-		--check-level=exhaustive --std=c++17 --error-exitcode=1 \
-		$(CPP_INCLUDES) \
-		--suppress='*:llama.cpp/*' --suppress='*:GSL/*' \
-		--suppress=missingIncludeSystem --suppress=unusedFunction \
-		--suppress=checkersReport --suppress=toomanyconfigs wrapper_*.cpp
+lint.cpp.cppcheck: $(COMPILE_COMMANDS)
+	cppcheck --project=$(COMPILE_COMMANDS) --enable=all --inconclusive \
+		--check-level=exhaustive --error-exitcode=1 \
+		$(VENDORED_SUPPRESSIONS) \
+		--suppress=missingIncludeSystem
 
 .PHONY: test
-test: test.unit test.llms
+test: test.llms
 
 .PHONY: test.harness
 test.harness: clippy
@@ -90,4 +102,5 @@ test.llms: clippy test.harness test.unit
 
 .PHONY: test.unit
 test.unit: clippy
-	cargo test -p llama-cpp-log-decoder -p llama-cpp-gbnf -p llama-cpp-bindings $(DEVICE_FEATURE)
+	cargo test -p llama-cpp-log-decoder -p llama-cpp-gbnf -p llama-cpp-bindings \
+		-p llama-cpp-wrapper-sources $(DEVICE_FEATURE)
