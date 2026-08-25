@@ -5,6 +5,7 @@ use crate::context::LlamaContext;
 use crate::context::llama_state_seq_flags::LlamaStateSeqFlags;
 use crate::context::load_seq_state_error::LoadSeqStateError;
 use crate::context::load_session_error::LoadSessionError;
+use crate::context::loaded_seq_state::LoadedSeqState;
 use crate::context::save_seq_state_error::SaveSeqStateError;
 use crate::context::save_session_error::SaveSessionError;
 use crate::context::state_data_error::StateDataError;
@@ -93,7 +94,7 @@ fn process_seq_load_result(
     n_out: usize,
     max_tokens: usize,
     mut tokens: Vec<LlamaToken>,
-) -> Result<(Vec<LlamaToken>, usize), LoadSeqStateError> {
+) -> Result<LoadedSeqState, LoadSeqStateError> {
     if bytes_read == 0 {
         return Err(LoadSeqStateError::FailedToLoad);
     }
@@ -104,7 +105,7 @@ fn process_seq_load_result(
 
     unsafe { tokens.set_len(n_out) };
 
-    Ok((tokens, bytes_read))
+    Ok(LoadedSeqState { tokens, bytes_read })
 }
 
 impl LlamaContext<'_> {
@@ -217,7 +218,7 @@ impl LlamaContext<'_> {
         filepath: impl AsRef<Path>,
         dest_seq_id: i32,
         max_tokens: usize,
-    ) -> Result<(Vec<LlamaToken>, usize), LoadSeqStateError> {
+    ) -> Result<LoadedSeqState, LoadSeqStateError> {
         let path = filepath.as_ref();
         let path = path
             .to_str()
@@ -415,12 +416,10 @@ mod unit_tests {
     #[test]
     fn seq_load_success_within_bounds() {
         let tokens = vec![LlamaToken::new(0); 100];
-        let result = process_seq_load_result(42, 10, 100, tokens);
+        let loaded = process_seq_load_result(42, 10, 100, tokens).expect("bounded load succeeds");
 
-        assert!(result.is_ok());
-        let (loaded, bytes) = result.unwrap();
-        assert_eq!(loaded.len(), 10);
-        assert_eq!(bytes, 42);
+        assert_eq!(loaded.tokens.len(), 10);
+        assert_eq!(loaded.bytes_read, 42);
     }
 
     #[test]

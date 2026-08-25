@@ -23,7 +23,8 @@ use crate::streaming_json_probe::JsonProbeOutcome;
 use crate::streaming_markers::StreamingMarkers;
 use crate::token::LlamaToken;
 
-pub use crate::ingest_outcome::IngestOutcome;
+pub use crate::classified_sample::ClassifiedSample;
+use crate::ingest_outcome::IngestOutcome;
 pub use crate::sampled_token_section::SampledTokenSection;
 
 #[derive(Clone, Debug)]
@@ -397,7 +398,7 @@ impl<'model> SampledTokenClassifier<'model> {
     /// # Errors
     /// Forwards [`LlamaSampler::sample`] errors verbatim. Nothing is recorded on failure.
     ///
-    /// Returns the raw sampled token (for downstream `batch.add` / `is_eog_token`
+    /// Returns the sampled token (for downstream `batch.add` / `is_eog_token`
     /// calls) alongside the outcomes that finalised this turn — see
     /// [`Self::ingest`] for buffering semantics.
     pub fn sample(
@@ -405,11 +406,11 @@ impl<'model> SampledTokenClassifier<'model> {
         sampler: &mut LlamaSampler,
         context: &LlamaContext,
         idx: i32,
-    ) -> Result<(LlamaToken, Vec<IngestOutcome>), SampleError> {
-        let raw = sampler.sample(context, idx)?;
-        let outcomes = self.ingest(raw)?;
+    ) -> Result<ClassifiedSample, SampleError> {
+        let token = sampler.sample(context, idx)?;
+        let outcomes = self.ingest(token)?;
 
-        Ok((raw, outcomes))
+        Ok(ClassifiedSample { token, outcomes })
     }
 
     /// # Errors

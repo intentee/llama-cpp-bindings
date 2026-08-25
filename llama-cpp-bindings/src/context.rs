@@ -12,7 +12,8 @@ use llama_cpp_ffi_status::read_and_free_cpp_string;
 use crate::context::params::LlamaContextParams;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_batch::LlamaBatch;
-use crate::model::{LlamaLoraAdapter, LlamaModel};
+use crate::model::LlamaModel;
+use crate::model::lora_adapter_scale::LoraAdapterScale;
 use crate::timing::LlamaTimings;
 use crate::token::LlamaToken;
 use crate::token::data::LlamaTokenData;
@@ -239,6 +240,7 @@ pub mod llama_pooling_type;
 pub mod llama_state_seq_flags;
 pub mod load_seq_state_error;
 pub mod load_session_error;
+pub mod loaded_seq_state;
 pub mod params;
 pub mod rope_scaling_type;
 pub mod save_seq_state_error;
@@ -545,13 +547,16 @@ impl<'model> LlamaContext<'model> {
     /// See [`LlamaLoraAdaptersError`] for more information.
     pub fn set_lora_adapters(
         &self,
-        adapters: &[(&LlamaLoraAdapter<'_>, f32)],
+        adapters: &[LoraAdapterScale<'_, '_>],
     ) -> Result<(), LlamaLoraAdaptersError> {
         let mut raw_adapters = adapters
             .iter()
-            .map(|(adapter, _)| adapter.as_ptr())
+            .map(|LoraAdapterScale { adapter, .. }| adapter.as_ptr())
             .collect::<Vec<_>>();
-        let mut scales = adapters.iter().map(|(_, scale)| *scale).collect::<Vec<_>>();
+        let mut scales = adapters
+            .iter()
+            .map(|LoraAdapterScale { scale, .. }| *scale)
+            .collect::<Vec<_>>();
         let raw_adapters_ptr = raw_adapters
             .first_mut()
             .map_or(std::ptr::null_mut(), std::ptr::from_mut);

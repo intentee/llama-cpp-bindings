@@ -906,8 +906,8 @@ fn drive_sampling_loop(
     let mut batch = LlamaBatch::new(512, 1)?;
 
     for (current_position, _) in (starting_position..).zip(0..max_tokens) {
-        let (raw_token, outcomes) = classifier.sample(&mut sampler, ctx, -1)?;
-        for outcome in &outcomes {
+        let sampled = classifier.sample(&mut sampler, ctx, -1)?;
+        for outcome in &sampled.outcomes {
             totals.generated.push_str(&outcome.raw_piece);
             match outcome.sampled_token {
                 SampledToken::Content(_) => totals.observed_content += 1,
@@ -916,7 +916,7 @@ fn drive_sampling_loop(
             }
         }
 
-        let raw_as_sampled = SampledToken::Content(raw_token);
+        let raw_as_sampled = SampledToken::Content(sampled.token);
         if model.is_eog_token(&raw_as_sampled) {
             break;
         }

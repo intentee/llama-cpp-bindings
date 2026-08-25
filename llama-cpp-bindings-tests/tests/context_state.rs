@@ -1595,9 +1595,13 @@ fn state_seq_save_and_load_file_roundtrip(fixture: &LlamaFixture<'_>) -> Result<
     let bytes_written = context.state_seq_save_file(&session_path, 0, &tokens)?;
     assert!(bytes_written > 0);
 
-    let (loaded_tokens, bytes_read) = context.state_seq_load_file(&session_path, 0, 512)?;
-    assert_eq!(loaded_tokens, tokens);
-    assert!(bytes_read > 0);
+    let loaded = context.state_seq_load_file(&session_path, 0, 512)?;
+
+    assert_eq!(loaded.tokens, tokens);
+    assert_eq!(
+        loaded.bytes_read, bytes_written,
+        "loading must consume exactly the bytes the save produced"
+    );
 
     std::fs::remove_file(&session_path)?;
 

@@ -5,6 +5,7 @@ pub mod llama_load_mode;
 pub mod llama_load_mode_parse_error;
 pub mod llama_lora_adapter;
 pub mod llama_split_mode_parse_error;
+pub mod lora_adapter_scale;
 pub mod params;
 pub mod rope_type;
 pub mod split_mode;
