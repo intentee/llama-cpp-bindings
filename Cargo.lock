@@ -1190,6 +1190,7 @@ dependencies = [
  "cc",
  "cmake",
  "find_cuda_helper",
+ "llama-cpp-wrapper-sources",
  "thiserror",
 ]
 
@@ -1269,6 +1270,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "llama-cpp-wrapper-sources"
+version = "0.13.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

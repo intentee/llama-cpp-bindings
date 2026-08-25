@@ -5,7 +5,6 @@ mod cmake_config;
 mod cpp_wrapper;
 mod library_linking;
 mod native_library;
-mod native_sources;
 mod rebuild_tracking;
 mod target_os;
 mod windows_variant;
@@ -157,7 +156,7 @@ pub fn build() -> Result<(), BuildError> {
         context.android_ndk.as_ref(),
     )?;
 
-    cpp_wrapper::compile_cpp_wrappers(&context.llama_src, context.target_os)?;
+    cpp_wrapper::compile_cpp_wrappers(context.target_os)?;
 
     let build_dir = cmake_config::configure_and_build(&context)?;
 

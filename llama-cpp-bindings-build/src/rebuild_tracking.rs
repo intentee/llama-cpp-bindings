@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use crate::native_sources::{WRAPPER_HEADERS, WRAPPER_SOURCES};
+use llama_cpp_wrapper_sources::wrapper_headers::WRAPPER_HEADERS;
+use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
 
 pub fn register_rebuild_triggers(llama_src: &Path) {
     println!("cargo:rerun-if-changed=build.rs");

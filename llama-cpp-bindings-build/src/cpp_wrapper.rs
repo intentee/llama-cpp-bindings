@@ -1,30 +1,27 @@
-use std::path::Path;
+use llama_cpp_wrapper_sources::cpp_standard::CPP_STANDARD;
+use llama_cpp_wrapper_sources::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
+use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
 
 use crate::BuildError;
-use crate::native_sources::WRAPPER_SOURCES;
 use crate::target_os::TargetOs;
 
-pub fn compile_cpp_wrappers(llama_src: &Path, target_os: TargetOs) -> Result<(), BuildError> {
+pub fn compile_cpp_wrappers(target_os: TargetOs) -> Result<(), BuildError> {
     let mut build = cc::Build::new();
 
-    build
-        .cpp(true)
-        .include(".")
-        .include("GSL/include")
-        .include(llama_src)
-        .include(llama_src.join("common"))
-        .include(llama_src.join("include"))
-        .include(llama_src.join("ggml/include"))
-        .include(llama_src.join("vendor"))
-        .flag_if_supported("-std=c++17")
-        .pic(true);
+    build.cpp(true).pic(true);
+
+    for include_dir in WRAPPER_INCLUDE_DIRS {
+        build.include(include_dir);
+    }
+
+    build.flag_if_supported(format!("-std={CPP_STANDARD}"));
 
     for source in WRAPPER_SOURCES {
         build.file(source);
     }
 
     if target_os.is_msvc() {
-        build.flag("/std:c++17");
+        build.flag(format!("/std:{CPP_STANDARD}"));
         build.flag("/EHsc");
     }
 

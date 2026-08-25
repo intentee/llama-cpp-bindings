@@ -12,6 +12,7 @@ members = [
   "llama-cpp-log-decoder",
   "llama-cpp-test-harness",
   "llama-cpp-test-harness-macros",
+  "llama-cpp-wrapper-sources",
 ]
 
 [workspace.package]
@@ -41,6 +42,7 @@ llama-cpp-gbnf = { path = "llama-cpp-gbnf", version = "=0.13.0" }
 llama-cpp-log-decoder = { path = "llama-cpp-log-decoder", version = "=0.13.0" }
 llama-cpp-test-harness = { path = "llama-cpp-test-harness", version = "=0.13.0" }
 llama-cpp-test-harness-macros = { path = "llama-cpp-test-harness-macros", version = "=0.13.0" }
+llama-cpp-wrapper-sources = { path = "llama-cpp-wrapper-sources", version = "=0.13.0" }
 llguidance = "=1.7.0"
 log = "=0.4.29"
 nom = "=8.0.0"
