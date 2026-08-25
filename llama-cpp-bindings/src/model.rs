@@ -844,7 +844,7 @@ impl LlamaModel {
     pub fn rope_type(&self) -> Option<RopeType> {
         let raw = unsafe { llama_cpp_bindings_sys::llama_model_rope_type(self.model.as_ptr()) };
 
-        rope_type::rope_type_from_raw(raw)
+        RopeType::from_raw(raw)
     }
 
     /// # Errors

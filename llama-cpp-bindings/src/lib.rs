@@ -73,7 +73,7 @@ pub use error::{
 pub use chat_message_parse_outcome::ChatMessageParseOutcome;
 pub use classified_sample::ClassifiedSample;
 pub use eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-pub use llama_backend_device::{LlamaBackendDevice, list_llama_ggml_backend_devices};
+pub use llama_backend_device::LlamaBackendDevice;
 pub use llama_backend_device_type::LlamaBackendDeviceType;
 pub use llama_cpp_bindings_types::{
     BracketedJsonShape, KeyValueXmlTagsShape, PairedQuoteShape, ParsedChatMessage, ParsedToolCall,
