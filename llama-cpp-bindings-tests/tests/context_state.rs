@@ -11,9 +11,11 @@ use llama_cpp_bindings::error::KvCacheSeqAddError;
 use llama_cpp_bindings::error::KvCacheSeqDivError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
+use llama_cpp_bindings::model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_bindings_tests::prime_kv_cache::prime_kv_cache;
 use llama_cpp_bindings_tests::prime_kv_cache_with::prime_kv_cache_with;
 use llama_cpp_test_harness::LlamaFixture;
+use llama_cpp_test_harness::download_model::download_model;
 use llama_cpp_test_harness::llama_test;
 
 #[llama_test(
@@ -368,6 +370,42 @@ fn candidates_ith_returns_n_vocab_entries(fixture: &LlamaFixture<'_>) -> Result<
     let count = context.candidates_ith(last_index)?.count();
 
     assert_eq!(count, usize::try_from(fixture.model.n_vocab())?);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace(
+        "Qwen/Qwen2.5-7B-Instruct-GGUF",
+        "qwen2.5-7b-instruct-q2_k.gguf"
+    ),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 2048,
+    n_ubatch = 512,
+)]
+fn set_lora_adapters_applies_a_real_adapter(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let adapter_path = download_model(
+        "ggml-org/LoRA-Deepthink-Reasoning-Qwen2.5-7B-Instruct-Q8_0-GGUF",
+        "Deepthink-Reasoning-Adapter-q8_0.gguf",
+    )?;
+    let adapter = fixture.model.lora_adapter_init(&adapter_path)?;
+    let context = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+
+    assert_eq!(
+        context.set_lora_adapters(&[LoraAdapterScale {
+            adapter: &adapter,
+            scale: 1.0,
+        }]),
+        Ok(())
+    );
+
+    assert_eq!(context.set_lora_adapters(&[]), Ok(()));
 
     Ok(())
 }
