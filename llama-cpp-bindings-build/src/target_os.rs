@@ -84,6 +84,19 @@ mod tests {
     }
 
     #[test]
+    fn only_the_msvc_windows_variant_needs_msvc_compiler_flags() {
+        assert!(TargetOs::Windows(WindowsVariant::Msvc).is_msvc());
+        assert!(!TargetOs::Windows(WindowsVariant::Other).is_msvc());
+        assert!(!TargetOs::Linux.is_msvc());
+    }
+
+    #[test]
+    fn only_android_needs_the_android_stdlib_handling() {
+        assert!(TargetOs::Android.is_android());
+        assert!(!TargetOs::Linux.is_android());
+    }
+
+    #[test]
     fn an_unsupported_target_os_is_rejected() {
         assert_eq!(TargetOs::from_cargo_cfg("freebsd", ""), None);
     }

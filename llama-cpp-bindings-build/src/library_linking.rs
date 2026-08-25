@@ -306,6 +306,16 @@ mod native_link_graph_tests {
     use super::native_libraries;
 
     #[test]
+    fn the_cuda_backend_archive_is_linked_only_when_the_feature_is_enabled() {
+        let links_cuda_backend = native_libraries(false)
+            .iter()
+            .any(|library| library.name == "ggml-cuda");
+
+        assert_eq!(links_cuda_backend, cfg!(feature = "cuda"));
+    }
+
+    #[cfg(feature = "cuda")]
+    #[test]
     fn static_cuda_link_graph_contains_every_owned_archive_in_dependency_order() {
         assert_eq!(
             native_libraries(false),
@@ -354,6 +364,7 @@ mod native_link_graph_tests {
         );
     }
 
+    #[cfg(feature = "cuda")]
     #[test]
     fn dynamic_cuda_link_graph_uses_shared_top_level_libraries() {
         assert_eq!(
