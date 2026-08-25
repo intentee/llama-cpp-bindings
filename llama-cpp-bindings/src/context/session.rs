@@ -466,3 +466,21 @@ mod unit_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::state_data_status_to_result;
+    use crate::context::state_data_error::StateDataError;
+    use std::ptr;
+
+    #[test]
+    fn state_data_status_to_result_maps_every_contract_status() {
+        let outcome_0 = state_data_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_VENDORED_OUT_OF_MEMORY,
+            0,
+            ptr::null_mut(),
+            "",
+        );
+        assert_eq!(outcome_0.err(), Some(StateDataError::VendoredOutOfMemory));
+    }
+}

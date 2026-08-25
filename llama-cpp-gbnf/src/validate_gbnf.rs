@@ -249,6 +249,18 @@ mod tests {
     }
 
     #[test]
+    fn vendored_out_of_memory_status_is_distinct_from_error_string_allocation() {
+        assert_eq!(
+            validation_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_VENDORED_OUT_OF_MEMORY,
+                "root",
+                std::ptr::null_mut(),
+            ),
+            Err(GbnfValidationError::VendoredOutOfMemory)
+        );
+    }
+
+    #[test]
     fn allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
             validation_status_to_result(

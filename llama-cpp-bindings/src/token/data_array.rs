@@ -472,3 +472,55 @@ mod tests {
         assert_eq!(array.selected, Some(1));
     }
 }
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::sampler_apply_status_to_result;
+    use crate::error::sampler_apply_error::SamplerApplyError;
+    use std::ptr;
+
+    #[test]
+    fn sampler_apply_status_to_result_maps_every_contract_status() {
+        let outcome_0 = sampler_apply_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_SAMPLER_ARG,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome_0.err(), Some(SamplerApplyError::NullSampler));
+        let outcome_data_array = sampler_apply_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_data_array.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_sampler_apply",
+                    detail: "was given a null data_array argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = sampler_apply_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_sampler_apply",
+                    detail: "was given a null out_error argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = sampler_apply_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_OUT_OF_MEMORY,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_2.err(),
+            Some(SamplerApplyError::VendoredOutOfMemory)
+        );
+    }
+}

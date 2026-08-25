@@ -924,3 +924,152 @@ mod unit_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::decode_status_to_result;
+    use super::encode_status_to_result;
+    use super::new_context_with_model_status_to_result;
+    use crate::error::decode_error::DecodeError;
+    use crate::error::encode_error::EncodeError;
+    use crate::error::llama_context_load_error::LlamaContextLoadError;
+    use std::ptr;
+
+    #[test]
+    fn new_context_with_model_status_to_result_maps_every_contract_status() {
+        let outcome_0 = new_context_with_model_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_new_context_with_model",
+                    detail: "was given a null model argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = new_context_with_model_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_new_context_with_model",
+                    detail: "was given a null out_ctx argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = new_context_with_model_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_2.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_new_context_with_model",
+                    detail: "was given a null out_error argument",
+                }
+                .into()
+            )
+        );
+        let outcome_3 = new_context_with_model_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_OUT_OF_MEMORY,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_3.err(),
+            Some(LlamaContextLoadError::VendoredOutOfMemory)
+        );
+    }
+
+    #[test]
+    fn decode_status_to_result_maps_every_contract_status() {
+        let outcome_0 = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_CTX_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_decode",
+                    detail: "was given a null ctx argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_decode",
+                    detail: "was given a null out_error argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_OUT_OF_MEMORY,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome_2.err(), Some(DecodeError::VendoredOutOfMemory));
+    }
+
+    #[test]
+    fn encode_status_to_result_maps_every_contract_status() {
+        let outcome_0 = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_CTX_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_encode",
+                    detail: "was given a null ctx argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_MODEL,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_encode",
+                    detail: "was given a null model argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_OUT_OF_MEMORY,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome_2.err(), Some(EncodeError::VendoredOutOfMemory));
+    }
+}

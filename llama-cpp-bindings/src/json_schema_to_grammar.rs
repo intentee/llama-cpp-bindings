@@ -305,3 +305,76 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::json_schema_to_grammar_status_to_result;
+    use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
+    use std::ptr;
+
+    #[test]
+    fn json_schema_to_grammar_status_to_result_maps_every_contract_status() {
+        let outcome_0 = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_json_schema_to_grammar",
+                    detail: "was given a null schema_json argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_json_schema_to_grammar",
+                    detail: "was given a null out_grammar argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+        assert_eq!(
+            outcome_2.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_json_schema_to_grammar",
+                    detail: "was given a null out_error argument",
+                }
+                .into()
+            )
+        );
+        let outcome_3 = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_OUT_OF_MEMORY,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+        assert_eq!(
+            outcome_3.err(),
+            Some(JsonSchemaToGrammarError::VendoredOutOfMemory)
+        );
+    }
+}

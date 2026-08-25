@@ -630,3 +630,80 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::kv_cache_seq_add_status_to_result;
+    use super::kv_cache_seq_div_status_to_result;
+    use super::kv_cache_seq_pos_max_status_to_result;
+    use crate::error::kv_cache_seq_add_error::KvCacheSeqAddError;
+    use crate::error::kv_cache_seq_div_error::KvCacheSeqDivError;
+    use crate::error::kv_cache_seq_pos_max_error::KvCacheSeqPosMaxError;
+    use std::ptr;
+
+    #[test]
+    fn kv_cache_seq_add_status_to_result_maps_every_contract_status() {
+        let outcome_0 = kv_cache_seq_add_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_memory_seq_add",
+                    detail: "was given a null model argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = kv_cache_seq_add_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_OUT_OF_MEMORY,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(KvCacheSeqAddError::VendoredOutOfMemory)
+        );
+    }
+
+    #[test]
+    fn kv_cache_seq_div_status_to_result_maps_every_contract_status() {
+        let outcome_0 = kv_cache_seq_div_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_memory_seq_div",
+                    detail: "was given a null model argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = kv_cache_seq_div_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_OUT_OF_MEMORY,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(KvCacheSeqDivError::VendoredOutOfMemory)
+        );
+    }
+
+    #[test]
+    fn kv_cache_seq_pos_max_status_to_result_maps_every_contract_status() {
+        let outcome_0 = kv_cache_seq_pos_max_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_OUT_OF_MEMORY,
+            0,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(KvCacheSeqPosMaxError::VendoredOutOfMemory)
+        );
+    }
+}

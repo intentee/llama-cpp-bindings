@@ -447,3 +447,59 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::from_file_status_to_result;
+    use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
+    use std::ptr;
+
+    #[test]
+    fn from_file_status_to_result_maps_every_contract_status() {
+        let outcome_0 = unsafe {
+            from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_FNAME_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "",
+            )
+        };
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_bitmap_init_from_file",
+                    detail: "was given a null fname argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = unsafe {
+            from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_OUT_BITMAP_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "",
+            )
+        };
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_bitmap_init_from_file",
+                    detail: "was given a null out_bitmap argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = unsafe {
+            from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "",
+            )
+        };
+        assert_eq!(outcome_2.err(), Some(MtmdBitmapError::VendoredOutOfMemory));
+    }
+}

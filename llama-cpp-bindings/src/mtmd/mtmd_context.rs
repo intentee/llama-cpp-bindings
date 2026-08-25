@@ -569,3 +569,171 @@ mod unit_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::map_encode_chunk_status;
+    use super::map_init_from_file_status;
+    use super::map_tokenize_status;
+    use crate::mtmd::mtmd_encode_error::MtmdEncodeError;
+    use crate::mtmd::mtmd_init_error::MtmdInitError;
+    use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
+    use std::ptr;
+
+    #[test]
+    fn map_tokenize_status_maps_every_contract_status() {
+        let outcome_0 = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_tokenize",
+                    detail: "was given a null ctx argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_tokenize",
+                    detail: "was given a null output argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_2.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_tokenize",
+                    detail: "was given a null text argument",
+                }
+                .into()
+            )
+        );
+        let outcome_3 = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_OUT_OF_MEMORY,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_3.err(),
+            Some(MtmdTokenizeError::VendoredOutOfMemory)
+        );
+    }
+
+    #[test]
+    fn map_encode_chunk_status_maps_every_contract_status() {
+        let outcome_0 = map_encode_chunk_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_encode_chunk",
+                    detail: "was given a null ctx argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = map_encode_chunk_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_encode_chunk",
+                    detail: "was given a null chunk argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = map_encode_chunk_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_OUT_OF_MEMORY,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome_2.err(), Some(MtmdEncodeError::VendoredOutOfMemory));
+    }
+
+    #[test]
+    fn map_init_from_file_status_maps_every_contract_status() {
+        let outcome_0 = map_init_from_file_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_MMPROJ_PATH_ARG,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            "",
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_init_from_file",
+                    detail: "was given a null mmproj_path argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = map_init_from_file_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_TEXT_MODEL_ARG,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            "",
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_init_from_file",
+                    detail: "was given a null text_model argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = map_init_from_file_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_OUT_CTX_ARG,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            "",
+        );
+        assert_eq!(
+            outcome_2.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_init_from_file",
+                    detail: "was given a null out_ctx argument",
+                }
+                .into()
+            )
+        );
+        let outcome_3 = map_init_from_file_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            "",
+        );
+        assert_eq!(outcome_3.err(), Some(MtmdInitError::VendoredOutOfMemory));
+    }
+}
