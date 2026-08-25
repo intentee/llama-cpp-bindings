@@ -7,11 +7,8 @@ use nom::Parser;
 use nom::bytes::complete::take_until;
 
 use crate::error::KeyValueXmlTagsFailure;
-
-enum ParseStep<'body> {
-    Done,
-    Call(ParsedToolCall, &'body str),
-}
+use crate::tool_call_format::parse_step::ParseStep;
+use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
 
 const fn shape_is_complete(shape: &KeyValueXmlTagsShape) -> bool {
     !shape.key_open.is_empty()
@@ -25,12 +22,6 @@ fn skip_to_next_open<'body>(input: &'body str, open: &str) -> Option<&'body str>
     let (after_open_inclusive, _) = take_result.ok()?;
 
     Some(&after_open_inclusive[open.len()..])
-}
-
-fn parameter_value_to_json(raw: &str) -> serde_json::Value {
-    serde_json::from_str::<serde_json::Value>(raw)
-        .ok()
-        .unwrap_or_else(|| serde_json::Value::String(raw.to_owned()))
 }
 
 fn parse_one_parameter<'body>(
@@ -78,7 +69,7 @@ fn parse_one_parameter<'body>(
             expected_close: shape.value_close.clone(),
         })?;
     let raw_value = &after_value_open[..value_close_position];
-    let value = parameter_value_to_json(raw_value);
+    let value = scalar_value_to_json(raw_value);
     let after_value_close = &after_value_open[value_close_position + shape.value_close.len()..];
 
     Ok(Some((key, value, after_value_close)))
@@ -134,10 +125,10 @@ fn parse_one_call<'body>(
     let arguments_value = serde_json::Value::Object(arguments_object);
     let arguments = ToolCallArguments::from_string(arguments_value.to_string());
 
-    Ok(ParseStep::Call(
-        ParsedToolCall::new(String::new(), function_name, arguments),
-        after_function_close,
-    ))
+    Ok(ParseStep::Call {
+        call: ParsedToolCall::new(String::new(), function_name, arguments),
+        remainder: after_function_close,
+    })
 }
 
 /// # Errors
@@ -160,9 +151,9 @@ pub fn parse(
     loop {
         match parse_one_call(remaining, markers, shape)? {
             ParseStep::Done => break,
-            ParseStep::Call(call, rest) => {
+            ParseStep::Call { call, remainder } => {
                 parsed.push(call);
-                remaining = rest;
+                remaining = remainder;
             }
         }
     }

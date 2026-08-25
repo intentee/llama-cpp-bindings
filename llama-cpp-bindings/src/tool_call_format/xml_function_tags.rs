@@ -6,6 +6,7 @@ use nom::Parser;
 use nom::bytes::complete::take_until;
 
 use crate::error::XmlFunctionTagsFailure;
+use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
 
 const fn shape_is_complete(shape: &XmlTagsShape) -> bool {
     !shape.function_open_prefix.is_empty()
@@ -16,12 +17,6 @@ const fn shape_is_complete(shape: &XmlTagsShape) -> bool {
 
 fn trim_surrounding_newlines(input: &str) -> &str {
     input.trim_start_matches('\n').trim_end_matches('\n')
-}
-
-fn parameter_value_to_json(raw: &str) -> serde_json::Value {
-    serde_json::from_str::<serde_json::Value>(raw)
-        .ok()
-        .unwrap_or_else(|| serde_json::Value::String(raw.to_owned()))
 }
 
 fn locate_tag_name_end(after_prefix: &str) -> Option<usize> {
@@ -82,7 +77,7 @@ fn parse_one_parameter<'body>(
     };
     let raw_value = trim_surrounding_newlines(&value_start[..value_end_position]);
     let after_close = &value_start[value_end_position + shape.parameter_close.len()..];
-    let parameter_value = parameter_value_to_json(raw_value);
+    let parameter_value = scalar_value_to_json(raw_value);
 
     Ok(Some((parameter_name, parameter_value, after_close)))
 }
