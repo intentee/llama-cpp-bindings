@@ -18,6 +18,7 @@ use llama_cpp_log_decoder::log_level::LogLevel;
 use llama_cpp_log_decoder::log_line::LogLine;
 
 use crate::log_options::LogOptions;
+use crate::log_record::LogRecord;
 
 struct LogSource {
     decoder: Mutex<LogDecoder>,
@@ -60,7 +61,7 @@ const fn ggml_level_to_incoming(raw: llama_cpp_bindings_sys::ggml_log_level) -> 
     }
 }
 
-fn resolve_record(line: LogLine, demote_info_to_debug: bool) -> (log::Level, String) {
+fn resolve_record(line: LogLine, demote_info_to_debug: bool) -> LogRecord {
     let effective_level =
         if demote_info_to_debug && matches!(line.level, LogLevel::Info | LogLevel::None) {
             LogLevel::Debug
@@ -69,20 +70,32 @@ fn resolve_record(line: LogLine, demote_info_to_debug: bool) -> (log::Level, Str
         };
 
     match effective_level {
-        LogLevel::Debug => (log::Level::Debug, line.text),
-        LogLevel::Info | LogLevel::None => (log::Level::Info, line.text),
-        LogLevel::Warn => (log::Level::Warn, line.text),
-        LogLevel::Error => (log::Level::Error, line.text),
-        LogLevel::Unknown(raw) => (
-            log::Level::Warn,
-            format!("[unknown level {raw}] {}", line.text),
-        ),
+        LogLevel::Debug => LogRecord {
+            level: log::Level::Debug,
+            text: line.text,
+        },
+        LogLevel::Info | LogLevel::None => LogRecord {
+            level: log::Level::Info,
+            text: line.text,
+        },
+        LogLevel::Warn => LogRecord {
+            level: log::Level::Warn,
+            text: line.text,
+        },
+        LogLevel::Error => LogRecord {
+            level: log::Level::Error,
+            text: line.text,
+        },
+        LogLevel::Unknown(raw) => LogRecord {
+            level: log::Level::Warn,
+            text: format!("[unknown level {raw}] {}", line.text),
+        },
     }
 }
 
 fn dispatch_line(source: &LogSource, line: LogLine) {
-    let (level, message) = resolve_record(line, source.options.demote_info_to_debug);
-    log::log!(target: source.target, level, "{message}");
+    let LogRecord { level, text } = resolve_record(line, source.options.demote_info_to_debug);
+    log::log!(target: source.target, level, "{text}");
 }
 
 fn dispatch_output(source: &LogSource, output: DecodeOutput) {
@@ -161,6 +174,7 @@ pub fn send_logs_to_log(options: LogOptions) {
 
 #[cfg(test)]
 mod tests {
+    use crate::log_record::LogRecord;
     use std::sync::{Mutex, Once};
 
     use llama_cpp_log_decoder::decode_output::DecodeOutput;
@@ -383,16 +397,19 @@ mod tests {
 
     #[test]
     fn resolve_record_error_level_maps_to_error_level() {
-        let (level, message) = resolve_record(
-            LogLine {
-                level: LogLevel::Error,
+        assert_eq!(
+            resolve_record(
+                LogLine {
+                    level: LogLevel::Error,
+                    text: "boom".to_owned(),
+                },
+                false,
+            ),
+            LogRecord {
+                level: Level::Error,
                 text: "boom".to_owned(),
-            },
-            false,
+            }
         );
-
-        assert_eq!(level, Level::Error);
-        assert_eq!(message, "boom");
     }
 
     #[test]

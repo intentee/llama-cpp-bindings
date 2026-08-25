@@ -9,6 +9,7 @@ pub mod lora_adapter_scale;
 pub mod params;
 pub mod rope_type;
 pub mod split_mode;
+pub mod tokenizer_input;
 pub mod vocab_type;
 pub mod vocab_type_from_int_error;
 
@@ -36,6 +37,7 @@ use crate::chat_template_tool_calls;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
+use crate::model::tokenizer_input::TokenizerInput;
 use crate::raw_chat_message::RawChatMessage;
 use crate::resolved_tool_call_markers::ResolvedToolCallMarkers;
 use crate::sampled_token::SampledToken;
@@ -68,10 +70,14 @@ fn validate_string_length_for_tokenizer(length: usize) -> Result<c_int, StringTo
     Ok(c_int::try_from(length)?)
 }
 
-fn cstring_with_validated_len(str: &str) -> Result<(CString, c_int), StringToTokenError> {
-    let c_string = CString::new(str)?;
-    let len = validate_string_length_for_tokenizer(c_string.as_bytes().len())?;
-    Ok((c_string, len))
+fn cstring_with_validated_len(text: &str) -> Result<TokenizerInput, StringToTokenError> {
+    let c_string = CString::new(text)?;
+    let length = validate_string_length_for_tokenizer(c_string.as_bytes().len())?;
+
+    Ok(TokenizerInput {
+        text: c_string,
+        length,
+    })
 }
 
 pub struct LlamaModel {
@@ -624,7 +630,10 @@ impl LlamaModel {
         };
 
         let tokens_estimation = std::cmp::max(8, (str.len() / 2) + usize::from(add_bos));
-        let (c_string, c_string_len) = cstring_with_validated_len(str)?;
+        let TokenizerInput {
+            text: c_string,
+            length: c_string_len,
+        } = cstring_with_validated_len(str)?;
         let vocab = self.vocab_ptr();
 
         tokenize_into_buffer(tokens_estimation, |tokens, n_tokens_max| {
