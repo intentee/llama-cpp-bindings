@@ -1,33 +1,41 @@
 ---
 name: run-all-tests
-description: Runs every test suite in the workspace on the chosen device backend. Use when the user asks to run the tests, run all the tests, run the full test suite, or check that everything still passes.
+description: Runs every test suite in the workspace on the fastest available device. Use when the user asks to run the tests, run all the tests, run the full test suite, or check that everything still passes.
 ---
 
 # Running all tests
 
-Run every test suite in the workspace against a single chosen device backend.
+Run every test suite in the workspace, picking the fastest compiled device backend for the host. 
 
-## Step 1: choose the device
+## Step 1: detect the device
 
-`TEST_DEVICE` names the backend feature to compile with, and holds **only** the backend
-name: `cuda`, `metal`, `vulkan` or `rocm`. Leave it unset for CPU, since there is no
-`cpu` feature.
+Run this once at the start and echo the chosen device:
 
-Ask which device to use when the conversation has not already established one.
+```bash
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  DEVICE=metal
+elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+  DEVICE=cuda
+else
+  DEVICE=cpu
+fi
+echo "Device: $DEVICE"
+```
+
+`$DEVICE` selects the backend feature for every suite in Step 2, including `test.unit`. Passing the same device through every target keeps the cmake hash stable, so llama.cpp is compiled once and reused across all suites.
 
 ## Step 2: run the suites
 
-Pass the same device to every target, so llama.cpp is compiled once and reused across
-all suites instead of being rebuilt for a different feature set. Run exactly:
+Translate `$DEVICE` into the value the Makefile expects. `TEST_DEVICE` holds **only** the backend name (`cuda` / `metal` / `vulkan` / `rocm`), or empty for CPU since there is no `cpu` feature:
 
 ```bash
-make test.llms TEST_DEVICE=cuda
+[ "$DEVICE" = "cpu" ] && FEAT= || FEAT="$DEVICE"
 ```
 
-For CPU, omit the assignment entirely:
+Then run exactly:
 
 ```bash
-make test.llms
+make test.llms TEST_DEVICE="$FEAT"
 ```
 
 ## Step 3: rules during the run

@@ -1,35 +1,43 @@
 ---
 name: run-coverage
-description: Runs code coverage checker on the chosen device backend. Use when the user asks to run the coverage, or to check the code coverage.
+description: Runs code coverage checker on the fastest available device. Use when the user asks to run the coverage, or to check the code coverage.
 ---
 
 # Checking the code coverage
 
-Run every instrumented test suite in the workspace against a single chosen device backend, then make sure everything is within required limits.
+Run every instrumented test suite in the workspace, picking the fastest compiled device backend for the host, then make sure everything is within required limits.
 
 Makefile is the source of truth for the gated values, and the code coverage setup.
 
-## Step 1: choose the device
+## Step 1: detect the device
 
-`TEST_DEVICE` names the backend feature to compile with, and holds **only** the backend
-name: `cuda`, `metal`, `vulkan` or `rocm`. Leave it unset for CPU, since there is no
-`cpu` feature.
+Run this once at the start and echo the chosen device:
 
-Ask which device to use when the conversation has not already established one.
+```bash
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  DEVICE=metal
+elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+  DEVICE=cuda
+else
+  DEVICE=cpu
+fi
+echo "Device: $DEVICE"
+```
+
+`$DEVICE` selects the backend feature for every suite in Step 2, including `test.unit`. Passing the same device through every target keeps the cmake hash stable, so llama.cpp is compiled once and reused across all suites.
 
 ## Step 2: run the suites
 
-Pass the same device to every target, so llama.cpp is compiled once and reused across
-all suites instead of being rebuilt for a different feature set. Run exactly:
+Translate `$DEVICE` into the value the Makefile expects. `TEST_DEVICE` holds **only** the backend name (`cuda` / `metal` / `vulkan` / `rocm`), or empty for CPU since there is no `cpu` feature:
 
 ```bash
-make coverage TEST_DEVICE=cuda
+[ "$DEVICE" = "cpu" ] && FEAT= || FEAT="$DEVICE"
 ```
 
-For CPU, omit the assignment entirely:
+Then run exactly:
 
 ```bash
-make coverage
+make coverage TEST_DEVICE="$FEAT"
 ```
 
 ## Step 4: report
