@@ -1,31 +1,20 @@
 use llama_cpp_bindings_types::ToolCallMarkers;
 
-use crate::chat_template_tool_calls::gemma4_call_block::Gemma4CallBlockFormat;
-use crate::chat_template_tool_calls::glm47_key_value_tags::Glm47KeyValueTagsFormat;
-use crate::chat_template_tool_calls::mistral3_arrow_args::Mistral3ArrowArgsFormat;
-use crate::chat_template_tool_calls::qwen_xml_tags::QwenXmlTagsFormat;
-use crate::chat_template_tool_calls::qwen3_json_inside_tool_call::Qwen3JsonInsideToolCallFormat;
+use crate::chat_template_tool_calls::tool_call_format_registration::ToolCallFormatRegistration;
 
 #[must_use]
 pub fn detect(template: &str) -> Option<ToolCallMarkers> {
-    let detectors: [fn(&str) -> Option<ToolCallMarkers>; 5] = [
-        Gemma4CallBlockFormat::detect,
-        Glm47KeyValueTagsFormat::detect,
-        Mistral3ArrowArgsFormat::detect,
-        Qwen3JsonInsideToolCallFormat::detect,
-        QwenXmlTagsFormat::detect,
-    ];
-    detectors
-        .into_iter()
-        .find_map(|detector| detector(template))
+    ToolCallFormatRegistration::KNOWN
+        .iter()
+        .find_map(|registration| (registration.detect)(template))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Gemma4CallBlockFormat;
-    use super::Mistral3ArrowArgsFormat;
-    use super::QwenXmlTagsFormat;
     use super::detect;
+    use crate::chat_template_tool_calls::gemma4_call_block::Gemma4CallBlockFormat;
+    use crate::chat_template_tool_calls::mistral3_arrow_args::Mistral3ArrowArgsFormat;
+    use crate::chat_template_tool_calls::qwen_xml_tags::QwenXmlTagsFormat;
 
     #[test]
     fn detects_gemma4_call_block_format() {

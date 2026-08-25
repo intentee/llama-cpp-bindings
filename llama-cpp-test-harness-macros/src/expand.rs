@@ -79,13 +79,13 @@ fn split_fn_and_pass_through(items: Vec<Item>) -> syn::Result<(ItemFn, Vec<Item>
 fn build_model_source_literal(source: &ParsedSource) -> TokenStream {
     match source {
         ParsedSource::HuggingFace { repo, file } => quote! {
-            ::llama_cpp_test_harness::ModelSource::HuggingFace {
+            ::llama_cpp_test_harness::GgufSource::HuggingFace {
                 repo: #repo,
                 file: #file,
             }
         },
         ParsedSource::LocalPath(path) => quote! {
-            ::llama_cpp_test_harness::ModelSource::LocalPath(#path)
+            ::llama_cpp_test_harness::GgufSource::LocalPath(#path)
         },
     }
 }
@@ -94,13 +94,13 @@ fn build_mmproj_source_literal(source: Option<&ParsedSource>) -> TokenStream {
     match source {
         None => quote! { ::core::option::Option::None },
         Some(ParsedSource::HuggingFace { repo, file }) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_harness::MmprojSource::HuggingFace {
+            ::core::option::Option::Some(::llama_cpp_test_harness::GgufSource::HuggingFace {
                 repo: #repo,
                 file: #file,
             })
         },
         Some(ParsedSource::LocalPath(path)) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_harness::MmprojSource::LocalPath(#path))
+            ::core::option::Option::Some(::llama_cpp_test_harness::GgufSource::LocalPath(#path))
         },
     }
 }
@@ -211,8 +211,8 @@ mod tests {
             "expansion missing the trial-name literal with file suffix: {expanded}",
         );
         assert!(
-            expanded.contains("ModelSource :: HuggingFace"),
-            "expansion missing ModelSource::HuggingFace variant: {expanded}",
+            expanded.contains("GgufSource :: HuggingFace"),
+            "expansion missing GgufSource::HuggingFace variant: {expanded}",
         );
         assert!(
             expanded.contains("func : my_test"),
@@ -235,8 +235,8 @@ mod tests {
             .to_string();
 
         assert!(
-            expanded.contains("ModelSource :: LocalPath"),
-            "expansion missing ModelSource::LocalPath variant: {expanded}",
+            expanded.contains("GgufSource :: LocalPath"),
+            "expansion missing GgufSource::LocalPath variant: {expanded}",
         );
         assert!(
             expanded.contains("\"my_test[local.gguf]\""),
@@ -260,8 +260,8 @@ mod tests {
             .to_string();
 
         assert!(
-            expanded.contains("MmprojSource :: HuggingFace"),
-            "expansion missing MmprojSource::HuggingFace: {expanded}",
+            expanded.contains("GgufSource :: HuggingFace"),
+            "expansion missing GgufSource::HuggingFace: {expanded}",
         );
         assert!(
             expanded.contains("Some"),
@@ -285,8 +285,8 @@ mod tests {
             .to_string();
 
         assert!(
-            expanded.contains("MmprojSource :: LocalPath"),
-            "expansion missing MmprojSource::LocalPath: {expanded}",
+            expanded.contains("GgufSource :: LocalPath"),
+            "expansion missing GgufSource::LocalPath: {expanded}",
         );
     }
 

@@ -6,16 +6,16 @@ use libtest_mimic::Failed;
 use libtest_mimic::Trial;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 
-use crate::ModelSource;
+use crate::GgufSource;
 use crate::llama_fixture::LlamaFixture;
 use crate::llama_test_registration::LlamaTestRegistration;
 use crate::load_key::LoadKey;
 use crate::phase_state::PhaseState;
 
-fn source_label(source: ModelSource) -> String {
+fn source_label(source: GgufSource) -> String {
     match source {
-        ModelSource::HuggingFace { repo, file } => format!("{repo} / {file}"),
-        ModelSource::LocalPath(path) => format!("local:{path}"),
+        GgufSource::HuggingFace { repo, file } => format!("{repo} / {file}"),
+        GgufSource::LocalPath(path) => format!("local:{path}"),
     }
 }
 
@@ -83,14 +83,14 @@ impl ExecutionPhase {
 
 #[cfg(test)]
 mod tests {
+    use crate::GgufSource;
     use crate::LlamaLoadMode;
-    use crate::ModelSource;
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
 
     use super::ExecutionPhase;
 
-    fn phase_with_source(source: ModelSource) -> ExecutionPhase {
+    fn phase_with_source(source: GgufSource) -> ExecutionPhase {
         ExecutionPhase {
             key: LoadKey {
                 model_source: source,
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn header_line_for_huggingface_source_formats_repo_and_file() {
-        let phase = phase_with_source(ModelSource::HuggingFace {
+        let phase = phase_with_source(GgufSource::HuggingFace {
             repo: "org/name",
             file: "model.gguf",
         });
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn header_line_for_local_path_source_uses_local_prefix() {
-        let phase = phase_with_source(ModelSource::LocalPath("/abs/model.gguf"));
+        let phase = phase_with_source(GgufSource::LocalPath("/abs/model.gguf"));
 
         let line = phase.header_line(2, 3);
 

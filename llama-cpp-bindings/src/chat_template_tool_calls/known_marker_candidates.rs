@@ -1,20 +1,13 @@
 use llama_cpp_bindings_types::ToolCallMarkers;
 
-use crate::chat_template_tool_calls::gemma4_call_block::Gemma4CallBlockFormat;
-use crate::chat_template_tool_calls::glm47_key_value_tags::Glm47KeyValueTagsFormat;
-use crate::chat_template_tool_calls::mistral3_arrow_args::Mistral3ArrowArgsFormat;
-use crate::chat_template_tool_calls::qwen_xml_tags::QwenXmlTagsFormat;
-use crate::chat_template_tool_calls::qwen3_json_inside_tool_call::Qwen3JsonInsideToolCallFormat;
+use crate::chat_template_tool_calls::tool_call_format_registration::ToolCallFormatRegistration;
 
 #[must_use]
 pub fn known_marker_candidates() -> Vec<ToolCallMarkers> {
-    vec![
-        Qwen3JsonInsideToolCallFormat::markers(),
-        QwenXmlTagsFormat::markers(),
-        Glm47KeyValueTagsFormat::markers(),
-        Mistral3ArrowArgsFormat::markers(),
-        Gemma4CallBlockFormat::markers(),
-    ]
+    ToolCallFormatRegistration::KNOWN
+        .iter()
+        .map(|registration| (registration.markers)())
+        .collect()
 }
 
 #[cfg(test)]
@@ -24,11 +17,13 @@ mod tests {
     use llama_cpp_bindings_types::ToolCallArgsShape;
 
     use super::known_marker_candidates;
+    use crate::chat_template_tool_calls::tool_call_format_registration::ToolCallFormatRegistration;
 
     #[test]
     fn known_marker_candidates_returns_one_per_registered_shape() {
         let candidates = known_marker_candidates();
-        assert_eq!(candidates.len(), 5);
+
+        assert_eq!(candidates.len(), ToolCallFormatRegistration::KNOWN.len());
 
         let shape_discriminants: HashSet<&'static str> = candidates
             .iter()
@@ -40,9 +35,10 @@ mod tests {
                 ToolCallArgsShape::XmlTags(_) => "XmlTags",
             })
             .collect();
+
         assert_eq!(
             shape_discriminants.len(),
-            5,
+            candidates.len(),
             "duplicate shape discriminants in known_marker_candidates: {shape_discriminants:?}"
         );
     }
