@@ -6,7 +6,7 @@ use anyhow::Result;
 use llama_cpp_bindings::DecodeError;
 use llama_cpp_bindings::LogitsError;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::kv_cache::KvCacheConversionError;
+use llama_cpp_bindings::error::KvCacheConversionError;
 use llama_cpp_bindings::error::KvCacheSeqAddError;
 use llama_cpp_bindings::error::KvCacheSeqDivError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;

@@ -2,6 +2,9 @@ use std::marker::PhantomData;
 use std::ptr::NonNull;
 
 use super::LlamaModel;
+unsafe fn free_lora_adapter(adapter: *mut llama_cpp_bindings_sys::llama_adapter_lora) {
+    unsafe { llama_cpp_bindings_sys::llama_adapter_lora_free(adapter) }
+}
 
 #[derive(Debug)]
 #[repr(transparent)]
@@ -29,10 +32,6 @@ impl Drop for LlamaLoraAdapter<'_> {
     fn drop(&mut self) {
         unsafe { free_lora_adapter(self.lora_adapter) }
     }
-}
-
-unsafe fn free_lora_adapter(adapter: *mut llama_cpp_bindings_sys::llama_adapter_lora) {
-    unsafe { llama_cpp_bindings_sys::llama_adapter_lora_free(adapter) }
 }
 
 #[cfg(test)]

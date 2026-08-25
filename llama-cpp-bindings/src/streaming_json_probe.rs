@@ -3,6 +3,32 @@ use serde_json::error::Category;
 
 const NAME_FIELD: &str = "name";
 const ARGUMENTS_FIELD: &str = "arguments";
+fn evaluate_completed_value(value: &Value) -> JsonProbeOutcome {
+    let Value::Object(map) = value else {
+        return JsonProbeOutcome::Failed;
+    };
+
+    let Some(Value::String(name)) = map.get(NAME_FIELD) else {
+        return JsonProbeOutcome::Failed;
+    };
+    if name.is_empty() {
+        return JsonProbeOutcome::Failed;
+    }
+
+    if let Some(arguments) = map.get(ARGUMENTS_FIELD)
+        && !matches!(arguments, Value::Object(_))
+    {
+        return JsonProbeOutcome::Failed;
+    }
+
+    for key in map.keys() {
+        if key != NAME_FIELD && key != ARGUMENTS_FIELD {
+            return JsonProbeOutcome::Failed;
+        }
+    }
+
+    JsonProbeOutcome::CompletedValid
+}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum JsonProbeOutcome {
@@ -30,33 +56,6 @@ impl JsonProbeOutcome {
             },
         }
     }
-}
-
-fn evaluate_completed_value(value: &Value) -> JsonProbeOutcome {
-    let Value::Object(map) = value else {
-        return JsonProbeOutcome::Failed;
-    };
-
-    let Some(Value::String(name)) = map.get(NAME_FIELD) else {
-        return JsonProbeOutcome::Failed;
-    };
-    if name.is_empty() {
-        return JsonProbeOutcome::Failed;
-    }
-
-    if let Some(arguments) = map.get(ARGUMENTS_FIELD)
-        && !matches!(arguments, Value::Object(_))
-    {
-        return JsonProbeOutcome::Failed;
-    }
-
-    for key in map.keys() {
-        if key != NAME_FIELD && key != ARGUMENTS_FIELD {
-            return JsonProbeOutcome::Failed;
-        }
-    }
-
-    JsonProbeOutcome::CompletedValid
 }
 
 #[cfg(test)]

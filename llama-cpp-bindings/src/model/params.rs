@@ -23,6 +23,83 @@ pub mod unknown_kv_override_tag;
 
 pub const LLAMA_CPP_MAX_DEVICES: usize = 16;
 
+fn fit_params_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
+    out_unrecognized_status_code: i32,
+    out_error: *mut c_char,
+) -> Result<(), FitError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_FAILURE => {
+            Err(FitError::NoFittingMemoryLayout)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR => {
+            Err(FitError::Aborted)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE => {
+            Err(FitError::UnknownStatus {
+                code: out_unrecognized_status_code,
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(FitError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY => {
+            Err(FitError::VendoredOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_fit_params",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(FitError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null path_model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null mparams argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null cparams argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null out_unrecognized_status_code argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_fit_params",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
 pub struct LlamaModelParams {
     pub params: llama_cpp_bindings_sys::llama_model_params,
     kv_overrides: Vec<llama_cpp_bindings_sys::llama_model_kv_override>,
@@ -282,83 +359,6 @@ impl LlamaModelParams {
         self.params.devices = self.devices.as_mut_ptr();
 
         Ok(self)
-    }
-}
-
-fn fit_params_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
-    out_unrecognized_status_code: i32,
-    out_error: *mut c_char,
-) -> Result<(), FitError> {
-    match status {
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_FAILURE => {
-            Err(FitError::NoFittingMemoryLayout)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR => {
-            Err(FitError::Aborted)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE => {
-            Err(FitError::UnknownStatus {
-                code: out_unrecognized_status_code,
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(FitError::NotEnoughMemory)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY => {
-            Err(FitError::VendoredOutOfMemory)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                read_and_free_cpp_string(
-                    out_error,
-                    "llama_rs_fit_params",
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
-            Err(FitError::Reported { message })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null path_model argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null mparams argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null cparams argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null out_unrecognized_status_code argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null out_error argument",
-            }
-            .into())
-        }
-        other => Err(crate::FfiStatusError {
-            operation: "llama_rs_fit_params",
-            code: i64::from(other),
-        }
-        .into()),
     }
 }
 

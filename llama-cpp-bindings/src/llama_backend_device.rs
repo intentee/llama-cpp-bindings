@@ -1,6 +1,15 @@
 use std::ffi::c_char;
 
 pub use crate::llama_backend_device_type::LlamaBackendDeviceType;
+fn cstr_to_string(ptr: *const c_char) -> String {
+    if ptr.is_null() {
+        String::new()
+    } else {
+        unsafe { std::ffi::CStr::from_ptr(ptr) }
+            .to_string_lossy()
+            .to_string()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct LlamaBackendDevice {
@@ -11,16 +20,6 @@ pub struct LlamaBackendDevice {
     pub memory_total: usize,
     pub memory_free: usize,
     pub device_type: LlamaBackendDeviceType,
-}
-
-fn cstr_to_string(ptr: *const c_char) -> String {
-    if ptr.is_null() {
-        String::new()
-    } else {
-        unsafe { std::ffi::CStr::from_ptr(ptr) }
-            .to_string_lossy()
-            .to_string()
-    }
 }
 
 impl LlamaBackendDevice {
