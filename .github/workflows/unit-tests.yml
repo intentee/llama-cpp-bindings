@@ -56,7 +56,9 @@ jobs:
         with:
           submodules: recursive
 
-      - run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - uses: ./.github/actions/install-cpp-lint-tools
+
+      - uses: ./.github/actions/install-rust-toolchain
 
       - run: make lint.cpp.cppcheck
 
@@ -69,6 +71,8 @@ jobs:
         with:
           submodules: recursive
 
-      - run: sudo apt-get update && sudo apt-get install -y clang-tidy
+      - uses: ./.github/actions/install-cpp-lint-tools
+
+      - uses: ./.github/actions/install-rust-toolchain
 
       - run: make lint.cpp.clang-tidy
