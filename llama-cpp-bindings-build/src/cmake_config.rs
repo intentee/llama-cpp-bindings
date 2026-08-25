@@ -144,10 +144,6 @@ fn map_cpu_feature_to_ggml(feature: &str) -> Option<&'static str> {
     }
 }
 
-/// The per-configuration MSVC flags `cmake` overwrites with the cc-rs argument list whenever the
-/// generator is left unset on an MSVC target. Losing `/DNDEBUG` leaves llama.cpp's debug-only
-/// `GGML_ABORT` paths live, so functions such as `llama_get_embeddings_ith` abort the process
-/// instead of returning the null pointer their callers expect.
 fn msvc_config_flags(target_os: TargetOs, profile: &str) -> Option<&'static str> {
     if !target_os.is_msvc() {
         return None;
@@ -162,8 +158,6 @@ fn msvc_config_flags(target_os: TargetOs, profile: &str) -> Option<&'static str>
     }
 }
 
-/// Defining these variables ourselves is what stops `cmake` from replacing them: it injects its own
-/// value only when the caller has not already defined the variable.
 fn configure_msvc_config_flags(config: &mut Config, target_os: TargetOs, profile: &str) {
     let Some(flags) = msvc_config_flags(target_os, profile) else {
         return;
