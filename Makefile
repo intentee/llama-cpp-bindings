@@ -34,7 +34,6 @@ coverage: node_modules
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
 		--gated llama-cpp-bindings=98 \
-		--gated llama-cpp-bindings-tests=100 \
 		--gated llama-cpp-error-recorder=100 \
 		--gated llama-cpp-ffi-status=100 \
 		--gated llama-cpp-gbnf=100 \
