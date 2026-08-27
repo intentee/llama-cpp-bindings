@@ -44,6 +44,10 @@ jobs:
 
       - uses: ./.github/actions/install-rust-toolchain
 
+      - name: DIAGNOSTIC - serial run to name the crashing test
+        if: runner.os == 'Windows'
+        run: cargo test -p llama-cpp-bindings --lib -- --test-threads=1 --nocapture
+
       - run: make test.unit
 
   cppcheck:
