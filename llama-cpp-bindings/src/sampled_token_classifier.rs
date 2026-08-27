@@ -175,17 +175,17 @@ impl<'model> SampledTokenClassifier<'model> {
             .and_then(|marker| self.marker_span_start(marker))
             .map(|span_start| (span_start, MarkerKind::ReasoningOpen))
             .or_else(|| {
-                self.markers.reasoning_closes.iter().find_map(|marker| {
-                    self.marker_span_start(marker)
-                        .map(|span_start| (span_start, MarkerKind::ReasoningClose))
-                })
-            })
-            .or_else(|| {
                 self.markers
                     .tool_call_open
                     .as_deref()
                     .and_then(|marker| self.marker_span_start(marker))
                     .map(|span_start| (span_start, MarkerKind::ToolCallOpen))
+            })
+            .or_else(|| {
+                self.markers.reasoning_closes.iter().find_map(|marker| {
+                    self.marker_span_start(marker)
+                        .map(|span_start| (span_start, MarkerKind::ReasoningClose))
+                })
             })
             .or_else(|| {
                 self.markers
@@ -637,6 +637,45 @@ mod tests {
                 SampledToken::Undeterminable(_) => SampledTokenSection::Pending,
             })
             .collect()
+    }
+
+    fn markers_sharing_tool_call_open_with_a_reasoning_close(
+        shared: Vec<LlamaToken>,
+    ) -> StreamingMarkers {
+        StreamingMarkers {
+            reasoning_open: Some(vec![token(100)]),
+            reasoning_closes: vec![vec![token(200)], shared.clone()],
+            tool_call_open: Some(shared),
+            tool_call_close: Some(vec![token(201)]),
+        }
+    }
+
+    #[test]
+    fn a_token_that_is_both_a_reasoning_close_and_the_tool_call_open_opens_the_tool_call() {
+        let mut classifier =
+            synthetic_classifier(markers_sharing_tool_call_open_with_a_reasoning_close(vec![
+                token(300),
+            ]));
+        classifier.section = SampledTokenSection::Content;
+
+        push_pending(&mut classifier, 300, "<tool_call>");
+        classifier.try_consume_marker_at_tail();
+
+        assert_eq!(classifier.section, SampledTokenSection::ToolCall);
+    }
+
+    #[test]
+    fn a_shared_marker_ends_reasoning_by_opening_the_tool_call() {
+        let mut classifier =
+            synthetic_classifier(markers_sharing_tool_call_open_with_a_reasoning_close(vec![
+                token(300),
+            ]));
+        classifier.section = SampledTokenSection::Reasoning;
+
+        push_pending(&mut classifier, 300, "<tool_call>");
+        classifier.try_consume_marker_at_tail();
+
+        assert_eq!(classifier.section, SampledTokenSection::ToolCall);
     }
 
     #[test]
