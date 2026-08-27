@@ -3,6 +3,7 @@
 #include "llama.cpp/ggml/include/ggml.h"
 #include "llama.cpp/include/llama.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -23,7 +24,17 @@ typedef enum llama_rs_fit_params_status {
     LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY,
     LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION,
+    LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG,
+    LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG,
+    LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG,
 } llama_rs_fit_params_status;
+
+typedef struct llama_rs_fit_extra_model {
+    const char * path_model;
+    struct llama_model_params * mparams;
+    struct llama_context_params * cparams;
+    bool shares_model;
+} llama_rs_fit_extra_model;
 
 llama_rs_fit_params_status llama_rs_fit_params(
     const char * path_model,
@@ -33,6 +44,7 @@ llama_rs_fit_params_status llama_rs_fit_params(
     struct llama_model_tensor_buft_override * tensor_buft_overrides,
     size_t * margins,
     uint32_t n_ctx_min,
+    const llama_rs_fit_extra_model * extra,
     enum ggml_log_level log_level,
     int32_t * out_unrecognized_status_code,
     char ** out_error);

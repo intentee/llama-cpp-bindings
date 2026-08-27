@@ -18,6 +18,7 @@ extern "C" auto llama_rs_fit_params(
     struct llama_model_tensor_buft_override * tensor_buft_overrides,
     size_t * margins,
     uint32_t n_ctx_min,
+    const llama_rs_fit_extra_model * extra,
     enum ggml_log_level log_level,
     int32_t * out_unrecognized_status_code,
     char ** out_error) -> llama_rs_fit_params_status {
@@ -42,11 +43,30 @@ extern "C" auto llama_rs_fit_params(
     if (out_error == nullptr) {
         return LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG;
     }
+    if (extra != nullptr) {
+        if (extra->path_model == nullptr) {
+            return LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG;
+        }
+        if (extra->mparams == nullptr) {
+            return LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG;
+        }
+        if (extra->cparams == nullptr) {
+            return LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG;
+        }
+    }
 
     try {
+        common_fit_extra_model vendored_extra{};
+        if (extra != nullptr) {
+            vendored_extra.path_model   = extra->path_model;
+            vendored_extra.mparams      = extra->mparams;
+            vendored_extra.cparams      = extra->cparams;
+            vendored_extra.shares_model = extra->shares_model;
+        }
+
         const common_params_fit_status status = common_fit_params(
             path_model, mparams, cparams, tensor_split, tensor_buft_overrides,
-            margins, n_ctx_min, log_level);
+            margins, n_ctx_min, extra == nullptr ? nullptr : &vendored_extra, log_level);
         switch (status) {
             case COMMON_PARAMS_FIT_STATUS_SUCCESS:
                 return LLAMA_RS_FIT_PARAMS_OK;
