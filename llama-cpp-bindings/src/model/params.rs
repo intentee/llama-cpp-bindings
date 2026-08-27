@@ -6,18 +6,99 @@ use std::ptr::null;
 use crate::LlamaCppError;
 use crate::context::params::LlamaContextParams;
 use crate::error::{FitError, ModelParamsError};
+use crate::model::llama_load_mode::LlamaLoadMode;
+use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
 use crate::model::split_mode::LlamaSplitMode;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 pub mod fit_result;
+pub mod kv_override_entry;
 pub mod kv_override_value_iterator;
 pub mod kv_overrides;
 pub mod param_override_value;
 pub mod unknown_kv_override_tag;
 
 pub const LLAMA_CPP_MAX_DEVICES: usize = 16;
+
+fn fit_params_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
+    out_unrecognized_status_code: i32,
+    out_error: *mut c_char,
+) -> Result<(), FitError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_FAILURE => {
+            Err(FitError::NoFittingMemoryLayout)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR => {
+            Err(FitError::Aborted)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE => {
+            Err(FitError::UnknownStatus {
+                code: out_unrecognized_status_code,
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(FitError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY => {
+            Err(FitError::VendoredOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_fit_params",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(FitError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null path_model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null mparams argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null cparams argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null out_unrecognized_status_code argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_fit_params",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
 
 pub struct LlamaModelParams {
     pub params: llama_cpp_bindings_sys::llama_model_params,
@@ -33,8 +114,8 @@ impl Debug for LlamaModelParams {
             .field("n_gpu_layers", &self.params.n_gpu_layers)
             .field("main_gpu", &self.params.main_gpu)
             .field("vocab_only", &self.params.vocab_only)
-            .field("use_mmap", &self.params.use_mmap)
-            .field("use_mlock", &self.params.use_mlock)
+            .field("load_mode", &self.load_mode())
+            .field("load_mtp", &self.params.load_mtp)
             .field("split_mode", &self.split_mode())
             .field("devices", &self.devices)
             .field("kv_overrides", &"vec of kv_overrides")
@@ -169,14 +250,15 @@ impl LlamaModelParams {
         self.params.vocab_only
     }
 
-    #[must_use]
-    pub const fn use_mmap(&self) -> bool {
-        self.params.use_mmap
+    /// # Errors
+    /// Returns [`LlamaLoadModeParseError`] when llama.cpp returns an unknown load mode.
+    pub fn load_mode(&self) -> Result<LlamaLoadMode, LlamaLoadModeParseError> {
+        LlamaLoadMode::try_from(self.params.load_mode)
     }
 
     #[must_use]
-    pub const fn use_mlock(&self) -> bool {
-        self.params.use_mlock
+    pub const fn load_mtp(&self) -> bool {
+        self.params.load_mtp
     }
 
     /// # Errors
@@ -188,8 +270,8 @@ impl LlamaModelParams {
     #[must_use]
     pub fn devices(&self) -> Vec<usize> {
         let mut backend_devices = Vec::new();
-        for i in 0..unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
-            let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(i) };
+        for device_index in 0..unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
+            let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
             backend_devices.push(dev);
         }
         let mut devices = Vec::new();
@@ -229,12 +311,6 @@ impl LlamaModelParams {
     }
 
     #[must_use]
-    pub const fn with_use_mmap(mut self, use_mmap: bool) -> Self {
-        self.params.use_mmap = use_mmap;
-        self
-    }
-
-    #[must_use]
     pub const fn no_alloc(&self) -> bool {
         self.params.no_alloc
     }
@@ -242,15 +318,18 @@ impl LlamaModelParams {
     #[must_use]
     pub const fn with_no_alloc(mut self, no_alloc: bool) -> Self {
         self.params.no_alloc = no_alloc;
-        if no_alloc {
-            self.params.use_mmap = false;
-        }
         self
     }
 
     #[must_use]
-    pub const fn with_use_mlock(mut self, use_mlock: bool) -> Self {
-        self.params.use_mlock = use_mlock;
+    pub fn with_load_mode(mut self, load_mode: LlamaLoadMode) -> Self {
+        self.params.load_mode = load_mode.into();
+        self
+    }
+
+    #[must_use]
+    pub const fn with_load_mtp(mut self, load_mtp: bool) -> Self {
+        self.params.load_mtp = load_mtp;
         self
     }
 
@@ -280,35 +359,6 @@ impl LlamaModelParams {
         self.params.devices = self.devices.as_mut_ptr();
 
         Ok(self)
-    }
-}
-
-fn fit_params_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
-    out_unrecognized_status_code: i32,
-    out_error: *mut c_char,
-) -> Result<(), FitError> {
-    match status {
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_FAILURE => {
-            Err(FitError::NoFittingMemoryLayout)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR => {
-            Err(FitError::Aborted)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE => {
-            Err(FitError::UnknownStatus {
-                code: out_unrecognized_status_code,
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(FitError::NotEnoughMemory)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { crate::ffi_error_reader::read_and_free_cpp_error(out_error) };
-            Err(FitError::Reported { message })
-        }
-        other => unreachable!("llama_rs_fit_params returned unrecognized wrapper status: {other}"),
     }
 }
 
@@ -395,6 +445,7 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::llama_load_mode::LlamaLoadMode;
     use crate::model::split_mode::LlamaSplitMode;
 
     use super::{LLAMA_CPP_MAX_DEVICES, LlamaModelParams};
@@ -417,8 +468,7 @@ mod tests {
         assert_eq!(params.n_gpu_layers(), -1);
         assert_eq!(params.main_gpu(), 0);
         assert!(!params.vocab_only());
-        assert!(params.use_mmap());
-        assert!(!params.use_mlock());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Auto));
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Layer));
         assert!(params.devices().is_empty());
     }
@@ -473,20 +523,6 @@ mod tests {
     }
 
     #[test]
-    fn with_use_mmap_enables() {
-        let params = LlamaModelParams::default().with_use_mmap(true);
-
-        assert!(params.use_mmap());
-    }
-
-    #[test]
-    fn with_use_mmap_disables() {
-        let params = LlamaModelParams::default().with_use_mmap(false);
-
-        assert!(!params.use_mmap());
-    }
-
-    #[test]
     fn with_no_alloc_enables() {
         let params = LlamaModelParams::default().with_no_alloc(true);
 
@@ -501,13 +537,27 @@ mod tests {
     }
 
     #[test]
-    fn with_no_alloc_true_disables_mmap() {
+    fn with_no_alloc_preserves_load_mode() {
         let params = LlamaModelParams::default()
-            .with_use_mmap(true)
+            .with_load_mode(LlamaLoadMode::Mmap)
             .with_no_alloc(true);
 
         assert!(params.no_alloc());
-        assert!(!params.use_mmap());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Mmap));
+    }
+
+    #[test]
+    fn with_load_mtp_enables_mtp_loading() {
+        let params = LlamaModelParams::default().with_load_mtp(true);
+
+        assert!(params.load_mtp());
+    }
+
+    #[test]
+    fn with_load_mtp_disables_mtp_loading() {
+        let params = LlamaModelParams::default().with_load_mtp(false);
+
+        assert!(!params.load_mtp());
     }
 
     #[test]
@@ -518,20 +568,6 @@ mod tests {
     }
 
     #[test]
-    fn with_use_mlock_enables() {
-        let params = LlamaModelParams::default().with_use_mlock(true);
-
-        assert!(params.use_mlock());
-    }
-
-    #[test]
-    fn with_use_mlock_disables() {
-        let params = LlamaModelParams::default().with_use_mlock(false);
-
-        assert!(!params.use_mlock());
-    }
-
-    #[test]
     fn debug_format_contains_field_names() {
         let params = LlamaModelParams::default();
         let debug_output = format!("{params:?}");
@@ -539,8 +575,7 @@ mod tests {
         assert!(debug_output.contains("n_gpu_layers"));
         assert!(debug_output.contains("main_gpu"));
         assert!(debug_output.contains("vocab_only"));
-        assert!(debug_output.contains("use_mmap"));
-        assert!(debug_output.contains("use_mlock"));
+        assert!(debug_output.contains("load_mode"));
         assert!(debug_output.contains("split_mode"));
     }
 
@@ -551,13 +586,13 @@ mod tests {
             .with_main_gpu(1)
             .with_split_mode(LlamaSplitMode::Row)
             .with_vocab_only(true)
-            .with_use_mlock(true);
+            .with_load_mode(LlamaLoadMode::MmapMlock);
 
         assert_eq!(params.n_gpu_layers(), 10);
         assert_eq!(params.main_gpu(), 1);
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Row));
         assert!(params.vocab_only());
-        assert!(params.use_mlock());
+        assert_eq!(params.load_mode(), Ok(LlamaLoadMode::MmapMlock));
     }
 
     #[test]
@@ -823,7 +858,7 @@ mod tests {
     }
 
     #[test]
-    fn fit_params_status_cxx_exception_returns_reported_with_unknown_error() {
+    fn fit_params_status_cxx_exception_without_a_message_is_a_contract_error_with_unknown_error() {
         let result = super::fit_params_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION,
             0,
@@ -832,19 +867,116 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(crate::error::FitError::Reported {
-                message: "unknown error".to_owned()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
     #[test]
-    #[should_panic(expected = "unrecognized wrapper status")]
-    fn fit_params_status_out_of_range_panics() {
-        let _ = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_fit_params_status::MAX,
-            0,
-            std::ptr::null_mut(),
+    fn fit_params_unknown_wrapper_status_is_preserved() {
+        let result = super::fit_params_status_to_result(255, 0, std::ptr::null_mut());
+
+        assert_eq!(
+            result,
+            Err(crate::error::FitError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_fit_params",
+                code: 255,
+            }))
         );
+    }
+}
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::fit_params_status_to_result;
+    use crate::error::fit_error::FitError;
+    use std::ptr;
+
+    #[test]
+    fn fit_params_status_to_result_maps_every_contract_status() {
+        let outcome_0 = fit_params_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_fit_params",
+                    detail: "was given a null path_model argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = fit_params_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_fit_params",
+                    detail: "was given a null mparams argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = fit_params_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_2.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_fit_params",
+                    detail: "was given a null cparams argument",
+                }
+                .into()
+            )
+        );
+        let outcome_3 = fit_params_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_3.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_fit_params",
+                    detail: "was given a null out_unrecognized_status_code argument",
+                }
+                .into()
+            )
+        );
+        let outcome_4 = fit_params_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_4.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_fit_params",
+                    detail: "was given a null out_error argument",
+                }
+                .into()
+            )
+        );
+        let outcome_5 = fit_params_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome_5.err(), Some(FitError::VendoredOutOfMemory));
     }
 }

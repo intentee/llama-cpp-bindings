@@ -1,4 +1,39 @@
 use std::fmt::{Debug, Display, Formatter};
+fn write_timings(timings: &LlamaTimings, writer: &mut dyn std::fmt::Write) -> std::fmt::Result {
+    writeln!(writer, "load time = {:.2} ms", timings.t_load_ms())?;
+
+    if timings.n_p_eval() > 0 {
+        writeln!(
+            writer,
+            "prompt eval time = {:.2} ms / {} tokens ({:.2} ms per token, {:.2} tokens per second)",
+            timings.t_p_eval_ms(),
+            timings.n_p_eval(),
+            timings.t_p_eval_ms() / f64::from(timings.n_p_eval()),
+            1e3 / timings.t_p_eval_ms() * f64::from(timings.n_p_eval())
+        )?;
+    } else {
+        writeln!(
+            writer,
+            "prompt eval time = {:.2} ms / 0 tokens",
+            timings.t_p_eval_ms(),
+        )?;
+    }
+
+    if timings.n_eval() > 0 {
+        writeln!(
+            writer,
+            "eval time = {:.2} ms / {} runs ({:.2} ms per token, {:.2} tokens per second)",
+            timings.t_eval_ms(),
+            timings.n_eval(),
+            timings.t_eval_ms() / f64::from(timings.n_eval()),
+            1e3 / timings.t_eval_ms() * f64::from(timings.n_eval())
+        )?;
+    } else {
+        writeln!(writer, "eval time = {:.2} ms / 0 runs", timings.t_eval_ms())?;
+    }
+
+    Ok(())
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct LlamaTimings {
@@ -82,42 +117,6 @@ impl LlamaTimings {
     pub const fn set_n_eval(&mut self, n_eval: i32) {
         self.timings.n_eval = n_eval;
     }
-}
-
-fn write_timings(timings: &LlamaTimings, writer: &mut dyn std::fmt::Write) -> std::fmt::Result {
-    writeln!(writer, "load time = {:.2} ms", timings.t_load_ms())?;
-
-    if timings.n_p_eval() > 0 {
-        writeln!(
-            writer,
-            "prompt eval time = {:.2} ms / {} tokens ({:.2} ms per token, {:.2} tokens per second)",
-            timings.t_p_eval_ms(),
-            timings.n_p_eval(),
-            timings.t_p_eval_ms() / f64::from(timings.n_p_eval()),
-            1e3 / timings.t_p_eval_ms() * f64::from(timings.n_p_eval())
-        )?;
-    } else {
-        writeln!(
-            writer,
-            "prompt eval time = {:.2} ms / 0 tokens",
-            timings.t_p_eval_ms(),
-        )?;
-    }
-
-    if timings.n_eval() > 0 {
-        writeln!(
-            writer,
-            "eval time = {:.2} ms / {} runs ({:.2} ms per token, {:.2} tokens per second)",
-            timings.t_eval_ms(),
-            timings.n_eval(),
-            timings.t_eval_ms() / f64::from(timings.n_eval()),
-            1e3 / timings.t_eval_ms() * f64::from(timings.n_eval())
-        )?;
-    } else {
-        writeln!(writer, "eval time = {:.2} ms / 0 runs", timings.t_eval_ms())?;
-    }
-
-    Ok(())
 }
 
 impl Display for LlamaTimings {

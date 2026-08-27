@@ -3,6 +3,10 @@ use std::os::raw::c_int;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum DecodeError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("no KV cache slot was available")]
     NoKvCacheSlot,
     #[error("decode aborted by callback")]
@@ -17,6 +21,8 @@ pub enum DecodeError {
     UnknownStatus { code: c_int },
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
 }

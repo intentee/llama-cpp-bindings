@@ -7,11 +7,18 @@ pub fn fixtures_dir() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn fixtures_dir_is_under_manifest() {
-        let dir = super::fixtures_dir();
-        let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    use std::path::PathBuf;
 
-        assert!(dir.starts_with(manifest));
+    use super::fixtures_dir;
+
+    #[test]
+    fn resolves_to_the_fixtures_directory_inside_the_manifest() {
+        let expected = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+
+        assert_eq!(fixtures_dir(), expected);
+        assert!(
+            fixtures_dir().is_dir(),
+            "the fixtures directory the multimodal tests read from must exist"
+        );
     }
 }

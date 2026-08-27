@@ -35,8 +35,6 @@ void dup_or_set_alloc_flag(const std::string & source, char ** out_dup, bool * o
 
 extern "C" auto llama_rs_chat_parser_create(
     const struct llama_model * model,
-    const char * reasoning_open,
-    const char * reasoning_close,
     llama_rs_chat_parser_handle * out_parser,
     char ** out_error) -> llama_rs_chat_parser_create_status {
     if (out_parser != nullptr) {
@@ -74,19 +72,11 @@ extern "C" auto llama_rs_chat_parser_create(
         auto parser_handle = std::make_unique<llama_rs_chat_parser>();
         parser_handle->parser.analyze_template(tmpl);
 
-        if (parser_handle->parser.reasoning.mode == autoparser::reasoning_mode::NONE
-            && reasoning_open != nullptr && reasoning_close != nullptr
-            && *reasoning_open != '\0' && *reasoning_close != '\0') {
-            parser_handle->parser.reasoning.mode  = autoparser::reasoning_mode::TAG_BASED;
-            parser_handle->parser.reasoning.start = reasoning_open;
-            parser_handle->parser.reasoning.end   = reasoning_close;
-        }
-
         *out_parser = parser_handle.release();
 
         return LLAMA_RS_CHAT_PARSER_CREATE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_CHAT_PARSER_CREATE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_CHAT_PARSER_CREATE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {
@@ -112,7 +102,7 @@ extern "C" auto llama_rs_chat_parser_free(
         const std::unique_ptr<llama_rs_chat_parser> reclaimed(parser);
         return LLAMA_RS_CHAT_PARSER_FREE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_CHAT_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_CHAT_PARSER_FREE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -182,7 +172,7 @@ extern "C" auto llama_rs_parse_chat_message(
 
         return LLAMA_RS_PARSE_CHAT_MESSAGE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSE_CHAT_MESSAGE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_PARSE_CHAT_MESSAGE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {
@@ -208,7 +198,7 @@ extern "C" auto llama_rs_parsed_chat_free(
         const std::unique_ptr<llama_rs_parsed_chat> reclaimed(handle);
         return LLAMA_RS_PARSED_CHAT_FREE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSED_CHAT_FREE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_PARSED_CHAT_FREE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -248,7 +238,7 @@ extern "C" auto llama_rs_parsed_chat_tool_call_count(
         *out_count = handle->message.tool_calls.size();
         return LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -296,7 +286,7 @@ extern "C" auto llama_rs_parsed_chat_tool_call_id(
         }
         return LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -344,7 +334,7 @@ extern "C" auto llama_rs_parsed_chat_tool_call_name(
         }
         return LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -393,7 +383,7 @@ extern "C" auto llama_rs_parsed_chat_tool_call_arguments(
         }
         return LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -437,7 +427,7 @@ extern "C" auto llama_rs_parsed_chat_content(
         }
         return LLAMA_RS_PARSED_CHAT_CONTENT_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSED_CHAT_CONTENT_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_PARSED_CHAT_CONTENT_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -481,7 +471,7 @@ extern "C" auto llama_rs_parsed_chat_reasoning_content(
         }
         return LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());

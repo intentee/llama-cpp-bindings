@@ -9,47 +9,54 @@ use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
 
 fn checked_n_tokens_plus_one_as_usize(n_tokens: i32) -> Result<usize, BatchAddError> {
-    let incremented = n_tokens.checked_add(1).ok_or_else(|| {
-        BatchAddError::IntegerOverflow(format!("n_tokens + 1 overflows i32: {n_tokens}"))
-    })?;
+    let incremented = n_tokens
+        .checked_add(1)
+        .ok_or(BatchAddError::TokenCountOverflow { n_tokens })?;
 
-    usize::try_from(incremented).map_err(|convert_error| {
-        BatchAddError::IntegerOverflow(format!("cannot fit n_tokens into a usize: {convert_error}"))
-    })
+    checked_i32_as_usize(incremented, "the incremented token count")
 }
 
-fn checked_i32_as_usize(value: i32, description: &str) -> Result<usize, BatchAddError> {
-    usize::try_from(value).map_err(|convert_error| {
-        BatchAddError::IntegerOverflow(format!(
-            "cannot fit {description} into a usize: {convert_error}"
-        ))
+fn checked_i32_as_usize(
+    value: i32,
+    value_description: &'static str,
+) -> Result<usize, BatchAddError> {
+    usize::try_from(value).map_err(|source| BatchAddError::IntegerOverflow {
+        value_description,
+        target_type: "usize",
+        source,
     })
 }
 
 fn checked_usize_as_llama_seq_id(
     value: usize,
-    description: &str,
+    value_description: &'static str,
 ) -> Result<llama_seq_id, BatchAddError> {
-    llama_seq_id::try_from(value).map_err(|convert_error| {
-        BatchAddError::IntegerOverflow(format!(
-            "cannot fit {description} into a llama_seq_id: {convert_error}"
-        ))
+    llama_seq_id::try_from(value).map_err(|source| BatchAddError::IntegerOverflow {
+        value_description,
+        target_type: "llama_seq_id",
+        source,
     })
 }
 
-fn checked_usize_as_i32(value: usize, description: &str) -> Result<i32, BatchAddError> {
-    i32::try_from(value).map_err(|convert_error| {
-        BatchAddError::IntegerOverflow(format!(
-            "cannot fit {description} into a i32: {convert_error}"
-        ))
+fn checked_usize_as_i32(
+    value: usize,
+    value_description: &'static str,
+) -> Result<i32, BatchAddError> {
+    i32::try_from(value).map_err(|source| BatchAddError::IntegerOverflow {
+        value_description,
+        target_type: "i32",
+        source,
     })
 }
 
-fn checked_usize_as_llama_pos(value: usize, description: &str) -> Result<llama_pos, BatchAddError> {
-    llama_pos::try_from(value).map_err(|convert_error| {
-        BatchAddError::IntegerOverflow(format!(
-            "cannot fit {description} into a llama_pos: {convert_error}"
-        ))
+fn checked_usize_as_llama_pos(
+    value: usize,
+    value_description: &'static str,
+) -> Result<llama_pos, BatchAddError> {
+    llama_pos::try_from(value).map_err(|source| BatchAddError::IntegerOverflow {
+        value_description,
+        target_type: "llama_pos",
+        source,
     })
 }
 
@@ -453,21 +460,21 @@ mod tests {
 
     #[test]
     fn checked_n_tokens_plus_one_as_usize_fails_for_negative() {
-        let result = checked_n_tokens_plus_one_as_usize(-2);
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            checked_n_tokens_plus_one_as_usize(-2),
+            Err(BatchAddError::IntegerOverflow {
+                value_description: "the incremented token count",
+                target_type: "usize",
+                source: usize::try_from(-1_i32).expect_err("the conversion must fail"),
+            })
         );
     }
 
     #[test]
     fn checked_n_tokens_plus_one_as_usize_fails_for_i32_max() {
-        let result = checked_n_tokens_plus_one_as_usize(i32::MAX);
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            checked_n_tokens_plus_one_as_usize(i32::MAX),
+            Err(BatchAddError::TokenCountOverflow { n_tokens: i32::MAX })
         );
     }
 
@@ -480,11 +487,13 @@ mod tests {
 
     #[test]
     fn checked_i32_as_usize_fails_for_negative() {
-        let result = checked_i32_as_usize(i32::MIN, "test_value");
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            checked_i32_as_usize(i32::MIN, "test_value"),
+            Err(BatchAddError::IntegerOverflow {
+                value_description: "test_value",
+                target_type: "usize",
+                source: usize::try_from(i32::MIN).expect_err("the conversion must fail"),
+            })
         );
     }
 
@@ -497,11 +506,14 @@ mod tests {
 
     #[test]
     fn checked_usize_as_llama_seq_id_fails_for_overflow() {
-        let result = checked_usize_as_llama_seq_id(usize::MAX, "test_value");
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            checked_usize_as_llama_seq_id(usize::MAX, "test_value"),
+            Err(BatchAddError::IntegerOverflow {
+                value_description: "test_value",
+                target_type: "llama_seq_id",
+                source: super::llama_seq_id::try_from(usize::MAX)
+                    .expect_err("the conversion must fail"),
+            })
         );
     }
 
@@ -514,11 +526,13 @@ mod tests {
 
     #[test]
     fn checked_usize_as_i32_fails_for_overflow() {
-        let result = checked_usize_as_i32(usize::MAX, "test_value");
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            checked_usize_as_i32(usize::MAX, "test_value"),
+            Err(BatchAddError::IntegerOverflow {
+                value_description: "test_value",
+                target_type: "i32",
+                source: i32::try_from(usize::MAX).expect_err("the conversion must fail"),
+            })
         );
     }
 
@@ -531,21 +545,26 @@ mod tests {
 
     #[test]
     fn checked_usize_as_llama_pos_fails_for_overflow() {
-        let result = checked_usize_as_llama_pos(usize::MAX, "test_value");
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            checked_usize_as_llama_pos(usize::MAX, "test_value"),
+            Err(BatchAddError::IntegerOverflow {
+                value_description: "test_value",
+                target_type: "llama_pos",
+                source: super::llama_pos::try_from(usize::MAX)
+                    .expect_err("the conversion must fail"),
+            })
         );
     }
 
     #[test]
     fn new_fails_for_oversized_n_tokens() {
-        let result = LlamaBatch::new(usize::MAX, 1);
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            LlamaBatch::new(usize::MAX, 1).unwrap_err(),
+            BatchAddError::IntegerOverflow {
+                value_description: "n_tokens",
+                target_type: "i32",
+                source: i32::try_from(usize::MAX).expect_err("the conversion must fail"),
+            }
         );
     }
 
@@ -554,11 +573,9 @@ mod tests {
         let mut batch = LlamaBatch::new(16, 1).unwrap();
         batch.llama_batch.n_tokens = i32::MAX;
 
-        let result = batch.add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false);
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            batch.add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false),
+            Err(BatchAddError::TokenCountOverflow { n_tokens: i32::MAX })
         );
     }
 
@@ -567,11 +584,13 @@ mod tests {
         let mut batch = LlamaBatch::new(16, 1).unwrap();
         batch.llama_batch.n_tokens = -1;
 
-        let result = batch.add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false);
-
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&BatchAddError::IntegerOverflow(String::new())),
+            batch.add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false),
+            Err(BatchAddError::IntegerOverflow {
+                value_description: "n_tokens",
+                target_type: "usize",
+                source: usize::try_from(-1_i32).expect_err("the conversion must fail"),
+            })
         );
     }
 }

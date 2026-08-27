@@ -6,15 +6,14 @@ use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
 
-use crate::mmproj_source::MmprojSource;
+use crate::gguf_source::GgufSource;
 use crate::model_load_params::ModelLoadParams;
-use crate::model_source::ModelSource;
 use crate::phase_state::PhaseState;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct LoadKey {
-    pub model_source: ModelSource,
-    pub mmproj_source: Option<MmprojSource>,
+    pub model_source: GgufSource,
+    pub mmproj_source: Option<GgufSource>,
     pub model_load_params: ModelLoadParams,
 }
 
@@ -53,23 +52,23 @@ impl LoadKey {
 
 #[cfg(test)]
 mod tests {
-    use crate::mmproj_source::MmprojSource;
+    use llama_cpp_bindings::model::LlamaLoadMode;
+
+    use crate::gguf_source::GgufSource;
     use crate::model_load_params::ModelLoadParams;
-    use crate::model_source::ModelSource;
 
     use super::LoadKey;
 
     fn baseline() -> LoadKey {
         LoadKey {
-            model_source: ModelSource::HuggingFace {
+            model_source: GgufSource::HuggingFace {
                 repo: "repo",
                 file: "file",
             },
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         }
     }
@@ -82,7 +81,7 @@ mod tests {
     #[test]
     fn different_model_sources_compare_unequal() {
         let mut other = baseline();
-        other.model_source = ModelSource::HuggingFace {
+        other.model_source = GgufSource::HuggingFace {
             repo: "other",
             file: "file",
         };
@@ -93,7 +92,7 @@ mod tests {
     #[test]
     fn huggingface_and_local_path_compare_unequal() {
         let mut other = baseline();
-        other.model_source = ModelSource::LocalPath("/some/local.gguf");
+        other.model_source = GgufSource::LocalPath("/some/local.gguf");
 
         assert_ne!(baseline(), other);
     }
@@ -101,7 +100,7 @@ mod tests {
     #[test]
     fn different_mmproj_sources_compare_unequal() {
         let mut other = baseline();
-        other.mmproj_source = Some(MmprojSource::HuggingFace {
+        other.mmproj_source = Some(GgufSource::HuggingFace {
             repo: "repo",
             file: "mmproj-F16.gguf",
         });
@@ -116,8 +115,6 @@ mod tests {
 
         assert_ne!(baseline(), other);
     }
-
-    //
 
     use std::sync::Arc;
 
@@ -134,12 +131,11 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let backend = Arc::new(LlamaBackend::init().expect("backend init must succeed"));
         let key = LoadKey {
-            model_source: ModelSource::LocalPath(NON_GGUF_PATH),
+            model_source: GgufSource::LocalPath(NON_GGUF_PATH),
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         };
 
@@ -158,15 +154,14 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let backend = Arc::new(LlamaBackend::init().expect("backend init must succeed"));
         let key = LoadKey {
-            model_source: ModelSource::LocalPath(NON_GGUF_PATH),
-            mmproj_source: Some(MmprojSource::HuggingFace {
+            model_source: GgufSource::LocalPath(NON_GGUF_PATH),
+            mmproj_source: Some(GgufSource::HuggingFace {
                 repo: "intentee-test-harness/does-not-exist",
                 file: "no-such-mmproj.gguf",
             }),
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         };
 
@@ -186,12 +181,11 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let backend = Arc::new(LlamaBackend::init().expect("backend init must succeed"));
         let key = LoadKey {
-            model_source: ModelSource::LocalPath(NON_GGUF_PATH),
-            mmproj_source: Some(MmprojSource::LocalPath(NON_GGUF_PATH)),
+            model_source: GgufSource::LocalPath(NON_GGUF_PATH),
+            mmproj_source: Some(GgufSource::LocalPath(NON_GGUF_PATH)),
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         };
 

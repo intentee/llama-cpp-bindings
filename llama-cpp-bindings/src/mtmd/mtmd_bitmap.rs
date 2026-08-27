@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::slice;
 
-use crate::ffi_error_reader::read_and_free_cpp_error;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use super::mtmd_bitmap_error::MtmdBitmapError;
 use super::mtmd_context::MtmdContext;
@@ -35,9 +35,10 @@ unsafe fn from_file_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_OK => {
             let bitmap = NonNull::new(out_bitmap).ok_or_else(|| {
-                MtmdBitmapError::FileUnreadable {
-                    path: PathBuf::from(path),
-                }
+                MtmdBitmapError::from(crate::FfiContractError {
+                    operation: "llama_rs_mtmd_bitmap_init_from_file",
+                    detail: "success status contained a null bitmap",
+                })
             })?;
             Ok(MtmdBitmap { bitmap })
         }
@@ -49,13 +50,33 @@ unsafe fn from_file_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdBitmapError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY => {
+            Err(MtmdBitmapError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_mtmd_bitmap_init_from_file", "reported a thrown C++ exception without an error message") }?;
             Err(MtmdBitmapError::Reported { message })
         }
-        other => unreachable!(
-            "llama_rs_mtmd_bitmap_init_from_file returned unrecognized status: {other}"
-        ),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_bitmap_init_from_file",
+            detail: "was given a null ctx argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_FNAME_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_bitmap_init_from_file",
+            detail: "was given a null fname argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_OUT_BITMAP_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_mtmd_bitmap_init_from_file",
+            detail: "was given a null out_bitmap argument",
+        }
+        .into()),
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_mtmd_bitmap_init_from_file",
+            code: i64::from(other),
+        }
+        .into()),
     }
 }
 
@@ -64,21 +85,31 @@ pub struct MtmdBitmap {
     pub bitmap: NonNull<llama_cpp_bindings_sys::mtmd_bitmap>,
 }
 
+const RGB_BYTES_PER_PIXEL: usize = 3;
+
 unsafe impl Send for MtmdBitmap {}
 unsafe impl Sync for MtmdBitmap {}
 
 impl MtmdBitmap {
     /// # Errors
     ///
+    /// * `ImageDimensionsTooSmall` - `nx` or `ny` is below the 2x2 minimum
+    /// * `ImageDimensionsOverflow` - `nx * ny * 3` does not fit into a buffer length
     /// * `InvalidDataSize` - Data length doesn't match `nx * ny * 3`
-    /// * `NullResult` - Underlying C function returned null
+    /// * `BitmapDecodeFailed` - Underlying C function returned null
     ///
     pub fn from_image_data(nx: u32, ny: u32, data: &[u8]) -> Result<Self, MtmdBitmapError> {
         if nx < 2 || ny < 2 {
             return Err(MtmdBitmapError::ImageDimensionsTooSmall(nx, ny));
         }
 
-        if data.len() != (nx * ny * 3) as usize {
+        let expected_len = usize::try_from(nx)
+            .ok()
+            .and_then(|width| width.checked_mul(usize::try_from(ny).ok()?))
+            .and_then(|pixels| pixels.checked_mul(RGB_BYTES_PER_PIXEL))
+            .ok_or(MtmdBitmapError::ImageDimensionsOverflow { nx, ny })?;
+
+        if data.len() != expected_len {
             return Err(MtmdBitmapError::InvalidDataSize);
         }
 
@@ -224,8 +255,22 @@ mod tests {
     #[test]
     fn invalid_data_size_returns_error() {
         let too_short = vec![0u8; 5];
-        let result = MtmdBitmap::from_image_data(2, 2, &too_short);
-        assert!(result.is_err());
+
+        assert_eq!(
+            MtmdBitmap::from_image_data(2, 2, &too_short).unwrap_err(),
+            MtmdBitmapError::InvalidDataSize
+        );
+    }
+
+    #[test]
+    fn dimensions_whose_rgb_buffer_size_overflows_are_rejected() {
+        assert_eq!(
+            MtmdBitmap::from_image_data(u32::MAX, u32::MAX, &[0u8; 12]).unwrap_err(),
+            MtmdBitmapError::ImageDimensionsOverflow {
+                nx: u32::MAX,
+                ny: u32::MAX
+            }
+        );
     }
 
     #[test]
@@ -308,7 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn from_file_status_ok_with_null_bitmap_returns_file_unreadable() {
+    fn from_file_success_with_null_bitmap_is_contract_error() {
         let result = unsafe {
             super::from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_OK,
@@ -320,9 +365,10 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            MtmdBitmapError::FileUnreadable {
-                path: PathBuf::from("/missing/image.png")
-            }
+            MtmdBitmapError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_mtmd_bitmap_init_from_file",
+                detail: "success status contained a null bitmap",
+            })
         );
     }
 
@@ -360,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn from_file_status_vendored_threw_cxx_exception_returns_reported() {
+    fn from_file_status_vendored_threw_cxx_exception_without_a_message_is_a_contract_error() {
         let result = unsafe {
             super::from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION,
@@ -372,22 +418,88 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            MtmdBitmapError::Reported {
-                message: "unknown error".to_string()
+            crate::FfiContractError {
+                operation: "llama_rs_mtmd_bitmap_init_from_file",
+                detail: "reported a thrown C++ exception without an error message",
             }
+            .into()
         );
     }
 
     #[test]
-    #[should_panic(expected = "returned unrecognized status")]
-    fn from_file_status_null_ctx_arg_panics_as_unreachable() {
-        let _result = unsafe {
+    fn from_file_null_context_status_is_a_contract_error() {
+        let status = llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG;
+        let result = unsafe {
             super::from_file_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG,
+                status,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
                 "/missing/image.png",
             )
         };
+
+        assert_eq!(
+            result.unwrap_err(),
+            MtmdBitmapError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_mtmd_bitmap_init_from_file",
+                detail: "was given a null ctx argument",
+            })
+        );
+    }
+}
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::from_file_status_to_result;
+    use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
+    use std::ptr;
+
+    #[test]
+    fn from_file_status_to_result_maps_every_contract_status() {
+        let outcome_0 = unsafe {
+            from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_FNAME_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "",
+            )
+        };
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_bitmap_init_from_file",
+                    detail: "was given a null fname argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = unsafe {
+            from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_OUT_BITMAP_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "",
+            )
+        };
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_bitmap_init_from_file",
+                    detail: "was given a null out_bitmap argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = unsafe {
+            from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "",
+            )
+        };
+        assert_eq!(outcome_2.err(), Some(MtmdBitmapError::VendoredOutOfMemory));
     }
 }

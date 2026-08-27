@@ -3,6 +3,10 @@ use std::path::PathBuf;
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LlamaModelLoadError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("null byte in string {0}")]
     NullError(#[from] NulError),
     #[error("failed to convert path {0} to str")]
@@ -13,6 +17,8 @@ pub enum LlamaModelLoadError {
     Unloadable,
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
 }

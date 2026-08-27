@@ -12,8 +12,7 @@ use llama_cpp_test_harness::llama_test;
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -33,8 +32,7 @@ fn load_model_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>) -> Res
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -60,8 +58,7 @@ fn load_model_with_invalid_file_content_returns_unloadable_or_reported(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -87,8 +84,7 @@ fn load_model_with_non_utf8_path_returns_path_to_str_error(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -107,8 +103,7 @@ fn lora_adapter_init_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>)
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -130,8 +125,7 @@ fn lora_adapter_init_with_invalid_gguf_returns_unloadable(
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,

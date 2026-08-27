@@ -1,4 +1,4 @@
-use crate::frame_stack;
+use crate::frame_stack::FrameStack;
 use crate::recorded_error::RecordedError;
 
 /// Records an error raised inside an FFI callback so the Rust code that drove
@@ -8,5 +8,5 @@ use crate::recorded_error::RecordedError;
 /// active the error is dropped: recording runs inside an FFI callback, where
 /// unwinding is undefined behaviour, so it must never panic.
 pub fn record(error: RecordedError) {
-    frame_stack::record_into_top(error);
+    FrameStack::record_into_top(error);
 }

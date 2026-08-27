@@ -26,6 +26,7 @@ impl<'model_params> IntoIterator for KvOverrides<'model_params> {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::params::kv_override_entry::KvOverrideEntry;
     use std::ffi::CString;
     use std::pin::pin;
 
@@ -51,12 +52,16 @@ mod tests {
             .append_kv_override(&key, ParamOverrideValue::Int(42))
             .unwrap();
 
-        let entries: Vec<_> = params.kv_overrides().into_iter().collect();
+        let entries: Result<Vec<_>, _> = params.kv_overrides().into_iter().collect();
+        let entries = entries.expect("known override tags must convert");
 
-        assert_eq!(entries.len(), 1);
-        let (entry_key, entry_value) = &entries[0];
-        assert_eq!(entry_key.to_bytes(), b"test_key");
-        assert_eq!(*entry_value, ParamOverrideValue::Int(42));
+        assert_eq!(
+            entries,
+            vec![KvOverrideEntry {
+                key: CString::new("test_key").expect("the literal has no nul byte"),
+                value: ParamOverrideValue::Int(42),
+            }]
+        );
     }
 
     #[test]
@@ -69,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    fn kv_overrides_skips_entry_with_unknown_tag() {
+    fn kv_overrides_preserves_unknown_tag_error() {
         let mut params = pin!(LlamaModelParams::default());
         let key = CString::new("valid_key").unwrap();
 
@@ -80,6 +85,15 @@ mod tests {
 
         params.kv_overrides[0].tag = 9999;
 
-        assert_eq!(params.kv_overrides().into_iter().count(), 0);
+        let entry = params
+            .kv_overrides()
+            .into_iter()
+            .next()
+            .expect("one override must be present");
+
+        assert_eq!(
+            entry.unwrap_err(),
+            crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag(9999)
+        );
     }
 }

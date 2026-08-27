@@ -23,7 +23,8 @@ use crate::streaming_json_probe::JsonProbeOutcome;
 use crate::streaming_markers::StreamingMarkers;
 use crate::token::LlamaToken;
 
-pub use crate::ingest_outcome::IngestOutcome;
+pub use crate::classified_sample::ClassifiedSample;
+use crate::ingest_outcome::IngestOutcome;
 pub use crate::sampled_token_section::SampledTokenSection;
 
 #[derive(Clone, Debug)]
@@ -167,32 +168,49 @@ impl<'model> SampledTokenClassifier<'model> {
     }
 
     fn try_consume_marker_at_tail(&mut self) {
-        const PROBE_KINDS: &[MarkerKind] = &[
-            MarkerKind::ReasoningOpen,
-            MarkerKind::ReasoningClose,
-            MarkerKind::ToolCallOpen,
-            MarkerKind::ToolCallClose,
-        ];
+        let marker_match = self
+            .markers
+            .reasoning_open
+            .as_deref()
+            .and_then(|marker| self.marker_span_start(marker))
+            .map(|span_start| (span_start, MarkerKind::ReasoningOpen))
+            .or_else(|| {
+                self.markers.reasoning_closes.iter().find_map(|marker| {
+                    self.marker_span_start(marker)
+                        .map(|span_start| (span_start, MarkerKind::ReasoningClose))
+                })
+            })
+            .or_else(|| {
+                self.markers
+                    .tool_call_open
+                    .as_deref()
+                    .and_then(|marker| self.marker_span_start(marker))
+                    .map(|span_start| (span_start, MarkerKind::ToolCallOpen))
+            })
+            .or_else(|| {
+                self.markers
+                    .tool_call_close
+                    .as_deref()
+                    .and_then(|marker| self.marker_span_start(marker))
+                    .map(|span_start| (span_start, MarkerKind::ToolCallClose))
+            });
 
-        for &kind in PROBE_KINDS {
-            let Some(marker) = self.markers.lookup(kind) else {
-                continue;
-            };
-            if marker.is_empty() || self.pending.len() < marker.len() {
-                continue;
-            }
-            let span_start = self.pending.len() - marker.len();
-            let matches = self
-                .pending
-                .iter()
-                .skip(span_start)
-                .zip(marker)
-                .all(|(entry, marker_token)| entry.token == *marker_token);
-            if matches {
-                self.mark_marker_span(span_start, kind);
-                return;
-            }
+        if let Some((span_start, marker_kind)) = marker_match {
+            self.mark_marker_span(span_start, marker_kind);
         }
+    }
+
+    fn marker_span_start(&self, marker: &[LlamaToken]) -> Option<usize> {
+        if marker.is_empty() || self.pending.len() < marker.len() {
+            return None;
+        }
+        let span_start = self.pending.len() - marker.len();
+        self.pending
+            .iter()
+            .skip(span_start)
+            .zip(marker)
+            .all(|(entry, marker_token)| entry.token == *marker_token)
+            .then_some(span_start)
     }
 
     fn mark_marker_span(&mut self, span_start: usize, kind: MarkerKind) {
@@ -380,7 +398,7 @@ impl<'model> SampledTokenClassifier<'model> {
     /// # Errors
     /// Forwards [`LlamaSampler::sample`] errors verbatim. Nothing is recorded on failure.
     ///
-    /// Returns the raw sampled token (for downstream `batch.add` / `is_eog_token`
+    /// Returns the sampled token (for downstream `batch.add` / `is_eog_token`
     /// calls) alongside the outcomes that finalised this turn — see
     /// [`Self::ingest`] for buffering semantics.
     pub fn sample(
@@ -388,11 +406,11 @@ impl<'model> SampledTokenClassifier<'model> {
         sampler: &mut LlamaSampler,
         context: &LlamaContext,
         idx: i32,
-    ) -> Result<(LlamaToken, Vec<IngestOutcome>), SampleError> {
-        let raw = sampler.sample(context, idx)?;
-        let outcomes = self.ingest(raw)?;
+    ) -> Result<ClassifiedSample, SampleError> {
+        let token = sampler.sample(context, idx)?;
+        let outcomes = self.ingest(token)?;
 
-        Ok((raw, outcomes))
+        Ok(ClassifiedSample { token, outcomes })
     }
 
     /// # Errors
@@ -549,7 +567,7 @@ mod tests {
     ) -> StreamingMarkers {
         StreamingMarkers {
             reasoning_open,
-            reasoning_close,
+            reasoning_closes: reasoning_close.into_iter().collect(),
             tool_call_open: None,
             tool_call_close: None,
         }
@@ -746,7 +764,7 @@ mod tests {
     fn spurious_tool_call_close_in_reasoning_section_classifies_as_tool_call() {
         let markers = StreamingMarkers {
             reasoning_open: Some(vec![token(100)]),
-            reasoning_close: Some(vec![token(200)]),
+            reasoning_closes: vec![vec![token(200)]],
             tool_call_open: Some(vec![token(300)]),
             tool_call_close: Some(vec![token(400)]),
         };
@@ -1059,7 +1077,7 @@ mod tests {
         let returned = classifier.markers();
 
         assert_eq!(returned.reasoning_open.as_deref(), Some(&[token(1)][..]));
-        assert_eq!(returned.reasoning_close.as_deref(), Some(&[token(2)][..]));
+        assert_eq!(returned.reasoning_closes, vec![vec![token(2)]]);
     }
 
     #[test]
@@ -1094,7 +1112,7 @@ mod tests {
     fn markers_with_tool_call_open(tool_call_open: Vec<LlamaToken>) -> StreamingMarkers {
         StreamingMarkers {
             reasoning_open: None,
-            reasoning_close: None,
+            reasoning_closes: Vec::new(),
             tool_call_open: Some(tool_call_open),
             tool_call_close: None,
         }
@@ -1304,7 +1322,7 @@ mod tests {
     fn json_probe_does_not_engage_in_reasoning_section() {
         let markers = StreamingMarkers {
             reasoning_open: Some(vec![token(800)]),
-            reasoning_close: Some(vec![token(801)]),
+            reasoning_closes: vec![vec![token(801)]],
             tool_call_open: Some(vec![token(900)]),
             tool_call_close: None,
         };

@@ -6,6 +6,6 @@ runs:
   steps:
     - name: Install toolchain pinned by rust-toolchain.toml
       shell: bash
-      run: cargo --version
+      run: rustup toolchain install
 
-    - uses: Swatinem/rust-cache@v2
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6

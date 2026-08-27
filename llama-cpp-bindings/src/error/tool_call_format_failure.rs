@@ -6,14 +6,14 @@ use crate::error::xml_function_tags_failure::XmlFunctionTagsFailure;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ToolCallFormatFailure {
-    #[error("bracketed-args fallback parser: {0}")]
+    #[error("bracketed-args parser: {0}")]
     BracketedArgs(#[from] BracketedArgsFailure),
-    #[error("json-object fallback parser: {0}")]
+    #[error("json-object parser: {0}")]
     JsonObject(#[from] JsonObjectFailure),
-    #[error("key-value-xml-tags fallback parser: {0}")]
+    #[error("key-value-xml-tags parser: {0}")]
     KeyValueXmlTags(#[from] KeyValueXmlTagsFailure),
-    #[error("paired-quote fallback parser: {0}")]
+    #[error("paired-quote parser: {0}")]
     PairedQuote(#[from] PairedQuoteFailure),
-    #[error("xml-function-tags fallback parser: {0}")]
+    #[error("xml-function-tags parser: {0}")]
     XmlFunctionTags(#[from] XmlFunctionTagsFailure),
 }

@@ -5,31 +5,17 @@ use llama_cpp_bindings_types::ToolCallMarkers;
 use llama_cpp_bindings_types::ToolCallValueQuote;
 
 use crate::error::PairedQuoteFailure;
-
-enum ParseStep<'body> {
-    Done,
-    Call(ParsedToolCall, &'body str),
-}
-
-fn consume_optional_prefix<'body>(input: &'body str, literal: &str) -> &'body str {
-    input.strip_prefix(literal).unwrap_or(input)
-}
-
-fn split_at_separator<'body>(
-    input: &'body str,
-    separator: &str,
-) -> Option<(&'body str, &'body str)> {
-    let (name_raw, after_separator) = input.split_once(separator)?;
-    Some((name_raw, after_separator))
-}
+use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
+use crate::tool_call_format::parse_step::ParseStep;
+use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
+use crate::tool_call_format::separator_split::SeparatorSplit;
 
 fn bare_value_to_json(text: &str) -> serde_json::Value {
     if text.is_empty() {
         return serde_json::Value::Null;
     }
-    serde_json::from_str::<serde_json::Value>(text)
-        .ok()
-        .unwrap_or_else(|| serde_json::Value::String(text.to_owned()))
+
+    scalar_value_to_json(text)
 }
 
 fn find_bare_value_end(input: &str, close_marker: &str) -> usize {
@@ -155,8 +141,10 @@ fn parse_one_call<'body>(
 
     let after_open = consume_optional_prefix(input, markers.open.as_str());
 
-    let Some((name_raw, after_separator)) =
-        split_at_separator(after_open, shape.name_args_separator.as_str())
+    let Some(SeparatorSplit {
+        before: name_raw,
+        after: after_separator,
+    }) = SeparatorSplit::at_first(after_open, shape.name_args_separator.as_str())
     else {
         return Ok(ParseStep::Done);
     };
@@ -174,14 +162,14 @@ fn parse_one_call<'body>(
     )?;
     let arguments_value = serde_json::Value::Object(args_object);
 
-    Ok(ParseStep::Call(
-        ParsedToolCall::new(
+    Ok(ParseStep::Call {
+        call: ParsedToolCall::new(
             String::new(),
             name,
             ToolCallArguments::ValidJson(arguments_value),
         ),
-        after_args,
-    ))
+        remainder: after_args,
+    })
 }
 
 /// # Errors
@@ -205,9 +193,9 @@ pub fn parse(
     loop {
         match parse_one_call(remaining, markers, shape)? {
             ParseStep::Done => break,
-            ParseStep::Call(call, rest) => {
+            ParseStep::Call { call, remainder } => {
                 parsed.push(call);
-                remaining = rest.trim_start();
+                remaining = remainder.trim_start();
             }
         }
     }
@@ -243,6 +231,15 @@ mod tests {
                 close: "<|\"|>".to_owned(),
             },
         }
+    }
+
+    fn gemma4_call(arguments_body: &str) -> String {
+        let mut call = String::from("<|tool_call>call:f");
+        call.push('{');
+        call.push_str(arguments_body);
+        call.push('}');
+
+        call
     }
 
     #[test]
@@ -297,12 +294,8 @@ mod tests {
 
     #[test]
     fn parses_bare_numeric_value() {
-        let parsed = parse(
-            "<|tool_call>call:f{a:42}",
-            &gemma4_markers(),
-            &gemma4_shape(),
-        )
-        .expect("must parse");
+        let parsed =
+            parse(&gemma4_call("a:42"), &gemma4_markers(), &gemma4_shape()).expect("must parse");
 
         assert_eq!(
             parsed[0].arguments,
@@ -312,12 +305,8 @@ mod tests {
 
     #[test]
     fn parses_bare_boolean_value() {
-        let parsed = parse(
-            "<|tool_call>call:f{a:true}",
-            &gemma4_markers(),
-            &gemma4_shape(),
-        )
-        .expect("must parse");
+        let parsed =
+            parse(&gemma4_call("a:true"), &gemma4_markers(), &gemma4_shape()).expect("must parse");
 
         assert_eq!(
             parsed[0].arguments,
@@ -405,11 +394,7 @@ mod tests {
 
     #[test]
     fn rejects_empty_key_with_typed_failure() {
-        let result = parse(
-            "<|tool_call>call:f{:42}",
-            &gemma4_markers(),
-            &gemma4_shape(),
-        );
+        let result = parse(&gemma4_call(":42"), &gemma4_markers(), &gemma4_shape());
 
         assert_eq!(
             result.expect_err("empty key must produce a typed failure"),
@@ -438,7 +423,7 @@ mod tests {
 
     #[test]
     fn parses_empty_bare_value_as_null() {
-        let parsed = parse("<|tool_call>call:f{a:}", &gemma4_markers(), &gemma4_shape())
+        let parsed = parse(&gemma4_call("a:"), &gemma4_markers(), &gemma4_shape())
             .expect("empty bare value must parse");
 
         assert_eq!(

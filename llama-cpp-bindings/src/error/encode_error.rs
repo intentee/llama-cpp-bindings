@@ -3,6 +3,10 @@ use std::os::raw::c_int;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum EncodeError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("model has no encoder")]
     ModelHasNoEncoder,
     #[error("no KV cache slot was available")]
@@ -17,6 +21,8 @@ pub enum EncodeError {
     UnknownStatus { code: c_int },
     #[error("not enough memory")]
     NotEnoughMemory,
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
 }

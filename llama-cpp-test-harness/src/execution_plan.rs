@@ -63,11 +63,12 @@ impl ExecutionPlan {
 
 #[cfg(test)]
 mod tests {
+    use crate::LlamaLoadMode;
     use crate::context_params::ContextParams;
+    use crate::gguf_source::GgufSource;
     use crate::llama_test_registration::LlamaTestRegistration;
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
-    use crate::model_source::ModelSource;
     use crate::no_op::no_op;
 
     use super::ExecutionPlan;
@@ -93,15 +94,14 @@ mod tests {
     static REG_BETA_A: LlamaTestRegistration = LlamaTestRegistration {
         name: "alpha",
         key: LoadKey {
-            model_source: ModelSource::HuggingFace {
+            model_source: GgufSource::HuggingFace {
                 repo: "beta",
                 file: "f",
             },
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
@@ -111,15 +111,14 @@ mod tests {
     static REG_BETA_B: LlamaTestRegistration = LlamaTestRegistration {
         name: "bravo",
         key: LoadKey {
-            model_source: ModelSource::HuggingFace {
+            model_source: GgufSource::HuggingFace {
                 repo: "beta",
                 file: "f",
             },
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
@@ -129,15 +128,14 @@ mod tests {
     static REG_ALPHA_Z: LlamaTestRegistration = LlamaTestRegistration {
         name: "zulu",
         key: LoadKey {
-            model_source: ModelSource::HuggingFace {
+            model_source: GgufSource::HuggingFace {
                 repo: "alpha",
                 file: "f",
             },
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
@@ -147,15 +145,14 @@ mod tests {
     static REG_BETA_DIFFERENT_CONTEXT: LlamaTestRegistration = LlamaTestRegistration {
         name: "charlie",
         key: LoadKey {
-            model_source: ModelSource::HuggingFace {
+            model_source: GgufSource::HuggingFace {
                 repo: "beta",
                 file: "f",
             },
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         },
         context_params: ALTERNATE_CONTEXT_PARAMS,
@@ -166,15 +163,14 @@ mod tests {
     static REG_VOID_LOGS: LlamaTestRegistration = LlamaTestRegistration {
         name: "void-logs-trial",
         key: LoadKey {
-            model_source: ModelSource::HuggingFace {
+            model_source: GgufSource::HuggingFace {
                 repo: "beta",
                 file: "f",
             },
             mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
-                use_mmap: true,
-                use_mlock: false,
+                load_mode: LlamaLoadMode::Mmap,
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
@@ -204,14 +200,14 @@ mod tests {
         assert_eq!(plan.phases.len(), 2);
         assert_eq!(
             plan.phases[0].key.model_source,
-            ModelSource::HuggingFace {
+            GgufSource::HuggingFace {
                 repo: "alpha",
                 file: "f"
             }
         );
         assert_eq!(
             plan.phases[1].key.model_source,
-            ModelSource::HuggingFace {
+            GgufSource::HuggingFace {
                 repo: "beta",
                 file: "f"
             }

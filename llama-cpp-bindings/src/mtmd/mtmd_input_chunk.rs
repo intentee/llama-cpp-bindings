@@ -4,8 +4,8 @@ use std::ptr::NonNull;
 use std::slice;
 
 use crate::context::LlamaContext;
-use crate::ffi_error_reader::read_and_free_cpp_error;
 use crate::token::LlamaToken;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use super::image_chunk_batch_size_mismatch::ImageChunkBatchSizeMismatch;
 use super::mtmd_context::MtmdContext;
@@ -50,13 +50,52 @@ fn eval_chunk_single_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdEvalError::NotEnoughMemory)
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_OUT_OF_MEMORY => {
+            Err(MtmdEvalError::VendoredOutOfMemory)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_error(out_error) };
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_mtmd_eval_chunk_single",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
             Err(MtmdEvalError::Reported { message })
         }
-        other => {
-            unreachable!("llama_rs_mtmd_eval_chunk_single returned unrecognized status: {other}")
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                detail: "was given a null mtmd_ctx argument",
+            }
+            .into())
         }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                detail: "was given a null llama_ctx argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                detail: "was given a null chunk argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                detail: "was given a null out_new_n_past argument",
+            }
+            .into())
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_mtmd_eval_chunk_single",
+            code: i64::from(other),
+        }
+        .into()),
     }
 }
 
@@ -94,10 +133,14 @@ impl MtmdInputChunk {
         MtmdInputChunkType::try_from(chunk_type)
     }
 
-    #[must_use]
-    pub fn text_tokens(&self) -> Option<&[LlamaToken]> {
-        if self.chunk_type() != Ok(MtmdInputChunkType::Text) {
-            return None;
+    /// # Errors
+    ///
+    /// Returns [`MtmdInputChunkTypeError`] when the wrapper reports a chunk type this
+    /// binding does not know, so an unclassifiable chunk is never mistaken for a
+    /// non-text chunk.
+    pub fn text_tokens(&self) -> Result<Option<&[LlamaToken]>, MtmdInputChunkTypeError> {
+        if self.chunk_type()? != MtmdInputChunkType::Text {
+            return Ok(None);
         }
 
         let mut n_tokens = 0usize;
@@ -108,7 +151,7 @@ impl MtmdInputChunk {
             )
         };
 
-        unsafe { tokens_from_raw_ptr(tokens_ptr, n_tokens) }
+        Ok(unsafe { tokens_from_raw_ptr(tokens_ptr, n_tokens) })
     }
 
     #[must_use]
@@ -162,7 +205,7 @@ impl MtmdInputChunk {
         let chunk_token_count = self.n_tokens();
 
         if let Some(error) = image_chunk_batch_size_error(
-            matches!(self.chunk_type(), Ok(MtmdInputChunkType::Image)),
+            self.chunk_type()? == MtmdInputChunkType::Image,
             chunk_token_count,
             n_batch,
         ) {
@@ -280,20 +323,24 @@ mod unit_tests {
 
         assert_eq!(
             result,
-            Err(MtmdEvalError::Reported {
-                message: "unknown error".to_string()
-            })
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
     #[test]
-    #[should_panic(expected = "llama_rs_mtmd_eval_chunk_single returned unrecognized status")]
-    fn eval_chunk_single_status_unrecognized_panics() {
-        let _ = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status::MAX,
-            0,
-            0,
-            std::ptr::null_mut(),
+    fn eval_chunk_single_unknown_status_is_preserved() {
+        let result = eval_chunk_single_status_to_result(255, 0, 0, std::ptr::null_mut());
+
+        assert_eq!(
+            result,
+            Err(MtmdEvalError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                code: 255,
+            }))
         );
     }
 
@@ -320,5 +367,87 @@ mod unit_tests {
     #[test]
     fn image_chunk_within_batch_size_reports_no_mismatch() {
         assert!(image_chunk_batch_size_error(true, 4, 4).is_none());
+    }
+}
+
+#[cfg(test)]
+mod ffi_contract_status_tests {
+    use super::eval_chunk_single_status_to_result;
+    use crate::mtmd::mtmd_eval_error::MtmdEvalError;
+    use std::ptr;
+
+    #[test]
+    fn eval_chunk_single_status_to_result_maps_every_contract_status() {
+        let outcome_0 = eval_chunk_single_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG,
+            0,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_0.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_eval_chunk_single",
+                    detail: "was given a null mtmd_ctx argument",
+                }
+                .into()
+            )
+        );
+        let outcome_1 = eval_chunk_single_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG,
+            0,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_1.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_eval_chunk_single",
+                    detail: "was given a null llama_ctx argument",
+                }
+                .into()
+            )
+        );
+        let outcome_2 = eval_chunk_single_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG,
+            0,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_2.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_eval_chunk_single",
+                    detail: "was given a null chunk argument",
+                }
+                .into()
+            )
+        );
+        let outcome_3 = eval_chunk_single_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG,
+            0,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome_3.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_eval_chunk_single",
+                    detail: "was given a null out_new_n_past argument",
+                }
+                .into()
+            )
+        );
+        let outcome_4 = eval_chunk_single_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_OUT_OF_MEMORY,
+            0,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome_4.err(), Some(MtmdEvalError::VendoredOutOfMemory));
     }
 }

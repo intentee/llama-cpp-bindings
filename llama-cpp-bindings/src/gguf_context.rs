@@ -345,7 +345,8 @@ mod tests {
 
     impl Drop for SyntheticGgufFile {
         fn drop(&mut self) {
-            std::fs::remove_file(&self.path).ok();
+            std::fs::remove_file(&self.path)
+                .unwrap_or_else(|error| panic!("failed to remove synthetic GGUF: {error}"));
         }
     }
 

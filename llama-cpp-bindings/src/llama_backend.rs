@@ -83,7 +83,7 @@ mod tests {
     use crate::LlamaCppError;
 
     #[test]
-    fn void_log_callback_does_not_panic() {
+    fn void_log_callback_accepts_a_log_record() {
         unsafe {
             super::void_log(
                 llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     #[serial]
-    fn drop_and_reinit_works() {
+    fn dropping_backend_allows_reinitialization() {
         let backend = LlamaBackend::init().unwrap();
         drop(backend);
         let backend = LlamaBackend::init();

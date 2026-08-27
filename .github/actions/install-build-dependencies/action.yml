@@ -17,4 +17,6 @@ runs:
     - name: set windows libclang path
       if: runner.os == 'Windows'
       shell: bash
-      run: echo "LIBCLANG_PATH=C:\\Program Files\\LLVM\\bin" >> $GITHUB_ENV
+      env:
+        WINDOWS_LIBCLANG_PATH: 'C:\Program Files\LLVM\bin'
+      run: echo "LIBCLANG_PATH=$WINDOWS_LIBCLANG_PATH" >> "$GITHUB_ENV"

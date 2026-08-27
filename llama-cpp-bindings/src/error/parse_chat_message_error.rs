@@ -1,19 +1,26 @@
 use std::string::FromUtf8Error;
 
 use crate::error::marker_detection_error::MarkerDetectionError;
-use crate::error::tool_call_format_failure::ToolCallFormatFailure;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseChatMessageError {
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
     #[error("model has no chat template")]
     NoChatTemplate,
     #[error("model has no vocab")]
     NoVocab,
     #[error("not enough memory")]
     NotEnoughMemory,
-    #[error("chat-template parse failed: {message}")]
-    ParseFailed { message: String },
-    #[error("parsed-chat destructor failed: {message}")]
+    #[error("the vendored library ran out of memory")]
+    VendoredOutOfMemory,
+    #[error("the chat parser could not be constructed: {message}")]
+    ParserCreationFailed { message: String },
+    #[error("the chat parser did not recognize the message: {message}")]
+    MessageUnrecognized { message: String },
+    #[error("the chat parser destructor threw: {message}")]
     DestructorFailed { message: String },
     #[error("tool-call id index {index} out of bounds")]
     ToolCallIdIndexOutOfBounds { index: usize },
@@ -27,10 +34,10 @@ pub enum ParseChatMessageError {
     ToolsJsonInvalid(#[source] serde_json::Error),
     #[error("tools_json must be a JSON array")]
     ToolsJsonNotArray,
-    #[error("could not serialize tools to JSON: {0}")]
-    ToolsSerialization(String),
-    #[error("template-override fallback parser failed: {0}")]
-    TemplateOverrideFailed(#[from] ToolCallFormatFailure),
+    #[error("tools_json contains an interior NUL byte")]
+    ToolsJsonContainsNulByte(#[source] std::ffi::NulError),
+    #[error("the message to parse contains an interior NUL byte")]
+    InputContainsNulByte(#[source] std::ffi::NulError),
     #[error("reasoning-marker detection failed: {0}")]
     MarkerDetection(#[from] MarkerDetectionError),
     #[error("{message}")]

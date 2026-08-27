@@ -5,14 +5,12 @@
 
 pub mod batch_add_error;
 pub mod chat_message_parse_outcome;
+pub mod chat_template_tool_calls;
+pub mod classified_sample;
 pub mod context;
 pub mod error;
 pub mod eval_multimodal_chunks_params;
-pub mod extract_reasoning_markers_from_probe_renders;
 pub mod extract_tool_call_markers_from_haystack;
-pub mod ffi_error_reader;
-pub mod ffi_status_is_ok;
-pub mod ffi_status_to_i32;
 pub mod ggml_time_us;
 pub mod gguf_context;
 pub mod gguf_context_error;
@@ -39,6 +37,7 @@ pub mod load_backends_error;
 #[cfg(feature = "dynamic-backends")]
 pub mod load_backends_from_path;
 pub mod log_options;
+pub mod log_record;
 pub mod marker_kind;
 pub mod mask_outcome;
 pub mod max_devices;
@@ -52,28 +51,30 @@ pub mod sampled_token;
 pub mod sampled_token_classifier;
 pub mod sampled_token_section;
 pub mod sampling;
+pub mod sanitized_grammar;
 pub mod send_logs_to_log;
 pub mod streaming_json_probe;
 pub mod streaming_markers;
+pub mod synthetic_tool_call_renders;
 pub mod timing;
 pub mod token;
 pub mod tool_call_format;
 pub mod tool_call_marker_pair;
-pub mod tool_call_template_overrides;
 
 pub use error::{
     ApplyChatTemplateError, ChatTemplateError, DecodeError, EmbeddingsError, EncodeError,
-    EvalMultimodalChunksError, GrammarError, JsonSchemaToGrammarError, KvCacheSeqAddError,
-    KvCacheSeqDivError, LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError,
-    LlamaLoraAdapterRemoveError, LlamaLoraAdapterSetError, LlamaModelLoadError, LogitsError,
-    MarkerDetectionError, MetaValError, ModelParamsError, NewLlamaChatMessageError,
-    ParseChatMessageError, Result, SampleError, SamplerAcceptError, SamplingError,
-    StringToTokenError, TokenSamplingError, TokenToStringError,
+    EvalMultimodalChunksError, FfiContractError, FfiStatusError, GrammarError,
+    JsonSchemaToGrammarError, KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError,
+    LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError, LlamaLoraAdaptersError,
+    LlamaModelLoadError, LogitsError, MarkerDetectionError, MetaValError, ModelParamsError,
+    NewLlamaChatMessageError, ParseChatMessageError, Result, SampleError, SamplerAcceptError,
+    SamplingError, StringToTokenError, TokenSamplingError, TokenToStringError,
 };
 
 pub use chat_message_parse_outcome::ChatMessageParseOutcome;
+pub use classified_sample::ClassifiedSample;
 pub use eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-pub use llama_backend_device::{LlamaBackendDevice, list_llama_ggml_backend_devices};
+pub use llama_backend_device::LlamaBackendDevice;
 pub use llama_backend_device_type::LlamaBackendDeviceType;
 pub use llama_cpp_bindings_types::{
     BracketedJsonShape, KeyValueXmlTagsShape, PairedQuoteShape, ParsedChatMessage, ParsedToolCall,
@@ -84,9 +85,8 @@ pub use raw_chat_message::RawChatMessage;
 pub use sampled_token::SampledToken;
 pub use sampled_token_classifier::SampledTokenClassifier;
 pub use sampled_token_section::SampledTokenSection;
+pub use synthetic_tool_call_renders::SyntheticToolCallRenders;
 
-pub use ffi_status_is_ok::status_is_ok;
-pub use ffi_status_to_i32::status_to_i32;
 pub use ggml_time_us::ggml_time_us;
 pub use ingest_prompt_chunk::ingest_prompt_chunk;
 pub use json_schema_to_grammar::json_schema_to_grammar;

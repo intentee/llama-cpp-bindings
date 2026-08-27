@@ -1,8 +1,15 @@
 use std::ffi::c_char;
 
-use crate::llama_backend_device_type::device_type_from_raw;
-
 pub use crate::llama_backend_device_type::LlamaBackendDeviceType;
+fn cstr_to_string(ptr: *const c_char) -> String {
+    if ptr.is_null() {
+        String::new()
+    } else {
+        unsafe { std::ffi::CStr::from_ptr(ptr) }
+            .to_string_lossy()
+            .to_string()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct LlamaBackendDevice {
@@ -15,53 +22,47 @@ pub struct LlamaBackendDevice {
     pub device_type: LlamaBackendDeviceType,
 }
 
-fn cstr_to_string(ptr: *const c_char) -> String {
-    if ptr.is_null() {
-        String::new()
-    } else {
-        unsafe { std::ffi::CStr::from_ptr(ptr) }
-            .to_string_lossy()
-            .to_string()
+impl LlamaBackendDevice {
+    #[must_use]
+    pub fn list_all() -> Vec<Self> {
+        let mut devices = Vec::new();
+        let device_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
+
+        for device_index in 0..device_count {
+            let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
+            let props = unsafe {
+                let mut props = std::mem::zeroed();
+                llama_cpp_bindings_sys::ggml_backend_dev_get_props(dev, &raw mut props);
+                props
+            };
+            let name = cstr_to_string(props.name);
+            let description = cstr_to_string(props.description);
+            let backend_reg = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_backend_reg(dev) };
+            let backend_name =
+                unsafe { llama_cpp_bindings_sys::ggml_backend_reg_name(backend_reg) };
+            let backend = cstr_to_string(backend_name);
+            let memory_total = props.memory_total;
+            let memory_free = props.memory_free;
+            let device_type = LlamaBackendDeviceType::from_raw(props.type_);
+            devices.push(Self {
+                index: device_index,
+                name,
+                description,
+                backend,
+                memory_total,
+                memory_free,
+                device_type,
+            });
+        }
+
+        devices
     }
-}
-
-#[must_use]
-pub fn list_llama_ggml_backend_devices() -> Vec<LlamaBackendDevice> {
-    let mut devices = Vec::new();
-    let device_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
-
-    for device_index in 0..device_count {
-        let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
-        let props = unsafe {
-            let mut props = std::mem::zeroed();
-            llama_cpp_bindings_sys::ggml_backend_dev_get_props(dev, &raw mut props);
-            props
-        };
-        let name = cstr_to_string(props.name);
-        let description = cstr_to_string(props.description);
-        let backend_reg = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_backend_reg(dev) };
-        let backend_name = unsafe { llama_cpp_bindings_sys::ggml_backend_reg_name(backend_reg) };
-        let backend = cstr_to_string(backend_name);
-        let memory_total = props.memory_total;
-        let memory_free = props.memory_free;
-        let device_type = device_type_from_raw(props.type_);
-        devices.push(LlamaBackendDevice {
-            index: device_index,
-            name,
-            description,
-            backend,
-            memory_total,
-            memory_free,
-            device_type,
-        });
-    }
-
-    devices
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{cstr_to_string, list_llama_ggml_backend_devices};
+    use super::LlamaBackendDevice;
+    use super::cstr_to_string;
 
     #[test]
     fn cstr_to_string_with_null_returns_empty() {
@@ -82,7 +83,7 @@ mod tests {
         #[cfg(feature = "dynamic-backends")]
         crate::load_backends::load_backends().unwrap();
 
-        let devices = list_llama_ggml_backend_devices();
+        let devices = LlamaBackendDevice::list_all();
         assert!(!devices.is_empty());
         assert_eq!(devices[0].index, 0);
         assert!(!devices[0].name.is_empty());

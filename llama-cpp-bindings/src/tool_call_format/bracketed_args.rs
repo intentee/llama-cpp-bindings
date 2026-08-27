@@ -4,23 +4,9 @@ use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_bindings_types::ToolCallMarkers;
 
 use crate::error::BracketedArgsFailure;
-
-enum ParseStep<'body> {
-    Done,
-    Call(ParsedToolCall, &'body str),
-}
-
-fn consume_optional_prefix<'body>(input: &'body str, literal: &str) -> &'body str {
-    input.strip_prefix(literal).unwrap_or(input)
-}
-
-fn split_at_separator<'body>(
-    input: &'body str,
-    separator: &str,
-) -> Option<(&'body str, &'body str)> {
-    let (name_raw, after_separator) = input.split_once(separator)?;
-    Some((name_raw, after_separator))
-}
+use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
+use crate::tool_call_format::parse_step::ParseStep;
+use crate::tool_call_format::separator_split::SeparatorSplit;
 
 fn consume_one_json_value<'body>(
     input: &'body str,
@@ -52,8 +38,10 @@ fn parse_one_call<'body>(
 
     let after_open = consume_optional_prefix(input, markers.open.as_str());
 
-    let Some((name_raw, after_separator)) =
-        split_at_separator(after_open, shape.name_args_separator.as_str())
+    let Some(SeparatorSplit {
+        before: name_raw,
+        after: after_separator,
+    }) = SeparatorSplit::at_first(after_open, shape.name_args_separator.as_str())
     else {
         return Ok(ParseStep::Done);
     };
@@ -67,14 +55,14 @@ fn parse_one_call<'body>(
 
     let after_close = consume_optional_prefix(after_arguments, markers.close.as_str());
 
-    Ok(ParseStep::Call(
-        ParsedToolCall::new(
+    Ok(ParseStep::Call {
+        call: ParsedToolCall::new(
             String::new(),
             name,
             ToolCallArguments::ValidJson(arguments_value),
         ),
-        after_close,
-    ))
+        remainder: after_close,
+    })
 }
 
 /// # Errors
@@ -97,9 +85,9 @@ pub fn parse(
     loop {
         match parse_one_call(remaining, markers, shape)? {
             ParseStep::Done => break,
-            ParseStep::Call(call, rest) => {
+            ParseStep::Call { call, remainder } => {
                 parsed.push(call);
-                remaining = rest.trim_start();
+                remaining = remainder.trim_start();
             }
         }
     }

@@ -1,0 +1,14 @@
+[package]
+name = "llama-cpp-ffi-status"
+description = "Shared status and contract errors for the llama.cpp C++ wrapper FFI boundary"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+llama-cpp-bindings-sys = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

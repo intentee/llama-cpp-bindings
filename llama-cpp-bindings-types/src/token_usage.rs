@@ -413,24 +413,28 @@ mod tests {
 
     #[test]
     fn sum_over_iter_matches_repeated_add_assign() {
-        let mut a = TokenUsage::new();
-        a.record_prompt_tokens(1);
+        let mut prompt_only = TokenUsage::new();
+        prompt_only.record_prompt_tokens(1);
 
-        let mut b = TokenUsage::new();
-        b.record_prompt_tokens(2);
-        b.record_content_token();
+        let mut prompt_with_content = TokenUsage::new();
+        prompt_with_content.record_prompt_tokens(2);
+        prompt_with_content.record_content_token();
 
-        let mut c = TokenUsage::new();
-        c.record_prompt_tokens(4);
-        c.record_reasoning_token();
+        let mut prompt_with_reasoning = TokenUsage::new();
+        prompt_with_reasoning.record_prompt_tokens(4);
+        prompt_with_reasoning.record_reasoning_token();
 
-        let summed: TokenUsage = [a, b, c].into_iter().sum();
-        let summed_ref: TokenUsage = [&a, &b, &c].into_iter().sum();
+        let summed: TokenUsage = [prompt_only, prompt_with_content, prompt_with_reasoning]
+            .into_iter()
+            .sum();
+        let summed_ref: TokenUsage = [&prompt_only, &prompt_with_content, &prompt_with_reasoning]
+            .into_iter()
+            .sum();
 
         let mut acc = TokenUsage::new();
-        acc += a;
-        acc += b;
-        acc += c;
+        acc += prompt_only;
+        acc += prompt_with_content;
+        acc += prompt_with_reasoning;
 
         assert_eq!(summed, acc);
         assert_eq!(summed_ref, acc);

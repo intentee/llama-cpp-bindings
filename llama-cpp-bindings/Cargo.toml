@@ -12,6 +12,8 @@ enumflags2 = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 llama-cpp-error-recorder = { workspace = true }
+llama-cpp-ffi-status = { workspace = true }
+llama-cpp-gbnf = { workspace = true }
 llama-cpp-log-decoder = { workspace = true }
 llguidance = { workspace = true }
 log = { workspace = true }
@@ -33,7 +35,6 @@ dynamic-backends = ["dynamic-link", "llama-cpp-bindings-sys/dynamic-backends"]
 vulkan = ["llama-cpp-bindings-sys/vulkan"]
 openmp = ["llama-cpp-bindings-sys/openmp"]
 rocm = ["llama-cpp-bindings-sys/rocm"]
-# Only has an impact on Android.
 android-shared-stdcxx = ["llama-cpp-bindings-sys/shared-stdcxx"]
 android-static-stdcxx = ["llama-cpp-bindings-sys/static-stdcxx"]
 system-ggml = ["llama-cpp-bindings-sys/system-ggml"]
@@ -42,19 +43,5 @@ system-ggml-static = ["system-ggml", "llama-cpp-bindings-sys/system-ggml-static"
 [target.'cfg(all(target_os = "macos", any(target_arch = "aarch64", target_arch = "arm64")))'.dependencies]
 llama-cpp-bindings-sys = { workspace = true, features = ["metal"] }
 
-[lints.rust]
-unsafe_op_in_unsafe_fn = "warn"
-unused_qualifications = "warn"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
-module_name_repetitions = "allow"
-
-# Gemma tool-call test fixtures are literal strings containing braces (e.g.
-# `{a:42}`) that resemble format args but are parser input, not format strings.
-literal_string_with_formatting_args = "allow"
-
-# Generated FFI bindings use these patterns
-used_underscore_binding = "allow"
+[lints]
+workspace = true

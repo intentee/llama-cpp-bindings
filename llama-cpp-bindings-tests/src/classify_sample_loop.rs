@@ -40,11 +40,11 @@ impl ClassifySampleLoop<'_, '_, '_> {
         let max_position = position + self.max_generated_tokens;
 
         while position < max_position {
-            let (raw_token, ingest_outcomes) =
+            let sampled =
                 self.classifier
                     .sample(self.sampler, self.context, self.batch.n_tokens() - 1)?;
 
-            for ingest_outcome in &ingest_outcomes {
+            for ingest_outcome in &sampled.outcomes {
                 let is_eog = self.model.is_eog_token(&ingest_outcome.sampled_token);
                 if is_eog {
                     outcome.eog_seen = true;
@@ -54,7 +54,7 @@ impl ClassifySampleLoop<'_, '_, '_> {
                 record_outcome(ingest_outcome, &mut outcome, is_eog);
             }
 
-            let raw_as_sampled = SampledToken::Content(raw_token);
+            let raw_as_sampled = SampledToken::Content(sampled.token);
             if self.model.is_eog_token(&raw_as_sampled) {
                 outcome.eog_seen = true;
                 break;

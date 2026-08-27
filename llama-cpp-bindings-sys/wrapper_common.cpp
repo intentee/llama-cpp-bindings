@@ -1,25 +1,20 @@
 #include "wrapper_common.h"
 
-#include <algorithm>
 #include <cstdlib>
+#include <cstdint>
 #include <cstring>
 #include <exception>
-#include <gsl/span>
 #include <memory>
 #include <new>
 #include <regex>
 #include <stdexcept>
 #include <string>
-#include <cstdint>
 
-#include "llama.cpp/common/common.h"
 #include "llama.cpp/common/json-schema-to-grammar.h"
 #include "llama.cpp/include/llama.h"
 #include <nlohmann/json.hpp> // IWYU pragma: keep
 #include <nlohmann/json_fwd.hpp>
 #include "wrapper_utils.h"
-
-#include <vector>
 
 extern "C" auto llama_rs_json_schema_to_grammar(
     const char * schema_json,
@@ -51,7 +46,7 @@ extern "C" auto llama_rs_json_schema_to_grammar(
         }
         return LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_OUT_OF_MEMORY;
     } catch (const std::invalid_argument & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -71,6 +66,13 @@ extern "C" auto llama_rs_json_schema_to_grammar(
         }
         return LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION;
     }
+}
+
+extern "C" auto llama_rs_string_dup(const char * value) -> char * {
+    if (value == nullptr) {
+        return nullptr;
+    }
+    return llama_rs_dup_string(std::string(value));
 }
 
 extern "C" void llama_rs_string_free(char * ptr) {
@@ -102,7 +104,7 @@ extern "C" auto llama_rs_sampler_init_grammar(
         }
         return LLAMA_RS_SAMPLER_INIT_GRAMMAR_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -115,74 +117,6 @@ extern "C" auto llama_rs_sampler_init_grammar(
             return LLAMA_RS_SAMPLER_INIT_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED;
         }
         return LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION;
-    }
-}
-
-extern "C" auto llama_rs_sampler_init_grammar_lazy(
-    const struct llama_vocab * vocab,
-    const char * grammar_str,
-    const char * grammar_root,
-    const char ** trigger_words,
-    size_t num_trigger_words,
-    const llama_token * trigger_tokens,
-    size_t num_trigger_tokens,
-    struct llama_sampler ** out_sampler,
-    char ** out_error) -> llama_rs_sampler_init_grammar_lazy_status {
-    if (out_sampler != nullptr) {
-        *out_sampler = nullptr;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (out_sampler == nullptr) {
-        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_NULL_OUT_SAMPLER_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_NULL_OUT_ERROR_ARG;
-    }
-    try {
-        std::vector<std::string> trigger_patterns;
-        trigger_patterns.reserve(num_trigger_words);
-        const gsl::span<const char *> words(
-            trigger_words, trigger_words != nullptr ? num_trigger_words : 0);
-        for (const char * const word : words) {
-            if ((word != nullptr) && *word != '\0') {
-                trigger_patterns.push_back(regex_escape(word));
-            }
-        }
-        std::vector<const char *> trigger_patterns_c(trigger_patterns.size());
-        std::transform(
-            trigger_patterns.begin(),
-            trigger_patterns.end(),
-            trigger_patterns_c.begin(),
-            [](const std::string & pattern) -> const char * { return pattern.c_str(); });
-
-        *out_sampler = llama_sampler_init_grammar_lazy_patterns(
-            vocab,
-            grammar_str,
-            grammar_root,
-            trigger_patterns_c.data(),
-            trigger_patterns_c.size(),
-            trigger_tokens,
-            num_trigger_tokens);
-        if (*out_sampler == nullptr) {
-            return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_VENDORED_RETURNED_NULL;
-        }
-        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_ERROR_STRING_ALLOCATION_FAILED;
-    } catch (const std::exception & err) {
-        *out_error = llama_rs_dup_string(err.what());
-        if (*out_error == nullptr) {
-            return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_VENDORED_THREW_CXX_EXCEPTION;
-    } catch (...) {
-        *out_error = llama_rs_dup_string("unknown c++ exception");
-        if (*out_error == nullptr) {
-            return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_VENDORED_THREW_CXX_EXCEPTION;
     }
 }
 
@@ -222,7 +156,7 @@ extern "C" auto llama_rs_sampler_init_grammar_lazy_patterns(
         }
         return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_OUT_OF_MEMORY;
     } catch (const std::regex_error & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -246,23 +180,50 @@ extern "C" auto llama_rs_sampler_init_grammar_lazy_patterns(
 
 extern "C" auto llama_rs_memory_seq_pos_max(
     const struct llama_context * ctx,
-    llama_seq_id seq_id) -> llama_pos {
+    llama_seq_id seq_id,
+    llama_pos * out_position,
+    char ** out_error) -> llama_rs_memory_seq_pos_max_status {
+    if (out_position != nullptr) {
+        *out_position = -1;
+    }
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
     if (ctx == nullptr) {
-        return -1;
+        return LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG;
+    }
+    if (out_position == nullptr) {
+        return LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG;
+    }
+    if (out_error == nullptr) {
+        return LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG;
     }
     try {
         auto * mem = llama_get_memory(ctx);
         if (mem == nullptr) {
-            return -1;
+            return LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM;
         }
         uint32_t const n_seq_max = llama_n_seq_max(ctx);
         if (seq_id < 0 || (uint32_t) seq_id >= n_seq_max) {
-            return -1;
+            return LLAMA_RS_MEMORY_SEQ_POS_MAX_SEQ_ID_OUT_OF_RANGE;
         }
 
-        return llama_memory_seq_pos_max(mem, seq_id);
+        *out_position = llama_memory_seq_pos_max(mem, seq_id);
+        return LLAMA_RS_MEMORY_SEQ_POS_MAX_OK;
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_OUT_OF_MEMORY;
+    } catch (const std::exception & err) {
+        *out_error = llama_rs_dup_string(err.what());
+        if (*out_error == nullptr) {
+            return LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED;
+        }
+        return LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_THREW_CXX_EXCEPTION;
     } catch (...) {
-        return -1;
+        *out_error = llama_rs_dup_string("unknown c++ exception");
+        if (*out_error == nullptr) {
+            return LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED;
+        }
+        return LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_THREW_CXX_EXCEPTION;
     }
 }
 
@@ -282,6 +243,9 @@ extern "C" auto llama_rs_encode(
     }
     try {
         const auto * model = llama_get_model(ctx);
+        if (model == nullptr) {
+            return LLAMA_RS_ENCODE_NULL_MODEL;
+        }
         if (!llama_model_has_encoder(model)) {
             return LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER;
         }
@@ -300,7 +264,7 @@ extern "C" auto llama_rs_encode(
         }
         return LLAMA_RS_ENCODE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_ENCODE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_ENCODE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -335,6 +299,9 @@ extern "C" auto llama_rs_memory_seq_add(
     }
     try {
         const auto * model = llama_get_model(ctx);
+        if (model == nullptr) {
+            return LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL;
+        }
         const auto rope = llama_model_rope_type(model);
         if (rope == LLAMA_ROPE_TYPE_MROPE || rope == LLAMA_ROPE_TYPE_VISION || rope == LLAMA_ROPE_TYPE_IMROPE) {
             return LLAMA_RS_MEMORY_SEQ_ADD_INCOMPATIBLE_ROPE_TYPE;
@@ -346,7 +313,7 @@ extern "C" auto llama_rs_memory_seq_add(
         llama_memory_seq_add(mem, seq_id, pos_start, pos_end, shift);
         return LLAMA_RS_MEMORY_SEQ_ADD_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -381,6 +348,9 @@ extern "C" auto llama_rs_memory_seq_div(
     }
     try {
         const auto * model = llama_get_model(ctx);
+        if (model == nullptr) {
+            return LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL;
+        }
         const auto rope = llama_model_rope_type(model);
         if (rope == LLAMA_ROPE_TYPE_MROPE || rope == LLAMA_ROPE_TYPE_VISION || rope == LLAMA_ROPE_TYPE_IMROPE) {
             return LLAMA_RS_MEMORY_SEQ_DIV_INCOMPATIBLE_ROPE_TYPE;
@@ -392,7 +362,7 @@ extern "C" auto llama_rs_memory_seq_div(
         llama_memory_seq_div(mem, seq_id, pos_start, pos_end, divisor);
         return LLAMA_RS_MEMORY_SEQ_DIV_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         if (out_error != nullptr) {
             *out_error = llama_rs_dup_string(err.what());
@@ -437,7 +407,7 @@ extern "C" auto llama_rs_sampler_sample(
         *out_token = llama_sampler_sample(sampler, ctx, idx);
         return LLAMA_RS_SAMPLER_SAMPLE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_SAMPLER_SAMPLE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_SAMPLER_SAMPLE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -470,7 +440,7 @@ extern "C" auto llama_rs_sampler_accept(
         llama_sampler_accept(sampler, token);
         return LLAMA_RS_SAMPLER_ACCEPT_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_SAMPLER_ACCEPT_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_SAMPLER_ACCEPT_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -513,7 +483,7 @@ extern "C" auto llama_rs_load_model_from_file(
         }
         return LLAMA_RS_LOAD_MODEL_FROM_FILE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_LOAD_MODEL_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_LOAD_MODEL_FROM_FILE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -556,7 +526,7 @@ extern "C" auto llama_rs_new_context_with_model(
         }
         return LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_NEW_CONTEXT_WITH_MODEL_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -605,7 +575,7 @@ extern "C" auto llama_rs_decode(
         }
         return LLAMA_RS_DECODE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_DECODE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_DECODE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -655,7 +625,7 @@ extern "C" auto llama_rs_tokenize(
         *out_returned_count = count;
         return LLAMA_RS_TOKENIZE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_TOKENIZE_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {
@@ -691,7 +661,7 @@ extern "C" auto llama_rs_sampler_apply(
         llama_sampler_apply(sampler, data_array);
         return LLAMA_RS_SAMPLER_APPLY_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_SAMPLER_APPLY_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         *out_error = llama_rs_dup_string(err.what());
         if (*out_error == nullptr) {

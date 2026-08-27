@@ -18,15 +18,6 @@ using wrapper_helpers::token_text_or_empty;
 
 namespace {
 
-// Render the chat template with a deterministic tool-call assistant turn and
-// diff it against the no-tool-call variant. Returns the raw section between
-// the model's tool-call open/close markers — i.e. the `<...>{...}</...>`
-// fragment the model is expected to emit, with any reasoning prelude removed.
-//
-// We deliberately reproduce the autoparser's diff-based approach (so the
-// detected markers come from the model's actual template behavior, not from a
-// hardcoded list), but use plain-ASCII synthetic names where the upstream
-// autoparser uses sentinel strings that some Jinja templates choke on.
 auto detect_tool_call_haystack(
     const common_chat_template & tmpl,
     const autoparser::analyze_reasoning & reasoning) -> std::string {
@@ -90,9 +81,6 @@ auto detect_tool_call_haystack(
     diff_split const diff = calculate_diff_split(output_no_tools, output_with_tools);
     std::string haystack = diff.right;
 
-    // Strip reasoning markers so the surrounding tool-call markers can be
-    // located reliably — the autoparser does the same for the JSON-native
-    // path.
     auto remove_first = [&haystack](const std::string & needle) -> void {
         if (needle.empty()) {
             return;
@@ -134,12 +122,12 @@ extern "C" auto llama_rs_compute_tool_call_haystack(
     try {
         const char * tmpl_src = llama_model_chat_template(model, nullptr);
         if (tmpl_src == nullptr) {
-            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK;
+            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_MODEL_HAS_NO_CHAT_TEMPLATE;
         }
 
         const llama_vocab * vocab = llama_model_get_vocab(model);
         if (vocab == nullptr) {
-            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK;
+            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_MODEL_HAS_NO_VOCAB;
         }
 
         std::string const bos_token = token_text_or_empty(vocab, llama_vocab_bos(vocab));
@@ -163,7 +151,7 @@ extern "C" auto llama_rs_compute_tool_call_haystack(
 
         return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {
@@ -209,12 +197,12 @@ extern "C" auto llama_rs_diagnose_tool_call_synthetic_renders(
     try {
         const char * tmpl_src = llama_model_chat_template(model, nullptr);
         if (tmpl_src == nullptr) {
-            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK;
+            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_MODEL_HAS_NO_CHAT_TEMPLATE;
         }
 
         const llama_vocab * vocab = llama_model_get_vocab(model);
         if (vocab == nullptr) {
-            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK;
+            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_MODEL_HAS_NO_VOCAB;
         }
 
         std::string const bos_token = token_text_or_empty(vocab, llama_vocab_bos(vocab));
@@ -287,7 +275,7 @@ extern "C" auto llama_rs_diagnose_tool_call_synthetic_renders(
 
         return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_ERROR_STRING_ALLOCATION_FAILED;
+        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {

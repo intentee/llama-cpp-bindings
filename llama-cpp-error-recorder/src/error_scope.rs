@@ -1,4 +1,4 @@
-use crate::frame_stack;
+use crate::frame_stack::FrameStack;
 use crate::recorded_error::RecordedError;
 
 /// An RAII capture scope for errors raised inside FFI callbacks.
@@ -14,20 +14,20 @@ pub struct ErrorScope;
 impl ErrorScope {
     #[must_use]
     pub fn enter() -> Self {
-        frame_stack::push_frame();
+        FrameStack::push_frame();
 
         Self
     }
 
     #[must_use]
     pub fn take(&self) -> Option<RecordedError> {
-        frame_stack::take_from_top()
+        FrameStack::take_from_top()
     }
 }
 
 impl Drop for ErrorScope {
     fn drop(&mut self) {
-        frame_stack::pop_frame();
+        FrameStack::pop_frame();
     }
 }
 

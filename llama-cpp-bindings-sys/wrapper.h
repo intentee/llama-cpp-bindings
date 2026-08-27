@@ -5,5 +5,7 @@
 #include "wrapper_common.h"
 #include "wrapper_fit.h"
 #include "wrapper_gbnf.h"
+#include "wrapper_mtmd.h"
 #include "wrapper_reasoning.h"
+#include "wrapper_state.h"
 #include "wrapper_tool_calls.h"

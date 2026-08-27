@@ -11,9 +11,8 @@ bindgen = { workspace = true }
 cc = { workspace = true }
 cmake = { workspace = true }
 find_cuda_helper = { workspace = true }
-glob = { workspace = true }
+llama-cpp-wrapper-sources = { workspace = true }
 thiserror = { workspace = true }
-walkdir = { workspace = true }
 
 [features]
 cuda = []
@@ -28,3 +27,6 @@ shared-stdcxx = []
 static-stdcxx = []
 system-ggml = []
 system-ggml-static = ["system-ggml"]
+
+[lints]
+workspace = true

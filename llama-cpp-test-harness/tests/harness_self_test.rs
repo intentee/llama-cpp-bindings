@@ -1,3 +1,7 @@
+#![expect(
+    clippy::unnecessary_wraps,
+    reason = "harness trial functions must return Result to satisfy LlamaTestFn registration"
+)]
 use std::process::ExitCode;
 
 use anyhow::Result;
@@ -10,8 +14,7 @@ use llama_cpp_test_harness::run_to_conclusions;
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -26,8 +29,7 @@ fn phase_a_first_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64
@@ -40,8 +42,7 @@ fn phase_a_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64
@@ -53,8 +54,7 @@ fn phase_a_intentionally_failing_trial(_fixture: &LlamaFixture<'_>) -> Result<()
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64
@@ -67,8 +67,7 @@ fn phase_b_first_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64
@@ -78,13 +77,10 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
     Ok(())
 }
 
-//
-
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64
@@ -92,8 +88,7 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("intentee-test-harness/does-not-exist", "no-such-file.gguf"),
     n_gpu_layers = 0,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 1,
     n_batch = 1,
     n_ubatch = 1
@@ -101,8 +96,7 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -111,8 +105,7 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
@@ -126,8 +119,7 @@ fn shared_setup_failure_and_phase_a_trial(fixture: &LlamaFixture<'_>) -> Result<
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
-    use_mmap = true,
-    use_mlock = false,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,

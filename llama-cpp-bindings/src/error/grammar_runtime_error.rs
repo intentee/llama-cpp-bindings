@@ -8,6 +8,9 @@ pub enum GrammarRuntimeError {
     ParserTooComplex { message: String },
     #[error("the grammar parser exhausted its maximum token budget: {message}")]
     MaxTokensReached { message: String },
-    #[error("the grammar parser panicked during {operation}")]
-    Panicked { operation: &'static str },
+    #[error("the grammar parser panicked during {operation}: {message}")]
+    Panicked {
+        operation: &'static str,
+        message: String,
+    },
 }

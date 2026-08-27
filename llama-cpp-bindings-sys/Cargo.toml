@@ -33,8 +33,9 @@ include = [
     "/llama.cpp/tools/mtmd/debug/*.cpp",
     "/llama.cpp/tools/mtmd/models/*.h",
     "/llama.cpp/tools/mtmd/models/*.cpp",
+    "/llama.cpp/tools/mtmd/CMakeLists.txt",
 
-    "/llama.cpp/convert_hf_to_gguf.py", # Yes, it's required
+    "/llama.cpp/convert_hf_to_gguf.py",
     "/llama.cpp/common/build-info.cpp.in",
 
     "/llama.cpp/include/llama.h",
@@ -78,3 +79,6 @@ shared-stdcxx = ["llama-cpp-bindings-build/shared-stdcxx"]
 static-stdcxx = ["llama-cpp-bindings-build/static-stdcxx"]
 system-ggml = ["llama-cpp-bindings-build/system-ggml"]
 system-ggml-static = ["system-ggml", "llama-cpp-bindings-build/system-ggml-static"]
+
+[lints]
+workspace = true

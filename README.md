@@ -6,7 +6,7 @@ Rust bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp). Minimal, 
 
 ```bash
 git clone --recursive https://github.com/intentee/llama-cpp-bindings
-cd llama-cpp-rs
+cd llama-cpp-bindings
 cargo build --release
 ```
 

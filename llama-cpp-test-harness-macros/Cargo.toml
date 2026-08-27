@@ -14,12 +14,5 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
 
-[lints.rust]
-unsafe_op_in_unsafe_fn = "warn"
-unused_qualifications = "warn"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
-module_name_repetitions = "allow"
+[lints]
+workspace = true
