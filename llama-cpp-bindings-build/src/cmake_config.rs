@@ -32,6 +32,7 @@ pub fn configure_and_build(context: &BuildContext) -> Result<PathBuf, BuildError
     let backends_dir = configure_dynamic_backends(&mut config, &context.cmake_dir)?;
 
     config.static_crt(context.static_crt);
+    configure_msvc_exception_handling(&mut config, context.target_os);
     configure_msvc_config_flags(&mut config, context.target_os, &context.profile);
     config
         .out_dir(&context.cmake_dir)
@@ -142,6 +143,22 @@ fn map_cpu_feature_to_ggml(feature: &str) -> Option<&'static str> {
         "sse4.2" => Some("GGML_SSE42"),
         _ => None,
     }
+}
+
+const fn msvc_exception_handling_flag(target_os: TargetOs) -> Option<&'static str> {
+    if target_os.is_msvc() {
+        Some("/EHsc")
+    } else {
+        None
+    }
+}
+
+fn configure_msvc_exception_handling(config: &mut Config, target_os: TargetOs) {
+    let Some(flag) = msvc_exception_handling_flag(target_os) else {
+        return;
+    };
+
+    config.cxxflag(flag);
 }
 
 fn msvc_config_flags(target_os: TargetOs, profile: &str) -> Option<&'static str> {
@@ -292,6 +309,31 @@ fn configure_system_ggml(config: &mut Config) -> Result<(), BuildError> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod msvc_exception_handling_tests {
+    use crate::target_os::TargetOs;
+    use crate::windows_variant::WindowsVariant;
+
+    use super::msvc_exception_handling_flag;
+
+    #[test]
+    fn msvc_targets_compile_llama_cpp_with_unwind_semantics() {
+        assert_eq!(
+            msvc_exception_handling_flag(TargetOs::Windows(WindowsVariant::Msvc)),
+            Some("/EHsc")
+        );
+    }
+
+    #[test]
+    fn targets_without_msvc_keep_their_toolchain_default_exception_handling() {
+        assert_eq!(msvc_exception_handling_flag(TargetOs::Linux), None);
+        assert_eq!(
+            msvc_exception_handling_flag(TargetOs::Windows(WindowsVariant::Other)),
+            None
+        );
+    }
 }
 
 #[cfg(test)]
