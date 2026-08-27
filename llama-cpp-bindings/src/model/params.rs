@@ -9,11 +9,13 @@ use crate::error::{FitError, ModelParamsError};
 use crate::model::llama_load_mode::LlamaLoadMode;
 use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
+use crate::model::params::fit_extra_model::FitExtraModel;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
 use crate::model::split_mode::LlamaSplitMode;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
+pub mod fit_extra_model;
 pub mod fit_result;
 pub mod kv_override_entry;
 pub mod kv_override_value_iterator;
@@ -89,6 +91,27 @@ fn fit_params_status_to_result(
             Err(crate::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null out_error argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given an extra model with a null path_model argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given an extra model with a null mparams argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_fit_params",
+                detail: "was given an extra model with a null cparams argument",
             }
             .into())
         }
@@ -372,6 +395,7 @@ impl LlamaModelParams {
         context_params: &mut LlamaContextParams,
         margins: &mut [usize],
         n_ctx_min: u32,
+        mut extra: Option<&mut FitExtraModel<'_>>,
         log_level: llama_cpp_bindings_sys::ggml_log_level,
     ) -> Result<FitResult, FitError> {
         let max_devices = unsafe { llama_cpp_bindings_sys::llama_max_devices() };
@@ -395,6 +419,11 @@ impl LlamaModelParams {
         let mut out_unrecognized_status_code: i32 = 0;
         let mut out_error: *mut c_char = std::ptr::null_mut();
 
+        let mut extra_ffi = extra.as_mut().map(|extra_model| extra_model.as_ffi());
+        let extra_ptr = extra_ffi
+            .as_mut()
+            .map_or_else(null, |extra_model| &raw const *extra_model);
+
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_fit_params(
                 model_path.as_ptr(),
@@ -404,6 +433,7 @@ impl LlamaModelParams {
                 self.buft_overrides.as_mut_ptr(),
                 margins.as_mut_ptr(),
                 n_ctx_min,
+                extra_ptr,
                 log_level,
                 &raw mut out_unrecognized_status_code,
                 &raw mut out_error,
@@ -790,6 +820,7 @@ mod tests {
             &mut context_params,
             &mut margins,
             512,
+            None,
             llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
         );
 
@@ -895,88 +926,71 @@ mod ffi_contract_status_tests {
     use crate::error::fit_error::FitError;
     use std::ptr;
 
+    struct ContractStatusCase {
+        status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
+        detail: &'static str,
+    }
+
     #[test]
     fn fit_params_status_to_result_maps_every_contract_status() {
-        let outcome_0 = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_0.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_fit_params",
-                    detail: "was given a null path_model argument",
-                }
-                .into()
-            )
-        );
-        let outcome_1 = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_1.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_fit_params",
-                    detail: "was given a null mparams argument",
-                }
-                .into()
-            )
-        );
-        let outcome_2 = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_2.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_fit_params",
-                    detail: "was given a null cparams argument",
-                }
-                .into()
-            )
-        );
-        let outcome_3 = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_3.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_fit_params",
-                    detail: "was given a null out_unrecognized_status_code argument",
-                }
-                .into()
-            )
-        );
-        let outcome_4 = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_4.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_fit_params",
-                    detail: "was given a null out_error argument",
-                }
-                .into()
-            )
-        );
-        let outcome_5 = fit_params_status_to_result(
+        let cases = [
+            ContractStatusCase {
+                status: llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG,
+                detail: "was given a null path_model argument",
+            },
+            ContractStatusCase {
+                status: llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG,
+                detail: "was given a null mparams argument",
+            },
+            ContractStatusCase {
+                status: llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG,
+                detail: "was given a null cparams argument",
+            },
+            ContractStatusCase {
+                status:
+                    llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG,
+                detail: "was given a null out_unrecognized_status_code argument",
+            },
+            ContractStatusCase {
+                status: llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG,
+                detail: "was given a null out_error argument",
+            },
+            ContractStatusCase {
+                status: llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG,
+                detail: "was given an extra model with a null path_model argument",
+            },
+            ContractStatusCase {
+                status: llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG,
+                detail: "was given an extra model with a null mparams argument",
+            },
+            ContractStatusCase {
+                status: llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG,
+                detail: "was given an extra model with a null cparams argument",
+            },
+        ];
+
+        for ContractStatusCase { status, detail } in cases {
+            assert_eq!(
+                fit_params_status_to_result(status, 0, ptr::null_mut()).err(),
+                Some(
+                    crate::FfiContractError {
+                        operation: "llama_rs_fit_params",
+                        detail,
+                    }
+                    .into()
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn fit_params_status_vendored_out_of_memory_returns_vendored_out_of_memory() {
+        let outcome = fit_params_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_5.err(), Some(FitError::VendoredOutOfMemory));
+
+        assert_eq!(outcome.err(), Some(FitError::VendoredOutOfMemory));
     }
 }

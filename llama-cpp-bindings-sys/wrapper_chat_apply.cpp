@@ -1,9 +1,9 @@
 #include "wrapper_chat_apply.h"
-#include "nlohmann/json_fwd.hpp"
 #include "wrapper_token_text.h"
 
 #include "llama.cpp/common/chat-auto-parser.h"
 #include "llama.cpp/common/chat.h"
+#include "llama.cpp/common/json.h"
 #include "llama.cpp/include/llama.h"
 #include "wrapper_utils.h"
 
@@ -11,7 +11,6 @@
 #include <exception>
 #include <gsl/span>
 #include <new>
-#include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
 
@@ -60,7 +59,7 @@ extern "C" auto llama_rs_apply_chat_template(
 
         common_chat_template const tmpl(template_src, bos_token, eos_token);
 
-        nlohmann::ordered_json messages = nlohmann::ordered_json::array();
+        common_json messages = common_json::array();
         const gsl::span<const char * const> role_span(roles, n_messages);
         const gsl::span<const char * const> content_span(contents, n_messages);
         for (size_t index = 0; index < n_messages; index++) {
@@ -72,7 +71,7 @@ extern "C" auto llama_rs_apply_chat_template(
 
         autoparser::generation_params inputs;
         inputs.messages              = std::move(messages);
-        inputs.tools                 = nlohmann::ordered_json::array();
+        inputs.tools                 = common_json::array();
         inputs.add_generation_prompt = add_generation_prompt != 0;
         inputs.enable_thinking       = enable_thinking != 0;
 

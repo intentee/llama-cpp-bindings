@@ -1,11 +1,10 @@
 #include "wrapper_tool_calls.h"
-#include <nlohmann/json.hpp> // IWYU pragma: keep
-#include <nlohmann/json_fwd.hpp>
 #include "wrapper_token_text.h"
 
 #include "llama.cpp/common/chat-auto-parser.h"
 #include "llama.cpp/common/chat-auto-parser-helpers.h"
 #include "llama.cpp/common/chat.h"
+#include "llama.cpp/common/json.h"
 #include "llama.cpp/include/llama.h"
 #include "wrapper_utils.h"
 
@@ -18,18 +17,21 @@ using wrapper_helpers::token_text_or_empty;
 
 namespace {
 
-auto detect_tool_call_haystack(
-    const common_chat_template & tmpl,
-    const autoparser::analyze_reasoning & reasoning) -> std::string {
-    nlohmann::ordered_json const user_msg = {
+struct tool_call_probe_params {
+    template_params without_tool_calls;
+    template_params with_tool_calls;
+};
+
+auto build_tool_call_probe_params() -> tool_call_probe_params {
+    common_json const user_msg = {
         { "role",    "user"                },
         { "content", "Please use the tool" }
     };
-    nlohmann::ordered_json const assistant_no_tools = {
+    common_json const assistant_no_tools = {
         { "role",    "assistant"      },
         { "content", "Sure, calling." }
     };
-    nlohmann::ordered_json const first_tool_call = {
+    common_json const first_tool_call = {
         { "id",       "call_001"  },
         { "type",     "function"  },
         { "function", {
@@ -40,12 +42,12 @@ auto detect_tool_call_haystack(
             }}
         }}
     };
-    nlohmann::ordered_json const assistant_with_tools = {
-        { "role",       "assistant"                                                  },
-        { "content",    ""                                                           },
-        { "tool_calls", nlohmann::ordered_json::array({ first_tool_call })           }
+    common_json const assistant_with_tools = {
+        { "role",       "assistant"                              },
+        { "content",    ""                                       },
+        { "tool_calls", common_json::array({ first_tool_call })  }
     };
-    nlohmann::ordered_json const tool_definition = {
+    common_json const tool_definition = {
         { "type",     "function"  },
         { "function", {
             { "name",        "tool_first"           },
@@ -56,23 +58,30 @@ auto detect_tool_call_haystack(
                     { "arg_first", { { "type", "string" }, { "description", "first arg" } } },
                     { "arg_second", { { "type", "string" }, { "description", "second arg" } } },
                 }},
-                { "required", nlohmann::ordered_json::array({ "arg_first", "arg_second" }) },
+                { "required", common_json::array({ "arg_first", "arg_second" }) },
             }}
         }}
     };
 
-    template_params params_no_tools;
-    params_no_tools.messages              = nlohmann::ordered_json::array({ user_msg, assistant_no_tools });
-    params_no_tools.tools                 = nlohmann::ordered_json::array({ tool_definition });
-    params_no_tools.add_generation_prompt = false;
-    params_no_tools.enable_thinking       = true;
+    tool_call_probe_params probe;
+    probe.without_tool_calls.messages              = common_json::array({ user_msg, assistant_no_tools });
+    probe.without_tool_calls.tools                 = common_json::array({ tool_definition });
+    probe.without_tool_calls.add_generation_prompt = false;
+    probe.without_tool_calls.enable_thinking       = true;
 
-    template_params params_with_tools = params_no_tools;
-    params_with_tools.messages =
-        nlohmann::ordered_json::array({ user_msg, assistant_with_tools });
+    probe.with_tool_calls          = probe.without_tool_calls;
+    probe.with_tool_calls.messages = common_json::array({ user_msg, assistant_with_tools });
 
-    std::string const output_no_tools = autoparser::apply_template(tmpl, params_no_tools);
-    std::string const output_with_tools = autoparser::apply_template(tmpl, params_with_tools);
+    return probe;
+}
+
+auto detect_tool_call_haystack(
+    const common_chat_template & tmpl,
+    const autoparser::analyze_reasoning & reasoning) -> std::string {
+    tool_call_probe_params const probe = build_tool_call_probe_params();
+
+    std::string const output_no_tools = autoparser::apply_template(tmpl, probe.without_tool_calls);
+    std::string const output_with_tools = autoparser::apply_template(tmpl, probe.with_tool_calls);
 
     if (output_no_tools.empty() || output_with_tools.empty()) {
         return {};
@@ -210,58 +219,10 @@ extern "C" auto llama_rs_diagnose_tool_call_synthetic_renders(
 
         common_chat_template const tmpl(tmpl_src, bos_token, eos_token);
 
-        nlohmann::ordered_json const user_msg = {
-            { "role",    "user"                },
-            { "content", "Please use the tool" }
-        };
-        nlohmann::ordered_json const assistant_no_tools = {
-            { "role",    "assistant"      },
-            { "content", "Sure, calling." }
-        };
-        nlohmann::ordered_json const first_tool_call = {
-            { "id",       "call_001"  },
-            { "type",     "function"  },
-            { "function", {
-                { "name",      "tool_first" },
-                { "arguments", {
-                    { "arg_first", "XXXX" },
-                    { "arg_second", "YYYY" },
-                }}
-            }}
-        };
-        nlohmann::ordered_json const assistant_with_tools = {
-            { "role",       "assistant"                                                  },
-            { "content",    ""                                                           },
-            { "tool_calls", nlohmann::ordered_json::array({ first_tool_call })           }
-        };
-        nlohmann::ordered_json const tool_definition = {
-            { "type",     "function"  },
-            { "function", {
-                { "name",        "tool_first"           },
-                { "description", "First test tool"      },
-                { "parameters", {
-                    { "type", "object" },
-                    { "properties", {
-                        { "arg_first", { { "type", "string" }, { "description", "first arg" } } },
-                        { "arg_second", { { "type", "string" }, { "description", "second arg" } } },
-                    }},
-                    { "required", nlohmann::ordered_json::array({ "arg_first", "arg_second" }) },
-                }}
-            }}
-        };
+        tool_call_probe_params const probe = build_tool_call_probe_params();
 
-        template_params params_no_tools;
-        params_no_tools.messages              = nlohmann::ordered_json::array({ user_msg, assistant_no_tools });
-        params_no_tools.tools                 = nlohmann::ordered_json::array({ tool_definition });
-        params_no_tools.add_generation_prompt = false;
-        params_no_tools.enable_thinking       = true;
-
-        template_params params_with_tools = params_no_tools;
-        params_with_tools.messages =
-            nlohmann::ordered_json::array({ user_msg, assistant_with_tools });
-
-        std::string const output_a = autoparser::apply_template(tmpl, params_no_tools);
-        std::string const output_b = autoparser::apply_template(tmpl, params_with_tools);
+        std::string const output_a = autoparser::apply_template(tmpl, probe.without_tool_calls);
+        std::string const output_b = autoparser::apply_template(tmpl, probe.with_tool_calls);
 
         std::unique_ptr<char[]> a_dup(llama_rs_dup_string(output_a));
         std::unique_ptr<char[]> b_dup(llama_rs_dup_string(output_b));

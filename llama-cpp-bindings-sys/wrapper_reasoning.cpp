@@ -3,9 +3,8 @@
 
 #include "llama.cpp/common/chat-auto-parser.h"
 #include "llama.cpp/common/chat.h"
+#include "llama.cpp/common/json.h"
 #include "llama.cpp/include/llama.h"
-#include <nlohmann/json.hpp> // IWYU pragma: keep
-#include <nlohmann/json_fwd.hpp>
 #include "wrapper_utils.h"
 
 #include <cstddef>
@@ -36,8 +35,8 @@ auto find_reasoning_markers(
     probe_params.is_inference = false;
     probe_params.add_inference = false;
     probe_params.mark_input = false;
-    probe_params.messages = nlohmann::ordered_json::array({
-        nlohmann::ordered_json{ { "role", "user" }, { "content", "ping" } },
+    probe_params.messages = common_json::array({
+        common_json{ { "role", "user" }, { "content", "ping" } },
     });
 
     const std::string tmpl_src_str = tmpl_src;

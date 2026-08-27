@@ -11,9 +11,8 @@
 #include <string>
 
 #include "llama.cpp/common/json-schema-to-grammar.h"
+#include "llama.cpp/common/json.h"
 #include "llama.cpp/include/llama.h"
-#include <nlohmann/json.hpp> // IWYU pragma: keep
-#include <nlohmann/json_fwd.hpp>
 #include "wrapper_utils.h"
 
 extern "C" auto llama_rs_json_schema_to_grammar(
@@ -38,7 +37,7 @@ extern "C" auto llama_rs_json_schema_to_grammar(
     }
 
     try {
-        const auto schema = nlohmann::ordered_json::parse(schema_json);
+        const auto schema = common_json::parse(schema_json);
         const auto grammar = json_schema_to_grammar(schema, force_gbnf);
         *out_grammar = llama_rs_dup_string(grammar);
         if (*out_grammar == nullptr) {

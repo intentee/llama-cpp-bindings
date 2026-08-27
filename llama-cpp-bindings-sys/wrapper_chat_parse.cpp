@@ -1,11 +1,10 @@
 #include "wrapper_chat_parse.h"
-#include <nlohmann/json.hpp> // IWYU pragma: keep
-#include <nlohmann/json_fwd.hpp>
 #include "peg-parser.h"
 #include "wrapper_token_text.h"
 
 #include "llama.cpp/common/chat-auto-parser.h"
 #include "llama.cpp/common/chat.h"
+#include "llama.cpp/common/json.h"
 #include "llama.cpp/include/llama.h"
 #include "wrapper_utils.h"
 
@@ -152,9 +151,9 @@ extern "C" auto llama_rs_parse_chat_message(
         autoparser::generation_params inputs;
 
         if ((tools_json != nullptr) && *tools_json != '\0') {
-            inputs.tools = nlohmann::ordered_json::parse(tools_json);
+            inputs.tools = common_json::parse(tools_json);
         } else {
-            inputs.tools = nlohmann::ordered_json::array();
+            inputs.tools = common_json::array();
         }
 
         common_peg_arena const chat_parser = parser->parser.build_parser(inputs, std::string());
