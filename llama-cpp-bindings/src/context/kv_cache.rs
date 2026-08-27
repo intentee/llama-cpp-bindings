@@ -174,13 +174,14 @@ impl LlamaContext<'_> {
     fn memory_handle(
         &self,
     ) -> Result<llama_cpp_bindings_sys::llama_memory_t, KvCacheConversionError> {
+        self.optional_memory_handle()
+            .ok_or(KvCacheConversionError::MemoryHandleUnavailable)
+    }
+
+    fn optional_memory_handle(&self) -> Option<llama_cpp_bindings_sys::llama_memory_t> {
         let mem = unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) };
 
-        if mem.is_null() {
-            return Err(KvCacheConversionError::MemoryHandleUnavailable);
-        }
-
-        Ok(mem)
+        if mem.is_null() { None } else { Some(mem) }
     }
 
     /// # Errors
@@ -205,8 +206,9 @@ impl LlamaContext<'_> {
     }
 
     /// # Errors
-    /// If the sequence id or either position exceeds [`i32::MAX`], the context has no
-    /// memory module, or llama.cpp reports that the partial sequence could not be removed.
+    /// If the sequence id or either position exceeds [`i32::MAX`], or llama.cpp reports
+    /// that the partial sequence could not be removed. A context without a memory module
+    /// holds no KV cache, so the removal trivially succeeds.
     pub fn clear_kv_cache_seq(
         &mut self,
         src: Option<u32>,
@@ -222,7 +224,9 @@ impl LlamaContext<'_> {
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
             .map_err(KvCacheConversionError::P1TooLarge)?;
-        let mem = self.memory_handle()?;
+        let Some(mem) = self.optional_memory_handle() else {
+            return Ok(());
+        };
 
         if unsafe { llama_cpp_bindings_sys::llama_memory_seq_rm(mem, src, p0, p1) } {
             return Ok(());
@@ -236,9 +240,12 @@ impl LlamaContext<'_> {
     }
 
     /// # Errors
-    /// If the context has no memory module.
+    /// Never returns an error: a context without a memory module holds no KV cache, so
+    /// there is nothing to clear.
     pub fn clear_kv_cache(&mut self) -> Result<(), KvCacheConversionError> {
-        let mem = self.memory_handle()?;
+        let Some(mem) = self.optional_memory_handle() else {
+            return Ok(());
+        };
         let clear_data_buffers = true;
         unsafe { llama_cpp_bindings_sys::llama_memory_clear(mem, clear_data_buffers) };
 
@@ -246,9 +253,12 @@ impl LlamaContext<'_> {
     }
 
     /// # Errors
-    /// If the context has no memory module.
+    /// Never returns an error: a context without a memory module holds no KV cache, so
+    /// every sequence is already absent from it.
     pub fn kv_cache_seq_keep(&mut self, seq_id: i32) -> Result<(), KvCacheConversionError> {
-        let mem = self.memory_handle()?;
+        let Some(mem) = self.optional_memory_handle() else {
+            return Ok(());
+        };
         unsafe { llama_cpp_bindings_sys::llama_memory_seq_keep(mem, seq_id) };
 
         Ok(())
