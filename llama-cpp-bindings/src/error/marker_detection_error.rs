@@ -3,6 +3,7 @@ use std::string::FromUtf8Error;
 
 use crate::error::chat_template_error::ChatTemplateError;
 use crate::error::string_to_token_error::StringToTokenError;
+use crate::token::LlamaToken;
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum MarkerDetectionError {
@@ -30,6 +31,10 @@ pub enum MarkerDetectionError {
     ReasoningMarkersFreeFailed { message: String },
     #[error("a detected marker string could not be tokenised: {0}")]
     MarkerTokenizationFailed(#[from] StringToTokenError),
+    #[error("marker detection produced an empty token sequence")]
+    EmptyMarker,
+    #[error("marker token sequence {tokens:?} opens more than one section")]
+    AmbiguousMarkerOpeners { tokens: Vec<LlamaToken> },
     #[error("the chat template is not valid UTF-8: {0}")]
     ToolCallTemplateNotUtf8(#[from] Utf8Error),
     #[error("the chat template could not be retrieved for tool-call marker detection: {0}")]
