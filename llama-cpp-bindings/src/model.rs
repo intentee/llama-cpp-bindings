@@ -37,6 +37,7 @@ use crate::chat_template_tool_calls;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
+use crate::marker_role::MarkerRole;
 use crate::model::tokenizer_input::TokenizerInput;
 use crate::raw_chat_message::RawChatMessage;
 use crate::resolved_tool_call_markers::ResolvedToolCallMarkers;
@@ -1017,11 +1018,11 @@ impl LlamaModel {
         let resolved_tool_call_markers =
             self.resolve_tool_call_marker_strings(autoparser_open, autoparser_close)?;
 
-        let mut reasoning_closes = Vec::new();
+        let mut candidates = Vec::new();
         if let Some(markers) = &reasoning_markers {
             for marker in &markers.closes {
                 if let Some(tokens) = self.tokenize_marker(Some(marker))? {
-                    reasoning_closes.push(tokens);
+                    candidates.push((tokens, MarkerRole::ReasoningClose));
                 }
             }
         }
@@ -1029,14 +1030,17 @@ impl LlamaModel {
         let reasoning_open = reasoning_markers
             .as_ref()
             .map(|markers| markers.open.as_str());
-        let reasoning_open = self.tokenize_marker(reasoning_open)?;
+        if let Some(tokens) = self.tokenize_marker(reasoning_open)? {
+            candidates.push((tokens, MarkerRole::ReasoningOpen));
+        }
+        if let Some(tokens) = self.tokenize_marker(resolved_tool_call_markers.open.as_deref())? {
+            candidates.push((tokens, MarkerRole::ToolCallOpen));
+        }
+        if let Some(tokens) = self.tokenize_marker(resolved_tool_call_markers.close.as_deref())? {
+            candidates.push((tokens, MarkerRole::ToolCallClose));
+        }
 
-        Ok(StreamingMarkers {
-            reasoning_open,
-            reasoning_closes,
-            tool_call_open: self.tokenize_marker(resolved_tool_call_markers.open.as_deref())?,
-            tool_call_close: self.tokenize_marker(resolved_tool_call_markers.close.as_deref())?,
-        })
+        StreamingMarkers::from_candidates(candidates)
     }
 
     fn resolve_tool_call_marker_strings(
