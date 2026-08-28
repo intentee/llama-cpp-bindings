@@ -4,8 +4,10 @@ use std::os::raw::c_char;
 use std::ptr;
 
 use crate::context::LlamaContext;
-use crate::error::kv_cache_conversion_error::KvCacheConversionError;
-use crate::error::{KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError};
+use crate::error::{
+    ClearKvCacheSeqError, CopyKvCacheSeqError, KvCacheSeqAddError, KvCacheSeqDivError,
+    KvCacheSeqPosMaxError,
+};
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 fn kv_cache_seq_add_status_to_result(
@@ -168,19 +170,17 @@ fn kv_cache_seq_pos_max_status_to_result(
 }
 
 impl LlamaContext<'_> {
-    /// # Errors
-    /// Returns [`KvCacheConversionError::MemoryHandleUnavailable`] when the context was
-    /// built without a memory module, so a null handle is never handed to llama.cpp.
-    fn memory_handle(
-        &self,
-    ) -> Result<llama_cpp_bindings_sys::llama_memory_t, KvCacheConversionError> {
+    fn memory_handle(&self) -> Option<llama_cpp_bindings_sys::llama_memory_t> {
         let mem = unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) };
 
-        if mem.is_null() {
-            return Err(KvCacheConversionError::MemoryHandleUnavailable);
-        }
+        if mem.is_null() { None } else { Some(mem) }
+    }
 
-        Ok(mem)
+    fn required_memory_handle(
+        &self,
+    ) -> Result<llama_cpp_bindings_sys::llama_memory_t, CopyKvCacheSeqError> {
+        self.memory_handle()
+            .ok_or(CopyKvCacheSeqError::MemoryHandleUnavailable)
     }
 
     /// # Errors
@@ -191,67 +191,62 @@ impl LlamaContext<'_> {
         dest: i32,
         p0: Option<u32>,
         p1: Option<u32>,
-    ) -> Result<(), KvCacheConversionError> {
+    ) -> Result<(), CopyKvCacheSeqError> {
         let p0 = p0
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheConversionError::P0TooLarge)?;
+            .map_err(CopyKvCacheSeqError::P0TooLarge)?;
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheConversionError::P1TooLarge)?;
-        let mem = self.memory_handle()?;
+            .map_err(CopyKvCacheSeqError::P1TooLarge)?;
+        let mem = self.required_memory_handle()?;
         unsafe { llama_cpp_bindings_sys::llama_memory_seq_cp(mem, src, dest, p0, p1) };
 
         Ok(())
     }
 
     /// # Errors
-    /// If the sequence id or either position exceeds [`i32::MAX`], the context has no
-    /// memory module, or llama.cpp reports that the partial sequence could not be removed.
+    /// If the sequence id or either position exceeds [`i32::MAX`], or llama.cpp reports
+    /// that the partial sequence could not be removed. A context without a memory module
+    /// holds no KV cache, so the removal trivially succeeds.
     pub fn clear_kv_cache_seq(
         &mut self,
-        src: Option<u32>,
+        seq_id: Option<u32>,
         p0: Option<u32>,
         p1: Option<u32>,
-    ) -> Result<(), KvCacheConversionError> {
-        let src = src
+    ) -> Result<(), ClearKvCacheSeqError> {
+        let seq_id = seq_id
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheConversionError::SeqIdTooLarge)?;
+            .map_err(ClearKvCacheSeqError::SeqIdTooLarge)?;
         let p0 = p0
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheConversionError::P0TooLarge)?;
+            .map_err(ClearKvCacheSeqError::P0TooLarge)?;
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheConversionError::P1TooLarge)?;
-        let mem = self.memory_handle()?;
+            .map_err(ClearKvCacheSeqError::P1TooLarge)?;
+        let Some(mem) = self.memory_handle() else {
+            return Ok(());
+        };
 
-        if unsafe { llama_cpp_bindings_sys::llama_memory_seq_rm(mem, src, p0, p1) } {
+        if unsafe { llama_cpp_bindings_sys::llama_memory_seq_rm(mem, seq_id, p0, p1) } {
             return Ok(());
         }
 
-        Err(KvCacheConversionError::PartialSequenceNotRemoved {
-            seq_id: src,
-            p0,
-            p1,
-        })
+        Err(ClearKvCacheSeqError::PartialSequenceNotRemoved { seq_id, p0, p1 })
     }
 
-    /// # Errors
-    /// If the context has no memory module.
-    pub fn clear_kv_cache(&mut self) -> Result<(), KvCacheConversionError> {
-        let mem = self.memory_handle()?;
+    pub fn clear_kv_cache(&mut self) {
+        let Some(mem) = self.memory_handle() else {
+            return;
+        };
         let clear_data_buffers = true;
         unsafe { llama_cpp_bindings_sys::llama_memory_clear(mem, clear_data_buffers) };
-
-        Ok(())
     }
 
-    /// # Errors
-    /// If the context has no memory module.
-    pub fn kv_cache_seq_keep(&mut self, seq_id: i32) -> Result<(), KvCacheConversionError> {
-        let mem = self.memory_handle()?;
+    pub fn kv_cache_seq_keep(&mut self, seq_id: i32) {
+        let Some(mem) = self.memory_handle() else {
+            return;
+        };
         unsafe { llama_cpp_bindings_sys::llama_memory_seq_keep(mem, seq_id) };
-
-        Ok(())
     }
 
     /// # Errors

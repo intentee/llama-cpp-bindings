@@ -6,7 +6,8 @@ use anyhow::Result;
 use llama_cpp_bindings::DecodeError;
 use llama_cpp_bindings::LogitsError;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::KvCacheConversionError;
+use llama_cpp_bindings::error::ClearKvCacheSeqError;
+use llama_cpp_bindings::error::CopyKvCacheSeqError;
 use llama_cpp_bindings::error::KvCacheSeqAddError;
 use llama_cpp_bindings::error::KvCacheSeqDivError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -726,7 +727,7 @@ fn clear_kv_cache_resets_positions(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     prime_kv_cache(fixture, &mut context)?;
 
-    context.clear_kv_cache()?;
+    context.clear_kv_cache();
     assert_eq!(context.kv_cache_seq_pos_max(0)?, -1);
 
     Ok(())
@@ -1000,7 +1001,7 @@ fn kv_cache_seq_keep_retains_specified_sequence(fixture: &LlamaFixture<'_>) -> R
 
     prime_kv_cache(fixture, &mut context)?;
 
-    context.kv_cache_seq_keep(0)?;
+    context.kv_cache_seq_keep(0);
 
     assert!(context.kv_cache_seq_pos_max(0)? >= 0);
 
@@ -1133,7 +1134,7 @@ fn copy_kv_cache_seq_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) ->
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::P0TooLarge(
+        CopyKvCacheSeqError::P0TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -1180,7 +1181,7 @@ fn copy_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) ->
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::P1TooLarge(
+        CopyKvCacheSeqError::P1TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -1220,14 +1221,16 @@ fn copy_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) ->
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn clear_kv_cache_seq_rejects_src_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn clear_kv_cache_seq_rejects_sequence_id_exceeding_i32_max(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let result = context.clear_kv_cache_seq(Some(u32::MAX), None, None);
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::SeqIdTooLarge(
+        ClearKvCacheSeqError::SeqIdTooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -1274,7 +1277,7 @@ fn clear_kv_cache_seq_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::P0TooLarge(
+        ClearKvCacheSeqError::P0TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -1321,7 +1324,7 @@ fn clear_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheConversionError::P1TooLarge(
+        ClearKvCacheSeqError::P1TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );

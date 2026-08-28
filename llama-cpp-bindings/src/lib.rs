@@ -38,7 +38,7 @@ pub mod load_backends_error;
 pub mod load_backends_from_path;
 pub mod log_options;
 pub mod log_record;
-pub mod marker_kind;
+pub mod marker_role;
 pub mod mask_outcome;
 pub mod max_devices;
 pub mod mlock_supported;
@@ -54,6 +54,7 @@ pub mod sampling;
 pub mod sanitized_grammar;
 pub mod send_logs_to_log;
 pub mod streaming_json_probe;
+pub mod streaming_marker;
 pub mod streaming_markers;
 pub mod synthetic_tool_call_renders;
 pub mod timing;
@@ -62,13 +63,13 @@ pub mod tool_call_format;
 pub mod tool_call_marker_pair;
 
 pub use error::{
-    ApplyChatTemplateError, ChatTemplateError, DecodeError, EmbeddingsError, EncodeError,
-    EvalMultimodalChunksError, FfiContractError, FfiStatusError, GrammarError,
-    JsonSchemaToGrammarError, KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError,
-    LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError, LlamaLoraAdaptersError,
-    LlamaModelLoadError, LogitsError, MarkerDetectionError, MetaValError, ModelParamsError,
-    NewLlamaChatMessageError, ParseChatMessageError, Result, SampleError, SamplerAcceptError,
-    SamplingError, StringToTokenError, TokenSamplingError, TokenToStringError,
+    ApplyChatTemplateError, ChatTemplateError, ClearKvCacheSeqError, CopyKvCacheSeqError,
+    DecodeError, EmbeddingsError, EncodeError, EvalMultimodalChunksError, FfiContractError,
+    FfiStatusError, GrammarError, JsonSchemaToGrammarError, KvCacheSeqAddError, KvCacheSeqDivError,
+    KvCacheSeqPosMaxError, LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError,
+    LlamaLoraAdaptersError, LlamaModelLoadError, LogitsError, MarkerDetectionError, MetaValError,
+    ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError, Result, SampleError,
+    SamplerAcceptError, SamplingError, StringToTokenError, TokenSamplingError, TokenToStringError,
 };
 
 pub use chat_message_parse_outcome::ChatMessageParseOutcome;
@@ -81,10 +82,13 @@ pub use llama_cpp_bindings_types::{
     ReasoningMarkers, TokenUsage, TokenUsageError, ToolCallArgsShape, ToolCallArguments,
     ToolCallMarkers, ToolCallValueQuote, XmlTagsShape,
 };
+pub use marker_role::MarkerRole;
 pub use raw_chat_message::RawChatMessage;
 pub use sampled_token::SampledToken;
 pub use sampled_token_classifier::SampledTokenClassifier;
 pub use sampled_token_section::SampledTokenSection;
+pub use streaming_marker::StreamingMarker;
+pub use streaming_markers::StreamingMarkers;
 pub use synthetic_tool_call_renders::SyntheticToolCallRenders;
 
 pub use ggml_time_us::ggml_time_us;
