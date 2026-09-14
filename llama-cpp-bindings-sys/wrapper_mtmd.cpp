@@ -59,7 +59,7 @@ extern "C" auto llama_rs_mtmd_init_from_file(
 }
 
 extern "C" auto llama_rs_mtmd_bitmap_init_from_file(
-    struct mtmd_context * ctx,
+    const struct mtmd_context * ctx,
     const char * fname,
     struct mtmd_bitmap ** out_bitmap,
     char ** out_error) -> llama_rs_mtmd_bitmap_init_from_file_status {
@@ -79,7 +79,7 @@ extern "C" auto llama_rs_mtmd_bitmap_init_from_file(
 
     try {
         struct mtmd_helper_bitmap_wrapper const bitmap_wrapper =
-            mtmd_helper_bitmap_init_from_file(ctx, fname, false);
+            mtmd_helper_bitmap_init_from_file(ctx, fname, false, mtmd_helper_init_opt_default());
         struct mtmd_bitmap * bitmap = bitmap_wrapper.bitmap;
         if (bitmap == nullptr) {
             return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_VENDORED_RETURNED_NULL;
@@ -108,7 +108,7 @@ extern "C" auto llama_rs_mtmd_bitmap_init_from_file(
 }
 
 extern "C" auto llama_rs_mtmd_tokenize(
-    struct mtmd_context * ctx,
+    const struct mtmd_context * ctx,
     struct mtmd_input_chunks * output,
     const struct mtmd_input_text * text,
     const struct mtmd_bitmap ** bitmaps,

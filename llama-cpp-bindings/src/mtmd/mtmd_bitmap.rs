@@ -164,6 +164,7 @@ impl MtmdBitmap {
                 data.as_ptr(),
                 data.len(),
                 false,
+                llama_cpp_bindings_sys::mtmd_helper_init_opt_default(),
             )
         };
 

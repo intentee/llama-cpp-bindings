@@ -41,7 +41,7 @@ typedef enum llama_rs_mtmd_bitmap_init_from_file_status {
 } llama_rs_mtmd_bitmap_init_from_file_status;
 
 llama_rs_mtmd_bitmap_init_from_file_status llama_rs_mtmd_bitmap_init_from_file(
-    struct mtmd_context * ctx,
+    const struct mtmd_context * ctx,
     const char * fname,
     struct mtmd_bitmap ** out_bitmap,
     char ** out_error);
@@ -61,7 +61,7 @@ typedef enum llama_rs_mtmd_tokenize_status {
 } llama_rs_mtmd_tokenize_status;
 
 llama_rs_mtmd_tokenize_status llama_rs_mtmd_tokenize(
-    struct mtmd_context * ctx,
+    const struct mtmd_context * ctx,
     struct mtmd_input_chunks * output,
     const struct mtmd_input_text * text,
     const struct mtmd_bitmap ** bitmaps,

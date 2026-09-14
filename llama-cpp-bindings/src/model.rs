@@ -1,6 +1,8 @@
 pub mod add_bos;
 pub mod llama_chat_message;
 pub mod llama_chat_template;
+pub mod llama_lazy_mode;
+pub mod llama_lazy_mode_parse_error;
 pub mod llama_load_mode;
 pub mod llama_load_mode_parse_error;
 pub mod llama_lora_adapter;
@@ -56,6 +58,8 @@ use crate::{
 pub use add_bos::AddBos;
 pub use llama_chat_message::LlamaChatMessage;
 pub use llama_chat_template::LlamaChatTemplate;
+pub use llama_lazy_mode::LlamaLazyMode;
+pub use llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 pub use llama_load_mode::LlamaLoadMode;
 pub use llama_load_mode_parse_error::LlamaLoadModeParseError;
 pub use llama_lora_adapter::LlamaLoraAdapter;

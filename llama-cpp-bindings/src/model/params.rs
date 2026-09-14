@@ -6,6 +6,8 @@ use std::ptr::null;
 use crate::LlamaCppError;
 use crate::context::params::LlamaContextParams;
 use crate::error::{FitError, ModelParamsError};
+use crate::model::llama_lazy_mode::LlamaLazyMode;
+use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 use crate::model::llama_load_mode::LlamaLoadMode;
 use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
@@ -137,6 +139,7 @@ impl Debug for LlamaModelParams {
             .field("n_gpu_layers", &self.params.n_gpu_layers)
             .field("main_gpu", &self.params.main_gpu)
             .field("vocab_only", &self.params.vocab_only)
+            .field("lazy_mode", &self.lazy_mode())
             .field("load_mode", &self.load_mode())
             .field("load_mtp", &self.params.load_mtp)
             .field("split_mode", &self.split_mode())
@@ -274,6 +277,12 @@ impl LlamaModelParams {
     }
 
     /// # Errors
+    /// Returns [`LlamaLazyModeParseError`] when llama.cpp returns an unknown lazy mode.
+    pub fn lazy_mode(&self) -> Result<LlamaLazyMode, LlamaLazyModeParseError> {
+        LlamaLazyMode::try_from(self.params.lazy_mode)
+    }
+
+    /// # Errors
     /// Returns [`LlamaLoadModeParseError`] when llama.cpp returns an unknown load mode.
     pub fn load_mode(&self) -> Result<LlamaLoadMode, LlamaLoadModeParseError> {
         LlamaLoadMode::try_from(self.params.load_mode)
@@ -330,6 +339,12 @@ impl LlamaModelParams {
     #[must_use]
     pub const fn with_vocab_only(mut self, vocab_only: bool) -> Self {
         self.params.vocab_only = vocab_only;
+        self
+    }
+
+    #[must_use]
+    pub fn with_lazy_mode(mut self, lazy_mode: LlamaLazyMode) -> Self {
+        self.params.lazy_mode = lazy_mode.into();
         self
     }
 
@@ -475,6 +490,7 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::llama_lazy_mode::LlamaLazyMode;
     use crate::model::llama_load_mode::LlamaLoadMode;
     use crate::model::split_mode::LlamaSplitMode;
 
@@ -501,6 +517,33 @@ mod tests {
         assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Auto));
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Layer));
         assert!(params.devices().is_empty());
+    }
+
+    #[test]
+    fn default_params_use_automatic_lazy_loading() {
+        let params = LlamaModelParams::default();
+
+        assert_eq!(params.lazy_mode(), Ok(LlamaLazyMode::Auto));
+    }
+
+    #[test]
+    fn with_lazy_mode_sets_each_supported_mode() {
+        for mode in [LlamaLazyMode::Off, LlamaLazyMode::Auto, LlamaLazyMode::On] {
+            let params = LlamaModelParams::default().with_lazy_mode(mode);
+
+            assert_eq!(params.lazy_mode(), Ok(mode));
+        }
+    }
+
+    #[test]
+    fn unknown_lazy_mode_in_model_params_preserves_its_value() {
+        let mut params = LlamaModelParams::default();
+        params.params.lazy_mode = u32::MAX;
+
+        assert_eq!(
+            params.lazy_mode(),
+            Err(super::LlamaLazyModeParseError { value: u32::MAX })
+        );
     }
 
     #[test]
@@ -607,6 +650,14 @@ mod tests {
         assert!(debug_output.contains("vocab_only"));
         assert!(debug_output.contains("load_mode"));
         assert!(debug_output.contains("split_mode"));
+    }
+
+    #[test]
+    fn debug_format_includes_lazy_mode() {
+        let debug_output = format!("{:?}", LlamaModelParams::default());
+
+        assert!(debug_output.contains("lazy_mode"));
+        assert!(debug_output.contains("Auto"));
     }
 
     #[test]
