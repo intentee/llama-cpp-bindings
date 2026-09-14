@@ -16,7 +16,9 @@ impl TryFrom<llama_cpp_bindings_sys::llama_lazy_mode> for LlamaLazyMode {
             llama_cpp_bindings_sys::LLAMA_LAZY_MODE_OFF => Ok(Self::Off),
             llama_cpp_bindings_sys::LLAMA_LAZY_MODE_AUTO => Ok(Self::Auto),
             llama_cpp_bindings_sys::LLAMA_LAZY_MODE_ON => Ok(Self::On),
-            value => Err(LlamaLazyModeParseError { value }),
+            value => Err(LlamaLazyModeParseError {
+                value: i64::from(value),
+            }),
         }
     }
 }
@@ -69,9 +71,13 @@ mod tests {
 
     #[test]
     fn unknown_ffi_lazy_mode_preserves_its_value() {
+        let unknown = llama_cpp_bindings_sys::llama_lazy_mode::MAX;
+
         assert_eq!(
-            LlamaLazyMode::try_from(u32::MAX),
-            Err(super::LlamaLazyModeParseError { value: u32::MAX })
+            LlamaLazyMode::try_from(unknown),
+            Err(super::LlamaLazyModeParseError {
+                value: i64::from(unknown)
+            })
         );
     }
 

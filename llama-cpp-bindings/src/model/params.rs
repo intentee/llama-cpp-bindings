@@ -538,11 +538,14 @@ mod tests {
     #[test]
     fn unknown_lazy_mode_in_model_params_preserves_its_value() {
         let mut params = LlamaModelParams::default();
-        params.params.lazy_mode = u32::MAX;
+        let unknown = llama_cpp_bindings_sys::llama_lazy_mode::MAX;
+        params.params.lazy_mode = unknown;
 
         assert_eq!(
             params.lazy_mode(),
-            Err(super::LlamaLazyModeParseError { value: u32::MAX })
+            Err(super::LlamaLazyModeParseError {
+                value: i64::from(unknown)
+            })
         );
     }
 
