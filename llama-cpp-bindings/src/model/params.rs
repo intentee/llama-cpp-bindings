@@ -343,12 +343,6 @@ impl LlamaModelParams {
     }
 
     #[must_use]
-    pub fn with_lazy_mode(mut self, lazy_mode: LlamaLazyMode) -> Self {
-        self.params.lazy_mode = lazy_mode.into();
-        self
-    }
-
-    #[must_use]
     pub const fn no_alloc(&self) -> bool {
         self.params.no_alloc
     }
@@ -356,6 +350,12 @@ impl LlamaModelParams {
     #[must_use]
     pub const fn with_no_alloc(mut self, no_alloc: bool) -> Self {
         self.params.no_alloc = no_alloc;
+        self
+    }
+
+    #[must_use]
+    pub fn with_lazy_mode(mut self, lazy_mode: LlamaLazyMode) -> Self {
+        self.params.lazy_mode = lazy_mode.into();
         self
     }
 
@@ -491,6 +491,7 @@ impl Default for LlamaModelParams {
 #[cfg(test)]
 mod tests {
     use crate::model::llama_lazy_mode::LlamaLazyMode;
+    use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
     use crate::model::llama_load_mode::LlamaLoadMode;
     use crate::model::split_mode::LlamaSplitMode;
 
@@ -543,7 +544,7 @@ mod tests {
 
         assert_eq!(
             params.lazy_mode(),
-            Err(super::LlamaLazyModeParseError {
+            Err(LlamaLazyModeParseError {
                 value: i64::from(unknown)
             })
         );

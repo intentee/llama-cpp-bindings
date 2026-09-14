@@ -36,6 +36,7 @@ impl From<LlamaLazyMode> for llama_cpp_bindings_sys::llama_lazy_mode {
 #[cfg(test)]
 mod tests {
     use super::LlamaLazyMode;
+    use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 
     const LAZY_MODES: &[(LlamaLazyMode, llama_cpp_bindings_sys::llama_lazy_mode)] = &[
         (
@@ -75,7 +76,7 @@ mod tests {
 
         assert_eq!(
             LlamaLazyMode::try_from(unknown),
-            Err(super::LlamaLazyModeParseError {
+            Err(LlamaLazyModeParseError {
                 value: i64::from(unknown)
             })
         );
