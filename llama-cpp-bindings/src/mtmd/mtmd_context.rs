@@ -286,7 +286,7 @@ impl MtmdContext {
                 self.context.as_ptr(),
                 chunks.chunks.as_ptr(),
                 &raw const input_text,
-                bitmap_ptrs.as_ptr().cast_mut(),
+                bitmap_ptrs.as_ptr(),
                 bitmaps.len(),
                 &raw mut out_undocumented_return_code,
                 &raw mut out_error,

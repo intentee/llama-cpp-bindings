@@ -64,7 +64,7 @@ llama_rs_mtmd_tokenize_status llama_rs_mtmd_tokenize(
     const struct mtmd_context * ctx,
     struct mtmd_input_chunks * output,
     const struct mtmd_input_text * text,
-    const struct mtmd_bitmap ** bitmaps,
+    const struct mtmd_bitmap * const * bitmaps,
     size_t num_bitmaps,
     int32_t * out_undocumented_return_code,
     char ** out_error);
