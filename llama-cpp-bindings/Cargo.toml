@@ -23,6 +23,7 @@ thiserror = { workspace = true }
 toktrie = { workspace = true }
 
 [dev-dependencies]
+llama-cpp-wrapper-error-fixture = { workspace = true }
 serial_test = { workspace = true }
 
 [features]

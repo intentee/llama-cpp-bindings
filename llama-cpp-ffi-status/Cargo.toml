@@ -10,5 +10,8 @@ repository.workspace = true
 llama-cpp-bindings-sys = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+llama-cpp-wrapper-error-fixture = { workspace = true }
+
 [lints]
 workspace = true
