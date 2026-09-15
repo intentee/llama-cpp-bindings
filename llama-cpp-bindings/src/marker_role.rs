@@ -10,7 +10,8 @@ pub enum MarkerRole {
 }
 
 impl MarkerRole {
-    pub(crate) const fn opened_section(self) -> Option<SampledTokenSection> {
+    #[must_use]
+    pub const fn opened_section(self) -> Option<SampledTokenSection> {
         match self {
             Self::ReasoningOpen => Some(SampledTokenSection::Reasoning),
             Self::ToolCallOpen => Some(SampledTokenSection::ToolCall),
@@ -18,7 +19,8 @@ impl MarkerRole {
         }
     }
 
-    pub(crate) const fn closed_section(self) -> Option<SampledTokenSection> {
+    #[must_use]
+    pub const fn closed_section(self) -> Option<SampledTokenSection> {
         match self {
             Self::ReasoningClose => Some(SampledTokenSection::Reasoning),
             Self::ToolCallClose => Some(SampledTokenSection::ToolCall),

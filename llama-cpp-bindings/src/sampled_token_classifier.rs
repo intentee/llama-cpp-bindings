@@ -67,7 +67,7 @@ pub struct SampledTokenClassifier<'model> {
 
 impl<'model> SampledTokenClassifier<'model> {
     #[must_use]
-    pub(crate) fn new(model: &'model LlamaModel, markers: StreamingMarkers) -> Self {
+    pub fn new(model: &'model LlamaModel, markers: StreamingMarkers) -> Self {
         Self {
             model,
             markers,
@@ -516,6 +516,7 @@ mod tests {
     use super::SampledTokenClassifier;
     use crate::ingest_outcome::IngestOutcome;
     use crate::marker_role::MarkerRole;
+    use crate::marker_role_candidate::MarkerRoleCandidate;
     use crate::sampled_token::SampledToken;
     use crate::sampled_token_section::SampledTokenSection;
     use crate::streaming_markers::StreamingMarkers;
@@ -531,11 +532,17 @@ mod tests {
     ) -> StreamingMarkers {
         let candidates = reasoning_open
             .into_iter()
-            .map(|tokens| (tokens, MarkerRole::ReasoningOpen))
+            .map(|tokens| MarkerRoleCandidate {
+                tokens,
+                role: MarkerRole::ReasoningOpen,
+            })
             .chain(
                 reasoning_close
                     .into_iter()
-                    .map(|tokens| (tokens, MarkerRole::ReasoningClose)),
+                    .map(|tokens| MarkerRoleCandidate {
+                        tokens,
+                        role: MarkerRole::ReasoningClose,
+                    }),
             );
 
         StreamingMarkers::from_candidates(candidates).expect("synthetic markers must be valid")
@@ -611,11 +618,26 @@ mod tests {
         shared: Vec<LlamaToken>,
     ) -> StreamingMarkers {
         StreamingMarkers::from_candidates([
-            (vec![token(100)], MarkerRole::ReasoningOpen),
-            (vec![token(200)], MarkerRole::ReasoningClose),
-            (shared.clone(), MarkerRole::ReasoningClose),
-            (shared, MarkerRole::ToolCallOpen),
-            (vec![token(201)], MarkerRole::ToolCallClose),
+            MarkerRoleCandidate {
+                tokens: vec![token(100)],
+                role: MarkerRole::ReasoningOpen,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(200)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: shared.clone(),
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: shared,
+                role: MarkerRole::ToolCallOpen,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(201)],
+                role: MarkerRole::ToolCallClose,
+            },
         ])
         .expect("synthetic markers must be valid")
     }
@@ -651,8 +673,14 @@ mod tests {
     #[test]
     fn longer_marker_reclassifies_a_completed_marker_that_was_its_prefix() {
         let markers = StreamingMarkers::from_candidates([
-            (vec![token(300)], MarkerRole::ReasoningClose),
-            (vec![token(300), token(301)], MarkerRole::ToolCallOpen),
+            MarkerRoleCandidate {
+                tokens: vec![token(300)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(300), token(301)],
+                role: MarkerRole::ToolCallOpen,
+            },
         ])
         .expect("synthetic markers must be valid");
         let mut classifier = synthetic_classifier(markers);
@@ -799,10 +827,22 @@ mod tests {
     #[test]
     fn spurious_tool_call_close_in_reasoning_section_classifies_as_tool_call() {
         let markers = StreamingMarkers::from_candidates([
-            (vec![token(100)], MarkerRole::ReasoningOpen),
-            (vec![token(200)], MarkerRole::ReasoningClose),
-            (vec![token(300)], MarkerRole::ToolCallOpen),
-            (vec![token(400)], MarkerRole::ToolCallClose),
+            MarkerRoleCandidate {
+                tokens: vec![token(100)],
+                role: MarkerRole::ReasoningOpen,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(200)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(300)],
+                role: MarkerRole::ToolCallOpen,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(400)],
+                role: MarkerRole::ToolCallClose,
+            },
         ])
         .expect("synthetic markers must be valid");
         let mut classifier = synthetic_classifier(markers);
@@ -1134,9 +1174,11 @@ mod tests {
 
     #[test]
     fn spurious_tool_call_close_in_content_section_classifies_as_content() {
-        let markers =
-            StreamingMarkers::from_candidates([(vec![token(300)], MarkerRole::ToolCallClose)])
-                .expect("synthetic markers must be valid");
+        let markers = StreamingMarkers::from_candidates([MarkerRoleCandidate {
+            tokens: vec![token(300)],
+            role: MarkerRole::ToolCallClose,
+        }])
+        .expect("synthetic markers must be valid");
         let mut classifier = synthetic_classifier(markers);
         classifier.section = SampledTokenSection::Content;
 
@@ -1152,8 +1194,11 @@ mod tests {
     }
 
     fn markers_with_tool_call_open(tool_call_open: Vec<LlamaToken>) -> StreamingMarkers {
-        StreamingMarkers::from_candidates([(tool_call_open, MarkerRole::ToolCallOpen)])
-            .expect("synthetic markers must be valid")
+        StreamingMarkers::from_candidates([MarkerRoleCandidate {
+            tokens: tool_call_open,
+            role: MarkerRole::ToolCallOpen,
+        }])
+        .expect("synthetic markers must be valid")
     }
 
     fn feed_json_string(
@@ -1359,9 +1404,18 @@ mod tests {
     #[test]
     fn json_probe_does_not_engage_in_reasoning_section() {
         let markers = StreamingMarkers::from_candidates([
-            (vec![token(800)], MarkerRole::ReasoningOpen),
-            (vec![token(801)], MarkerRole::ReasoningClose),
-            (vec![token(900)], MarkerRole::ToolCallOpen),
+            MarkerRoleCandidate {
+                tokens: vec![token(800)],
+                role: MarkerRole::ReasoningOpen,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(801)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(900)],
+                role: MarkerRole::ToolCallOpen,
+            },
         ])
         .expect("synthetic markers must be valid");
         let mut classifier = synthetic_classifier(markers);

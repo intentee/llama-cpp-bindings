@@ -40,6 +40,7 @@ use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
 use crate::marker_role::MarkerRole;
+use crate::marker_role_candidate::MarkerRoleCandidate;
 use crate::model::tokenizer_input::TokenizerInput;
 use crate::raw_chat_message::RawChatMessage;
 use crate::resolved_tool_call_markers::ResolvedToolCallMarkers;
@@ -1026,7 +1027,10 @@ impl LlamaModel {
         if let Some(markers) = &reasoning_markers {
             for marker in &markers.closes {
                 if let Some(tokens) = self.tokenize_marker(Some(marker))? {
-                    candidates.push((tokens, MarkerRole::ReasoningClose));
+                    candidates.push(MarkerRoleCandidate {
+                        tokens,
+                        role: MarkerRole::ReasoningClose,
+                    });
                 }
             }
         }
@@ -1035,13 +1039,22 @@ impl LlamaModel {
             .as_ref()
             .map(|markers| markers.open.as_str());
         if let Some(tokens) = self.tokenize_marker(reasoning_open)? {
-            candidates.push((tokens, MarkerRole::ReasoningOpen));
+            candidates.push(MarkerRoleCandidate {
+                tokens,
+                role: MarkerRole::ReasoningOpen,
+            });
         }
         if let Some(tokens) = self.tokenize_marker(resolved_tool_call_markers.open.as_deref())? {
-            candidates.push((tokens, MarkerRole::ToolCallOpen));
+            candidates.push(MarkerRoleCandidate {
+                tokens,
+                role: MarkerRole::ToolCallOpen,
+            });
         }
         if let Some(tokens) = self.tokenize_marker(resolved_tool_call_markers.close.as_deref())? {
-            candidates.push((tokens, MarkerRole::ToolCallClose));
+            candidates.push(MarkerRoleCandidate {
+                tokens,
+                role: MarkerRole::ToolCallClose,
+            });
         }
 
         StreamingMarkers::from_candidates(candidates)

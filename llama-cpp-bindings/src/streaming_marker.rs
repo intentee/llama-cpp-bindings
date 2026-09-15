@@ -10,14 +10,15 @@ pub struct StreamingMarker {
 }
 
 impl StreamingMarker {
-    pub(crate) fn new(tokens: Vec<LlamaToken>, role: MarkerRole) -> Self {
+    #[must_use]
+    pub fn new(tokens: Vec<LlamaToken>, role: MarkerRole) -> Self {
         Self {
             tokens,
             roles: vec![role],
         }
     }
 
-    pub(crate) fn add_role(&mut self, role: MarkerRole) {
+    pub fn add_role(&mut self, role: MarkerRole) {
         if !self.roles.contains(&role) {
             self.roles.push(role);
         }
@@ -35,7 +36,8 @@ impl StreamingMarker {
         &self.roles
     }
 
-    pub(crate) fn opener_count(&self) -> usize {
+    #[must_use]
+    pub fn opener_count(&self) -> usize {
         self.roles
             .iter()
             .filter(|role| role.opened_section().is_some())
@@ -46,7 +48,8 @@ impl StreamingMarker {
         self.roles.iter().find_map(|role| role.opened_section())
     }
 
-    pub(crate) fn span_section(&self, current: SampledTokenSection) -> SampledTokenSection {
+    #[must_use]
+    pub fn span_section(&self, current: SampledTokenSection) -> SampledTokenSection {
         self.opened_section().unwrap_or_else(|| {
             if self
                 .roles
@@ -60,7 +63,8 @@ impl StreamingMarker {
         })
     }
 
-    pub(crate) fn next_section(&self) -> SampledTokenSection {
+    #[must_use]
+    pub fn next_section(&self) -> SampledTokenSection {
         self.opened_section()
             .unwrap_or(SampledTokenSection::Content)
     }

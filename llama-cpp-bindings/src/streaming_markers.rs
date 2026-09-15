@@ -1,5 +1,5 @@
 use crate::error::MarkerDetectionError;
-use crate::marker_role::MarkerRole;
+use crate::marker_role_candidate::MarkerRoleCandidate;
 use crate::streaming_marker::StreamingMarker;
 use crate::token::LlamaToken;
 
@@ -10,12 +10,17 @@ pub struct StreamingMarkers {
 }
 
 impl StreamingMarkers {
-    pub(crate) fn from_candidates(
-        candidates: impl IntoIterator<Item = (Vec<LlamaToken>, MarkerRole)>,
+    /// # Errors
+    ///
+    /// Returns [`MarkerDetectionError::EmptyMarker`] when a candidate carries no tokens,
+    /// and [`MarkerDetectionError::AmbiguousMarkerOpeners`] when one token sequence would
+    /// open more than one section.
+    pub fn from_candidates(
+        candidates: impl IntoIterator<Item = MarkerRoleCandidate>,
     ) -> Result<Self, MarkerDetectionError> {
         let mut markers: Vec<StreamingMarker> = Vec::new();
 
-        for (tokens, role) in candidates {
+        for MarkerRoleCandidate { tokens, role } in candidates {
             if tokens.is_empty() {
                 return Err(MarkerDetectionError::EmptyMarker);
             }
@@ -62,17 +67,16 @@ impl StreamingMarkers {
             .unwrap_or(0)
     }
 
-    pub(crate) fn longest_matching_suffix(
-        &self,
-        tokens: &[LlamaToken],
-    ) -> Option<&StreamingMarker> {
+    #[must_use]
+    pub fn longest_matching_suffix(&self, tokens: &[LlamaToken]) -> Option<&StreamingMarker> {
         self.markers
             .iter()
             .filter(|marker| tokens.ends_with(marker.tokens()))
             .max_by_key(|marker| marker.tokens().len())
     }
 
-    pub(crate) fn is_prefix_of_longer_marker(&self, tokens: &[LlamaToken]) -> bool {
+    #[must_use]
+    pub fn is_prefix_of_longer_marker(&self, tokens: &[LlamaToken]) -> bool {
         self.markers.iter().any(|marker| {
             marker.tokens().len() > tokens.len() && marker.tokens().starts_with(tokens)
         })
@@ -84,6 +88,7 @@ mod tests {
     use super::StreamingMarkers;
     use crate::error::MarkerDetectionError;
     use crate::marker_role::MarkerRole;
+    use crate::marker_role_candidate::MarkerRoleCandidate;
     use crate::token::LlamaToken;
 
     fn token(id: i32) -> LlamaToken {
@@ -102,8 +107,14 @@ mod tests {
     #[test]
     fn candidates_with_the_same_tokens_are_one_marker_with_multiple_roles() {
         let markers = StreamingMarkers::from_candidates([
-            (vec![token(1)], MarkerRole::ReasoningClose),
-            (vec![token(1)], MarkerRole::ToolCallOpen),
+            MarkerRoleCandidate {
+                tokens: vec![token(1)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(1)],
+                role: MarkerRole::ToolCallOpen,
+            },
         ])
         .expect("a close and an opener compose into one transition");
 
@@ -118,7 +129,10 @@ mod tests {
     #[test]
     fn empty_marker_is_rejected() {
         assert_eq!(
-            StreamingMarkers::from_candidates([(Vec::new(), MarkerRole::ReasoningOpen)]),
+            StreamingMarkers::from_candidates([MarkerRoleCandidate {
+                tokens: Vec::new(),
+                role: MarkerRole::ReasoningOpen
+            }]),
             Err(MarkerDetectionError::EmptyMarker)
         );
     }
@@ -129,8 +143,14 @@ mod tests {
 
         assert_eq!(
             StreamingMarkers::from_candidates([
-                (marker_tokens.clone(), MarkerRole::ReasoningOpen),
-                (marker_tokens.clone(), MarkerRole::ToolCallOpen),
+                MarkerRoleCandidate {
+                    tokens: marker_tokens.clone(),
+                    role: MarkerRole::ReasoningOpen
+                },
+                MarkerRoleCandidate {
+                    tokens: marker_tokens.clone(),
+                    role: MarkerRole::ToolCallOpen
+                },
             ]),
             Err(MarkerDetectionError::AmbiguousMarkerOpeners {
                 tokens: marker_tokens
@@ -141,8 +161,14 @@ mod tests {
     #[test]
     fn longest_matching_suffix_wins() {
         let markers = StreamingMarkers::from_candidates([
-            (vec![token(2)], MarkerRole::ReasoningClose),
-            (vec![token(1), token(2)], MarkerRole::ToolCallOpen),
+            MarkerRoleCandidate {
+                tokens: vec![token(2)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(1), token(2)],
+                role: MarkerRole::ToolCallOpen,
+            },
         ])
         .expect("markers are valid");
 
@@ -157,8 +183,14 @@ mod tests {
     #[test]
     fn shorter_complete_marker_reports_when_it_is_still_an_ambiguous_prefix() {
         let markers = StreamingMarkers::from_candidates([
-            (vec![token(1)], MarkerRole::ReasoningClose),
-            (vec![token(1), token(2)], MarkerRole::ToolCallOpen),
+            MarkerRoleCandidate {
+                tokens: vec![token(1)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(1), token(2)],
+                role: MarkerRole::ToolCallOpen,
+            },
         ])
         .expect("markers are valid");
 
@@ -169,12 +201,18 @@ mod tests {
     #[test]
     fn max_token_len_uses_the_longest_normalized_marker() {
         let markers = StreamingMarkers::from_candidates([
-            (vec![token(1)], MarkerRole::ReasoningOpen),
-            (
-                vec![token(2), token(3), token(4)],
-                MarkerRole::ReasoningClose,
-            ),
-            (vec![token(5), token(6)], MarkerRole::ToolCallOpen),
+            MarkerRoleCandidate {
+                tokens: vec![token(1)],
+                role: MarkerRole::ReasoningOpen,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(2), token(3), token(4)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(5), token(6)],
+                role: MarkerRole::ToolCallOpen,
+            },
         ])
         .expect("markers are valid");
 

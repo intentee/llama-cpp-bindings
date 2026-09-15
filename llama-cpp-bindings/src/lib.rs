@@ -39,6 +39,7 @@ pub mod load_backends_from_path;
 pub mod log_options;
 pub mod log_record;
 pub mod marker_role;
+pub mod marker_role_candidate;
 pub mod mask_outcome;
 pub mod max_devices;
 pub mod mlock_supported;
@@ -83,6 +84,7 @@ pub use llama_cpp_bindings_types::{
     ToolCallMarkers, ToolCallValueQuote, XmlTagsShape,
 };
 pub use marker_role::MarkerRole;
+pub use marker_role_candidate::MarkerRoleCandidate;
 pub use raw_chat_message::RawChatMessage;
 pub use sampled_token::SampledToken;
 pub use sampled_token_classifier::SampledTokenClassifier;
