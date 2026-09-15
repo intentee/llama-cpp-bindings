@@ -1173,6 +1173,7 @@ dependencies = [
  "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
  "llama-cpp-log-decoder",
+ "llama-cpp-wrapper-error-fixture",
  "llguidance",
  "log",
  "nom 8.0.0",
@@ -1234,6 +1235,7 @@ name = "llama-cpp-ffi-status"
 version = "0.13.0"
 dependencies = [
  "llama-cpp-bindings-sys",
+ "llama-cpp-wrapper-error-fixture",
  "thiserror",
 ]
 
@@ -1270,6 +1272,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "llama-cpp-wrapper-error-fixture"
+version = "0.13.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
 ]
 
 [[package]]

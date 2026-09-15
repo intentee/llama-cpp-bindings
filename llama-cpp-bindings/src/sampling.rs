@@ -25,10 +25,10 @@ fn check_sampler_accept_status(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_ERROR_STRING_ALLOCATION_FAILED => {
             Err(SamplerAcceptError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_OUT_OF_MEMORY => {
-            Err(SamplerAcceptError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(SamplerAcceptError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     error_ptr,
@@ -70,10 +70,10 @@ fn sampler_sample_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(SampleError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_VENDORED_OUT_OF_MEMORY => {
-            Err(SampleError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(SampleError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     error_ptr,
@@ -128,16 +128,16 @@ fn sampler_init_grammar_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_OK => {
             LlamaSampler::from_raw(sampler, "grammar").map_err(Into::into)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_RETURNED_NULL => {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_RETURNED_NULL => {
             Err(GrammarError::GrammarMalformed)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GrammarError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_OUT_OF_MEMORY => {
-            Err(GrammarError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(GrammarError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     error_ptr,
@@ -178,20 +178,20 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_OK => {
             LlamaSampler::from_raw(sampler, "lazy grammar").map_err(Into::into)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_RETURNED_NULL => {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_RETURNED_NULL => {
             Err(GrammarError::LazyGrammarMalformed)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GrammarError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_OUT_OF_MEMORY => {
-            Err(GrammarError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(GrammarError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_INVALID_TRIGGER_PATTERN => {
             let message = unsafe { read_and_free_cpp_string(error_ptr, "llama_rs_sampler_init_grammar_lazy_patterns", "reported a thrown C++ exception without an error message") }?;
             Err(GrammarError::InvalidTriggerPattern { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_string(error_ptr, "llama_rs_sampler_init_grammar_lazy_patterns", "reported a thrown C++ exception without an error message") }?;
             Err(GrammarError::Reported { message })
         }
@@ -961,7 +961,7 @@ mod tests {
 
         assert_eq!(
             super::check_sampler_accept_status(
-                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_THREW_CXX_EXCEPTION,
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 out_error,
             ),
             Err(SamplerAcceptError::GrammarStateCorrupted {
@@ -1008,7 +1008,7 @@ mod tests {
     #[test]
     fn sampler_sample_status_exception_without_a_message_is_a_contract_error() {
         let result = super::sampler_sample_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             -1,
             std::ptr::null_mut(),
         );
@@ -1040,7 +1040,7 @@ mod tests {
     #[test]
     fn sampler_init_grammar_status_null_maps_to_grammar_malformed() {
         let result = super::sampler_init_grammar_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_RETURNED_NULL,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_RETURNED_NULL,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
         );
@@ -1062,7 +1062,7 @@ mod tests {
     #[test]
     fn sampler_init_grammar_status_exception_without_a_message_is_a_contract_error() {
         let result = super::sampler_init_grammar_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
         );
@@ -1098,7 +1098,7 @@ mod tests {
     #[test]
     fn sampler_init_grammar_lazy_patterns_status_null_maps_to_lazy_patterns_grammar_malformed() {
         let result = super::sampler_init_grammar_lazy_patterns_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_RETURNED_NULL,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_RETURNED_NULL,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
         );
@@ -1120,7 +1120,7 @@ mod tests {
     #[test]
     fn sampler_init_grammar_lazy_patterns_status_exception_without_a_message_is_a_contract_error() {
         let result = super::sampler_init_grammar_lazy_patterns_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_THREW_CXX_EXCEPTION,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
         );
@@ -1191,12 +1191,12 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_1 = check_sampler_accept_status(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
         );
         assert_eq!(
             outcome_1.err(),
-            Some(SamplerAcceptError::VendoredOutOfMemory)
+            Some(SamplerAcceptError::LlamaCppOutOfMemory)
         );
     }
 
@@ -1248,11 +1248,11 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_3 = sampler_sample_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_3.err(), Some(SampleError::VendoredOutOfMemory));
+        assert_eq!(outcome_3.err(), Some(SampleError::LlamaCppOutOfMemory));
     }
 
     #[test]
@@ -1273,11 +1273,11 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_1 = sampler_init_grammar_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
             ptr::null_mut(),
         );
-        assert_eq!(outcome_1.err(), Some(GrammarError::VendoredOutOfMemory));
+        assert_eq!(outcome_1.err(), Some(GrammarError::LlamaCppOutOfMemory));
     }
 
     #[test]
@@ -1297,7 +1297,7 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = sampler_init_grammar_lazy_patterns_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_VENDORED_OUT_OF_MEMORY, ptr::null_mut(), ptr::null_mut());
-        assert_eq!(outcome_1.err(), Some(GrammarError::VendoredOutOfMemory));
+        let outcome_1 = sampler_init_grammar_lazy_patterns_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_OUT_OF_MEMORY, ptr::null_mut(), ptr::null_mut());
+        assert_eq!(outcome_1.err(), Some(GrammarError::LlamaCppOutOfMemory));
     }
 }

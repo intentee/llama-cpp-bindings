@@ -1,7 +1,9 @@
 use anyhow::Result;
 use anyhow::bail;
 use llama_cpp_bindings::ChatMessageParseOutcome;
+use llama_cpp_bindings::MarkerRole;
 use llama_cpp_bindings::ParsedChatMessage;
+use llama_cpp_bindings::SampledTokenSection;
 use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::ToolCallArgsShape;
 use llama_cpp_bindings::ToolCallArguments;
@@ -1465,7 +1467,7 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn qwen35_streaming_markers_tokenize_every_reasoning_boundary(
+fn qwen35_shared_reasoning_close_and_tool_call_open_is_one_transition(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let reasoning_markers = fixture
@@ -1474,17 +1476,39 @@ fn qwen35_streaming_markers_tokenize_every_reasoning_boundary(
         .expect("Qwen3.5 must expose reasoning markers");
     let streaming_markers = fixture.model.streaming_markers()?;
 
-    assert!(streaming_markers.reasoning_open.is_some());
+    assert!(streaming_markers.iter().any(|marker| {
+        marker.roles().contains(&MarkerRole::ReasoningOpen) && !marker.tokens().is_empty()
+    }));
     assert_eq!(
-        streaming_markers.reasoning_closes.len(),
+        streaming_markers
+            .iter()
+            .filter(|marker| marker.roles().contains(&MarkerRole::ReasoningClose))
+            .count(),
         reasoning_markers.closes.len()
     );
-    assert!(
-        streaming_markers
-            .reasoning_closes
-            .iter()
-            .all(|tokens| !tokens.is_empty())
-    );
+
+    let reasoning_open = streaming_markers
+        .iter()
+        .find(|marker| marker.roles().contains(&MarkerRole::ReasoningOpen))
+        .expect("Qwen3.5 must expose a reasoning opener")
+        .tokens()
+        .to_vec();
+    let shared_boundary = streaming_markers
+        .iter()
+        .find(|marker| {
+            marker.roles().contains(&MarkerRole::ReasoningClose)
+                && marker.roles().contains(&MarkerRole::ToolCallOpen)
+        })
+        .expect("Qwen3.5 must share its tool-call opener with a reasoning close")
+        .tokens()
+        .to_vec();
+
+    let mut classifier = fixture.model.sampled_token_classifier()?;
+    classifier.ingest_prompt_tokens(&reasoning_open);
+    assert_eq!(classifier.current_section(), SampledTokenSection::Reasoning);
+
+    classifier.ingest_prompt_tokens(&shared_boundary);
+    assert_eq!(classifier.current_section(), SampledTokenSection::ToolCall);
 
     Ok(())
 }

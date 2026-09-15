@@ -15,7 +15,7 @@
     clippy::doc_markdown,
     clippy::pub_underscore_fields,
     clippy::use_self,
-    reason = "bindgen writes this file from the vendored headers; its shape is not ours to change"
+    reason = "bindgen writes this file from the llama.cpp headers; its shape is not ours to change"
 )]
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

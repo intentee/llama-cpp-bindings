@@ -6,6 +6,8 @@ use std::ptr::null;
 use crate::LlamaCppError;
 use crate::context::params::LlamaContextParams;
 use crate::error::{FitError, ModelParamsError};
+use crate::model::llama_lazy_mode::LlamaLazyMode;
+use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 use crate::model::llama_load_mode::LlamaLoadMode;
 use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
@@ -32,13 +34,13 @@ fn fit_params_status_to_result(
 ) -> Result<(), FitError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_FAILURE => {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_FAILURE => {
             Err(FitError::NoFittingMemoryLayout)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR => {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_ERROR => {
             Err(FitError::Aborted)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE => {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE => {
             Err(FitError::UnknownStatus {
                 code: out_unrecognized_status_code,
             })
@@ -46,10 +48,10 @@ fn fit_params_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(FitError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY => {
-            Err(FitError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(FitError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -137,6 +139,7 @@ impl Debug for LlamaModelParams {
             .field("n_gpu_layers", &self.params.n_gpu_layers)
             .field("main_gpu", &self.params.main_gpu)
             .field("vocab_only", &self.params.vocab_only)
+            .field("lazy_mode", &self.lazy_mode())
             .field("load_mode", &self.load_mode())
             .field("load_mtp", &self.params.load_mtp)
             .field("split_mode", &self.split_mode())
@@ -274,6 +277,12 @@ impl LlamaModelParams {
     }
 
     /// # Errors
+    /// Returns [`LlamaLazyModeParseError`] when llama.cpp returns an unknown lazy mode.
+    pub fn lazy_mode(&self) -> Result<LlamaLazyMode, LlamaLazyModeParseError> {
+        LlamaLazyMode::try_from(self.params.lazy_mode)
+    }
+
+    /// # Errors
     /// Returns [`LlamaLoadModeParseError`] when llama.cpp returns an unknown load mode.
     pub fn load_mode(&self) -> Result<LlamaLoadMode, LlamaLoadModeParseError> {
         LlamaLoadMode::try_from(self.params.load_mode)
@@ -345,6 +354,12 @@ impl LlamaModelParams {
     }
 
     #[must_use]
+    pub fn with_lazy_mode(mut self, lazy_mode: LlamaLazyMode) -> Self {
+        self.params.lazy_mode = lazy_mode.into();
+        self
+    }
+
+    #[must_use]
     pub fn with_load_mode(mut self, load_mode: LlamaLoadMode) -> Self {
         self.params.load_mode = load_mode.into();
         self
@@ -388,7 +403,7 @@ impl LlamaModelParams {
 impl LlamaModelParams {
     /// # Errors
     ///
-    /// Returns one of the [`FitError`] variants matching the vendored wrapper's status code.
+    /// Returns one of the [`FitError`] variants matching the llama.cpp wrapper's status code.
     pub fn fit_params(
         mut self: Pin<&mut Self>,
         model_path: &CStr,
@@ -475,6 +490,8 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::llama_lazy_mode::LlamaLazyMode;
+    use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
     use crate::model::llama_load_mode::LlamaLoadMode;
     use crate::model::split_mode::LlamaSplitMode;
 
@@ -501,6 +518,36 @@ mod tests {
         assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Auto));
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Layer));
         assert!(params.devices().is_empty());
+    }
+
+    #[test]
+    fn default_params_use_automatic_lazy_loading() {
+        let params = LlamaModelParams::default();
+
+        assert_eq!(params.lazy_mode(), Ok(LlamaLazyMode::Auto));
+    }
+
+    #[test]
+    fn with_lazy_mode_sets_each_supported_mode() {
+        for mode in [LlamaLazyMode::Off, LlamaLazyMode::Auto, LlamaLazyMode::On] {
+            let params = LlamaModelParams::default().with_lazy_mode(mode);
+
+            assert_eq!(params.lazy_mode(), Ok(mode));
+        }
+    }
+
+    #[test]
+    fn unknown_lazy_mode_in_model_params_preserves_its_value() {
+        let mut params = LlamaModelParams::default();
+        let unknown = llama_cpp_bindings_sys::llama_lazy_mode::MAX;
+        params.params.lazy_mode = unknown;
+
+        assert_eq!(
+            params.lazy_mode(),
+            Err(LlamaLazyModeParseError {
+                value: i64::from(unknown)
+            })
+        );
     }
 
     #[test]
@@ -607,6 +654,14 @@ mod tests {
         assert!(debug_output.contains("vocab_only"));
         assert!(debug_output.contains("load_mode"));
         assert!(debug_output.contains("split_mode"));
+    }
+
+    #[test]
+    fn debug_format_includes_lazy_mode() {
+        let debug_output = format!("{:?}", LlamaModelParams::default());
+
+        assert!(debug_output.contains("lazy_mode"));
+        assert!(debug_output.contains("Auto"));
     }
 
     #[test]
@@ -844,7 +899,7 @@ mod tests {
     #[test]
     fn fit_params_status_reported_failure_returns_no_fitting_memory_layout() {
         let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_FAILURE,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_FAILURE,
             0,
             std::ptr::null_mut(),
         );
@@ -855,7 +910,7 @@ mod tests {
     #[test]
     fn fit_params_status_reported_error_returns_aborted() {
         let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_ERROR,
             0,
             std::ptr::null_mut(),
         );
@@ -866,7 +921,7 @@ mod tests {
     #[test]
     fn fit_params_status_unrecognized_code_returns_unknown_status() {
         let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE,
             42,
             std::ptr::null_mut(),
         );
@@ -891,7 +946,7 @@ mod tests {
     #[test]
     fn fit_params_status_cxx_exception_without_a_message_is_a_contract_error_with_unknown_error() {
         let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
             std::ptr::null_mut(),
         );
@@ -984,13 +1039,13 @@ mod ffi_contract_status_tests {
     }
 
     #[test]
-    fn fit_params_status_vendored_out_of_memory_returns_vendored_out_of_memory() {
+    fn fit_params_status_llama_cpp_out_of_memory_returns_llama_cpp_out_of_memory() {
         let outcome = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
 
-        assert_eq!(outcome.err(), Some(FitError::VendoredOutOfMemory));
+        assert_eq!(outcome.err(), Some(FitError::LlamaCppOutOfMemory));
     }
 }

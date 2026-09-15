@@ -13,8 +13,8 @@ pub enum JsonSchemaToGrammarError {
     InvalidSchema { message: String },
     #[error("not enough memory")]
     NotEnoughMemory,
-    #[error("the vendored library ran out of memory")]
-    VendoredOutOfMemory,
+    #[error("the llama.cpp library ran out of memory")]
+    LlamaCppOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
     #[error("grammar returned by json_schema_to_grammar is not valid UTF-8")]

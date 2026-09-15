@@ -6,10 +6,10 @@ pub enum StateDataError {
     FfiContract(#[from] crate::FfiContractError),
     #[error("not enough memory")]
     NotEnoughMemory,
-    #[error("the vendored library ran out of memory")]
-    VendoredOutOfMemory,
+    #[error("the llama.cpp library ran out of memory")]
+    LlamaCppOutOfMemory,
     #[error(
-        "the vendored deserializer restored nothing from a {provided_bytes}-byte snapshot; \
+        "the llama.cpp deserializer restored nothing from a {provided_bytes}-byte snapshot; \
          llama.cpp logs the cause and reports zero bytes rather than throwing"
     )]
     NothingRestored { provided_bytes: usize },

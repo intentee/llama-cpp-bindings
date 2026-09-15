@@ -4,6 +4,11 @@ use std::time::Duration;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
+use llama_cpp_bindings::ClearKvCacheSeqError;
+use llama_cpp_bindings::CopyKvCacheSeqError;
+use llama_cpp_bindings::KvCacheSeqAddError;
+use llama_cpp_bindings::KvCacheSeqDivError;
+use llama_cpp_bindings::KvCacheSeqPosMaxError;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::ggml_time_us;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -67,7 +72,7 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
     assert_eq!(classifier.pending_prompt_tokens(), prompt_token_count);
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
-    ctx.clear_kv_cache()?;
+    ctx.clear_kv_cache();
     ctx.decode(&mut batch)
         .with_context(|| "llama_decode() failed")?;
 
@@ -180,7 +185,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert_eq!(classifier.pending_prompt_tokens(), total_token_count);
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
-    ctx.clear_kv_cache()?;
+    ctx.clear_kv_cache();
     ctx.decode(&mut batch)
         .with_context(|| "llama_decode() failed")?;
 
@@ -393,7 +398,7 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
             batch.add_sequence(&tokens, sequence_id, true)?;
         }
 
-        context.clear_kv_cache()?;
+        context.clear_kv_cache();
         context.decode(&mut batch)?;
 
         for sequence_index in 0..iteration_inputs.len() {
@@ -581,7 +586,51 @@ fn embedding_model_exposes_tool_call_markers(fixture: &LlamaFixture<'_>) -> Resu
 fn embedding_model_exposes_streaming_markers(fixture: &LlamaFixture<'_>) -> Result<()> {
     let markers = fixture.model.streaming_markers()?;
 
-    assert!(markers.has_any());
+    assert!(!markers.is_empty());
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 2048,
+    n_ubatch = 512,
+    n_threads_batch = 8,
+    embeddings = true,
+)]
+fn kv_cache_operations_respect_an_embedding_context_without_memory(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+
+    context.clear_kv_cache();
+    assert_eq!(context.clear_kv_cache_seq(Some(0), None, None), Ok(()));
+    context.kv_cache_seq_keep(0);
+
+    assert_eq!(
+        context.copy_kv_cache_seq(0, 1, None, None),
+        Err(CopyKvCacheSeqError::MemoryHandleUnavailable)
+    );
+    assert_eq!(
+        context.kv_cache_seq_add(0, None, None, 1),
+        Err(KvCacheSeqAddError::MemoryHandleUnavailable)
+    );
+    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
+    assert_eq!(
+        context.kv_cache_seq_div(0, None, None, divisor),
+        Err(KvCacheSeqDivError::MemoryHandleUnavailable)
+    );
+    assert_eq!(
+        context.kv_cache_seq_pos_max(0),
+        Err(KvCacheSeqPosMaxError::MemoryHandleUnavailable)
+    );
+    assert!(matches!(
+        context.clear_kv_cache_seq(Some(u32::MAX), None, None),
+        Err(ClearKvCacheSeqError::SeqIdTooLarge(_))
+    ));
 
     Ok(())
 }

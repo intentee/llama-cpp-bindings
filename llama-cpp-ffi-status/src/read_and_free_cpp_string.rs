@@ -39,43 +39,18 @@ pub unsafe fn read_and_free_cpp_string(
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::c_char;
     use std::ptr;
+
+    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer;
 
     use super::read_and_free_cpp_string;
     use crate::ffi_contract_error::FfiContractError;
-
-    fn vendored_error_message_pointer() -> *mut c_char {
-        let schema = c"not a json schema at all";
-        let mut out_grammar: *mut c_char = ptr::null_mut();
-        let mut out_error: *mut c_char = ptr::null_mut();
-
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar(
-                schema.as_ptr(),
-                false,
-                &raw mut out_grammar,
-                &raw mut out_error,
-            )
-        };
-
-        assert_eq!(
-            status,
-            llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION
-        );
-        assert!(
-            !out_error.is_null(),
-            "the wrapper must store a message alongside the exception status"
-        );
-
-        out_error
-    }
 
     #[test]
     fn reads_and_reclaims_a_string_allocated_by_the_wrapper() {
         let message = unsafe {
             read_and_free_cpp_string(
-                vendored_error_message_pointer(),
+                wrapper_allocated_error_message_pointer(),
                 "llama_rs_json_schema_to_grammar",
                 "reported a thrown C++ exception without an error message",
             )
@@ -84,7 +59,7 @@ mod tests {
         assert_eq!(
             message.map(|text| text.contains("parse error")),
             Ok(true),
-            "the vendored json parser reports its failure through the error slot"
+            "the llama.cpp json parser reports its failure through the error slot"
         );
     }
 

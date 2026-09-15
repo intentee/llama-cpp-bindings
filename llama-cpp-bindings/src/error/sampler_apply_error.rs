@@ -8,10 +8,10 @@ pub enum SamplerApplyError {
     NullSampler,
     #[error("the sampler ran out of memory while applying to the token data array")]
     NotEnoughMemory,
-    #[error("the vendored sampler ran out of memory")]
-    VendoredOutOfMemory,
+    #[error("the llama.cpp sampler ran out of memory")]
+    LlamaCppOutOfMemory,
     #[error(
-        "the vendored sampler threw a C++ exception while applying to the token data array: {message}"
+        "the llama.cpp sampler threw a C++ exception while applying to the token data array: {message}"
     )]
     Reported { message: String },
 }

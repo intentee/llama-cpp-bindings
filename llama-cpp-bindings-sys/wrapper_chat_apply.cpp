@@ -87,18 +87,18 @@ extern "C" auto llama_rs_apply_chat_template(
 
         return LLAMA_RS_APPLY_CHAT_TEMPLATE_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_OUT_OF_MEMORY;
+        return LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {
             return LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED;
         }
-        return LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_THREW_CXX_EXCEPTION;
+        return LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
         *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
         if (*out_error == nullptr) {
             return LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED;
         }
-        return LLAMA_RS_APPLY_CHAT_TEMPLATE_VENDORED_THREW_CXX_EXCEPTION;
+        return LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION;
     }
 }

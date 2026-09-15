@@ -803,7 +803,7 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
     assert_ne!(
         extra_context_params.n_ctx(),
         Some(unfittable_extra_n_ctx),
-        "the vendored fit must overwrite the extra model's context size"
+        "the llama.cpp fit must overwrite the extra model's context size"
     );
     assert_eq!(
         extra_context_params.context_params.n_ctx,

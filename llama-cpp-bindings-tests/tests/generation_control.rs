@@ -15,10 +15,8 @@ use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::llguidance_sampler::create_llg_sampler;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaChatMessage;
-use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::streaming_markers::StreamingMarkers;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_test_harness::LlamaFixture;
@@ -1903,13 +1901,14 @@ fn classifier_construction_is_idempotent_across_calls(fixture: &LlamaFixture<'_>
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn ingest_with_no_markers_emits_undeterminable_with_visible_and_raw_piece(
+fn ingest_flushes_an_unmatched_token_with_its_visible_and_raw_piece(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = SampledTokenClassifier::new(model, StreamingMarkers::default());
+    let mut classifier = model.sampled_token_classifier()?;
 
-    let outcomes = classifier.ingest(model.token_bos())?;
+    let mut outcomes = classifier.ingest(model.token_bos())?;
+    outcomes.extend(classifier.flush());
 
     assert_eq!(outcomes.len(), 1);
     let outcome = &outcomes[0];
@@ -1954,14 +1953,13 @@ fn ingest_with_no_markers_emits_undeterminable_with_visible_and_raw_piece(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn ingest_with_no_markers_decodes_each_token_independently(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
+fn ingest_accounts_for_each_unmatched_token_after_flush(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = SampledTokenClassifier::new(model, StreamingMarkers::default());
+    let mut classifier = model.sampled_token_classifier()?;
 
     classifier.ingest(model.token_bos())?;
     classifier.ingest(model.token_eos())?;
+    classifier.flush();
 
     assert_eq!(classifier.usage().undeterminable_tokens, 2);
     Ok(())
@@ -1999,9 +1997,9 @@ fn ingest_with_no_markers_decodes_each_token_independently(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn ingest_prompt_token_with_no_markers_is_a_noop(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn ingest_unmatched_prompt_tokens_does_not_record_usage(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = SampledTokenClassifier::new(model, StreamingMarkers::default());
+    let mut classifier = model.sampled_token_classifier()?;
     let usage_before = *classifier.usage();
 
     classifier.ingest_prompt_token(model.token_bos());
@@ -2046,7 +2044,7 @@ fn ingest_prompt_token_with_no_markers_is_a_noop(fixture: &LlamaFixture<'_>) -> 
 )]
 fn feed_prompt_to_batch_increments_pending_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = SampledTokenClassifier::new(model, StreamingMarkers::default());
+    let mut classifier = model.sampled_token_classifier()?;
     let mut batch = LlamaBatch::new(8, 1)?;
 
     classifier.feed_prompt_to_batch(&mut batch, model.token_bos(), 0, &[0], false)?;
@@ -2092,7 +2090,7 @@ fn feed_prompt_to_batch_increments_pending_prompt_tokens(fixture: &LlamaFixture<
 )]
 fn feed_prompt_sequence_to_batch_stages_all_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = SampledTokenClassifier::new(model, StreamingMarkers::default());
+    let mut classifier = model.sampled_token_classifier()?;
     let mut batch = LlamaBatch::new(8, 1)?;
 
     let tokens = vec![model.token_bos(), model.token_eos(), model.token_nl()];
@@ -2140,7 +2138,7 @@ fn commit_prompt_tokens_promotes_pending_count_to_usage_and_clears(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = SampledTokenClassifier::new(model, StreamingMarkers::default());
+    let mut classifier = model.sampled_token_classifier()?;
     let mut batch = LlamaBatch::new(8, 1)?;
 
     classifier.feed_prompt_to_batch(&mut batch, model.token_bos(), 0, &[0], false)?;
@@ -2191,7 +2189,7 @@ fn discard_pending_prompt_tokens_clears_count_without_recording_usage(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = SampledTokenClassifier::new(model, StreamingMarkers::default());
+    let mut classifier = model.sampled_token_classifier()?;
     let mut batch = LlamaBatch::new(8, 1)?;
 
     classifier.feed_prompt_to_batch(&mut batch, model.token_bos(), 0, &[0], false)?;
