@@ -38,6 +38,7 @@ struct PendingToken {
     token: LlamaToken,
     decoded: String,
     section: SampledTokenSection,
+    section_before_token: SampledTokenSection,
     marker_status: PendingMarkerStatus,
     is_from_prompt: bool,
     is_held_for_probe: bool,
@@ -100,6 +101,7 @@ impl<'model> SampledTokenClassifier<'model> {
             token,
             decoded: decoded.clone(),
             section: self.section,
+            section_before_token: self.section,
             marker_status: PendingMarkerStatus::Unmatched,
             is_from_prompt: false,
             is_held_for_probe: false,
@@ -138,6 +140,7 @@ impl<'model> SampledTokenClassifier<'model> {
             token,
             decoded: String::new(),
             section: self.section,
+            section_before_token: self.section,
             marker_status: PendingMarkerStatus::Unmatched,
             is_from_prompt: true,
             is_held_for_probe: false,
@@ -179,7 +182,7 @@ impl<'model> SampledTokenClassifier<'model> {
             return;
         };
         let span_start = self.pending.len() - marker.tokens().len();
-        let span_section = marker.span_section(self.section);
+        let span_section = marker.span_section(self.pending[span_start].section_before_token);
         let next_section = marker.next_section();
         let is_ambiguous_prefix = self.markers.is_prefix_of_longer_marker(marker.tokens());
 
@@ -566,6 +569,7 @@ mod tests {
             token: token(token_id),
             decoded: decoded.to_owned(),
             section: classifier.section,
+            section_before_token: classifier.section,
             marker_status: PendingMarkerStatus::Unmatched,
             is_from_prompt: false,
             is_held_for_probe: false,
@@ -577,6 +581,7 @@ mod tests {
             token: token(token_id),
             decoded: String::new(),
             section: classifier.section,
+            section_before_token: classifier.section,
             marker_status: PendingMarkerStatus::Unmatched,
             is_from_prompt: true,
             is_held_for_probe: false,
@@ -701,6 +706,47 @@ mod tests {
             vec![SampledTokenSection::ToolCall, SampledTokenSection::ToolCall]
         );
         assert_eq!(outcome_pieces(&outcomes), vec!["", ""]);
+    }
+
+    #[test]
+    fn longer_closing_marker_uses_section_from_before_its_shorter_prefix() {
+        let markers = StreamingMarkers::from_candidates([
+            MarkerRoleCandidate {
+                tokens: vec![token(300)],
+                role: MarkerRole::ReasoningClose,
+            },
+            MarkerRoleCandidate {
+                tokens: vec![token(300), token(301)],
+                role: MarkerRole::ReasoningClose,
+            },
+        ]);
+        assert!(markers.is_ok());
+        let markers = markers.unwrap_or_default();
+        let mut classifier = synthetic_classifier(markers);
+        classifier.section = SampledTokenSection::Reasoning;
+
+        push_pending(&mut classifier, 300, "</think");
+        classifier.try_consume_marker_at_tail();
+        assert_eq!(classifier.section, SampledTokenSection::Content);
+        assert!(classifier.drain_overflow().is_empty());
+
+        push_pending(&mut classifier, 301, ">");
+        classifier.try_consume_marker_at_tail();
+        let outcomes = classifier.drain_overflow();
+
+        assert_eq!(classifier.section, SampledTokenSection::Content);
+        assert_eq!(
+            outcome_sections(&outcomes),
+            vec![
+                SampledTokenSection::Reasoning,
+                SampledTokenSection::Reasoning
+            ]
+        );
+        assert_eq!(outcome_pieces(&outcomes), vec!["", ""]);
+        assert_eq!(classifier.usage().reasoning_tokens, 2);
+        assert_eq!(classifier.usage().content_tokens, 0);
+        assert_eq!(classifier.usage().tool_call_tokens, 0);
+        assert_eq!(classifier.usage().undeterminable_tokens, 0);
     }
 
     #[test]
@@ -987,6 +1033,7 @@ mod tests {
             token: token(202),
             decoded: "k>".to_owned(),
             section: classifier.section,
+            section_before_token: classifier.section,
             marker_status: PendingMarkerStatus::Unmatched,
             is_from_prompt: false,
             is_held_for_probe: false,
@@ -1052,6 +1099,7 @@ mod tests {
             token: token(50),
             decoded: "hi".to_owned(),
             section: classifier.section,
+            section_before_token: classifier.section,
             marker_status: PendingMarkerStatus::Unmatched,
             is_from_prompt: false,
             is_held_for_probe: false,
@@ -1612,6 +1660,7 @@ mod tests {
             token: token(1),
             decoded: "before".to_owned(),
             section: SampledTokenSection::Content,
+            section_before_token: SampledTokenSection::Content,
             marker_status: PendingMarkerStatus::Unmatched,
             is_from_prompt: false,
             is_held_for_probe: false,
@@ -1620,6 +1669,7 @@ mod tests {
             token: token(2),
             decoded: "{}".to_owned(),
             section: SampledTokenSection::Content,
+            section_before_token: SampledTokenSection::Content,
             marker_status: PendingMarkerStatus::Unmatched,
             is_from_prompt: false,
             is_held_for_probe: true,
