@@ -28,3 +28,52 @@ impl MarkerRole {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::MarkerRole;
+    use crate::sampled_token_section::SampledTokenSection;
+
+    struct RoleSection {
+        role: MarkerRole,
+        section: SampledTokenSection,
+    }
+
+    #[test]
+    fn an_opening_role_opens_its_section_and_closes_nothing() {
+        let cases = [
+            RoleSection {
+                role: MarkerRole::ReasoningOpen,
+                section: SampledTokenSection::Reasoning,
+            },
+            RoleSection {
+                role: MarkerRole::ToolCallOpen,
+                section: SampledTokenSection::ToolCall,
+            },
+        ];
+
+        for RoleSection { role, section } in cases {
+            assert_eq!(role.opened_section(), Some(section));
+            assert_eq!(role.closed_section(), None);
+        }
+    }
+
+    #[test]
+    fn a_closing_role_closes_its_section_and_opens_nothing() {
+        let cases = [
+            RoleSection {
+                role: MarkerRole::ReasoningClose,
+                section: SampledTokenSection::Reasoning,
+            },
+            RoleSection {
+                role: MarkerRole::ToolCallClose,
+                section: SampledTokenSection::ToolCall,
+            },
+        ];
+
+        for RoleSection { role, section } in cases {
+            assert_eq!(role.closed_section(), Some(section));
+            assert_eq!(role.opened_section(), None);
+        }
+    }
+}

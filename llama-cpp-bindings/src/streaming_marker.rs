@@ -69,3 +69,23 @@ impl StreamingMarker {
             .unwrap_or(SampledTokenSection::Content)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::StreamingMarker;
+    use crate::marker_role::MarkerRole;
+    use crate::token::LlamaToken;
+
+    #[test]
+    fn a_role_the_marker_already_carries_is_not_added_twice() {
+        let mut marker = StreamingMarker::new(vec![LlamaToken::new(1)], MarkerRole::ReasoningClose);
+
+        marker.add_role(MarkerRole::ToolCallOpen);
+        marker.add_role(MarkerRole::ToolCallOpen);
+
+        assert_eq!(
+            marker.roles(),
+            &[MarkerRole::ReasoningClose, MarkerRole::ToolCallOpen]
+        );
+    }
+}
