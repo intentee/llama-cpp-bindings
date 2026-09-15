@@ -30,8 +30,8 @@ unsafe fn json_schema_to_grammar_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED => {
             Err(JsonSchemaToGrammarError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_OUT_OF_MEMORY => {
-            Err(JsonSchemaToGrammarError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(JsonSchemaToGrammarError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
             let message = unsafe {
@@ -43,7 +43,7 @@ unsafe fn json_schema_to_grammar_status_to_result(
             }?;
             Err(JsonSchemaToGrammarError::InvalidSchema { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     error_ptr,
@@ -192,10 +192,10 @@ mod tests {
     }
 
     #[test]
-    fn vendored_exception_status_without_a_message_is_a_contract_error() {
+    fn llama_cpp_exception_status_without_a_message_is_a_contract_error() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_THREW_CXX_EXCEPTION,
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
             )
@@ -367,14 +367,14 @@ mod ffi_contract_status_tests {
         );
         let outcome_3 = unsafe {
             json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_VENDORED_OUT_OF_MEMORY,
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
         };
         assert_eq!(
             outcome_3.err(),
-            Some(JsonSchemaToGrammarError::VendoredOutOfMemory)
+            Some(JsonSchemaToGrammarError::LlamaCppOutOfMemory)
         );
     }
 }

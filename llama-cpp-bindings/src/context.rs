@@ -45,16 +45,16 @@ fn new_context_with_model_status_to_result(
                 }
                 .into()
             }),
-        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_RETURNED_NULL => {
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_RETURNED_NULL => {
             Err(LlamaContextLoadError::Unconstructible)
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_ERROR_STRING_ALLOCATION_FAILED => {
             Err(LlamaContextLoadError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_OUT_OF_MEMORY => {
-            Err(LlamaContextLoadError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(LlamaContextLoadError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -95,16 +95,16 @@ fn new_context_with_model_status_to_result(
 
 fn decode_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_decode_status,
-    out_vendored_return_code: i32,
+    out_llama_cpp_return_code: i32,
     out_error: *mut std::os::raw::c_char,
 ) -> Result<(), DecodeError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_RETURNED_NONZERO_CODE => {
+        llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE => {
             let code =
-                NonZeroI32::new(out_vendored_return_code).ok_or(crate::FfiContractError {
+                NonZeroI32::new(out_llama_cpp_return_code).ok_or(crate::FfiContractError {
                     operation: "llama_rs_decode",
-                    detail: "nonzero vendored return status contained zero",
+                    detail: "nonzero llama.cpp return status contained zero",
                 })?;
             Err(DecodeError::from(code))
         }
@@ -115,10 +115,10 @@ fn decode_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(DecodeError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_OUT_OF_MEMORY => {
-            Err(DecodeError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(DecodeError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -150,7 +150,7 @@ fn decode_status_to_result(
 
 fn encode_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_encode_status,
-    out_vendored_return_code: i32,
+    out_llama_cpp_return_code: i32,
     out_error: *mut std::os::raw::c_char,
 ) -> Result<(), EncodeError> {
     match status {
@@ -158,11 +158,11 @@ fn encode_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER => {
             Err(EncodeError::ModelHasNoEncoder)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_RETURNED_NONZERO_CODE => {
+        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE => {
             let code =
-                NonZeroI32::new(out_vendored_return_code).ok_or(crate::FfiContractError {
+                NonZeroI32::new(out_llama_cpp_return_code).ok_or(crate::FfiContractError {
                     operation: "llama_rs_encode",
-                    detail: "nonzero vendored return status contained zero",
+                    detail: "nonzero llama.cpp return status contained zero",
                 })?;
             Err(EncodeError::from(code))
         }
@@ -173,10 +173,10 @@ fn encode_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(EncodeError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_OUT_OF_MEMORY => {
-            Err(EncodeError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(EncodeError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -370,17 +370,17 @@ impl<'model> LlamaContext<'model> {
     ///
     /// - `DecodeError` if the decoding failed.
     pub fn decode(&mut self, batch: &mut LlamaBatch) -> Result<(), DecodeError> {
-        let mut out_vendored_return_code: i32 = 0;
+        let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut std::os::raw::c_char = std::ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_decode(
                 self.context.as_ptr(),
                 batch.llama_batch,
-                &raw mut out_vendored_return_code,
+                &raw mut out_llama_cpp_return_code,
                 &raw mut out_error,
             )
         };
-        decode_status_to_result(status, out_vendored_return_code, out_error)?;
+        decode_status_to_result(status, out_llama_cpp_return_code, out_error)?;
 
         self.initialized_logits
             .clone_from(&batch.initialized_logits);
@@ -392,17 +392,17 @@ impl<'model> LlamaContext<'model> {
     ///
     /// - `EncodeError` if the encoding failed.
     pub fn encode(&mut self, batch: &mut LlamaBatch) -> Result<(), EncodeError> {
-        let mut out_vendored_return_code: i32 = 0;
+        let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut std::os::raw::c_char = std::ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_encode(
                 self.context.as_ptr(),
                 batch.llama_batch,
-                &raw mut out_vendored_return_code,
+                &raw mut out_llama_cpp_return_code,
                 &raw mut out_error,
             )
         };
-        encode_status_to_result(status, out_vendored_return_code, out_error)?;
+        encode_status_to_result(status, out_llama_cpp_return_code, out_error)?;
 
         self.initialized_logits
             .clone_from(&batch.initialized_logits);
@@ -630,9 +630,9 @@ mod unit_tests {
     }
 
     #[test]
-    fn new_context_vendored_returned_null_maps_unconstructible() {
+    fn new_context_llama_cpp_returned_null_maps_unconstructible() {
         let result = new_context_with_model_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_RETURNED_NULL,
+            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_RETURNED_NULL,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
         );
@@ -654,7 +654,7 @@ mod unit_tests {
     #[test]
     fn new_context_cxx_exception_without_a_message_is_a_contract_error() {
         let result = new_context_with_model_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
         );
@@ -689,7 +689,7 @@ mod unit_tests {
     #[test]
     fn decode_nonzero_code_maps_from_code() {
         let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_RETURNED_NONZERO_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
             1,
             std::ptr::null_mut(),
         );
@@ -733,7 +733,7 @@ mod unit_tests {
     #[test]
     fn decode_cxx_exception_without_a_message_is_a_contract_error() {
         let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
             std::ptr::null_mut(),
         );
@@ -751,7 +751,7 @@ mod unit_tests {
     #[test]
     fn decode_nonzero_status_with_zero_code_is_contract_error() {
         let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_RETURNED_NONZERO_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
             0,
             std::ptr::null_mut(),
         );
@@ -760,7 +760,7 @@ mod unit_tests {
             result,
             Err(DecodeError::FfiContract(crate::FfiContractError {
                 operation: "llama_rs_decode",
-                detail: "nonzero vendored return status contained zero",
+                detail: "nonzero llama.cpp return status contained zero",
             }))
         );
     }
@@ -792,7 +792,7 @@ mod unit_tests {
     #[test]
     fn encode_nonzero_code_maps_from_code() {
         let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_RETURNED_NONZERO_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
             1,
             std::ptr::null_mut(),
         );
@@ -836,7 +836,7 @@ mod unit_tests {
     #[test]
     fn encode_cxx_exception_without_a_message_is_a_contract_error() {
         let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
             std::ptr::null_mut(),
         );
@@ -854,7 +854,7 @@ mod unit_tests {
     #[test]
     fn encode_nonzero_status_with_zero_code_is_contract_error() {
         let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_RETURNED_NONZERO_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
             0,
             std::ptr::null_mut(),
         );
@@ -863,7 +863,7 @@ mod unit_tests {
             result,
             Err(EncodeError::FfiContract(crate::FfiContractError {
                 operation: "llama_rs_encode",
-                detail: "nonzero vendored return status contained zero",
+                detail: "nonzero llama.cpp return status contained zero",
             }))
         );
     }
@@ -983,13 +983,13 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_3 = new_context_with_model_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
             ptr::null_mut(),
         );
         assert_eq!(
             outcome_3.err(),
-            Some(LlamaContextLoadError::VendoredOutOfMemory)
+            Some(LlamaContextLoadError::LlamaCppOutOfMemory)
         );
     }
 
@@ -1026,11 +1026,11 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_2 = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_2.err(), Some(DecodeError::VendoredOutOfMemory));
+        assert_eq!(outcome_2.err(), Some(DecodeError::LlamaCppOutOfMemory));
     }
 
     #[test]
@@ -1066,10 +1066,10 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_2 = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_2.err(), Some(EncodeError::VendoredOutOfMemory));
+        assert_eq!(outcome_2.err(), Some(EncodeError::LlamaCppOutOfMemory));
     }
 }

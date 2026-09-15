@@ -18,8 +18,8 @@ pub enum MarkerDetectionError {
     ModelHasNoChatTemplate { operation: &'static str },
     #[error("{operation} could not run because the model has no vocab")]
     ModelHasNoVocab { operation: &'static str },
-    #[error("the vendored library ran out of memory")]
-    VendoredOutOfMemory,
+    #[error("the llama.cpp library ran out of memory")]
+    LlamaCppOutOfMemory,
     #[error("reasoning-marker detection failed: {message}")]
     ReasoningMarkerDetectionFailed { message: String },
     #[error("tool-call haystack computation failed: {message}")]

@@ -17,7 +17,7 @@ auto describe_failure(char ** out_error, const char * message) -> llama_rs_state
         return LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED;
     }
 
-    return LLAMA_RS_STATE_DATA_VENDORED_THREW_CXX_EXCEPTION;
+    return LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION;
 }
 
 auto validate_arguments(
@@ -67,7 +67,7 @@ extern "C" auto llama_rs_state_get_data(
 
         return LLAMA_RS_STATE_DATA_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_STATE_DATA_VENDORED_OUT_OF_MEMORY;
+        return LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         return describe_failure(out_error, err.what());
     } catch (...) {
@@ -99,7 +99,7 @@ extern "C" auto llama_rs_state_set_data(
 
         return LLAMA_RS_STATE_DATA_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_STATE_DATA_VENDORED_OUT_OF_MEMORY;
+        return LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         return describe_failure(out_error, err.what());
     } catch (...) {
@@ -133,7 +133,7 @@ extern "C" auto llama_rs_state_seq_get_data(
 
         return LLAMA_RS_STATE_DATA_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_STATE_DATA_VENDORED_OUT_OF_MEMORY;
+        return LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         return describe_failure(out_error, err.what());
     } catch (...) {
@@ -167,7 +167,7 @@ extern "C" auto llama_rs_state_seq_set_data(
 
         return LLAMA_RS_STATE_DATA_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_STATE_DATA_VENDORED_OUT_OF_MEMORY;
+        return LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY;
     } catch (const std::exception & err) {
         return describe_failure(out_error, err.what());
     } catch (...) {

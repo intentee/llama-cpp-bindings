@@ -20,8 +20,8 @@ pub enum GbnfValidationError {
     LeftRecursion,
     #[error("not enough memory")]
     NotEnoughMemory,
-    #[error("the vendored library ran out of memory")]
-    VendoredOutOfMemory,
+    #[error("the llama.cpp library ran out of memory")]
+    LlamaCppOutOfMemory,
     #[error("the llama.cpp grammar engine failed: {message}")]
     Reported { message: String },
 }

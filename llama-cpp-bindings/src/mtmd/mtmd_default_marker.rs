@@ -13,7 +13,7 @@ unsafe fn marker_bytes_to_str(
 ///
 /// Returns [`MtmdDefaultMarkerError::NotUtf8`] if llama.cpp's `mtmd_default_marker`
 /// returns bytes that are not valid UTF-8. The marker is a fixed ASCII constant in
-/// the vendored library; surfacing the error keeps the failure explicit rather than
+/// the llama.cpp library; surfacing the error keeps the failure explicit rather than
 /// papering over it with a substituted literal.
 pub fn mtmd_default_marker() -> Result<&'static str, MtmdDefaultMarkerError> {
     unsafe { marker_bytes_to_str(llama_cpp_bindings_sys::mtmd_default_marker()) }
@@ -29,7 +29,7 @@ mod tests {
 
     #[test]
     fn returns_non_empty_marker() {
-        let marker = mtmd_default_marker().expect("vendored marker must be valid UTF-8");
+        let marker = mtmd_default_marker().expect("llama.cpp marker must be valid UTF-8");
         assert!(!marker.is_empty());
     }
 

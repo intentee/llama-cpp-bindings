@@ -48,10 +48,10 @@ fn state_data_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED => {
             Err(StateDataError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_VENDORED_OUT_OF_MEMORY => {
-            Err(StateDataError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(StateDataError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 llama_cpp_ffi_status::read_and_free_cpp_string(
                     out_error,
@@ -253,7 +253,7 @@ impl LlamaContext<'_> {
 
     /// # Errors
     ///
-    /// Returns [`StateDataError`] when the vendored serializer fails; the exception is
+    /// Returns [`StateDataError`] when the llama.cpp serializer fails; the exception is
     /// caught in the C++ wrapper so it can never unwind across the FFI boundary.
     ///
     /// # Safety
@@ -283,7 +283,7 @@ impl LlamaContext<'_> {
     ///
     /// # Errors
     ///
-    /// Returns [`StateDataError`] when the vendored deserializer rejects the buffer.
+    /// Returns [`StateDataError`] when the llama.cpp deserializer rejects the buffer.
     pub unsafe fn set_state_data(&mut self, src: &[u8]) -> Result<usize, StateDataError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut std::ffi::c_char = std::ptr::null_mut();
@@ -326,7 +326,7 @@ impl LlamaContext<'_> {
     ///
     /// # Errors
     ///
-    /// Returns [`StateDataError`] when the vendored serializer fails.
+    /// Returns [`StateDataError`] when the llama.cpp serializer fails.
     pub unsafe fn state_seq_get_data_ext(
         &self,
         dest: &mut [u8],
@@ -357,7 +357,7 @@ impl LlamaContext<'_> {
     ///
     /// # Errors
     ///
-    /// Returns [`StateDataError`] when the vendored deserializer rejects the buffer.
+    /// Returns [`StateDataError`] when the llama.cpp deserializer rejects the buffer.
     pub unsafe fn state_seq_set_data_ext(
         &mut self,
         src: &[u8],
@@ -476,11 +476,11 @@ mod ffi_contract_status_tests {
     #[test]
     fn state_data_status_to_result_maps_every_contract_status() {
         let outcome_0 = state_data_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
             "",
         );
-        assert_eq!(outcome_0.err(), Some(StateDataError::VendoredOutOfMemory));
+        assert_eq!(outcome_0.err(), Some(StateDataError::LlamaCppOutOfMemory));
     }
 }

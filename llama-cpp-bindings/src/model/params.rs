@@ -34,13 +34,13 @@ fn fit_params_status_to_result(
 ) -> Result<(), FitError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_FAILURE => {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_FAILURE => {
             Err(FitError::NoFittingMemoryLayout)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR => {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_ERROR => {
             Err(FitError::Aborted)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE => {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE => {
             Err(FitError::UnknownStatus {
                 code: out_unrecognized_status_code,
             })
@@ -48,10 +48,10 @@ fn fit_params_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(FitError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY => {
-            Err(FitError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(FitError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -403,7 +403,7 @@ impl LlamaModelParams {
 impl LlamaModelParams {
     /// # Errors
     ///
-    /// Returns one of the [`FitError`] variants matching the vendored wrapper's status code.
+    /// Returns one of the [`FitError`] variants matching the llama.cpp wrapper's status code.
     pub fn fit_params(
         mut self: Pin<&mut Self>,
         model_path: &CStr,
@@ -899,7 +899,7 @@ mod tests {
     #[test]
     fn fit_params_status_reported_failure_returns_no_fitting_memory_layout() {
         let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_FAILURE,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_FAILURE,
             0,
             std::ptr::null_mut(),
         );
@@ -910,7 +910,7 @@ mod tests {
     #[test]
     fn fit_params_status_reported_error_returns_aborted() {
         let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_REPORTED_ERROR,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_ERROR,
             0,
             std::ptr::null_mut(),
         );
@@ -921,7 +921,7 @@ mod tests {
     #[test]
     fn fit_params_status_unrecognized_code_returns_unknown_status() {
         let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_RETURNED_UNRECOGNIZED_STATUS_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE,
             42,
             std::ptr::null_mut(),
         );
@@ -946,7 +946,7 @@ mod tests {
     #[test]
     fn fit_params_status_cxx_exception_without_a_message_is_a_contract_error_with_unknown_error() {
         let result = super::fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
             std::ptr::null_mut(),
         );
@@ -1039,13 +1039,13 @@ mod ffi_contract_status_tests {
     }
 
     #[test]
-    fn fit_params_status_vendored_out_of_memory_returns_vendored_out_of_memory() {
+    fn fit_params_status_llama_cpp_out_of_memory_returns_llama_cpp_out_of_memory() {
         let outcome = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
 
-        assert_eq!(outcome.err(), Some(FitError::VendoredOutOfMemory));
+        assert_eq!(outcome.err(), Some(FitError::LlamaCppOutOfMemory));
     }
 }

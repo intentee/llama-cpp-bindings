@@ -23,10 +23,10 @@ fn kv_cache_seq_add_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED => {
             Err(KvCacheSeqAddError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_OUT_OF_MEMORY => {
-            Err(KvCacheSeqAddError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(KvCacheSeqAddError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -73,10 +73,10 @@ fn kv_cache_seq_div_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED => {
             Err(KvCacheSeqDivError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_OUT_OF_MEMORY => {
-            Err(KvCacheSeqDivError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(KvCacheSeqDivError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -146,10 +146,10 @@ fn kv_cache_seq_pos_max_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED => {
             Err(KvCacheSeqPosMaxError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_OUT_OF_MEMORY => {
-            Err(KvCacheSeqPosMaxError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(KvCacheSeqPosMaxError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -385,10 +385,10 @@ mod tests {
     }
 
     #[test]
-    fn add_vendored_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
+    fn add_llama_cpp_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
         assert_eq!(
             kv_cache_seq_add_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_THREW_CXX_EXCEPTION,
+                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
             Err(crate::FfiContractError {
@@ -456,10 +456,10 @@ mod tests {
     }
 
     #[test]
-    fn div_vendored_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
+    fn div_llama_cpp_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
         assert_eq!(
             kv_cache_seq_div_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_THREW_CXX_EXCEPTION,
+                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
             Err(crate::FfiContractError {
@@ -590,10 +590,10 @@ mod tests {
     }
 
     #[test]
-    fn seq_pos_max_vendored_exception_status_without_a_message_is_a_contract_error_error() {
+    fn seq_pos_max_llama_cpp_exception_status_without_a_message_is_a_contract_error_error() {
         assert_eq!(
             kv_cache_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_THREW_CXX_EXCEPTION,
+                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 -1,
                 2,
                 ptr::null_mut(),
@@ -645,12 +645,12 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_1 = kv_cache_seq_add_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
         );
         assert_eq!(
             outcome_1.err(),
-            Some(KvCacheSeqAddError::VendoredOutOfMemory)
+            Some(KvCacheSeqAddError::LlamaCppOutOfMemory)
         );
     }
 
@@ -671,26 +671,26 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_1 = kv_cache_seq_div_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
         );
         assert_eq!(
             outcome_1.err(),
-            Some(KvCacheSeqDivError::VendoredOutOfMemory)
+            Some(KvCacheSeqDivError::LlamaCppOutOfMemory)
         );
     }
 
     #[test]
     fn kv_cache_seq_pos_max_status_to_result_maps_every_contract_status() {
         let outcome_0 = kv_cache_seq_pos_max_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
             outcome_0.err(),
-            Some(KvCacheSeqPosMaxError::VendoredOutOfMemory)
+            Some(KvCacheSeqPosMaxError::LlamaCppOutOfMemory)
         );
     }
 }

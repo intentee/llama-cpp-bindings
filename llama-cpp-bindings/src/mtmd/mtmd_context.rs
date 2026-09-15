@@ -21,13 +21,13 @@ fn map_tokenize_status(
 ) -> Result<(), MtmdTokenizeError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT => {
             Err(MtmdTokenizeError::BitmapCountDoesNotMatchMarkerCount)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_REPORTED_IMAGE_PREPROCESSING_ERROR => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_IMAGE_PREPROCESSING_ERROR => {
             Err(MtmdTokenizeError::MediaPreprocessingFailed)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_RETURNED_UNDOCUMENTED_NONZERO_CODE => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE => {
             Err(MtmdTokenizeError::UnknownStatus {
                 code: undocumented_return_code,
             })
@@ -35,10 +35,10 @@ fn map_tokenize_status(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdTokenizeError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_OUT_OF_MEMORY => {
-            Err(MtmdTokenizeError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(MtmdTokenizeError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_mtmd_tokenize", "reported a thrown C++ exception without an error message") }?;
             Err(MtmdTokenizeError::Reported { message })
         }
@@ -74,23 +74,23 @@ fn map_tokenize_status(
 
 fn map_encode_chunk_status(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk_status,
-    vendored_return_code: i32,
+    llama_cpp_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdEncodeError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_RETURNED_NONZERO_CODE => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_RETURNED_NONZERO_CODE => {
             Err(MtmdEncodeError::EncodingFailed {
-                code: vendored_return_code,
+                code: llama_cpp_return_code,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdEncodeError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_OUT_OF_MEMORY => {
-            Err(MtmdEncodeError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(MtmdEncodeError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -138,7 +138,7 @@ fn map_init_from_file_status(
             })?;
             Ok(MtmdContext { context })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_RETURNED_NULL => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_RETURNED_NULL => {
             Err(MtmdInitError::Unloadable {
                 path: std::path::PathBuf::from(mmproj_path),
             })
@@ -146,10 +146,10 @@ fn map_init_from_file_status(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdInitError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY => {
-            Err(MtmdInitError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(MtmdInitError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -301,19 +301,19 @@ impl MtmdContext {
     ///
     /// Returns an [`MtmdEncodeError`] variant matching the wrapper's status code.
     pub fn encode_chunk(&self, chunk: &MtmdInputChunk) -> Result<(), MtmdEncodeError> {
-        let mut out_vendored_return_code: i32 = 0;
+        let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = std::ptr::null_mut();
 
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk(
                 self.context.as_ptr(),
                 chunk.chunk.as_ptr(),
-                &raw mut out_vendored_return_code,
+                &raw mut out_llama_cpp_return_code,
                 &raw mut out_error,
             )
         };
 
-        map_encode_chunk_status(status, out_vendored_return_code, out_error)
+        map_encode_chunk_status(status, out_llama_cpp_return_code, out_error)
     }
 }
 
@@ -335,7 +335,7 @@ mod unit_tests {
     #[test]
     fn tokenize_status_maps_bitmap_count_mismatch() {
         let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
             0,
             std::ptr::null_mut(),
         );
@@ -349,7 +349,7 @@ mod unit_tests {
     #[test]
     fn tokenize_status_maps_media_preprocessing_failed() {
         let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_REPORTED_IMAGE_PREPROCESSING_ERROR,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_IMAGE_PREPROCESSING_ERROR,
             0,
             std::ptr::null_mut(),
         );
@@ -360,7 +360,7 @@ mod unit_tests {
     #[test]
     fn tokenize_status_maps_unknown_status_with_value() {
         let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_RETURNED_UNDOCUMENTED_NONZERO_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
             42,
             std::ptr::null_mut(),
         );
@@ -393,7 +393,7 @@ mod unit_tests {
     #[test]
     fn encode_chunk_status_maps_encoding_failed_with_code() {
         let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_RETURNED_NONZERO_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_RETURNED_NONZERO_CODE,
             5,
             std::ptr::null_mut(),
         );
@@ -415,7 +415,7 @@ mod unit_tests {
     #[test]
     fn tokenize_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
         let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
             std::ptr::null_mut(),
         );
@@ -474,7 +474,7 @@ mod unit_tests {
     #[test]
     fn encode_chunk_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
         let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
             std::ptr::null_mut(),
         );
@@ -535,7 +535,7 @@ mod unit_tests {
     #[test]
     fn init_from_file_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
         let result = map_init_from_file_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             "mmproj.gguf",
@@ -628,13 +628,13 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_3 = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
             outcome_3.err(),
-            Some(MtmdTokenizeError::VendoredOutOfMemory)
+            Some(MtmdTokenizeError::LlamaCppOutOfMemory)
         );
     }
 
@@ -671,11 +671,11 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_2 = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_2.err(), Some(MtmdEncodeError::VendoredOutOfMemory));
+        assert_eq!(outcome_2.err(), Some(MtmdEncodeError::LlamaCppOutOfMemory));
     }
 
     #[test]
@@ -729,11 +729,11 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_3 = map_init_from_file_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
             ptr::null_mut(),
             "",
         );
-        assert_eq!(outcome_3.err(), Some(MtmdInitError::VendoredOutOfMemory));
+        assert_eq!(outcome_3.err(), Some(MtmdInitError::LlamaCppOutOfMemory));
     }
 }

@@ -20,10 +20,10 @@ fn sampler_apply_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED => {
             Err(SamplerApplyError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_OUT_OF_MEMORY => {
-            Err(SamplerApplyError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(SamplerApplyError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -88,7 +88,7 @@ impl LlamaTokenDataArray {
 impl LlamaTokenDataArray {
     /// # Errors
     ///
-    /// Returns [`crate::FfiContractError`] when the vendored sampler grows the array beyond the
+    /// Returns [`crate::FfiContractError`] when the llama.cpp sampler grows the array beyond the
     /// capacity this buffer was allocated with, which would make the following `set_len`
     /// undefined behaviour.
     ///
@@ -122,7 +122,7 @@ impl LlamaTokenDataArray {
         if c_llama_token_data_array.size > self.data.capacity() {
             return Err(crate::FfiContractError {
                 operation: "modify_as_c_llama_token_data_array",
-                detail: "the vendored sampler grew the token data array beyond its capacity",
+                detail: "the llama.cpp sampler grew the token data array beyond its capacity",
             });
         }
 
@@ -149,7 +149,7 @@ impl LlamaTokenDataArray {
 
     /// # Errors
     ///
-    /// Returns [`SamplerApplyError`] if the sampler pointer is null, the vendored
+    /// Returns [`SamplerApplyError`] if the sampler pointer is null, the llama.cpp
     /// sampler runs out of memory, or it throws a C++ exception while applying.
     pub fn apply_sampler(&mut self, sampler: &LlamaSampler) -> Result<(), SamplerApplyError> {
         unsafe {
@@ -217,7 +217,7 @@ mod tests {
     fn sampler_apply_status_cxx_exception_without_a_message_is_a_contract_error() {
         assert_eq!(
             sampler_apply_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_THREW_CXX_EXCEPTION,
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 std::ptr::null_mut(),
             ),
             Err(crate::FfiContractError {
@@ -444,7 +444,7 @@ mod tests {
             result,
             Err(crate::FfiContractError {
                 operation: "modify_as_c_llama_token_data_array",
-                detail: "the vendored sampler grew the token data array beyond its capacity",
+                detail: "the llama.cpp sampler grew the token data array beyond its capacity",
             })
         );
         assert_eq!(array.data.len(), 1);
@@ -515,12 +515,12 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_2 = sampler_apply_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
         );
         assert_eq!(
             outcome_2.err(),
-            Some(SamplerApplyError::VendoredOutOfMemory)
+            Some(SamplerApplyError::LlamaCppOutOfMemory)
         );
     }
 }

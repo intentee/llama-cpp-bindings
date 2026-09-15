@@ -160,19 +160,19 @@ extern "C" auto llama_rs_compute_tool_call_haystack(
 
         return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_OUT_OF_MEMORY;
+        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {
             return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_ERROR_STRING_ALLOCATION_FAILED;
         }
-        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_THREW_CXX_EXCEPTION;
+        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
         *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
         if (*out_error == nullptr) {
             return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_ERROR_STRING_ALLOCATION_FAILED;
         }
-        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_VENDORED_THREW_CXX_EXCEPTION;
+        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_THREW_CXX_EXCEPTION;
     }
 }
 
@@ -236,18 +236,18 @@ extern "C" auto llama_rs_diagnose_tool_call_synthetic_renders(
 
         return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK;
     } catch (const std::bad_alloc &) {
-        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_OUT_OF_MEMORY;
+        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_OUT_OF_MEMORY;
     } catch (const std::exception & ex) {
         *out_error = llama_rs_dup_string(std::string(ex.what()));
         if (*out_error == nullptr) {
             return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_ERROR_STRING_ALLOCATION_FAILED;
         }
-        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_THREW_CXX_EXCEPTION;
+        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
         *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
         if (*out_error == nullptr) {
             return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_ERROR_STRING_ALLOCATION_FAILED;
         }
-        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_VENDORED_THREW_CXX_EXCEPTION;
+        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_THREW_CXX_EXCEPTION;
     }
 }

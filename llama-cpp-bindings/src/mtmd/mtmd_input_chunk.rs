@@ -37,23 +37,23 @@ const unsafe fn tokens_from_raw_ptr<'chunk>(
 fn eval_chunk_single_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status,
     final_position: llama_cpp_bindings_sys::llama_pos,
-    out_vendored_return_code: i32,
+    out_llama_cpp_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdEvalError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK => Ok(final_position),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_RETURNED_NONZERO_CODE => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_RETURNED_NONZERO_CODE => {
             Err(MtmdEvalError::EvalFailed {
-                code: out_vendored_return_code,
+                code: out_llama_cpp_return_code,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdEvalError::NotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_OUT_OF_MEMORY => {
-            Err(MtmdEvalError::VendoredOutOfMemory)
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(MtmdEvalError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_THREW_CXX_EXCEPTION => {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
                     out_error,
@@ -213,7 +213,7 @@ impl MtmdInputChunk {
         }
 
         let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
-        let mut out_vendored_return_code: i32 = 0;
+        let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = std::ptr::null_mut();
 
         let status = unsafe {
@@ -226,7 +226,7 @@ impl MtmdInputChunk {
                 n_batch,
                 logits_last,
                 &raw mut final_position,
-                &raw mut out_vendored_return_code,
+                &raw mut out_llama_cpp_return_code,
                 &raw mut out_error,
             )
         };
@@ -234,7 +234,7 @@ impl MtmdInputChunk {
         eval_chunk_single_status_to_result(
             status,
             final_position,
-            out_vendored_return_code,
+            out_llama_cpp_return_code,
             out_error,
         )
     }
@@ -291,7 +291,7 @@ mod unit_tests {
     #[test]
     fn eval_chunk_single_status_nonzero_code_maps_to_eval_failed() {
         let result = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_RETURNED_NONZERO_CODE,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_RETURNED_NONZERO_CODE,
             0,
             -3,
             std::ptr::null_mut(),
@@ -315,7 +315,7 @@ mod unit_tests {
     #[test]
     fn eval_chunk_single_status_cxx_exception_reports_unknown_error_for_null() {
         let result = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_THREW_CXX_EXCEPTION,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
             0,
             std::ptr::null_mut(),
@@ -443,11 +443,11 @@ mod ffi_contract_status_tests {
             )
         );
         let outcome_4 = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_VENDORED_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_4.err(), Some(MtmdEvalError::VendoredOutOfMemory));
+        assert_eq!(outcome_4.err(), Some(MtmdEvalError::LlamaCppOutOfMemory));
     }
 }
