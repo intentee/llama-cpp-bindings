@@ -29,7 +29,7 @@ WRAPPER_SOURCES_CRATE_FILES = \
 EMIT_WRAPPER_BUILD_INPUTS = cargo run --quiet --package $(WRAPPER_SOURCES_CRATE) -- \
 	$(CURDIR)/llama-cpp-bindings-sys $(COMPILE_COMMANDS) $(WRAPPER_SOURCES_RESPONSE_FILE)
 
-VENDORED_SUPPRESSIONS = \
+LLAMA_CPP_AND_GSL_SUPPRESSIONS = \
 	--suppress='*:*llama-cpp-bindings-sys/llama.cpp/*' \
 	--suppress='*:*llama-cpp-bindings-sys/GSL/*'
 
@@ -115,7 +115,7 @@ lint.cpp.clang-tidy: $(COMPILE_COMMANDS) $(WRAPPER_SOURCES_RESPONSE_FILE)
 lint.cpp.cppcheck: $(COMPILE_COMMANDS) $(CPPCHECK)
 	$(CPPCHECK) --project=$(COMPILE_COMMANDS) --enable=all --inconclusive \
 		--check-level=exhaustive --error-exitcode=1 \
-		$(VENDORED_SUPPRESSIONS) \
+		$(LLAMA_CPP_AND_GSL_SUPPRESSIONS) \
 		--suppress=missingIncludeSystem
 
 .PHONY: test
