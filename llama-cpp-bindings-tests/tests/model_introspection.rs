@@ -1777,3 +1777,21 @@ fn approximate_tok_env_is_cached_across_calls(fixture: &LlamaFixture<'_>) -> Res
 
     Ok(())
 }
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 512,
+    n_ubatch = 128
+)]
+fn streaming_markers_are_reused_across_calls(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let first = fixture.model.streaming_markers()?;
+    let second = fixture.model.streaming_markers()?;
+
+    assert!(!first.is_empty());
+    assert_eq!(first, second);
+
+    Ok(())
+}

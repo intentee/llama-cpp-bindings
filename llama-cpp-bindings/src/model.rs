@@ -90,6 +90,8 @@ pub struct LlamaModel {
     pub model: NonNull<llama_cpp_bindings_sys::llama_model>,
     tok_env: OnceLock<Arc<ApproximateTokEnv>>,
     chat_parser: OnceLock<ChatParserHandle>,
+    reasoning_markers: OnceLock<Option<ReasoningMarkers>>,
+    streaming_markers: OnceLock<StreamingMarkers>,
 }
 
 #[derive(Debug)]
@@ -231,6 +233,8 @@ unsafe fn load_model_from_file_status_to_result(
                 model,
                 tok_env: OnceLock::new(),
                 chat_parser: OnceLock::new(),
+                reasoning_markers: OnceLock::new(),
+                streaming_markers: OnceLock::new(),
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_RETURNED_NULL => {
@@ -1005,7 +1009,20 @@ impl LlamaModel {
     /// # Errors
     /// Returns [`MarkerDetectionError`] when any underlying FFI call fails.
     pub fn streaming_markers(&self) -> Result<StreamingMarkers, MarkerDetectionError> {
-        let reasoning_markers = invoke_detect_reasoning_markers(self.model.as_ptr())?;
+        Ok(self.cached_streaming_markers()?.clone())
+    }
+
+    fn cached_streaming_markers(&self) -> Result<&StreamingMarkers, MarkerDetectionError> {
+        if let Some(markers) = self.streaming_markers.get() {
+            return Ok(markers);
+        }
+        let markers = self.detect_streaming_markers()?;
+
+        Ok(self.streaming_markers.get_or_init(|| markers))
+    }
+
+    fn detect_streaming_markers(&self) -> Result<StreamingMarkers, MarkerDetectionError> {
+        let reasoning_markers = self.cached_reasoning_markers()?;
 
         let tool_call_haystack = invoke_compute_tool_call_haystack(self.model.as_ptr())?;
 
@@ -1024,7 +1041,7 @@ impl LlamaModel {
             self.resolve_tool_call_marker_strings(autoparser_open, autoparser_close)?;
 
         let mut candidates = Vec::new();
-        if let Some(markers) = &reasoning_markers {
+        if let Some(markers) = reasoning_markers {
             for marker in &markers.closes {
                 if let Some(tokens) = self.tokenize_marker(Some(marker))? {
                     candidates.push(MarkerRoleCandidate {
@@ -1035,9 +1052,7 @@ impl LlamaModel {
             }
         }
 
-        let reasoning_open = reasoning_markers
-            .as_ref()
-            .map(|markers| markers.open.as_str());
+        let reasoning_open = reasoning_markers.map(|markers| markers.open.as_str());
         if let Some(tokens) = self.tokenize_marker(reasoning_open)? {
             candidates.push(MarkerRoleCandidate {
                 tokens,
@@ -1094,7 +1109,16 @@ impl LlamaModel {
     /// # Errors
     /// Returns [`MarkerDetectionError`] when the underlying FFI call fails.
     pub fn reasoning_markers(&self) -> Result<Option<ReasoningMarkers>, MarkerDetectionError> {
-        invoke_detect_reasoning_markers(self.model.as_ptr())
+        Ok(self.cached_reasoning_markers()?.cloned())
+    }
+
+    fn cached_reasoning_markers(&self) -> Result<Option<&ReasoningMarkers>, MarkerDetectionError> {
+        if let Some(markers) = self.reasoning_markers.get() {
+            return Ok(markers.as_ref());
+        }
+        let markers = invoke_detect_reasoning_markers(self.model.as_ptr())?;
+
+        Ok(self.reasoning_markers.get_or_init(|| markers).as_ref())
     }
 
     /// # Errors
@@ -1153,7 +1177,7 @@ impl LlamaModel {
             return Err(ParseChatMessageError::ToolsJsonNotArray);
         }
 
-        let reasoning_markers = self.reasoning_markers()?;
+        let reasoning_markers = self.cached_reasoning_markers()?;
 
         for candidate in chat_template_tool_calls::known_marker_candidates() {
             match tool_call_format::try_parse(input, &candidate) {
@@ -1161,7 +1185,7 @@ impl LlamaModel {
                 ToolCallFormatOutcome::Parsed(calls) => {
                     let split = split_reasoning_prefix(
                         input,
-                        reasoning_markers.as_ref(),
+                        reasoning_markers,
                         Some(&candidate.open),
                         is_partial,
                     );
@@ -1177,12 +1201,7 @@ impl LlamaModel {
         let via_ffi_result = self
             .parse_chat_message_via_ffi(&tools_cstring, input, is_partial)
             .map(|mut parsed| {
-                restore_partial_reasoning(
-                    &mut parsed,
-                    input,
-                    reasoning_markers.as_ref(),
-                    is_partial,
-                );
+                restore_partial_reasoning(&mut parsed, input, reasoning_markers, is_partial);
                 parsed
             });
 
