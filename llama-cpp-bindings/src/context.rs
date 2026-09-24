@@ -325,6 +325,11 @@ impl<'model> LlamaContext<'model> {
         unsafe { llama_cpp_bindings_sys::llama_n_ctx(self.context.as_ptr()) }
     }
 
+    #[must_use]
+    pub fn n_ctx_seq(&self) -> u32 {
+        unsafe { llama_cpp_bindings_sys::llama_n_ctx_seq(self.context.as_ptr()) }
+    }
+
     #[expect(unsafe_code, reason = "required for FFI abort callback registration")]
     pub fn set_abort_flag(&mut self, flag: Arc<AtomicBool>) {
         let raw_ptr = Arc::as_ptr(&flag) as *mut c_void;

@@ -127,6 +127,29 @@ fn context_creation_and_properties(fixture: &LlamaFixture<'_>) -> Result<()> {
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
     load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 512,
+    n_ubatch = 512,
+)]
+fn n_ctx_seq_splits_the_context_between_sequences(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let context = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params)
+            .into_llama_context_params()
+            .with_n_seq_max(4),
+    )?;
+
+    assert_eq!(context.n_ctx(), 2048);
+    assert_eq!(context.n_ctx_seq(), 512);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
