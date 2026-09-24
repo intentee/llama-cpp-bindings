@@ -3,6 +3,7 @@ use anyhow::bail;
 use llama_cpp_bindings::ChatMessageParseOutcome;
 use llama_cpp_bindings::ChatTemplateError;
 use llama_cpp_bindings::ChatTools;
+use llama_cpp_bindings::ParseChatMessageError;
 use llama_cpp_bindings::model::LlamaChatMessage;
 use llama_cpp_bindings_tests::build_user_prompt_with_media_marker::build_user_prompt_with_media_marker;
 use llama_cpp_test_harness::LlamaFixture;
@@ -379,12 +380,40 @@ fn parses_with_input_null_byte_reports_the_input_as_the_source(
         false,
     );
 
-    let Err(llama_cpp_bindings::ParseChatMessageError::InputContainsNulByte(nul_error)) = result
-    else {
+    let Err(ParseChatMessageError::InputContainsNulByte(nul_error)) = result else {
         anyhow::bail!("a NUL byte in the message must be reported against the message");
     };
 
     assert_eq!(nul_error.nul_position(), 5);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn parses_with_a_tool_missing_its_function_name_reports_a_tools_parser_build_failure(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let result = fixture.model.parse_chat_message(
+        &ChatTools::from_json(
+            r#"[{"type":"function","function":{"description":"reports the weather"}}]"#.to_owned(),
+        )?,
+        "hello",
+        false,
+    );
+
+    assert_eq!(
+        result.unwrap_err(),
+        ParseChatMessageError::ToolsParserBuildFailed {
+            message: "[json.exception.out_of_range.403] key 'name' not found".to_owned(),
+        }
+    );
 
     Ok(())
 }

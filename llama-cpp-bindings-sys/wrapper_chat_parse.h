@@ -52,6 +52,7 @@ typedef enum llama_rs_parse_chat_message_status {
     LLAMA_RS_PARSE_CHAT_MESSAGE_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+    LLAMA_RS_PARSE_CHAT_MESSAGE_TOOLS_PARSER_BUILD_THREW_CXX_EXCEPTION,
 } llama_rs_parse_chat_message_status;
 
 llama_rs_parse_chat_message_status llama_rs_parse_chat_message(

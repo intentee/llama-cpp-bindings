@@ -2,7 +2,7 @@ use std::string::FromUtf8Error;
 
 use crate::error::marker_detection_error::MarkerDetectionError;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ParseChatMessageError {
     #[error(transparent)]
     FfiStatus(#[from] crate::FfiStatusError),
@@ -18,6 +18,8 @@ pub enum ParseChatMessageError {
     LlamaCppOutOfMemory,
     #[error("the chat parser could not be constructed: {message}")]
     ParserCreationFailed { message: String },
+    #[error("the chat parser could not be built for the given tools: {message}")]
+    ToolsParserBuildFailed { message: String },
     #[error("the chat parser did not recognize the message: {message}")]
     MessageUnrecognized { message: String },
     #[error("the chat parser destructor threw: {message}")]

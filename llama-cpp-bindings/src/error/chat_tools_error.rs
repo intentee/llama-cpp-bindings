@@ -2,10 +2,10 @@ use std::ffi::NulError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChatToolsError {
-    #[error("tools_json is not valid JSON: {0}")]
+    #[error("chat tools are not valid JSON: {0}")]
     InvalidJson(#[source] serde_json::Error),
-    #[error("tools_json must be a JSON array")]
+    #[error("chat tools must be a JSON array")]
     NotArray,
-    #[error("tools_json contains an interior NUL byte")]
+    #[error("chat tools contain an interior NUL byte at position {}", .0.nul_position())]
     ContainsNulByte(#[source] NulError),
 }

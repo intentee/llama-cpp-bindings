@@ -30,6 +30,61 @@ void dup_or_set_alloc_flag(const std::string & source, char ** out_dup, bool * o
     *out_dup = llama_rs_dup_string(source);
     *out_alloc_failed = (*out_dup == nullptr);
 }
+
+auto report_current_parse_exception(
+    char ** out_error,
+    llama_rs_parse_chat_message_status thrown_status) -> llama_rs_parse_chat_message_status {
+    try {
+        throw;
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_OUT_OF_MEMORY;
+    } catch (const std::exception & ex) {
+        *out_error = llama_rs_dup_string(std::string(ex.what()));
+    } catch (...) {
+        *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
+    }
+    if (*out_error == nullptr) {
+        return LLAMA_RS_PARSE_CHAT_MESSAGE_ERROR_STRING_ALLOCATION_FAILED;
+    }
+    return thrown_status;
+}
+
+auto build_tools_parser(const llama_rs_chat_parser & parser, const char * tools_json) -> common_peg_arena {
+    autoparser::generation_params inputs;
+
+    if ((tools_json != nullptr) && *tools_json != '\0') {
+        inputs.tools = common_json::parse(tools_json);
+    } else {
+        inputs.tools = common_json::array();
+    }
+
+    return parser.parser.build_parser(inputs, std::string());
+}
+
+auto parse_with_tools_parser(
+    const common_peg_arena & chat_parser,
+    const char * input,
+    int is_partial,
+    llama_rs_parsed_chat_handle * out_handle,
+    char ** out_error) -> llama_rs_parse_chat_message_status {
+    try {
+        common_chat_parser_params parser_params;
+        parser_params.format = COMMON_CHAT_FORMAT_PEG_NATIVE;
+
+        common_chat_msg parsed =
+            common_chat_peg_parse(chat_parser, input, is_partial != 0, parser_params);
+
+        auto handle = std::make_unique<llama_rs_parsed_chat>();
+        handle->message = std::move(parsed);
+
+        *out_handle = handle.release();
+
+        return LLAMA_RS_PARSE_CHAT_MESSAGE_OK;
+    } catch (...) {
+        return report_current_parse_exception(
+            out_error, LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_THREW_CXX_EXCEPTION);
+    }
+}
 } // namespace
 
 extern "C" auto llama_rs_chat_parser_create(
@@ -148,42 +203,12 @@ extern "C" auto llama_rs_parse_chat_message(
     }
 
     try {
-        autoparser::generation_params inputs;
+        common_peg_arena const chat_parser = build_tools_parser(*parser, tools_json);
 
-        if ((tools_json != nullptr) && *tools_json != '\0') {
-            inputs.tools = common_json::parse(tools_json);
-        } else {
-            inputs.tools = common_json::array();
-        }
-
-        common_peg_arena const chat_parser = parser->parser.build_parser(inputs, std::string());
-
-        common_chat_parser_params parser_params;
-        parser_params.format = COMMON_CHAT_FORMAT_PEG_NATIVE;
-
-        common_chat_msg parsed =
-            common_chat_peg_parse(chat_parser, input, is_partial != 0, parser_params);
-
-        auto handle = std::make_unique<llama_rs_parsed_chat>();
-        handle->message = std::move(parsed);
-
-        *out_handle = handle.release();
-
-        return LLAMA_RS_PARSE_CHAT_MESSAGE_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & ex) {
-        *out_error = llama_rs_dup_string(std::string(ex.what()));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_PARSE_CHAT_MESSAGE_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return parse_with_tools_parser(chat_parser, input, is_partial, out_handle, out_error);
     } catch (...) {
-        *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_PARSE_CHAT_MESSAGE_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return report_current_parse_exception(
+            out_error, LLAMA_RS_PARSE_CHAT_MESSAGE_TOOLS_PARSER_BUILD_THREW_CXX_EXCEPTION);
     }
 }
 
