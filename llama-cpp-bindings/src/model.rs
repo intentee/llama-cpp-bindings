@@ -36,6 +36,7 @@ use llama_cpp_bindings_types::ToolCallMarkers;
 
 use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
 use crate::chat_template_tool_calls;
+use crate::chat_tools::ChatTools;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
@@ -1160,23 +1161,14 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`ParseChatMessageError`] when `tools_json` is not valid JSON,
-    /// the FFI returns a non-OK status other than `ParseException`, or
-    /// accessor strings are not valid UTF-8.
+    /// Returns [`ParseChatMessageError`] when the FFI returns a non-OK status
+    /// other than `ParseException`, or accessor strings are not valid UTF-8.
     pub fn parse_chat_message(
         &self,
-        tools_json: &str,
+        tools: &ChatTools,
         input: &str,
         is_partial: bool,
     ) -> Result<ChatMessageParseOutcome, ParseChatMessageError> {
-        let tools_cstring =
-            CString::new(tools_json).map_err(ParseChatMessageError::ToolsJsonContainsNulByte)?;
-        let tools_value: serde_json::Value =
-            serde_json::from_str(tools_json).map_err(ParseChatMessageError::ToolsJsonInvalid)?;
-        if !tools_value.is_array() {
-            return Err(ParseChatMessageError::ToolsJsonNotArray);
-        }
-
         let reasoning_markers = self.cached_reasoning_markers()?;
 
         for candidate in chat_template_tool_calls::known_marker_candidates() {
@@ -1199,13 +1191,13 @@ impl LlamaModel {
         }
 
         let via_ffi_result = self
-            .parse_chat_message_via_ffi(&tools_cstring, input, is_partial)
+            .parse_chat_message_via_ffi(tools.json_cstr(), input, is_partial)
             .map(|mut parsed| {
                 restore_partial_reasoning(&mut parsed, input, reasoning_markers, is_partial);
                 parsed
             });
 
-        outcome_from_via_ffi_result(via_ffi_result, tools_json, input, is_partial)
+        outcome_from_via_ffi_result(via_ffi_result, tools.json(), input, is_partial)
     }
 
     fn parse_chat_message_via_ffi(

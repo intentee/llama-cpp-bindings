@@ -6,6 +6,7 @@
 pub mod batch_add_error;
 pub mod chat_message_parse_outcome;
 pub mod chat_template_tool_calls;
+pub mod chat_tools;
 pub mod classified_sample;
 pub mod context;
 pub mod error;
@@ -64,16 +65,18 @@ pub mod tool_call_format;
 pub mod tool_call_marker_pair;
 
 pub use error::{
-    ApplyChatTemplateError, ChatTemplateError, ClearKvCacheSeqError, CopyKvCacheSeqError,
-    DecodeError, EmbeddingsError, EncodeError, EvalMultimodalChunksError, FfiContractError,
-    FfiStatusError, GrammarError, JsonSchemaToGrammarError, KvCacheSeqAddError, KvCacheSeqDivError,
-    KvCacheSeqPosMaxError, LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError,
-    LlamaLoraAdaptersError, LlamaModelLoadError, LogitsError, MarkerDetectionError, MetaValError,
-    ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError, Result, SampleError,
-    SamplerAcceptError, SamplingError, StringToTokenError, TokenSamplingError, TokenToStringError,
+    ApplyChatTemplateError, ChatTemplateError, ChatToolsError, ClearKvCacheSeqError,
+    CopyKvCacheSeqError, DecodeError, EmbeddingsError, EncodeError, EvalMultimodalChunksError,
+    FfiContractError, FfiStatusError, GrammarError, JsonSchemaToGrammarError, KvCacheSeqAddError,
+    KvCacheSeqDivError, KvCacheSeqPosMaxError, LlamaContextLoadError, LlamaCppError,
+    LlamaLoraAdapterInitError, LlamaLoraAdaptersError, LlamaModelLoadError, LogitsError,
+    MarkerDetectionError, MetaValError, ModelParamsError, NewLlamaChatMessageError,
+    ParseChatMessageError, Result, SampleError, SamplerAcceptError, SamplingError,
+    StringToTokenError, TokenSamplingError, TokenToStringError,
 };
 
 pub use chat_message_parse_outcome::ChatMessageParseOutcome;
+pub use chat_tools::ChatTools;
 pub use classified_sample::ClassifiedSample;
 pub use eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 pub use llama_backend_device::LlamaBackendDevice;

@@ -30,12 +30,6 @@ pub enum ParseChatMessageError {
     ToolCallArgumentsIndexOutOfBounds { index: usize },
     #[error("ffi returned non-utf8 string: {0}")]
     StringUtf8Error(#[from] FromUtf8Error),
-    #[error("tools_json is not valid JSON: {0}")]
-    ToolsJsonInvalid(#[source] serde_json::Error),
-    #[error("tools_json must be a JSON array")]
-    ToolsJsonNotArray,
-    #[error("tools_json contains an interior NUL byte")]
-    ToolsJsonContainsNulByte(#[source] std::ffi::NulError),
     #[error("the message to parse contains an interior NUL byte")]
     InputContainsNulByte(#[source] std::ffi::NulError),
     #[error("reasoning-marker detection failed: {0}")]

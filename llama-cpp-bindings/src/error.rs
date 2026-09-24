@@ -1,6 +1,7 @@
 pub mod apply_chat_template_error;
 pub mod bracketed_args_failure;
 pub mod chat_template_error;
+pub mod chat_tools_error;
 pub mod clear_kv_cache_seq_error;
 pub mod copy_kv_cache_seq_error;
 pub mod decode_error;
@@ -44,6 +45,7 @@ pub use llama_cpp_ffi_status::FfiStatusError;
 pub use apply_chat_template_error::ApplyChatTemplateError;
 pub use bracketed_args_failure::BracketedArgsFailure;
 pub use chat_template_error::ChatTemplateError;
+pub use chat_tools_error::ChatToolsError;
 pub use clear_kv_cache_seq_error::ClearKvCacheSeqError;
 pub use copy_kv_cache_seq_error::CopyKvCacheSeqError;
 pub use decode_error::DecodeError;
