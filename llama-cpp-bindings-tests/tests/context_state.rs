@@ -130,15 +130,10 @@ fn context_creation_and_properties(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ctx = 2048,
     n_batch = 512,
     n_ubatch = 512,
+    n_seq_max = 4,
 )]
 fn n_ctx_seq_splits_the_context_between_sequences(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
-            .into_llama_context_params()
-            .with_n_seq_max(4),
-    )?;
+    let context = fixture.build_context()?;
 
     assert_eq!(context.n_ctx(), 2048);
     assert_eq!(context.n_ctx_seq(), 512);
