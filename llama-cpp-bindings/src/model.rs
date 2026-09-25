@@ -22,8 +22,8 @@ use std::path::Path;
 use std::ptr;
 use std::ptr::NonNull;
 use std::sync::Arc;
-use std::sync::OnceLock;
 
+use once_cell::sync::OnceCell;
 use toktrie::ApproximateTokEnv;
 use toktrie::TokRxInfo;
 use toktrie::TokTrie;
@@ -36,6 +36,7 @@ use llama_cpp_bindings_types::ToolCallMarkers;
 
 use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
 use crate::chat_template_tool_calls;
+use crate::chat_tools::ChatTools;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
@@ -88,8 +89,10 @@ fn cstring_with_validated_len(text: &str) -> Result<TokenizerInput, StringToToke
 
 pub struct LlamaModel {
     pub model: NonNull<llama_cpp_bindings_sys::llama_model>,
-    tok_env: OnceLock<Arc<ApproximateTokEnv>>,
-    chat_parser: OnceLock<ChatParserHandle>,
+    tok_env: OnceCell<Arc<ApproximateTokEnv>>,
+    chat_parser: OnceCell<ChatParserHandle>,
+    reasoning_markers: OnceCell<Option<ReasoningMarkers>>,
+    streaming_markers: OnceCell<Arc<StreamingMarkers>>,
 }
 
 #[derive(Debug)]
@@ -229,8 +232,10 @@ unsafe fn load_model_from_file_status_to_result(
             })?;
             Ok(LlamaModel {
                 model,
-                tok_env: OnceLock::new(),
-                chat_parser: OnceLock::new(),
+                tok_env: OnceCell::new(),
+                chat_parser: OnceCell::new(),
+                reasoning_markers: OnceCell::new(),
+                streaming_markers: OnceCell::new(),
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_RETURNED_NULL => {
@@ -287,9 +292,34 @@ unsafe fn load_model_from_file_status_to_result(
 
 /// # Safety
 ///
+/// `out_error` must reference the pointer populated by a `llama_rs_parse_chat_message` call
+/// that reported a thrown C++ exception. The error is read, freed, and the referenced pointer
+/// is nulled so the later free in the caller does not double-free.
+unsafe fn thrown_parse_exception_error(
+    out_error: *mut *mut c_char,
+    error_from_message: fn(String) -> ParseChatMessageError,
+) -> ParseChatMessageError {
+    match unsafe {
+        read_and_free_cpp_string(
+            *out_error,
+            "llama_rs_parse_chat_message",
+            "reported a thrown C++ exception without an error message",
+        )
+    } {
+        Ok(message) => {
+            unsafe { *out_error = ptr::null_mut() };
+
+            error_from_message(message)
+        }
+        Err(missing_message) => missing_message.into(),
+    }
+}
+
+/// # Safety
+///
 /// `handle` must be the parsed-chat handle (or null) and `out_error` must reference the
 /// pointer populated by the preceding `llama_rs_parse_chat_message` call. In the CXX-exception
-/// arm the error is read, freed, and the referenced pointer is nulled so the later free in the
+/// arms the error is read, freed, and the referenced pointer is nulled so the later free in the
 /// caller does not double-free.
 unsafe fn parse_chat_message_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_parse_chat_message_status,
@@ -315,15 +345,18 @@ unsafe fn parse_chat_message_status_to_result(
             Err(ParseChatMessageError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                read_and_free_cpp_string(
-                    *out_error,
-                    "llama_rs_parse_chat_message",
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
-            unsafe { *out_error = ptr::null_mut() };
-            Err(ParseChatMessageError::MessageUnrecognized { message })
+            Err(unsafe {
+                thrown_parse_exception_error(out_error, |message| {
+                    ParseChatMessageError::MessageUnrecognized { message }
+                })
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_TOOLS_PARSER_BUILD_THREW_CXX_EXCEPTION => {
+            Err(unsafe {
+                thrown_parse_exception_error(out_error, |message| {
+                    ParseChatMessageError::ToolsParserBuildFailed { message }
+                })
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_PARSER_ARG => {
             Err(crate::FfiContractError {
@@ -435,7 +468,6 @@ unsafe fn chat_parser_create_status_to_result(
 
 fn outcome_from_via_ffi_result(
     via_ffi_result: Result<ParsedChatMessage, ParseChatMessageError>,
-    tools_json: &str,
     input: &str,
     is_partial: bool,
 ) -> Result<ChatMessageParseOutcome, ParseChatMessageError> {
@@ -446,7 +478,6 @@ fn outcome_from_via_ffi_result(
         }
         Err(ParseChatMessageError::MessageUnrecognized { message }) => {
             Ok(ChatMessageParseOutcome::Unrecognized(RawChatMessage {
-                tools_json: tools_json.to_owned(),
                 text: input.to_owned(),
                 is_partial,
                 ffi_error_message: message,
@@ -997,15 +1028,20 @@ impl LlamaModel {
     pub fn sampled_token_classifier(
         &self,
     ) -> Result<SampledTokenClassifier<'_>, MarkerDetectionError> {
-        let markers = self.streaming_markers()?;
-
-        Ok(SampledTokenClassifier::new(self, markers))
+        self.streaming_markers()
+            .map(|markers| SampledTokenClassifier::new(self, markers))
     }
 
     /// # Errors
     /// Returns [`MarkerDetectionError`] when any underlying FFI call fails.
-    pub fn streaming_markers(&self) -> Result<StreamingMarkers, MarkerDetectionError> {
-        let reasoning_markers = invoke_detect_reasoning_markers(self.model.as_ptr())?;
+    pub fn streaming_markers(&self) -> Result<Arc<StreamingMarkers>, MarkerDetectionError> {
+        self.streaming_markers
+            .get_or_try_init(|| self.detect_streaming_markers().map(Arc::new))
+            .map(Arc::clone)
+    }
+
+    fn detect_streaming_markers(&self) -> Result<StreamingMarkers, MarkerDetectionError> {
+        let reasoning_markers = self.reasoning_markers()?;
 
         let tool_call_haystack = invoke_compute_tool_call_haystack(self.model.as_ptr())?;
 
@@ -1024,7 +1060,7 @@ impl LlamaModel {
             self.resolve_tool_call_marker_strings(autoparser_open, autoparser_close)?;
 
         let mut candidates = Vec::new();
-        if let Some(markers) = &reasoning_markers {
+        if let Some(markers) = reasoning_markers {
             for marker in &markers.closes {
                 if let Some(tokens) = self.tokenize_marker(Some(marker))? {
                     candidates.push(MarkerRoleCandidate {
@@ -1035,9 +1071,7 @@ impl LlamaModel {
             }
         }
 
-        let reasoning_open = reasoning_markers
-            .as_ref()
-            .map(|markers| markers.open.as_str());
+        let reasoning_open = reasoning_markers.map(|markers| markers.open.as_str());
         if let Some(tokens) = self.tokenize_marker(reasoning_open)? {
             candidates.push(MarkerRoleCandidate {
                 tokens,
@@ -1093,8 +1127,10 @@ impl LlamaModel {
 
     /// # Errors
     /// Returns [`MarkerDetectionError`] when the underlying FFI call fails.
-    pub fn reasoning_markers(&self) -> Result<Option<ReasoningMarkers>, MarkerDetectionError> {
-        invoke_detect_reasoning_markers(self.model.as_ptr())
+    pub fn reasoning_markers(&self) -> Result<Option<&ReasoningMarkers>, MarkerDetectionError> {
+        self.reasoning_markers
+            .get_or_try_init(|| invoke_detect_reasoning_markers(self.model.as_ptr()))
+            .map(Option::as_ref)
     }
 
     /// # Errors
@@ -1136,23 +1172,16 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`ParseChatMessageError`] when `tools_json` is not valid JSON,
-    /// the FFI returns a non-OK status other than `ParseException`, or
-    /// accessor strings are not valid UTF-8.
+    /// Returns [`ParseChatMessageError`] when reasoning-marker detection fails,
+    /// `input` contains a NUL byte, the chat parser cannot be created or built
+    /// for `tools`, the FFI returns a non-OK status other than a message parse
+    /// exception, or accessor strings are not valid UTF-8.
     pub fn parse_chat_message(
         &self,
-        tools_json: &str,
+        tools: &ChatTools,
         input: &str,
         is_partial: bool,
     ) -> Result<ChatMessageParseOutcome, ParseChatMessageError> {
-        let tools_cstring =
-            CString::new(tools_json).map_err(ParseChatMessageError::ToolsJsonContainsNulByte)?;
-        let tools_value: serde_json::Value =
-            serde_json::from_str(tools_json).map_err(ParseChatMessageError::ToolsJsonInvalid)?;
-        if !tools_value.is_array() {
-            return Err(ParseChatMessageError::ToolsJsonNotArray);
-        }
-
         let reasoning_markers = self.reasoning_markers()?;
 
         for candidate in chat_template_tool_calls::known_marker_candidates() {
@@ -1161,7 +1190,7 @@ impl LlamaModel {
                 ToolCallFormatOutcome::Parsed(calls) => {
                     let split = split_reasoning_prefix(
                         input,
-                        reasoning_markers.as_ref(),
+                        reasoning_markers,
                         Some(&candidate.open),
                         is_partial,
                     );
@@ -1175,18 +1204,13 @@ impl LlamaModel {
         }
 
         let via_ffi_result = self
-            .parse_chat_message_via_ffi(&tools_cstring, input, is_partial)
+            .parse_chat_message_via_ffi(tools.json_cstr(), input, is_partial)
             .map(|mut parsed| {
-                restore_partial_reasoning(
-                    &mut parsed,
-                    input,
-                    reasoning_markers.as_ref(),
-                    is_partial,
-                );
+                restore_partial_reasoning(&mut parsed, input, reasoning_markers, is_partial);
                 parsed
             });
 
-        outcome_from_via_ffi_result(via_ffi_result, tools_json, input, is_partial)
+        outcome_from_via_ffi_result(via_ffi_result, input, is_partial)
     }
 
     fn parse_chat_message_via_ffi(
@@ -1238,11 +1262,8 @@ impl LlamaModel {
     }
 
     fn chat_parser(&self) -> Result<&ChatParserHandle, ParseChatMessageError> {
-        if let Some(parser) = self.chat_parser.get() {
-            return Ok(parser);
-        }
-        let parser = self.create_chat_parser()?;
-        Ok(self.chat_parser.get_or_init(|| parser))
+        self.chat_parser
+            .get_or_try_init(|| self.create_chat_parser())
     }
 
     fn create_chat_parser(&self) -> Result<ChatParserHandle, ParseChatMessageError> {
@@ -1285,11 +1306,9 @@ impl LlamaModel {
     /// as empty (not an error); a piece that overflows the probe buffer is
     /// re-read at the exact size rather than dropped.
     pub fn approximate_tok_env(&self) -> Result<Arc<ApproximateTokEnv>, TokenToStringError> {
-        if let Some(env) = self.tok_env.get() {
-            return Ok(Arc::clone(env));
-        }
-        let env = build_approximate_tok_env(self)?;
-        Ok(Arc::clone(self.tok_env.get_or_init(|| env)))
+        self.tok_env
+            .get_or_try_init(|| build_approximate_tok_env(self))
+            .map(Arc::clone)
     }
 }
 
@@ -3095,6 +3114,51 @@ mod ffi_status_mapping_tests {
     }
 
     #[test]
+    fn parse_chat_message_tools_parser_build_exception_is_a_build_failure_and_nulls_error() {
+        let mut out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"key 'name' not found".as_ptr())
+        };
+        let result = unsafe {
+            parse_chat_message_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_TOOLS_PARSER_BUILD_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                &raw mut out_error,
+            )
+        };
+
+        assert_eq!(
+            result.unwrap_err(),
+            ParseChatMessageError::ToolsParserBuildFailed {
+                message: "key 'name' not found".to_owned(),
+            }
+        );
+        assert!(
+            out_error.is_null(),
+            "the reclaimed pointer must be nulled so the caller does not free it twice"
+        );
+    }
+
+    #[test]
+    fn parse_chat_message_cxx_exception_without_an_error_message_is_a_contract_error() {
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let result = unsafe {
+            parse_chat_message_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_TOOLS_PARSER_BUILD_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                &raw mut out_error,
+            )
+        };
+
+        assert_eq!(
+            result.unwrap_err(),
+            ParseChatMessageError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_parse_chat_message",
+                detail: "reported a thrown C++ exception without an error message",
+            })
+        );
+    }
+
+    #[test]
     fn parse_chat_message_unknown_status_is_preserved() {
         let mut out_error: *mut c_char = ptr::null_mut();
         let result = unsafe {
@@ -4338,7 +4402,7 @@ mod ffi_status_mapping_tests {
             )],
         );
 
-        let outcome = outcome_from_via_ffi_result(Ok(parsed), "[]", "answer", false);
+        let outcome = outcome_from_via_ffi_result(Ok(parsed), "answer", false);
 
         assert_eq!(
             outcome.unwrap(),
@@ -4360,7 +4424,6 @@ mod ffi_status_mapping_tests {
             Err(ParseChatMessageError::MessageUnrecognized {
                 message: "boom".to_owned(),
             }),
-            "[]",
             "garbled",
             true,
         );
@@ -4368,7 +4431,6 @@ mod ffi_status_mapping_tests {
         assert_eq!(
             outcome.unwrap(),
             ChatMessageParseOutcome::Unrecognized(RawChatMessage {
-                tools_json: "[]".to_owned(),
                 text: "garbled".to_owned(),
                 is_partial: true,
                 ffi_error_message: "boom".to_owned(),
@@ -4382,7 +4444,6 @@ mod ffi_status_mapping_tests {
             Err(ParseChatMessageError::ParserCreationFailed {
                 message: "the parser could not be built".to_owned(),
             }),
-            "[]",
             "garbled",
             true,
         );
@@ -4397,8 +4458,7 @@ mod ffi_status_mapping_tests {
 
     #[test]
     fn outcome_from_via_ffi_result_other_error_propagates() {
-        let outcome =
-            outcome_from_via_ffi_result(Err(ParseChatMessageError::NoVocab), "[]", "x", false);
+        let outcome = outcome_from_via_ffi_result(Err(ParseChatMessageError::NoVocab), "x", false);
 
         assert_eq!(
             discriminant(&outcome.unwrap_err()),

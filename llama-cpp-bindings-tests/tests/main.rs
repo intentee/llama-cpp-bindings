@@ -7,6 +7,7 @@ mod chat_protocol;
 mod context_state;
 mod embedding_models;
 mod generation_control;
+mod model_derived_data_caching;
 mod model_introspection;
 mod model_loading_errors;
 mod multimodal_audio;

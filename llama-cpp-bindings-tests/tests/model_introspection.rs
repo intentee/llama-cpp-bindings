@@ -1760,20 +1760,3 @@ fn debug_format_includes_struct_name_and_model_field(fixture: &LlamaFixture<'_>)
 
     Ok(())
 }
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 2048,
-    n_batch = 512,
-    n_ubatch = 128
-)]
-fn approximate_tok_env_is_cached_across_calls(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let first = fixture.model.approximate_tok_env()?;
-    let second = fixture.model.approximate_tok_env()?;
-
-    assert!(std::sync::Arc::ptr_eq(&first, &second));
-
-    Ok(())
-}

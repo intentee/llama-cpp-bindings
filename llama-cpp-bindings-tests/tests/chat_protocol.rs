@@ -2,6 +2,8 @@ use anyhow::Result;
 use anyhow::bail;
 use llama_cpp_bindings::ChatMessageParseOutcome;
 use llama_cpp_bindings::ChatTemplateError;
+use llama_cpp_bindings::ChatTools;
+use llama_cpp_bindings::ParseChatMessageError;
 use llama_cpp_bindings::model::LlamaChatMessage;
 use llama_cpp_bindings_tests::build_user_prompt_with_media_marker::build_user_prompt_with_media_marker;
 use llama_cpp_test_harness::LlamaFixture;
@@ -247,9 +249,11 @@ fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>)
     n_ubatch = 64,
 )]
 fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let outcome = fixture
-        .model
-        .parse_chat_message("[]", "hello world", false)?;
+    let outcome = fixture.model.parse_chat_message(
+        &ChatTools::from_json("[]".to_owned())?,
+        "hello world",
+        false,
+    )?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for plain content; got Unrecognized");
@@ -295,7 +299,10 @@ fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn parses_reasoning_section_into_reasoning_content(fixture: &LlamaFixture<'_>) -> Result<()> {
     let input = "<think>step one, step two</think>\n\nactual response";
-    let outcome = fixture.model.parse_chat_message("[]", input, false)?;
+    let outcome =
+        fixture
+            .model
+            .parse_chat_message(&ChatTools::from_json("[]".to_owned())?, input, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for reasoning section; got Unrecognized");
@@ -343,204 +350,15 @@ fn parses_reasoning_section_into_reasoning_content(fixture: &LlamaFixture<'_>) -
     n_ubatch = 64,
 )]
 fn parses_empty_input_yields_empty_message(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let outcome = fixture.model.parse_chat_message("[]", "", false)?;
+    let outcome =
+        fixture
+            .model
+            .parse_chat_message(&ChatTools::from_json("[]".to_owned())?, "", false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for empty input; got Unrecognized");
     };
     assert!(parsed.tool_calls.is_empty());
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn parses_malformed_tools_json_returns_tools_json_invalid_error(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let result = fixture
-        .model
-        .parse_chat_message("not_a_json[}", "hello", false);
-
-    assert!(matches!(
-        result,
-        Err(llama_cpp_bindings::ParseChatMessageError::ToolsJsonInvalid(
-            _
-        ))
-    ));
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn parses_non_array_tools_json_returns_tools_json_not_array_error(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let result = fixture
-        .model
-        .parse_chat_message("{\"foo\": 1}", "hello", false);
-
-    assert!(matches!(
-        result,
-        Err(llama_cpp_bindings::ParseChatMessageError::ToolsJsonNotArray)
-    ));
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn parses_with_tools_null_byte_reports_the_nul_byte_not_a_json_syntax_error(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let result = fixture
-        .model
-        .parse_chat_message("[]\0extra", "hello", false);
-
-    let Err(llama_cpp_bindings::ParseChatMessageError::ToolsJsonContainsNulByte(nul_error)) =
-        result
-    else {
-        anyhow::bail!("a NUL byte in tools_json must be named as such, not reported as bad JSON");
-    };
-
-    assert_eq!(nul_error.nul_position(), 2);
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn parses_with_tools_json_null_byte_reports_the_tools_as_the_source(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let result = fixture.model.parse_chat_message("[]\0", "hello", false);
-
-    let Err(llama_cpp_bindings::ParseChatMessageError::ToolsJsonContainsNulByte(nul_error)) =
-        result
-    else {
-        anyhow::bail!("a NUL byte in tools_json must be reported against tools_json");
-    };
-
-    assert_eq!(nul_error.nul_position(), 2);
 
     Ok(())
 }
@@ -556,16 +374,46 @@ fn parses_with_tools_json_null_byte_reports_the_tools_as_the_source(
 fn parses_with_input_null_byte_reports_the_input_as_the_source(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let result = fixture
-        .model
-        .parse_chat_message("[]", "hello\0world", false);
+    let result = fixture.model.parse_chat_message(
+        &ChatTools::from_json("[]".to_owned())?,
+        "hello\0world",
+        false,
+    );
 
-    let Err(llama_cpp_bindings::ParseChatMessageError::InputContainsNulByte(nul_error)) = result
-    else {
+    let Err(ParseChatMessageError::InputContainsNulByte(nul_error)) = result else {
         anyhow::bail!("a NUL byte in the message must be reported against the message");
     };
 
     assert_eq!(nul_error.nul_position(), 5);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn parses_with_a_tool_missing_its_function_name_reports_a_tools_parser_build_failure(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let result = fixture.model.parse_chat_message(
+        &ChatTools::from_json(
+            r#"[{"type":"function","function":{"description":"reports the weather"}}]"#.to_owned(),
+        )?,
+        "hello",
+        false,
+    );
+
+    assert_eq!(
+        result.unwrap_err(),
+        ParseChatMessageError::ToolsParserBuildFailed {
+            message: "[json.exception.out_of_range.403] key 'name' not found".to_owned(),
+        }
+    );
 
     Ok(())
 }

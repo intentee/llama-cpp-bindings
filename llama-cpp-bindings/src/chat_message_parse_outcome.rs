@@ -24,7 +24,6 @@ mod tests {
                 Vec::new(),
             )),
             ChatMessageParseOutcome::Unrecognized(RawChatMessage {
-                tools_json: "[]".to_owned(),
                 text: "raw input".to_owned(),
                 is_partial: false,
                 ffi_error_message: "parser bailed".to_owned(),
@@ -42,7 +41,6 @@ mod tests {
                     saw_recognized = true;
                 }
                 ChatMessageParseOutcome::Unrecognized(raw) => {
-                    assert_eq!(raw.tools_json, "[]");
                     assert_eq!(raw.text, "raw input");
                     assert!(!raw.is_partial);
                     assert_eq!(raw.ffi_error_message, "parser bailed");

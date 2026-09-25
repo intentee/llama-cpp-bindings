@@ -2,7 +2,7 @@ use std::string::FromUtf8Error;
 
 use crate::error::marker_detection_error::MarkerDetectionError;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ParseChatMessageError {
     #[error(transparent)]
     FfiStatus(#[from] crate::FfiStatusError),
@@ -18,6 +18,8 @@ pub enum ParseChatMessageError {
     LlamaCppOutOfMemory,
     #[error("the chat parser could not be constructed: {message}")]
     ParserCreationFailed { message: String },
+    #[error("the chat parser could not be built for the given tools: {message}")]
+    ToolsParserBuildFailed { message: String },
     #[error("the chat parser did not recognize the message: {message}")]
     MessageUnrecognized { message: String },
     #[error("the chat parser destructor threw: {message}")]
@@ -30,12 +32,6 @@ pub enum ParseChatMessageError {
     ToolCallArgumentsIndexOutOfBounds { index: usize },
     #[error("ffi returned non-utf8 string: {0}")]
     StringUtf8Error(#[from] FromUtf8Error),
-    #[error("tools_json is not valid JSON: {0}")]
-    ToolsJsonInvalid(#[source] serde_json::Error),
-    #[error("tools_json must be a JSON array")]
-    ToolsJsonNotArray,
-    #[error("tools_json contains an interior NUL byte")]
-    ToolsJsonContainsNulByte(#[source] std::ffi::NulError),
     #[error("the message to parse contains an interior NUL byte")]
     InputContainsNulByte(#[source] std::ffi::NulError),
     #[error("reasoning-marker detection failed: {0}")]

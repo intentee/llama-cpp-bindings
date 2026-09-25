@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_sys::llama_seq_id;
@@ -57,7 +58,7 @@ enum ProbeMode {
 
 pub struct SampledTokenClassifier<'model> {
     model: &'model LlamaModel,
-    markers: StreamingMarkers,
+    markers: Arc<StreamingMarkers>,
     decoder: encoding_rs::Decoder,
     pending: VecDeque<PendingToken>,
     section: SampledTokenSection,
@@ -68,7 +69,7 @@ pub struct SampledTokenClassifier<'model> {
 
 impl<'model> SampledTokenClassifier<'model> {
     #[must_use]
-    pub fn new(model: &'model LlamaModel, markers: StreamingMarkers) -> Self {
+    pub fn new(model: &'model LlamaModel, markers: Arc<StreamingMarkers>) -> Self {
         Self {
             model,
             markers,
@@ -505,13 +506,15 @@ impl<'model> SampledTokenClassifier<'model> {
     }
 
     #[must_use]
-    pub const fn markers(&self) -> &StreamingMarkers {
+    pub fn markers(&self) -> &StreamingMarkers {
         &self.markers
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::JsonProbeState;
     use super::PendingMarkerStatus;
     use super::PendingToken;
@@ -554,7 +557,7 @@ mod tests {
     fn synthetic_classifier(markers: StreamingMarkers) -> SampledTokenClassifier<'static> {
         SampledTokenClassifier {
             model: unsafe { &*std::ptr::NonNull::<crate::model::LlamaModel>::dangling().as_ptr() },
-            markers,
+            markers: Arc::new(markers),
             decoder: encoding_rs::UTF_8.new_decoder(),
             pending: std::collections::VecDeque::new(),
             section: SampledTokenSection::Pending,
