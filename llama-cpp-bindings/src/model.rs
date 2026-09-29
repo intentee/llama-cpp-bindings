@@ -626,6 +626,11 @@ impl LlamaModel {
     }
 
     #[must_use]
+    pub fn adds_bos_token(&self) -> bool {
+        unsafe { llama_cpp_bindings_sys::llama_vocab_get_add_bos(self.vocab_ptr()) }
+    }
+
+    #[must_use]
     pub fn is_eog_token(&self, token: &SampledToken) -> bool {
         let (SampledToken::Content(LlamaToken(id))
         | SampledToken::Reasoning(LlamaToken(id))
