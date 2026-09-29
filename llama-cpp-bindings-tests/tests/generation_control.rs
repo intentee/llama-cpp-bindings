@@ -5,7 +5,9 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::bail;
 use llama_cpp_bindings::BareJsonToolCalls;
+use llama_cpp_bindings::GbnfValidationError;
 use llama_cpp_bindings::GenerationProgress;
 use llama_cpp_bindings::GrammarError;
 use llama_cpp_bindings::SampledToken;
@@ -2269,6 +2271,83 @@ fn diagnose_tool_call_synthetic_renders_applies_the_template_to_both_probes(
              template was applied; got: {render:?}"
         );
     }
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let [think_token] = model.str_to_token("<think>", AddBos::Never)?[..] else {
+        bail!("<think> must be a single token");
+    };
+    let mut context = LlamaContext::from_model(
+        model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+    let prompt_tokens = model.str_to_token(
+        "<|im_start|>user\nSay hi<|im_end|>\n<|im_start|>assistant\n",
+        AddBos::Never,
+    )?;
+    let mut batch = LlamaBatch::new(128, 1)?;
+
+    batch.add_sequence(&prompt_tokens, 0, false)?;
+    context.decode(&mut batch)?;
+
+    let mut sampler = LlamaSampler::chain_simple([
+        LlamaSampler::grammar(model, r#"root ::= <think> "x""#, "root")?,
+        LlamaSampler::greedy()?,
+    ])?;
+
+    assert_eq!(sampler.sample(&context, batch.n_tokens() - 1)?, think_token);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_grammar_without_its_root_reports_the_missing_root(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    assert_eq!(
+        LlamaSampler::grammar(fixture.model, r#"answer ::= <think> "x""#, "root").err(),
+        Some(GrammarError::RootNotFound)
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_grammar_with_a_syntax_error_reports_it(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(
+        LlamaSampler::grammar(fixture.model, "root ::= (<think>", "root").err(),
+        Some(GrammarError::GrammarRejected(
+            GbnfValidationError::SyntaxError
+        ))
+    );
 
     Ok(())
 }

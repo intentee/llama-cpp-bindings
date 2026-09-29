@@ -19,6 +19,8 @@ pub enum GrammarError {
     GrammarRejected(#[source] llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError),
     #[error("the grammar string contains an interior NUL byte")]
     GrammarContainsNul(#[source] NulError),
+    #[error("the grammar root name contains an interior NUL byte")]
+    RootContainsNul(#[source] NulError),
     #[error("a lazy-grammar trigger pattern contains an interior NUL byte")]
     TriggerPatternContainsNul(#[source] NulError),
     #[error("a DRY sequence breaker contains an interior NUL byte")]

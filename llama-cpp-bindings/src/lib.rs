@@ -92,6 +92,7 @@ pub use llama_cpp_bindings_types::{
     ReasoningMarkers, TokenUsage, TokenUsageError, ToolCallArgsShape, ToolCallArguments,
     ToolCallMarkers, ToolCallValueQuote, XmlTagsShape,
 };
+pub use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
 pub use marker_role::MarkerRole;
 pub use marker_role_candidate::MarkerRoleCandidate;
 pub use raw_chat_message::RawChatMessage;

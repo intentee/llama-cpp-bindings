@@ -15,6 +15,7 @@ use crate::token::logit_bias::LlamaLogitBias;
 use crate::{GrammarError, SampleError, SamplerAcceptError, SamplingError};
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
+use llama_cpp_gbnf::validate_gbnf::validate_gbnf;
 
 fn check_sampler_accept_status(
     status: llama_cpp_bindings_sys::llama_rs_sampler_accept_status,
@@ -475,8 +476,8 @@ impl LlamaSampler {
         grammar_root: &str,
     ) -> Result<Self, GrammarError> {
         let SanitizedGrammar {
-            grammar: grammar_str,
-            root: grammar_root,
+            grammar: grammar_cstring,
+            root: root_cstring,
         } = Self::sanitize_grammar_strings(grammar_str, grammar_root)?;
         let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = std::ptr::null_mut();
         let mut error_ptr: *mut c_char = std::ptr::null_mut();
@@ -484,14 +485,16 @@ impl LlamaSampler {
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_sampler_init_grammar(
                 model.vocab_ptr(),
-                grammar_str.as_ptr(),
-                grammar_root.as_ptr(),
+                grammar_cstring.as_ptr(),
+                root_cstring.as_ptr(),
                 &raw mut sampler,
                 &raw mut error_ptr,
             )
         };
 
-        sampler_init_grammar_status_to_result(status, sampler, error_ptr)
+        sampler_init_grammar_status_to_result(status, sampler, error_ptr).map_err(|init_error| {
+            Self::diagnose_rejected_grammar(model, grammar_str, grammar_root, init_error)
+        })
     }
 
     /// # Errors
@@ -504,8 +507,8 @@ impl LlamaSampler {
         trigger_tokens: &[LlamaToken],
     ) -> Result<Self, GrammarError> {
         let SanitizedGrammar {
-            grammar: grammar_str,
-            root: grammar_root,
+            grammar: grammar_cstring,
+            root: root_cstring,
         } = Self::sanitize_grammar_strings(grammar_str, grammar_root)?;
         let trigger_patterns = Self::sanitize_trigger_patterns(trigger_patterns)?;
         let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = std::ptr::null_mut();
@@ -517,8 +520,8 @@ impl LlamaSampler {
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_sampler_init_grammar_lazy_patterns(
                 model.vocab_ptr(),
-                grammar_str.as_ptr(),
-                grammar_root.as_ptr(),
+                grammar_cstring.as_ptr(),
+                root_cstring.as_ptr(),
                 trigger_pattern_ptrs.as_mut_ptr(),
                 trigger_pattern_ptrs.len(),
                 trigger_tokens.as_ptr().cast(),
@@ -528,7 +531,11 @@ impl LlamaSampler {
             )
         };
 
-        sampler_init_grammar_lazy_patterns_status_to_result(status, sampler, error_ptr)
+        sampler_init_grammar_lazy_patterns_status_to_result(status, sampler, error_ptr).map_err(
+            |init_error| {
+                Self::diagnose_rejected_grammar(model, grammar_str, grammar_root, init_error)
+            },
+        )
     }
 
     /// # Errors
@@ -546,21 +553,32 @@ impl LlamaSampler {
         grammar_str: &str,
         grammar_root: &str,
     ) -> Result<SanitizedGrammar, GrammarError> {
-        match llama_cpp_gbnf::validate_gbnf::validate_gbnf(grammar_str, grammar_root) {
-            Ok(()) => {}
-            Err(GbnfValidationError::RootSymbolMissing { .. }) => {
-                return Err(GrammarError::RootNotFound);
-            }
-            Err(GbnfValidationError::GrammarContainsNul(nul_error)) => {
-                return Err(GrammarError::GrammarContainsNul(nul_error));
-            }
-            Err(rejected) => return Err(GrammarError::GrammarRejected(rejected)),
-        }
-
         Ok(SanitizedGrammar {
             grammar: CString::new(grammar_str).map_err(GrammarError::GrammarContainsNul)?,
-            root: CString::new(grammar_root).map_err(GrammarError::GrammarContainsNul)?,
+            root: CString::new(grammar_root).map_err(GrammarError::RootContainsNul)?,
         })
+    }
+
+    fn diagnose_rejected_grammar(
+        model: &LlamaModel,
+        grammar_str: &str,
+        grammar_root: &str,
+        init_error: GrammarError,
+    ) -> GrammarError {
+        if !matches!(
+            init_error,
+            GrammarError::GrammarMalformed | GrammarError::LazyGrammarMalformed
+        ) {
+            return init_error;
+        }
+
+        let vocab = unsafe { &*model.vocab_ptr() };
+
+        match validate_gbnf(Some(vocab), grammar_str, grammar_root) {
+            Ok(()) => init_error,
+            Err(GbnfValidationError::RootSymbolMissing { .. }) => GrammarError::RootNotFound,
+            Err(rejected) => GrammarError::GrammarRejected(rejected),
+        }
     }
 
     fn sanitize_trigger_patterns(
@@ -780,10 +798,12 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_grammar_strings_root_not_found() {
+    fn sanitize_grammar_strings_null_byte_in_root_only() {
         assert_eq!(
-            LlamaSampler::sanitize_grammar_strings("expr ::= \"hello\"", "root"),
-            Err(GrammarError::RootNotFound)
+            LlamaSampler::sanitize_grammar_strings("root ::= \"hello\"", "ro\0ot"),
+            Err(GrammarError::RootContainsNul(
+                CString::new("ro\0ot").expect_err("the root carries a nul byte")
+            ))
         );
     }
 
@@ -1153,15 +1173,6 @@ mod tests {
                 detail: "was given a null out_sampler argument",
             })
         );
-    }
-
-    #[test]
-    fn grammar_returns_root_not_found_before_touching_model() {
-        let model = unsafe { &*std::ptr::NonNull::<crate::model::LlamaModel>::dangling().as_ptr() };
-
-        let err = LlamaSampler::grammar(model, "expr ::= \"hello\"", "root").unwrap_err();
-
-        assert_eq!(err, GrammarError::RootNotFound);
     }
 }
 

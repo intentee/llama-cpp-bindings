@@ -1,4 +1,5 @@
 use std::ffi::{CString, c_char};
+use std::ptr;
 
 use llama_cpp_ffi_status::FfiContractError;
 use llama_cpp_ffi_status::FfiStatusError;
@@ -12,6 +13,7 @@ use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
 use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
 use llama_cpp_bindings_sys::llama_rs_validate_gbnf;
+use llama_cpp_bindings_sys::llama_vocab;
 
 use crate::gbnf_validation_error::GbnfValidationError;
 
@@ -78,13 +80,18 @@ fn validation_status_to_result(
 ///
 /// Returns [`GbnfValidationError`] when `grammar` or `root` contains an interior
 /// NUL byte, or when the grammar parser rejects the grammar.
-pub fn validate_gbnf(grammar: &str, root: &str) -> Result<(), GbnfValidationError> {
+pub fn validate_gbnf(
+    vocab: Option<&llama_vocab>,
+    grammar: &str,
+    root: &str,
+) -> Result<(), GbnfValidationError> {
     let grammar_cstring = CString::new(grammar).map_err(GbnfValidationError::GrammarContainsNul)?;
     let root_cstring = CString::new(root).map_err(GbnfValidationError::RootContainsNul)?;
 
-    let mut out_error = std::ptr::null_mut();
+    let mut out_error = ptr::null_mut();
     let status = unsafe {
         llama_rs_validate_gbnf(
+            vocab.map_or(ptr::null(), ptr::from_ref),
             grammar_cstring.as_ptr(),
             root_cstring.as_ptr(),
             &raw mut out_error,
@@ -108,13 +115,16 @@ mod tests {
 
     #[test]
     fn valid_grammar_is_accepted() {
-        assert_eq!(validate_gbnf(r#"root ::= "yes" | "no""#, "root"), Ok(()));
+        assert_eq!(
+            validate_gbnf(None, r#"root ::= "yes" | "no""#, "root"),
+            Ok(())
+        );
     }
 
     #[test]
     fn malformed_grammar_is_a_syntax_error() {
         assert_eq!(
-            validate_gbnf("root ::= (", "root"),
+            validate_gbnf(None, "root ::= (", "root"),
             Err(GbnfValidationError::SyntaxError)
         );
     }
@@ -122,7 +132,7 @@ mod tests {
     #[test]
     fn empty_grammar_has_no_rules() {
         assert_eq!(
-            validate_gbnf("", "root"),
+            validate_gbnf(None, "", "root"),
             Err(GbnfValidationError::EmptyRuleSet)
         );
     }
@@ -130,7 +140,7 @@ mod tests {
     #[test]
     fn grammar_without_root_reports_missing_root() {
         assert_eq!(
-            validate_gbnf(r#"expr ::= "x""#, "root"),
+            validate_gbnf(None, r#"expr ::= "x""#, "root"),
             Err(GbnfValidationError::RootSymbolMissing {
                 root: "root".to_owned()
             })
@@ -140,7 +150,7 @@ mod tests {
     #[test]
     fn left_recursive_grammar_is_rejected() {
         assert_eq!(
-            validate_gbnf(r#"root ::= root "x""#, "root"),
+            validate_gbnf(None, r#"root ::= root "x""#, "root"),
             Err(GbnfValidationError::LeftRecursion)
         );
     }
@@ -150,7 +160,7 @@ mod tests {
         let grammar = "root ::= \"a\0b\"";
 
         assert_eq!(
-            validate_gbnf(grammar, "root").err(),
+            validate_gbnf(None, grammar, "root").err(),
             CString::new(grammar)
                 .err()
                 .map(GbnfValidationError::GrammarContainsNul)
@@ -162,7 +172,7 @@ mod tests {
         let root = "ro\0ot";
 
         assert_eq!(
-            validate_gbnf(r#"root ::= "x""#, root).err(),
+            validate_gbnf(None, r#"root ::= "x""#, root).err(),
             CString::new(root)
                 .err()
                 .map(GbnfValidationError::RootContainsNul)

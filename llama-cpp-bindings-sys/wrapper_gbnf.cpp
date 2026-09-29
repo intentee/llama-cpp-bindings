@@ -7,6 +7,7 @@
 #include <new>
 
 extern "C" auto llama_rs_validate_gbnf(
+    const struct llama_vocab * vocab,
     const char * grammar_str,
     const char * grammar_root,
     char ** out_error) -> llama_rs_gbnf_validation_status {
@@ -23,7 +24,7 @@ extern "C" auto llama_rs_validate_gbnf(
         return LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG;
     }
     try {
-        llama_grammar_parser parser;
+        llama_grammar_parser parser(vocab);
 
         if (!parser.parse(grammar_str)) {
             return LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR;
@@ -38,7 +39,7 @@ extern "C" auto llama_rs_validate_gbnf(
         }
 
         llama_grammar * grammar = llama_grammar_init_impl(
-            nullptr, grammar_str, grammar_root, false, nullptr, 0, nullptr, 0);
+            vocab, grammar_str, grammar_root, false, nullptr, 0, nullptr, 0);
 
         if (grammar == nullptr) {
             return LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION;
