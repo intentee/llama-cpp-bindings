@@ -20,6 +20,8 @@ pub struct MtmdInputChunks {
     pub chunks: NonNull<llama_cpp_bindings_sys::mtmd_input_chunks>,
 }
 
+unsafe impl Send for MtmdInputChunks {}
+
 impl MtmdInputChunks {
     /// # Errors
     ///

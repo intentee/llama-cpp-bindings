@@ -881,11 +881,6 @@ pub struct ChatMessageParser {
     tools_parser: NonNull<llama_cpp_bindings_sys::llama_rs_chat_tools_parser>,
 }
 
-/// # Safety
-///
-/// The tools parser is a heap-allocated parser owned exclusively by this value; it is built
-/// once, only read afterwards, and freed exactly once on drop, so moving it between threads is
-/// sound.
 unsafe impl Send for ChatMessageParser {}
 
 impl ChatMessageParser {

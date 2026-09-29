@@ -222,6 +222,8 @@ pub struct LlamaSampler {
     sampler: NonNull<llama_cpp_bindings_sys::llama_sampler>,
 }
 
+unsafe impl Send for LlamaSampler {}
+
 fn grammar_callback_error_to_result(error: Option<RecordedError>) -> Result<(), SampleError> {
     error.map_or(Ok(()), |recorded| {
         Err(SampleError::GrammarCallbackFailed {
