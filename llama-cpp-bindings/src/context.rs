@@ -516,10 +516,26 @@ impl<'model> LlamaContext<'model> {
         &self,
         token_index: i32,
     ) -> Result<LlamaTokenDataArray, LogitsError> {
-        Ok(LlamaTokenDataArray::from_iter(
-            self.candidates_ith(token_index)?,
-            false,
-        ))
+        let mut token_data_array = LlamaTokenDataArray::new(Vec::new(), false);
+
+        self.fill_token_data_array_ith(token_index, &mut token_data_array)?;
+
+        Ok(token_data_array)
+    }
+
+    /// Replaces the candidates in `token_data_array` with the logits at
+    /// `token_index`, reusing its allocation.
+    ///
+    /// # Errors
+    /// Returns `LogitsError` if the token is not initialized or out of range.
+    pub fn fill_token_data_array_ith(
+        &self,
+        token_index: i32,
+        token_data_array: &mut LlamaTokenDataArray,
+    ) -> Result<(), LogitsError> {
+        token_data_array.replace_candidates(self.candidates_ith(token_index)?);
+
+        Ok(())
     }
 
     /// # Errors
