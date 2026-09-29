@@ -15,6 +15,9 @@ typedef struct llama_rs_parsed_chat * llama_rs_parsed_chat_handle;
 struct llama_rs_chat_parser;
 typedef struct llama_rs_chat_parser * llama_rs_chat_parser_handle;
 
+struct llama_rs_chat_tools_parser;
+typedef struct llama_rs_chat_tools_parser * llama_rs_chat_tools_parser_handle;
+
 typedef enum llama_rs_chat_parser_create_status {
     LLAMA_RS_CHAT_PARSER_CREATE_OK = 0,
     LLAMA_RS_CHAT_PARSER_CREATE_NULL_MODEL_ARG,
@@ -43,21 +46,48 @@ llama_rs_chat_parser_free_status llama_rs_chat_parser_free(
     llama_rs_chat_parser_handle parser,
     char ** out_error);
 
+typedef enum llama_rs_chat_tools_parser_create_status {
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_OK = 0,
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_NULL_PARSER_ARG,
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_NULL_TOOLS_JSON_ARG,
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_NULL_OUT_TOOLS_PARSER_ARG,
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_NULL_OUT_ERROR_ARG,
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_TOOLS_NOT_AN_ARRAY,
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_chat_tools_parser_create_status;
+
+llama_rs_chat_tools_parser_create_status llama_rs_chat_tools_parser_create(
+    llama_rs_chat_parser_handle parser,
+    const char * tools_json,
+    llama_rs_chat_tools_parser_handle * out_tools_parser,
+    char ** out_error);
+
+typedef enum llama_rs_chat_tools_parser_free_status {
+    LLAMA_RS_CHAT_TOOLS_PARSER_FREE_OK = 0,
+    LLAMA_RS_CHAT_TOOLS_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_CHAT_TOOLS_PARSER_FREE_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_CHAT_TOOLS_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
+} llama_rs_chat_tools_parser_free_status;
+
+llama_rs_chat_tools_parser_free_status llama_rs_chat_tools_parser_free(
+    llama_rs_chat_tools_parser_handle tools_parser,
+    char ** out_error);
+
 typedef enum llama_rs_parse_chat_message_status {
     LLAMA_RS_PARSE_CHAT_MESSAGE_OK = 0,
-    LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_PARSER_ARG,
+    LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_TOOLS_PARSER_ARG,
     LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_INPUT_ARG,
     LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_HANDLE_ARG,
     LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_ERROR_ARG,
     LLAMA_RS_PARSE_CHAT_MESSAGE_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-    LLAMA_RS_PARSE_CHAT_MESSAGE_TOOLS_PARSER_BUILD_THREW_CXX_EXCEPTION,
 } llama_rs_parse_chat_message_status;
 
 llama_rs_parse_chat_message_status llama_rs_parse_chat_message(
-    llama_rs_chat_parser_handle parser,
-    const char * tools_json,
+    llama_rs_chat_tools_parser_handle tools_parser,
     const char * input,
     int is_partial,
     llama_rs_parsed_chat_handle * out_handle,
