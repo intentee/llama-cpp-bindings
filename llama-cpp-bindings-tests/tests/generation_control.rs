@@ -1915,9 +1915,12 @@ fn finishing_releases_an_unmatched_token_with_its_visible_and_raw_piece(
 ) -> Result<()> {
     let model = fixture.model;
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let [ordinary_token] = model.str_to_token("hello", AddBos::Never)?[..] else {
+        bail!("\"hello\" must be a single token");
+    };
 
     let mut outcomes = Vec::new();
-    classifier.ingest(model.token_bos(), &mut outcomes)?;
+    classifier.ingest(ordinary_token, &mut outcomes)?;
     classifier.finish(&mut outcomes);
 
     assert_eq!(outcomes.len(), 1);
@@ -1968,9 +1971,12 @@ fn ingest_counts_every_token_through_the_end_of_generation(
 ) -> Result<()> {
     let model = fixture.model;
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let [ordinary_token] = model.str_to_token("hello", AddBos::Never)?[..] else {
+        bail!("\"hello\" must be a single token");
+    };
     let mut outcomes = Vec::new();
 
-    classifier.ingest(model.token_bos(), &mut outcomes)?;
+    classifier.ingest(ordinary_token, &mut outcomes)?;
 
     assert_eq!(
         classifier.ingest(model.token_eos(), &mut outcomes)?,
