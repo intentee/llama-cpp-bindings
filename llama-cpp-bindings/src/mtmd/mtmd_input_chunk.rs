@@ -190,6 +190,20 @@ impl MtmdInputChunk {
     /// # Errors
     ///
     /// Returns [`MtmdEvalError::ImageChunkExceedsBatchSize`] when this is an
+    /// image chunk whose token count exceeds `n_batch`, or
+    /// [`MtmdEvalError::UnknownChunkType`] when the chunk type is unknown.
+    pub fn fit_to_batch(&self, n_batch: i32) -> Result<(), MtmdEvalError> {
+        image_chunk_batch_size_error(
+            self.chunk_type()? == MtmdInputChunkType::Image,
+            self.n_tokens(),
+            n_batch,
+        )
+        .map_or(Ok(()), Err)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`MtmdEvalError::ImageChunkExceedsBatchSize`] when this is an
     /// image chunk whose token count exceeds `n_batch`. Returns
     /// [`MtmdEvalError::EvalFailure`] if the underlying encode or decode step
     /// fails.
@@ -202,15 +216,7 @@ impl MtmdInputChunk {
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdEvalError> {
-        let chunk_token_count = self.n_tokens();
-
-        if let Some(error) = image_chunk_batch_size_error(
-            self.chunk_type()? == MtmdInputChunkType::Image,
-            chunk_token_count,
-            n_batch,
-        ) {
-            return Err(error);
-        }
+        self.fit_to_batch(n_batch)?;
 
         let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
         let mut out_llama_cpp_return_code: i32 = 0;

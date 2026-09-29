@@ -60,6 +60,26 @@ impl MtmdInputChunks {
         })
     }
 
+    /// Checks every chunk against `n_batch` before any of them is evaluated.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MtmdEvalError::ImageChunkExceedsBatchSize`] for the first image chunk whose
+    /// token count exceeds `n_batch`, or [`MtmdEvalError::UnknownChunkType`] when a chunk type
+    /// is unknown.
+    pub fn fit_to_batch(&self, n_batch: i32) -> Result<(), MtmdEvalError> {
+        for index in 0..self.len() {
+            self.get(index)
+                .ok_or(crate::FfiContractError {
+                    operation: "mtmd_input_chunks_get",
+                    detail: "returned a null chunk within the chunk count",
+                })?
+                .fit_to_batch(n_batch)?;
+        }
+
+        Ok(())
+    }
+
     #[must_use]
     pub fn total_tokens(&self) -> usize {
         unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_tokens(self.chunks.as_ptr()) }
