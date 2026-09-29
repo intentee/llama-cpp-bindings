@@ -20,6 +20,7 @@ use crate::llama_batch::LlamaBatch;
 use crate::model::LlamaModel;
 use crate::mtmd::MtmdContext;
 use crate::mtmd::MtmdInputChunks;
+use crate::mtmd::micro_batch_tokens;
 use crate::sampled_token::SampledToken;
 use crate::sampling::LlamaSampler;
 use crate::streaming_json_probe::StreamingJsonProbe;
@@ -447,9 +448,13 @@ impl<'model> SampledTokenClassifier<'model> {
         self.pending_prompt_tokens
     }
 
+    /// Checks every chunk with [`MtmdInputChunks::fit_to_micro_batch`] before evaluating any of
+    /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
+    ///
     /// # Errors
-    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when the underlying
-    /// `eval_chunks` call fails (no counters move),
+    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when `params.n_batch` is not positive or
+    /// a chunk cannot be decoded (both before any chunk is evaluated), or when evaluating a
+    /// chunk fails,
     /// [`EvalMultimodalChunksError::UnknownChunkType`] when a chunk reports a
     /// type unknown to this binding, or
     /// [`EvalMultimodalChunksError::ChunkOutOfBounds`] when a valid index returns
@@ -461,6 +466,8 @@ impl<'model> SampledTokenClassifier<'model> {
         llama_ctx: &LlamaContext,
         params: EvalMultimodalChunksParams,
     ) -> Result<llama_pos, EvalMultimodalChunksError> {
+        chunks.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens(llama_ctx, params.n_batch)?)?;
+
         let chunk_count = chunks.len();
         let mut next_position = params.start_position;
 
