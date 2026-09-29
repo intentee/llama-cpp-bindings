@@ -320,6 +320,10 @@ impl<'model> LlamaContext<'model> {
         unsafe { llama_cpp_bindings_sys::llama_n_ubatch(self.context.as_ptr()) }
     }
 
+    fn exceeds_micro_batch(&self, batch: &LlamaBatch) -> bool {
+        i64::from(batch.n_tokens()) > i64::from(self.n_ubatch())
+    }
+
     #[must_use]
     pub fn n_ctx(&self) -> u32 {
         unsafe { llama_cpp_bindings_sys::llama_n_ctx(self.context.as_ptr()) }
@@ -375,6 +379,19 @@ impl<'model> LlamaContext<'model> {
     ///
     /// - `DecodeError` if the decoding failed.
     pub fn decode(&mut self, batch: &mut LlamaBatch) -> Result<(), DecodeError> {
+        let decodes_batches_in_one_micro_batch = unsafe {
+            llama_cpp_bindings_sys::llama_rs_context_decodes_batches_in_one_micro_batch(
+                self.context.as_ptr(),
+            )
+        };
+
+        if decodes_batches_in_one_micro_batch && self.exceeds_micro_batch(batch) {
+            return Err(DecodeError::BatchExceedsMicroBatch {
+                n_tokens: batch.n_tokens(),
+                n_ubatch: self.n_ubatch(),
+            });
+        }
+
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut std::os::raw::c_char = std::ptr::null_mut();
         let status = unsafe {
@@ -397,6 +414,13 @@ impl<'model> LlamaContext<'model> {
     ///
     /// - `EncodeError` if the encoding failed.
     pub fn encode(&mut self, batch: &mut LlamaBatch) -> Result<(), EncodeError> {
+        if self.exceeds_micro_batch(batch) {
+            return Err(EncodeError::BatchExceedsMicroBatch {
+                n_tokens: batch.n_tokens(),
+                n_ubatch: self.n_ubatch(),
+            });
+        }
+
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut std::os::raw::c_char = std::ptr::null_mut();
         let status = unsafe {

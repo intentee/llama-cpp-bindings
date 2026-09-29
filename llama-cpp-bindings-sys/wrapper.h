@@ -3,6 +3,7 @@
 #include "wrapper_chat_apply.h"
 #include "wrapper_chat_parse.h"
 #include "wrapper_common.h"
+#include "wrapper_context.h"
 #include "wrapper_fit.h"
 #include "wrapper_gbnf.h"
 #include "wrapper_mtmd.h"

@@ -6,6 +6,7 @@ use anyhow::Result;
 use llama_cpp_bindings::DecodeError;
 use llama_cpp_bindings::LogitsError;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::params::LlamaAttentionType;
 use llama_cpp_bindings::error::ClearKvCacheSeqError;
 use llama_cpp_bindings::error::CopyKvCacheSeqError;
 use llama_cpp_bindings::error::KvCacheSeqAddError;
@@ -2676,6 +2677,42 @@ fn qwen35_refilled_candidate_array_matches_a_freshly_built_one(
     context.fill_token_data_array_ith(last_index, &mut reused_candidates)?;
 
     assert_eq!(reused_candidates, context.token_data_array_ith(last_index)?);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 64,
+)]
+fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_returns_an_error(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params)
+            .into_llama_context_params()
+            .with_attention_type(LlamaAttentionType::NonCausal),
+    )?;
+    let tokens = fixture
+        .model
+        .str_to_token(&"hello ".repeat(100), AddBos::Always)?;
+    let mut batch = LlamaBatch::new(512, 1)?;
+    batch.add_sequence(&tokens, 0, false)?;
+    let n_tokens = batch.n_tokens();
+
+    assert_eq!(
+        context.decode(&mut batch),
+        Err(DecodeError::BatchExceedsMicroBatch {
+            n_tokens,
+            n_ubatch: context.n_ubatch(),
+        })
+    );
 
     Ok(())
 }

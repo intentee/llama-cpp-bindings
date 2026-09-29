@@ -23,6 +23,8 @@ pub enum EncodeError {
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]
     LlamaCppOutOfMemory,
+    #[error("encode batch of {n_tokens} tokens must fit a single micro batch of {n_ubatch} tokens")]
+    BatchExceedsMicroBatch { n_tokens: i32, n_ubatch: u32 },
     #[error("{message}")]
     Reported { message: String },
 }

@@ -3,6 +3,7 @@ pub const WRAPPER_HEADERS: &[&str] = &[
     "wrapper_chat_apply.h",
     "wrapper_chat_parse.h",
     "wrapper_common.h",
+    "wrapper_context.h",
     "wrapper_fit.h",
     "wrapper_gbnf.h",
     "wrapper_mtmd.h",
