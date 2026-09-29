@@ -1,4 +1,4 @@
-pub mod image_chunk_batch_size_mismatch;
+pub mod micro_batch_tokens;
 pub mod mtmd_bitmap;
 pub mod mtmd_bitmap_error;
 pub mod mtmd_context;
@@ -16,8 +16,10 @@ pub mod mtmd_input_chunks;
 pub mod mtmd_input_chunks_error;
 pub mod mtmd_input_text;
 pub mod mtmd_tokenize_error;
+pub mod non_causal_chunk_micro_batch_mismatch;
+pub mod positive_batch_tokens;
 
-pub use image_chunk_batch_size_mismatch::ImageChunkBatchSizeMismatch;
+pub use micro_batch_tokens::micro_batch_tokens;
 pub use mtmd_bitmap::MtmdBitmap;
 pub use mtmd_bitmap_error::MtmdBitmapError;
 pub use mtmd_context::MtmdContext;
@@ -35,3 +37,4 @@ pub use mtmd_input_chunks::MtmdInputChunks;
 pub use mtmd_input_chunks_error::MtmdInputChunksError;
 pub use mtmd_input_text::MtmdInputText;
 pub use mtmd_tokenize_error::MtmdTokenizeError;
+pub use non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;

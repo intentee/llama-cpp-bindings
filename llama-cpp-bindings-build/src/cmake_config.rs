@@ -246,6 +246,10 @@ fn configure_gpu_backends(config: &mut Config, target_os: TargetOs) -> Result<()
         if cfg!(feature = "cuda-no-vmm") {
             config.define("GGML_CUDA_NO_VMM", "ON");
         }
+
+        if let Some(cuda_architectures) = optional_env("CUDAARCHS")? {
+            config.define("CMAKE_CUDA_ARCHITECTURES", cuda_architectures);
+        }
     }
 
     if cfg!(feature = "rocm") {

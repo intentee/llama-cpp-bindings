@@ -5,6 +5,7 @@ use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
 
 pub fn register_rebuild_triggers(llama_src: &Path) {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=CUDAARCHS");
 
     for path in WRAPPER_HEADERS.iter().chain(WRAPPER_SOURCES) {
         println!("cargo:rerun-if-changed={path}");

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
@@ -11,6 +12,8 @@ use crate::llama_fixture::LlamaFixture;
 use crate::llama_test_registration::LlamaTestRegistration;
 use crate::load_key::LoadKey;
 use crate::phase_state::PhaseState;
+
+type LazyPhaseState = Arc<OnceLock<Result<PhaseState, String>>>;
 
 fn source_label(source: GgufSource) -> String {
     match source {
@@ -42,42 +45,43 @@ impl ExecutionPhase {
     }
 
     pub fn run(&self, backend: &Arc<LlamaBackend>, arguments: &Arguments) -> Conclusion {
-        let trials = match self.key.load_phase_state(backend) {
-            Ok(state) => self.passing_trials(&Arc::new(state)),
-            Err(error) => self.failing_trials(&format!("phase setup failed: {error:#}")),
-        };
-        libtest_mimic::run(arguments, trials)
+        let phase_state: LazyPhaseState = Arc::new(OnceLock::new());
+
+        libtest_mimic::run(
+            arguments,
+            self.registrations
+                .iter()
+                .map(|registration| self.trial(registration, backend, &phase_state))
+                .collect(),
+        )
     }
 
-    fn passing_trials(&self, state: &Arc<PhaseState>) -> Vec<Trial> {
-        self.registrations
-            .iter()
-            .map(|registration| {
-                let state_for_trial = Arc::clone(state);
-                let registration: &'static LlamaTestRegistration = registration;
-                let func = registration.func;
-                Trial::test(registration.name, move || {
-                    let fixture = LlamaFixture {
-                        model: &state_for_trial.model,
-                        backend: &state_for_trial.backend,
-                        context_params: &registration.context_params,
-                        mtmd_context: state_for_trial.mtmd_context.as_ref(),
-                        model_path: &state_for_trial.model_path,
-                    };
-                    func(&fixture).map_err(|error| Failed::from(format!("{error:#}")))
+    fn trial(
+        &self,
+        registration: &'static LlamaTestRegistration,
+        backend: &Arc<LlamaBackend>,
+        phase_state: &LazyPhaseState,
+    ) -> Trial {
+        let key = self.key;
+        let backend = Arc::clone(backend);
+        let phase_state = Arc::clone(phase_state);
+
+        Trial::test(registration.name, move || {
+            match phase_state.get_or_init(|| {
+                key.load_phase_state(&backend)
+                    .map_err(|error| format!("phase setup failed: {error:#}"))
+            }) {
+                Ok(state) => (registration.func)(&LlamaFixture {
+                    model: &state.model,
+                    backend: &state.backend,
+                    context_params: &registration.context_params,
+                    mtmd_context: state.mtmd_context.as_ref(),
+                    model_path: &state.model_path,
                 })
-            })
-            .collect()
-    }
-
-    fn failing_trials(&self, error_message: &str) -> Vec<Trial> {
-        self.registrations
-            .iter()
-            .map(|registration| {
-                let message = error_message.to_owned();
-                Trial::test(registration.name, move || Err(Failed::from(message)))
-            })
-            .collect()
+                .map_err(|error| Failed::from(format!("{error:#}"))),
+                Err(setup_failure) => Err(Failed::from(setup_failure)),
+            }
+        })
     }
 }
 

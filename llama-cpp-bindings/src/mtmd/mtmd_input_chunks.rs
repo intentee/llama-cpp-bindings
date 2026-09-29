@@ -2,10 +2,12 @@ use std::ptr::NonNull;
 
 use crate::context::LlamaContext;
 
+use super::micro_batch_tokens::micro_batch_tokens;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_input_chunk::MtmdInputChunk;
 use super::mtmd_input_chunks_error::MtmdInputChunksError;
+use super::positive_batch_tokens::positive_batch_tokens;
 
 const fn check_eval_result(result: i32) -> Result<(), MtmdEvalError> {
     if result == 0 {
@@ -19,6 +21,8 @@ const fn check_eval_result(result: i32) -> Result<(), MtmdEvalError> {
 pub struct MtmdInputChunks {
     pub chunks: NonNull<llama_cpp_bindings_sys::mtmd_input_chunks>,
 }
+
+unsafe impl Send for MtmdInputChunks {}
 
 impl MtmdInputChunks {
     /// # Errors
@@ -58,6 +62,32 @@ impl MtmdInputChunks {
         })
     }
 
+    /// Checks every chunk with [`MtmdInputChunk::fit_to_micro_batch`] before any of them is
+    /// evaluated.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MtmdEvalError::NonCausalChunkExceedsMicroBatch`] for the first chunk decoded
+    /// non-causally that has more tokens than `micro_batch_tokens`,
+    /// [`MtmdEvalError::UnknownChunkType`] when a chunk type is unknown, or
+    /// [`MtmdEvalError::FfiContract`] when a chunk within the chunk count is null.
+    pub fn fit_to_micro_batch(
+        &self,
+        mtmd_ctx: &MtmdContext,
+        micro_batch_tokens: u32,
+    ) -> Result<(), MtmdEvalError> {
+        for index in 0..self.len() {
+            self.get(index)
+                .ok_or(crate::FfiContractError {
+                    operation: "mtmd_input_chunks_get",
+                    detail: "returned a null chunk within the chunk count",
+                })?
+                .fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)?;
+        }
+
+        Ok(())
+    }
+
     #[must_use]
     pub fn total_tokens(&self) -> usize {
         unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_tokens(self.chunks.as_ptr()) }
@@ -68,9 +98,15 @@ impl MtmdInputChunks {
         unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_pos(self.chunks.as_ptr()) }
     }
 
+    /// Checks every chunk with [`Self::fit_to_micro_batch`] before evaluating any of them, so a
+    /// chunk that cannot be decoded leaves the KV cache untouched.
+    ///
     /// # Errors
     ///
-    /// Returns `MtmdEvalError::EvalFailure` if any encoding or decoding operation fails.
+    /// Returns [`MtmdEvalError::BatchSizeExceedsContextLimit`] when `n_batch` exceeds the
+    /// context's batch size, [`MtmdEvalError::NonPositiveBatchSize`] when it is not positive,
+    /// any error of [`Self::fit_to_micro_batch`], or [`MtmdEvalError::EvalFailed`] if any
+    /// encoding or decoding operation fails.
     pub fn eval_chunks(
         &self,
         mtmd_ctx: &MtmdContext,
@@ -80,14 +116,17 @@ impl MtmdInputChunks {
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdEvalError> {
+        let batch_tokens = positive_batch_tokens(n_batch)?;
         let context_max_batch = llama_ctx.n_batch();
 
-        if n_batch > 0 && n_batch.cast_unsigned() > context_max_batch {
+        if batch_tokens.get() > context_max_batch {
             return Err(MtmdEvalError::BatchSizeExceedsContextLimit {
                 requested: n_batch,
                 context_max: context_max_batch,
             });
         }
+
+        self.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens(llama_ctx, batch_tokens))?;
 
         let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
 

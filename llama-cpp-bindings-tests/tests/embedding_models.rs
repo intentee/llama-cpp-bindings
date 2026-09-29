@@ -4,8 +4,11 @@ use std::time::Duration;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
+use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ClearKvCacheSeqError;
 use llama_cpp_bindings::CopyKvCacheSeqError;
+use llama_cpp_bindings::DecodeError;
+use llama_cpp_bindings::EncodeError;
 use llama_cpp_bindings::KvCacheSeqAddError;
 use llama_cpp_bindings::KvCacheSeqDivError;
 use llama_cpp_bindings::KvCacheSeqPosMaxError;
@@ -65,7 +68,7 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
 
     let t_main_start = ggml_time_us();
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut batch = LlamaBatch::new(n_ctx, 1)?;
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
@@ -166,7 +169,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
         bail!("one of the provided prompts exceeds the size of the context window");
     }
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut batch = LlamaBatch::new(2048, i32::try_from(document_count)?)?;
     let t_main_start = ggml_time_us();
 
@@ -653,6 +656,68 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
         std::sync::Arc::ptr_eq(&env, &env_again),
         "approximate_tok_env must return the same cached Arc for any model, including \
          the embedding model which lacks an EOT token (selecting EOS instead)"
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 64,
+    embeddings = true,
+)]
+fn decoding_more_tokens_than_the_micro_batch_on_an_encoder_returns_an_error(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+    let tokens = fixture
+        .model
+        .str_to_token(&"hello ".repeat(100), AddBos::Always)?;
+    let mut batch = LlamaBatch::new(512, 1)?;
+    batch.add_sequence(&tokens, 0, false)?;
+    let n_tokens = batch.n_tokens();
+
+    assert_eq!(
+        context.decode(&mut batch),
+        Err(DecodeError::BatchExceedsMicroBatch {
+            n_tokens,
+            n_ubatch: context.n_ubatch(),
+        })
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("Xiaojian9992024/t5-small-GGUF", "t5-small.bf16.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 64,
+    embeddings = true,
+)]
+fn encoding_more_tokens_than_the_micro_batch_returns_an_error(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+    let tokens = fixture
+        .model
+        .str_to_token(&"hello ".repeat(100), AddBos::Never)?;
+    let mut batch = LlamaBatch::new(512, 1)?;
+    batch.add_sequence(&tokens, 0, false)?;
+    let n_tokens = batch.n_tokens();
+
+    assert_eq!(
+        context.encode(&mut batch),
+        Err(EncodeError::BatchExceedsMicroBatch {
+            n_tokens,
+            n_ubatch: context.n_ubatch(),
+        })
     );
 
     Ok(())

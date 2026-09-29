@@ -3,15 +3,17 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod bare_json_tool_calls;
 pub mod batch_add_error;
 pub mod chat_message_parse_outcome;
+pub mod chat_message_parser;
 pub mod chat_template_tool_calls;
-pub mod chat_tools;
 pub mod classified_sample;
 pub mod context;
 pub mod error;
 pub mod eval_multimodal_chunks_params;
 pub mod extract_tool_call_markers_from_haystack;
+pub mod generation_progress;
 pub mod ggml_time_us;
 pub mod gguf_context;
 pub mod gguf_context_error;
@@ -20,6 +22,7 @@ pub mod grammar_matcher;
 pub mod ingest_outcome;
 pub mod ingest_prompt_chunk;
 pub mod invalid_numa_strategy;
+pub mod json_probe_outcome;
 pub mod json_schema_to_grammar;
 pub mod llama_backend;
 pub mod llama_backend_device;
@@ -61,24 +64,26 @@ pub mod streaming_markers;
 pub mod synthetic_tool_call_renders;
 pub mod timing;
 pub mod token;
+pub mod token_piece;
 pub mod tool_call_format;
 pub mod tool_call_marker_pair;
 
 pub use error::{
-    ApplyChatTemplateError, ChatTemplateError, ChatToolsError, ClearKvCacheSeqError,
-    CopyKvCacheSeqError, DecodeError, EmbeddingsError, EncodeError, EvalMultimodalChunksError,
-    FfiContractError, FfiStatusError, GrammarError, JsonSchemaToGrammarError, KvCacheSeqAddError,
-    KvCacheSeqDivError, KvCacheSeqPosMaxError, LlamaContextLoadError, LlamaCppError,
-    LlamaLoraAdapterInitError, LlamaLoraAdaptersError, LlamaModelLoadError, LogitsError,
-    MarkerDetectionError, MetaValError, ModelParamsError, NewLlamaChatMessageError,
-    ParseChatMessageError, Result, SampleError, SamplerAcceptError, SamplingError,
-    StringToTokenError, TokenSamplingError, TokenToStringError,
+    ApplyChatTemplateError, ChatTemplateError, ClearKvCacheSeqError, CopyKvCacheSeqError,
+    DecodeError, EmbeddingsError, EncodeError, EvalMultimodalChunksError, FfiContractError,
+    FfiStatusError, GrammarError, JsonSchemaToGrammarError, KvCacheSeqAddError, KvCacheSeqDivError,
+    KvCacheSeqPosMaxError, LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError,
+    LlamaLoraAdaptersError, LlamaModelLoadError, LogitsError, MarkerDetectionError, MetaValError,
+    ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError, Result, SampleError,
+    SamplerAcceptError, SamplingError, StringToTokenError, TokenSamplingError, TokenToStringError,
 };
 
+pub use bare_json_tool_calls::BareJsonToolCalls;
 pub use chat_message_parse_outcome::ChatMessageParseOutcome;
-pub use chat_tools::ChatTools;
+pub use chat_message_parser::ChatMessageParser;
 pub use classified_sample::ClassifiedSample;
 pub use eval_multimodal_chunks_params::EvalMultimodalChunksParams;
+pub use generation_progress::GenerationProgress;
 pub use llama_backend_device::LlamaBackendDevice;
 pub use llama_backend_device_type::LlamaBackendDeviceType;
 pub use llama_cpp_bindings_types::{
@@ -86,6 +91,7 @@ pub use llama_cpp_bindings_types::{
     ReasoningMarkers, TokenUsage, TokenUsageError, ToolCallArgsShape, ToolCallArguments,
     ToolCallMarkers, ToolCallValueQuote, XmlTagsShape,
 };
+pub use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
 pub use marker_role::MarkerRole;
 pub use marker_role_candidate::MarkerRoleCandidate;
 pub use raw_chat_message::RawChatMessage;
@@ -95,6 +101,7 @@ pub use sampled_token_section::SampledTokenSection;
 pub use streaming_marker::StreamingMarker;
 pub use streaming_markers::StreamingMarkers;
 pub use synthetic_tool_call_renders::SyntheticToolCallRenders;
+pub use token_piece::TokenPiece;
 
 pub use ggml_time_us::ggml_time_us;
 pub use ingest_prompt_chunk::ingest_prompt_chunk;

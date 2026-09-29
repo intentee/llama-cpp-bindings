@@ -79,6 +79,16 @@ impl LlamaTokenDataArray {
         Self::new(data.into_iter().collect(), sorted)
     }
 
+    pub fn replace_candidates<TIterator>(&mut self, candidates: TIterator)
+    where
+        TIterator: IntoIterator<Item = LlamaTokenData>,
+    {
+        self.data.clear();
+        self.data.extend(candidates);
+        self.selected = None;
+        self.sorted = false;
+    }
+
     #[must_use]
     pub fn selected_token(&self) -> Option<LlamaToken> {
         self.data.get(self.selected?).map(LlamaTokenData::id)

@@ -5,6 +5,10 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::bail;
+use llama_cpp_bindings::BareJsonToolCalls;
+use llama_cpp_bindings::GbnfValidationError;
+use llama_cpp_bindings::GenerationProgress;
 use llama_cpp_bindings::GrammarError;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::SamplerAcceptError;
@@ -132,15 +136,15 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
         LlamaSampler::greedy()?,
     ])?;
 
-    let mut classifier = model.sampled_token_classifier()?;
-    let turn = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1)?;
-    let mut outcomes = turn.outcomes;
-    outcomes.extend(classifier.flush());
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let mut outcomes = Vec::new();
+    let turn = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1, &mut outcomes)?;
+    classifier.finish(&mut outcomes);
 
     assert_eq!(
         outcomes.len(),
         1,
-        "expected one finalised outcome after flush"
+        "expected one finalised outcome after finishing"
     );
     let outcome = &outcomes[0];
 
@@ -150,7 +154,7 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
         "Grammar sampler should not allow EOS as first token"
     );
 
-    let piece = &outcome.raw_piece;
+    let piece = outcome.piece.raw();
     let first_char = piece
         .chars()
         .next()
@@ -230,15 +234,15 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
         LlamaSampler::greedy()?,
     ])?;
 
-    let mut classifier = model.sampled_token_classifier()?;
-    let turn = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1)?;
-    let mut outcomes = turn.outcomes;
-    outcomes.extend(classifier.flush());
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let mut outcomes = Vec::new();
+    let turn = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1, &mut outcomes)?;
+    classifier.finish(&mut outcomes);
 
     assert_eq!(
         outcomes.len(),
         1,
-        "expected one finalised outcome after flush"
+        "expected one finalised outcome after finishing"
     );
     let outcome = &outcomes[0];
 
@@ -248,7 +252,7 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
         "Grammar sampler should not allow EOS as first token"
     );
 
-    let piece = &outcome.raw_piece;
+    let piece = outcome.piece.raw();
 
     assert!(
         piece.starts_with('{'),
@@ -309,7 +313,7 @@ fn sample_with_grammar_produces_constrained_output_in_loop(
     let tokens = model.str_to_token(prompt, AddBos::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     context.decode(&mut batch)?;
@@ -323,7 +327,6 @@ fn sample_with_grammar_produces_constrained_output_in_loop(
 
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -408,18 +411,20 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
     let mut sampler =
         LlamaSampler::chain_simple([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let mut outcomes = Vec::new();
     let mut sampled_count: u64 = 0;
 
     for (position, _) in (batch.n_tokens()..).zip(0..5) {
-        let turn = classifier.sample(&mut sampler, &context, -1)?;
-        let raw_as_sampled = SampledToken::Content(turn.token);
+        let turn = classifier.sample(&mut sampler, &context, -1, &mut outcomes)?;
 
-        if model.is_eog_token(&raw_as_sampled) {
+        if turn.progress == GenerationProgress::Ended {
             break;
         }
 
         sampled_count += 1;
+
+        let raw_as_sampled = SampledToken::Content(turn.token);
 
         batch.clear();
         batch.add(&raw_as_sampled, position, &[0], true)?;
@@ -427,7 +432,7 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
         context.decode(&mut batch)?;
     }
 
-    let _ = classifier.flush();
+    classifier.finish(&mut outcomes);
 
     assert!(
         sampled_count > 0,
@@ -847,7 +852,7 @@ fn raw_prompt_completion_with_timing(fixture: &LlamaFixture<'_>) -> Result<()> {
     let prompt = "Hello my name is";
     let max_generated_tokens: i32 = 64;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let tokens_list = model
         .str_to_token(prompt, AddBos::Always)
         .with_context(|| format!("failed to tokenize {prompt}"))?;
@@ -881,7 +886,6 @@ fn raw_prompt_completion_with_timing(fixture: &LlamaFixture<'_>) -> Result<()> {
     let initial_position = batch.n_tokens();
     let t_main_start = ggml_time_us();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut ctx,
@@ -994,7 +998,7 @@ fn chat_inference_produces_coherent_output(fixture: &LlamaFixture<'_>) -> Result
     )?];
     let prompt = model.apply_chat_template(&chat_template, &messages, true, true)?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let tokens = model.str_to_token(&prompt, AddBos::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
@@ -1012,7 +1016,6 @@ fn chat_inference_produces_coherent_output(fixture: &LlamaFixture<'_>) -> Result
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1822,7 +1825,9 @@ fn llguidance_chain_samples_a_valid_token(fixture: &LlamaFixture<'_>) -> Result<
 fn classifier_starts_in_pending_section_for_default_fixture(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let classifier = fixture.model.sampled_token_classifier()?;
+    let classifier = fixture
+        .model
+        .sampled_token_classifier(BareJsonToolCalls::Detect)?;
 
     assert_eq!(classifier.current_section(), SampledTokenSection::Pending);
     Ok(())
@@ -1861,8 +1866,12 @@ fn classifier_starts_in_pending_section_for_default_fixture(
     n_ubatch = 64,
 )]
 fn classifier_construction_is_idempotent_across_calls(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let first = fixture.model.sampled_token_classifier()?;
-    let second = fixture.model.sampled_token_classifier()?;
+    let first = fixture
+        .model
+        .sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let second = fixture
+        .model
+        .sampled_token_classifier(BareJsonToolCalls::Detect)?;
 
     assert_eq!(first.current_section(), second.current_section());
     assert_eq!(first.usage(), second.usage());
@@ -1901,14 +1910,18 @@ fn classifier_construction_is_idempotent_across_calls(fixture: &LlamaFixture<'_>
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn ingest_flushes_an_unmatched_token_with_its_visible_and_raw_piece(
+fn finishing_releases_an_unmatched_token_with_its_visible_and_raw_piece(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let [ordinary_token] = model.str_to_token("hello", AddBos::Never)?[..] else {
+        bail!("\"hello\" must be a single token");
+    };
 
-    let mut outcomes = classifier.ingest(model.token_bos())?;
-    outcomes.extend(classifier.flush());
+    let mut outcomes = Vec::new();
+    classifier.ingest(ordinary_token, &mut outcomes)?;
+    classifier.finish(&mut outcomes);
 
     assert_eq!(outcomes.len(), 1);
     let outcome = &outcomes[0];
@@ -1916,7 +1929,7 @@ fn ingest_flushes_an_unmatched_token_with_its_visible_and_raw_piece(
         outcome.sampled_token,
         SampledToken::Undeterminable(_)
     ));
-    assert_eq!(outcome.visible_piece, outcome.raw_piece);
+    assert_eq!(outcome.piece.visible(), outcome.piece.raw());
     assert_eq!(classifier.usage().undeterminable_tokens, 1);
     Ok(())
 }
@@ -1953,13 +1966,22 @@ fn ingest_flushes_an_unmatched_token_with_its_visible_and_raw_piece(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn ingest_accounts_for_each_unmatched_token_after_flush(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn ingest_counts_every_token_through_the_end_of_generation(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let [ordinary_token] = model.str_to_token("hello", AddBos::Never)?[..] else {
+        bail!("\"hello\" must be a single token");
+    };
+    let mut outcomes = Vec::new();
 
-    classifier.ingest(model.token_bos())?;
-    classifier.ingest(model.token_eos())?;
-    classifier.flush();
+    classifier.ingest(ordinary_token, &mut outcomes)?;
+
+    assert_eq!(
+        classifier.ingest(model.token_eos(), &mut outcomes)?,
+        GenerationProgress::Ended
+    );
 
     assert_eq!(classifier.usage().undeterminable_tokens, 2);
     Ok(())
@@ -1999,7 +2021,7 @@ fn ingest_accounts_for_each_unmatched_token_after_flush(fixture: &LlamaFixture<'
 )]
 fn ingest_unmatched_prompt_tokens_does_not_record_usage(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let usage_before = *classifier.usage();
 
     classifier.ingest_prompt_token(model.token_bos());
@@ -2044,7 +2066,7 @@ fn ingest_unmatched_prompt_tokens_does_not_record_usage(fixture: &LlamaFixture<'
 )]
 fn feed_prompt_to_batch_increments_pending_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut batch = LlamaBatch::new(8, 1)?;
 
     classifier.feed_prompt_to_batch(&mut batch, model.token_bos(), 0, &[0], false)?;
@@ -2090,7 +2112,7 @@ fn feed_prompt_to_batch_increments_pending_prompt_tokens(fixture: &LlamaFixture<
 )]
 fn feed_prompt_sequence_to_batch_stages_all_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut batch = LlamaBatch::new(8, 1)?;
 
     let tokens = vec![model.token_bos(), model.token_eos(), model.token_nl()];
@@ -2138,7 +2160,7 @@ fn commit_prompt_tokens_promotes_pending_count_to_usage_and_clears(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut batch = LlamaBatch::new(8, 1)?;
 
     classifier.feed_prompt_to_batch(&mut batch, model.token_bos(), 0, &[0], false)?;
@@ -2189,7 +2211,7 @@ fn discard_pending_prompt_tokens_clears_count_without_recording_usage(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut batch = LlamaBatch::new(8, 1)?;
 
     classifier.feed_prompt_to_batch(&mut batch, model.token_bos(), 0, &[0], false)?;
@@ -2255,6 +2277,83 @@ fn diagnose_tool_call_synthetic_renders_applies_the_template_to_both_probes(
              template was applied; got: {render:?}"
         );
     }
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let [think_token] = model.str_to_token("<think>", AddBos::Never)?[..] else {
+        bail!("<think> must be a single token");
+    };
+    let mut context = LlamaContext::from_model(
+        model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+    let prompt_tokens = model.str_to_token(
+        "<|im_start|>user\nSay hi<|im_end|>\n<|im_start|>assistant\n",
+        AddBos::Never,
+    )?;
+    let mut batch = LlamaBatch::new(128, 1)?;
+
+    batch.add_sequence(&prompt_tokens, 0, false)?;
+    context.decode(&mut batch)?;
+
+    let mut sampler = LlamaSampler::chain_simple([
+        LlamaSampler::grammar(model, r#"root ::= <think> "x""#, "root")?,
+        LlamaSampler::greedy()?,
+    ])?;
+
+    assert_eq!(sampler.sample(&context, batch.n_tokens() - 1)?, think_token);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_grammar_without_its_root_reports_the_missing_root(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    assert_eq!(
+        LlamaSampler::grammar(fixture.model, r#"answer ::= <think> "x""#, "root").err(),
+        Some(GrammarError::RootNotFound)
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_grammar_with_a_syntax_error_reports_it(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(
+        LlamaSampler::grammar(fixture.model, "root ::= (<think>", "root").err(),
+        Some(GrammarError::GrammarRejected(
+            GbnfValidationError::SyntaxError
+        ))
+    );
 
     Ok(())
 }

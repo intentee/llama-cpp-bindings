@@ -25,6 +25,10 @@ struct llama_rs_chat_parser {
     autoparser::autoparser parser;
 };
 
+struct llama_rs_chat_tools_parser {
+    common_peg_arena arena;
+};
+
 namespace {
 void dup_or_set_alloc_flag(const std::string & source, char ** out_dup, bool * out_alloc_failed) {
     *out_dup = llama_rs_dup_string(source);
@@ -47,18 +51,6 @@ auto report_current_parse_exception(
         return LLAMA_RS_PARSE_CHAT_MESSAGE_ERROR_STRING_ALLOCATION_FAILED;
     }
     return thrown_status;
-}
-
-auto build_tools_parser(const llama_rs_chat_parser & parser, const char * tools_json) -> common_peg_arena {
-    autoparser::generation_params inputs;
-
-    if ((tools_json != nullptr) && *tools_json != '\0') {
-        inputs.tools = common_json::parse(tools_json);
-    } else {
-        inputs.tools = common_json::array();
-    }
-
-    return parser.parser.build_parser(inputs, std::string());
 }
 
 auto parse_with_tools_parser(
@@ -176,9 +168,94 @@ extern "C" auto llama_rs_chat_parser_free(
     }
 }
 
-extern "C" auto llama_rs_parse_chat_message(
+extern "C" auto llama_rs_chat_tools_parser_create(
     llama_rs_chat_parser_handle parser,
     const char * tools_json,
+    llama_rs_chat_tools_parser_handle * out_tools_parser,
+    char ** out_error) -> llama_rs_chat_tools_parser_create_status {
+    if (out_tools_parser != nullptr) {
+        *out_tools_parser = nullptr;
+    }
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    if (parser == nullptr) {
+        return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_NULL_PARSER_ARG;
+    }
+    if (tools_json == nullptr) {
+        return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_NULL_TOOLS_JSON_ARG;
+    }
+    if (out_tools_parser == nullptr) {
+        return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_NULL_OUT_TOOLS_PARSER_ARG;
+    }
+    if (out_error == nullptr) {
+        return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_NULL_OUT_ERROR_ARG;
+    }
+
+    try {
+        autoparser::generation_params inputs;
+
+        inputs.tools = common_json::parse(tools_json);
+
+        if (!inputs.tools.is_array()) {
+            return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_TOOLS_NOT_AN_ARRAY;
+        }
+
+        auto tools_parser_handle = std::make_unique<llama_rs_chat_tools_parser>();
+        tools_parser_handle->arena = parser->parser.build_parser(inputs, std::string());
+
+        *out_tools_parser = tools_parser_handle.release();
+
+        return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_OK;
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_LLAMA_CPP_OUT_OF_MEMORY;
+    } catch (const std::exception & ex) {
+        *out_error = llama_rs_dup_string(std::string(ex.what()));
+        if (*out_error == nullptr) {
+            return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_ERROR_STRING_ALLOCATION_FAILED;
+        }
+        return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+    } catch (...) {
+        *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
+        if (*out_error == nullptr) {
+            return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_ERROR_STRING_ALLOCATION_FAILED;
+        }
+        return LLAMA_RS_CHAT_TOOLS_PARSER_CREATE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+    }
+}
+
+extern "C" auto llama_rs_chat_tools_parser_free(
+    llama_rs_chat_tools_parser_handle tools_parser,
+    char ** out_error) -> llama_rs_chat_tools_parser_free_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    try {
+        const std::unique_ptr<llama_rs_chat_tools_parser> reclaimed(tools_parser);
+        return LLAMA_RS_CHAT_TOOLS_PARSER_FREE_OK;
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_CHAT_TOOLS_PARSER_FREE_LLAMA_CPP_OUT_OF_MEMORY;
+    } catch (const std::exception & err) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string(err.what());
+            if (*out_error == nullptr) {
+                return LLAMA_RS_CHAT_TOOLS_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_CHAT_TOOLS_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+    } catch (...) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string("unknown c++ exception");
+            if (*out_error == nullptr) {
+                return LLAMA_RS_CHAT_TOOLS_PARSER_FREE_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_CHAT_TOOLS_PARSER_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+    }
+}
+
+extern "C" auto llama_rs_parse_chat_message(
+    llama_rs_chat_tools_parser_handle tools_parser,
     const char * input,
     int is_partial,
     llama_rs_parsed_chat_handle * out_handle,
@@ -189,8 +266,8 @@ extern "C" auto llama_rs_parse_chat_message(
     if (out_error != nullptr) {
         *out_error = nullptr;
     }
-    if (parser == nullptr) {
-        return LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_PARSER_ARG;
+    if (tools_parser == nullptr) {
+        return LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_TOOLS_PARSER_ARG;
     }
     if (input == nullptr) {
         return LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_INPUT_ARG;
@@ -202,14 +279,7 @@ extern "C" auto llama_rs_parse_chat_message(
         return LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_ERROR_ARG;
     }
 
-    try {
-        common_peg_arena const chat_parser = build_tools_parser(*parser, tools_json);
-
-        return parse_with_tools_parser(chat_parser, input, is_partial, out_handle, out_error);
-    } catch (...) {
-        return report_current_parse_exception(
-            out_error, LLAMA_RS_PARSE_CHAT_MESSAGE_TOOLS_PARSER_BUILD_THREW_CXX_EXCEPTION);
-    }
+    return parse_with_tools_parser(tools_parser->arena, input, is_partial, out_handle, out_error);
 }
 
 extern "C" auto llama_rs_parsed_chat_free(

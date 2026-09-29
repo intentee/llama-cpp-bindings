@@ -2,6 +2,7 @@ pub const WRAPPER_SOURCES: &[&str] = &[
     "wrapper_chat_apply.cpp",
     "wrapper_chat_parse.cpp",
     "wrapper_common.cpp",
+    "wrapper_context.cpp",
     "wrapper_fit.cpp",
     "wrapper_gbnf.cpp",
     "wrapper_mtmd.cpp",

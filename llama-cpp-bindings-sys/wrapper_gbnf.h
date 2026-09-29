@@ -4,6 +4,8 @@
 extern "C" {
 #endif
 
+struct llama_vocab;
+
 typedef enum llama_rs_gbnf_validation_status {
     LLAMA_RS_GBNF_VALIDATION_OK = 0,
     LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR,
@@ -19,6 +21,7 @@ typedef enum llama_rs_gbnf_validation_status {
 } llama_rs_gbnf_validation_status;
 
 llama_rs_gbnf_validation_status llama_rs_validate_gbnf(
+    const struct llama_vocab * vocab,
     const char * grammar_str,
     const char * grammar_root,
     char ** out_error);

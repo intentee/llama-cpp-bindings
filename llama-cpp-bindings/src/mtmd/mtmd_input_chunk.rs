@@ -7,12 +7,14 @@ use crate::context::LlamaContext;
 use crate::token::LlamaToken;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
-use super::image_chunk_batch_size_mismatch::ImageChunkBatchSizeMismatch;
+use super::micro_batch_tokens::micro_batch_tokens;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_input_chunk_error::MtmdInputChunkError;
 use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
+use super::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
+use super::positive_batch_tokens::positive_batch_tokens;
 
 /// # Safety
 ///
@@ -99,18 +101,18 @@ fn eval_chunk_single_status_to_result(
     }
 }
 
-fn image_chunk_batch_size_error(
-    is_image_chunk: bool,
-    chunk_token_count: usize,
-    n_batch: i32,
+fn non_causal_chunk_micro_batch_error(
+    decodes_non_causally: bool,
+    chunk_tokens: usize,
+    micro_batch_tokens: u32,
 ) -> Option<MtmdEvalError> {
-    if is_image_chunk
-        && i64::try_from(chunk_token_count).is_ok_and(|tokens| tokens > i64::from(n_batch))
+    if decodes_non_causally
+        && u64::try_from(chunk_tokens).is_ok_and(|tokens| tokens > u64::from(micro_batch_tokens))
     {
-        return Some(MtmdEvalError::ImageChunkExceedsBatchSize(
-            ImageChunkBatchSizeMismatch {
-                image_tokens: chunk_token_count,
-                n_batch,
+        return Some(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
+            NonCausalChunkMicroBatchMismatch {
+                chunk_tokens,
+                micro_batch_tokens,
             },
         ));
     }
@@ -187,12 +189,37 @@ impl MtmdInputChunk {
         Ok(Self { chunk, owned: true })
     }
 
+    /// Checks that this chunk can be evaluated in decodes of `micro_batch_tokens`. llama.cpp
+    /// splits a causal chunk across decodes, while a media chunk it decodes non-causally has to
+    /// fit a single decode.
+    ///
     /// # Errors
     ///
-    /// Returns [`MtmdEvalError::ImageChunkExceedsBatchSize`] when this is an
-    /// image chunk whose token count exceeds `n_batch`. Returns
-    /// [`MtmdEvalError::EvalFailure`] if the underlying encode or decode step
-    /// fails.
+    /// Returns [`MtmdEvalError::NonCausalChunkExceedsMicroBatch`] when a media chunk decoded
+    /// non-causally has more tokens than `micro_batch_tokens`, or
+    /// [`MtmdEvalError::UnknownChunkType`] when the chunk type is unknown.
+    pub fn fit_to_micro_batch(
+        &self,
+        mtmd_ctx: &MtmdContext,
+        micro_batch_tokens: u32,
+    ) -> Result<(), MtmdEvalError> {
+        let decodes_non_causally =
+            self.chunk_type()? != MtmdInputChunkType::Text && mtmd_ctx.decode_use_non_causal(self);
+
+        non_causal_chunk_micro_batch_error(
+            decodes_non_causally,
+            self.n_tokens(),
+            micro_batch_tokens,
+        )
+        .map_or(Ok(()), Err)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`MtmdEvalError::NonPositiveBatchSize`] when `n_batch` is not positive,
+    /// [`MtmdEvalError::NonCausalChunkExceedsMicroBatch`] when this chunk has to fit a single
+    /// decode but does not, or [`MtmdEvalError::EvalFailed`] if the underlying encode or decode
+    /// step fails.
     pub fn eval_single(
         &self,
         mtmd_ctx: &MtmdContext,
@@ -202,15 +229,10 @@ impl MtmdInputChunk {
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdEvalError> {
-        let chunk_token_count = self.n_tokens();
-
-        if let Some(error) = image_chunk_batch_size_error(
-            self.chunk_type()? == MtmdInputChunkType::Image,
-            chunk_token_count,
-            n_batch,
-        ) {
-            return Err(error);
-        }
+        self.fit_to_micro_batch(
+            mtmd_ctx,
+            micro_batch_tokens(llama_ctx, positive_batch_tokens(n_batch)?),
+        )?;
 
         let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
         let mut out_llama_cpp_return_code: i32 = 0;
@@ -251,10 +273,10 @@ impl Drop for MtmdInputChunk {
 #[cfg(test)]
 mod unit_tests {
     use super::eval_chunk_single_status_to_result;
-    use super::image_chunk_batch_size_error;
+    use super::non_causal_chunk_micro_batch_error;
     use super::tokens_from_raw_ptr;
-    use crate::mtmd::image_chunk_batch_size_mismatch::ImageChunkBatchSizeMismatch;
     use crate::mtmd::mtmd_eval_error::MtmdEvalError;
+    use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 
     #[test]
     fn tokens_from_raw_ptr_returns_none_for_null() {
@@ -345,28 +367,26 @@ mod unit_tests {
     }
 
     #[test]
-    fn image_chunk_over_batch_size_reports_mismatch() {
-        let error = image_chunk_batch_size_error(true, 9, 4);
-
+    fn a_non_causal_chunk_larger_than_the_micro_batch_reports_the_mismatch() {
         assert_eq!(
-            error,
-            Some(MtmdEvalError::ImageChunkExceedsBatchSize(
-                ImageChunkBatchSizeMismatch {
-                    image_tokens: 9,
-                    n_batch: 4,
+            non_causal_chunk_micro_batch_error(true, 9, 4),
+            Some(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
+                NonCausalChunkMicroBatchMismatch {
+                    chunk_tokens: 9,
+                    micro_batch_tokens: 4,
                 }
             ))
         );
     }
 
     #[test]
-    fn non_image_chunk_never_reports_mismatch() {
-        assert!(image_chunk_batch_size_error(false, 9, 4).is_none());
+    fn a_causal_chunk_larger_than_the_micro_batch_is_split_instead() {
+        assert!(non_causal_chunk_micro_batch_error(false, 9, 4).is_none());
     }
 
     #[test]
-    fn image_chunk_within_batch_size_reports_no_mismatch() {
-        assert!(image_chunk_batch_size_error(true, 4, 4).is_none());
+    fn a_non_causal_chunk_within_the_micro_batch_fits() {
+        assert!(non_causal_chunk_micro_batch_error(true, 4, 4).is_none());
     }
 }
 

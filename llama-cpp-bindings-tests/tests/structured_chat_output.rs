@@ -1,7 +1,9 @@
 use anyhow::Result;
 use anyhow::bail;
+use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ChatMessageParseOutcome;
-use llama_cpp_bindings::ChatTools;
+use llama_cpp_bindings::ChatMessageParser;
+use llama_cpp_bindings::GenerationProgress;
 use llama_cpp_bindings::MarkerRole;
 use llama_cpp_bindings::ParsedChatMessage;
 use llama_cpp_bindings::SampledTokenSection;
@@ -33,8 +35,7 @@ fn parse_partial_reasoning_response(
     } else {
         format!("{}{generated}", markers.open)
     };
-    let parse_outcome =
-        model.parse_chat_message(&ChatTools::from_json("[]".to_owned())?, &response, true)?;
+    let parse_outcome = ChatMessageParser::new(model, "[]")?.parse(&response, true)?;
     let ChatMessageParseOutcome::Recognized(parsed) = parse_outcome else {
         bail!("model chat template must recognize a partial reasoning response");
     };
@@ -66,7 +67,7 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens =
         model.str_to_token(DEEPSEEK_R1_8B_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
@@ -95,7 +96,6 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -177,7 +177,7 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(DEEPSEEK_R1_8B_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -205,7 +205,6 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -321,11 +320,8 @@ fn deepseek_r1_8b_duck_types_gemma_paired_quote(fixture: &LlamaFixture<'_>) -> R
     const GEMMA_PAIRED_QUOTE_PAYLOAD: &str =
         "<|tool_call>call:get_weather{location:<|\"|>Paris<|\"|>}";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        GEMMA_PAIRED_QUOTE_PAYLOAD,
-        false,
-    )?;
+    let outcome = ChatMessageParser::new(fixture.model, TOOLS_JSON)?
+        .parse(GEMMA_PAIRED_QUOTE_PAYLOAD, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -385,11 +381,8 @@ fn deepseek_r1_8b_duck_types_glm_key_value_tags(fixture: &LlamaFixture<'_>) -> R
 <arg_value>Paris</arg_value>\
 </tool_call>";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        GLM_KEY_VALUE_PAYLOAD,
-        false,
-    )?;
+    let outcome =
+        ChatMessageParser::new(fixture.model, TOOLS_JSON)?.parse(GLM_KEY_VALUE_PAYLOAD, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -447,11 +440,8 @@ fn deepseek_r1_8b_duck_types_mistral_bracketed_json(fixture: &LlamaFixture<'_>) 
     const MISTRAL_BRACKETED_JSON_PAYLOAD: &str =
         r#"[TOOL_CALLS]get_weather[ARGS]{"location":"Paris"}"#;
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        MISTRAL_BRACKETED_JSON_PAYLOAD,
-        false,
-    )?;
+    let outcome = ChatMessageParser::new(fixture.model, TOOLS_JSON)?
+        .parse(MISTRAL_BRACKETED_JSON_PAYLOAD, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -514,11 +504,8 @@ Paris\n\
 </function>\n\
 </tool_call>";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        QWEN_XML_PAYLOAD,
-        false,
-    )?;
+    let outcome =
+        ChatMessageParser::new(fixture.model, TOOLS_JSON)?.parse(QWEN_XML_PAYLOAD, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -577,11 +564,7 @@ fn deepseek_r1_8b_recognizes_empty_tool_calls_when_input_is_plain_content_with_t
 
     const PLAIN_CONTENT: &str = "Sorry, I cannot help with that.";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        PLAIN_CONTENT,
-        false,
-    )?;
+    let outcome = ChatMessageParser::new(fixture.model, TOOLS_JSON)?.parse(PLAIN_CONTENT, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -611,11 +594,7 @@ fn deepseek_r1_8b_recognizes_empty_tool_calls_when_tools_not_requested(
 ) -> Result<()> {
     const PLAIN_CONTENT: &str = "Hello there.";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json("[]".to_owned())?,
-        PLAIN_CONTENT,
-        false,
-    )?;
+    let outcome = ChatMessageParser::new(fixture.model, "[]")?.parse(PLAIN_CONTENT, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("plain content with empty tools array must produce Recognized; got Unrecognized");
@@ -651,7 +630,7 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(GEMMA4_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -672,7 +651,6 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -752,7 +730,7 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(GEMMA4_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -773,7 +751,6 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -868,11 +845,8 @@ fn gemma4_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
     const GEMMA4_PAIRED_QUOTE_PAYLOAD: &str =
         "<|tool_call>call:get_weather{location:<|\"|>Paris<|\"|>}";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        GEMMA4_PAIRED_QUOTE_PAYLOAD,
-        false,
-    )?;
+    let outcome = ChatMessageParser::new(fixture.model, TOOLS_JSON)?
+        .parse(GEMMA4_PAIRED_QUOTE_PAYLOAD, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for Gemma 4 PairedQuote on a Gemma-4 model; got Unrecognized");
@@ -961,7 +935,7 @@ What is 2 + 2?
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(GLM47_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -989,7 +963,6 @@ What is 2 + 2?
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1041,7 +1014,7 @@ What is 2 + 2?
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(GLM47_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1069,7 +1042,6 @@ What is 2 + 2?
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1138,11 +1110,8 @@ fn glm47_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
 <arg_value>Paris</arg_value>\
 </tool_call>";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        GLM47_KEY_VALUE_PAYLOAD,
-        false,
-    )?;
+    let outcome =
+        ChatMessageParser::new(fixture.model, TOOLS_JSON)?.parse(GLM47_KEY_VALUE_PAYLOAD, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -1222,7 +1191,7 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(MISTRAL3_THINKING_DISABLED_PROMPT, AddBos::Always)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1243,7 +1212,6 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1299,7 +1267,7 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(MISTRAL3_THINKING_PROMPT, AddBos::Always)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1320,7 +1288,6 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1383,11 +1350,8 @@ fn mistral3_parses_tool_call_payload(fixture: &LlamaFixture<'_>) -> Result<()> {
     const MISTRAL3_BRACKETED_JSON_PAYLOAD: &str =
         r#"[TOOL_CALLS]get_weather[ARGS]{"location":"Paris"}"#;
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        MISTRAL3_BRACKETED_JSON_PAYLOAD,
-        false,
-    )?;
+    let outcome = ChatMessageParser::new(fixture.model, TOOLS_JSON)?
+        .parse(MISTRAL3_BRACKETED_JSON_PAYLOAD, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -1437,7 +1401,7 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     )?];
     let prompt = model.apply_chat_template(&chat_template, &messages, true, true)?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let tokens = model.str_to_token(&prompt, AddBos::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
@@ -1452,7 +1416,6 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1519,7 +1482,9 @@ fn qwen35_shared_reasoning_close_and_tool_call_open_is_one_transition(
         .tokens()
         .to_vec();
 
-    let mut classifier = fixture.model.sampled_token_classifier()?;
+    let mut classifier = fixture
+        .model
+        .sampled_token_classifier(BareJsonToolCalls::Detect)?;
     classifier.ingest_prompt_tokens(&reasoning_open);
     assert_eq!(classifier.current_section(), SampledTokenSection::Reasoning);
 
@@ -1557,7 +1522,7 @@ What is 2 + 2?<|im_end|>
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(QWEN35_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1585,7 +1550,6 @@ What is 2 + 2?<|im_end|>
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1637,7 +1601,7 @@ What is 2 + 2?<|im_end|>
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(QWEN35_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1665,7 +1629,6 @@ What is 2 + 2?<|im_end|>
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1767,11 +1730,8 @@ get off the keyboard\n\
 </function>\n\
 </tool_call>";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(NEGOTIATE_WITH_CAT_TOOLS_JSON.to_owned())?,
-        NEGOTIATE_WITH_CAT_INPUT,
-        false,
-    )?;
+    let outcome = ChatMessageParser::new(fixture.model, NEGOTIATE_WITH_CAT_TOOLS_JSON)?
+        .parse(NEGOTIATE_WITH_CAT_INPUT, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -1829,11 +1789,8 @@ Paris\n\
 </function>\n\
 </tool_call>";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        QWEN_XML_PAYLOAD,
-        false,
-    )?;
+    let outcome =
+        ChatMessageParser::new(fixture.model, TOOLS_JSON)?.parse(QWEN_XML_PAYLOAD, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for Qwen XML on a Qwen-3.5 model; got Unrecognized");
@@ -1882,11 +1839,8 @@ fn qwen35_parses_partial_tool_call_returns_pending_state(fixture: &LlamaFixture<
 
     const PARTIAL_QWEN_XML_PAYLOAD: &str = "<tool_call>\n<function=get_weather>\n<parameter=lo";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        PARTIAL_QWEN_XML_PAYLOAD,
-        true,
-    )?;
+    let outcome =
+        ChatMessageParser::new(fixture.model, TOOLS_JSON)?.parse(PARTIAL_QWEN_XML_PAYLOAD, true)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for partial Qwen XML on a Qwen-3.5 model; got Unrecognized");
@@ -1937,11 +1891,8 @@ Berlin\n\
 </function>\n\
 </tool_call>";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        TWO_QWEN_XML_PAYLOADS,
-        false,
-    )?;
+    let outcome =
+        ChatMessageParser::new(fixture.model, TOOLS_JSON)?.parse(TWO_QWEN_XML_PAYLOADS, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -1987,11 +1938,7 @@ fn qwen35_recognizes_empty_tool_calls_when_input_is_plain_content_with_tools_req
 
     const PLAIN_CONTENT: &str = "Sorry, I cannot help with that.";
 
-    let outcome = fixture.model.parse_chat_message(
-        &ChatTools::from_json(TOOLS_JSON.to_owned())?,
-        PLAIN_CONTENT,
-        false,
-    )?;
+    let outcome = ChatMessageParser::new(fixture.model, TOOLS_JSON)?.parse(PLAIN_CONTENT, false)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!(
@@ -2035,7 +1982,7 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     )?];
     let prompt = model.apply_chat_template(&chat_template, &messages, true, true)?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let tokens = model.str_to_token(&prompt, AddBos::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
@@ -2050,7 +1997,6 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -2105,7 +2051,7 @@ What is 2 + 2?<|im_end|>
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(QWEN36_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -2133,7 +2079,6 @@ What is 2 + 2?<|im_end|>
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -2185,7 +2130,7 @@ What is 2 + 2?<|im_end|>
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(QWEN36_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -2213,7 +2158,6 @@ What is 2 + 2?<|im_end|>
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -2244,6 +2188,73 @@ What is 2 + 2?<|im_end|>
         assert!(!outcome.reasoning_stream.contains(forbidden));
         assert!(!outcome.content_stream.contains(forbidden));
     }
+
+    Ok(())
+}
+
+fn visible_text_of_generation_ending_after(
+    model: &LlamaModel,
+    generated_text: &str,
+) -> Result<String> {
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let mut outcomes = Vec::new();
+
+    for token in model.str_to_token(generated_text, AddBos::Never)? {
+        assert_eq!(
+            classifier.ingest(token, &mut outcomes)?,
+            GenerationProgress::Continues
+        );
+    }
+
+    assert_eq!(
+        classifier.ingest(model.token_eos(), &mut outcomes)?,
+        GenerationProgress::Ended
+    );
+
+    Ok(outcomes
+        .iter()
+        .map(|outcome| outcome.piece.visible())
+        .collect())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_classifier_ends_generation_without_emitting_the_end_of_generation_token(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    const GENERATED_TEXT: &str = "The answer is four.";
+
+    assert_eq!(
+        visible_text_of_generation_ending_after(fixture.model, GENERATED_TEXT)?,
+        GENERATED_TEXT
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_classifier_releases_a_held_json_prefix_when_generation_ends(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    const GENERATED_TEXT: &str = r#"{"answer": 4"#;
+
+    assert_eq!(
+        visible_text_of_generation_ending_after(fixture.model, GENERATED_TEXT)?,
+        GENERATED_TEXT
+    );
 
     Ok(())
 }
