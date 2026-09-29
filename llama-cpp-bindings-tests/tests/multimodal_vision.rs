@@ -663,6 +663,137 @@ fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
     load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
+)]
+fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
+    let llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+
+    assert_eq!(
+        chunks.eval_chunks(mtmd_ctx, &llama_ctx, 0, 0, 0, true),
+        Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
+    );
+    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
+)]
+fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
+    let first_chunk = chunks.get(0).context("tokenization produced no chunks")?;
+    let llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+
+    assert_eq!(
+        first_chunk.eval_single(mtmd_ctx, &llama_ctx, 0, 0, 0, true),
+        Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
+    );
+    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
+)]
+fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
+    let llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+    let mut classifier = fixture
+        .model
+        .sampled_token_classifier(BareJsonToolCalls::Ignore)?;
+
+    assert!(matches!(
+        classifier.eval_multimodal_chunks(
+            &chunks,
+            mtmd_ctx,
+            &llama_ctx,
+            EvalMultimodalChunksParams {
+                start_position: 0,
+                seq_id: 0,
+                n_batch: 0,
+                logits_last: true,
+            },
+        ),
+        Err(EvalMultimodalChunksError::EvalFailed(
+            MtmdEvalError::NonPositiveBatchSize { requested: 0 }
+        ))
+    ));
+    assert_eq!(classifier.usage().prompt_tokens, 0);
+    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 512,
     n_ubatch = 512,
@@ -1764,6 +1895,53 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
         Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
             NonCausalChunkMicroBatchMismatch {
                 chunk_tokens: usize::try_from(image_tokens)?,
+                micro_batch_tokens: llama_ctx.n_ubatch(),
+            }
+        ))
+    );
+    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/gemma-3-4b-it-GGUF", "gemma-3-4b-it-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 2048,
+    n_ubatch = 128,
+    mmproj_source = HuggingFace("unsloth/gemma-3-4b-it-GGUF", "mmproj-F16.gguf"),
+)]
+fn gemma3_eval_single_rejects_a_non_causal_image_larger_than_the_micro_batch_before_evaluating(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
+    let image_chunk = (0..chunks.len())
+        .filter_map(|chunk_index| chunks.get(chunk_index))
+        .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
+        .context("the prompt must contain an image chunk")?;
+    let llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+
+    assert_eq!(
+        image_chunk.eval_single(
+            mtmd_ctx,
+            &llama_ctx,
+            0,
+            0,
+            i32::try_from(llama_ctx.n_batch())?,
+            true
+        ),
+        Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
+            NonCausalChunkMicroBatchMismatch {
+                chunk_tokens: image_chunk.n_tokens(),
                 micro_batch_tokens: llama_ctx.n_ubatch(),
             }
         ))

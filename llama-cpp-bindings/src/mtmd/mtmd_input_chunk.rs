@@ -14,6 +14,7 @@ use super::mtmd_input_chunk_error::MtmdInputChunkError;
 use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 use super::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
+use super::positive_batch_tokens::positive_batch_tokens;
 
 /// # Safety
 ///
@@ -228,7 +229,10 @@ impl MtmdInputChunk {
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdEvalError> {
-        self.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens(llama_ctx, n_batch)?)?;
+        self.fit_to_micro_batch(
+            mtmd_ctx,
+            micro_batch_tokens(llama_ctx, positive_batch_tokens(n_batch)?),
+        )?;
 
         let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
         let mut out_llama_cpp_return_code: i32 = 0;

@@ -17,6 +17,7 @@ pub mod mtmd_input_chunks_error;
 pub mod mtmd_input_text;
 pub mod mtmd_tokenize_error;
 pub mod non_causal_chunk_micro_batch_mismatch;
+pub mod positive_batch_tokens;
 
 pub use micro_batch_tokens::micro_batch_tokens;
 pub use mtmd_bitmap::MtmdBitmap;

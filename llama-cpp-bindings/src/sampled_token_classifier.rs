@@ -21,6 +21,7 @@ use crate::model::LlamaModel;
 use crate::mtmd::MtmdContext;
 use crate::mtmd::MtmdInputChunks;
 use crate::mtmd::micro_batch_tokens;
+use crate::mtmd::positive_batch_tokens::positive_batch_tokens;
 use crate::sampled_token::SampledToken;
 use crate::sampling::LlamaSampler;
 use crate::streaming_json_probe::StreamingJsonProbe;
@@ -466,7 +467,10 @@ impl<'model> SampledTokenClassifier<'model> {
         llama_ctx: &LlamaContext,
         params: EvalMultimodalChunksParams,
     ) -> Result<llama_pos, EvalMultimodalChunksError> {
-        chunks.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens(llama_ctx, params.n_batch)?)?;
+        chunks.fit_to_micro_batch(
+            mtmd_ctx,
+            micro_batch_tokens(llama_ctx, positive_batch_tokens(params.n_batch)?),
+        )?;
 
         let chunk_count = chunks.len();
         let mut next_position = params.start_position;
