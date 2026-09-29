@@ -1,13 +1,11 @@
 use anyhow::Context;
 use anyhow::Result;
+use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
-use llama_cpp_bindings::SampledToken;
-use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::ingest_prompt_chunk::ingest_prompt_chunk;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
@@ -17,7 +15,6 @@ use llama_cpp_bindings::mtmd::MtmdInputChunks;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_tests::build_user_prompt_with_media_marker::build_user_prompt_with_media_marker;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
@@ -887,62 +884,6 @@ fn tokenize_with_null_byte_in_text_returns_error(fixture: &LlamaFixture<'_>) -> 
     Ok(())
 }
 
-struct SamplingTotals {
-    generated: String,
-    observed_content: u64,
-    observed_reasoning: u64,
-}
-
-fn drive_sampling_loop(
-    classifier: &mut SampledTokenClassifier,
-    model: &LlamaModel,
-    ctx: &mut LlamaContext,
-    starting_position: llama_pos,
-    max_tokens: usize,
-) -> Result<SamplingTotals> {
-    let mut sampler = LlamaSampler::greedy()?;
-    let mut totals = SamplingTotals {
-        generated: String::new(),
-        observed_content: 0,
-        observed_reasoning: 0,
-    };
-    let mut batch = LlamaBatch::new(512, 1)?;
-
-    for (current_position, _) in (starting_position..).zip(0..max_tokens) {
-        let turn = classifier.sample(&mut sampler, ctx, -1)?;
-        for outcome in &turn.outcomes {
-            totals.generated.push_str(&outcome.raw_piece);
-            match outcome.sampled_token {
-                SampledToken::Content(_) => totals.observed_content += 1,
-                SampledToken::Reasoning(_) => totals.observed_reasoning += 1,
-                SampledToken::ToolCall(_) | SampledToken::Undeterminable(_) => {}
-            }
-        }
-
-        let raw_as_sampled = SampledToken::Content(turn.token);
-        if model.is_eog_token(&raw_as_sampled) {
-            break;
-        }
-
-        batch.clear();
-        batch.add(&raw_as_sampled, current_position, &[0], true)?;
-
-        ctx.decode(&mut batch)
-            .with_context(|| "failed to decode generated token")?;
-    }
-
-    for outcome in classifier.flush() {
-        totals.generated.push_str(&outcome.raw_piece);
-        match outcome.sampled_token {
-            SampledToken::Content(_) => totals.observed_content += 1,
-            SampledToken::Reasoning(_) => totals.observed_reasoning += 1,
-            SampledToken::ToolCall(_) | SampledToken::Undeterminable(_) => {}
-        }
-    }
-
-    Ok(totals)
-}
-
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -1010,7 +951,7 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
         "vision input must produce at least one image chunk"
     );
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
@@ -1034,12 +975,22 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
         assert_eq!(usage.input_audio_tokens, expected.audio);
     }
 
-    let totals = drive_sampling_loop(&mut classifier, model, &mut ctx, n_past, 512)?;
+    let mut sampler = LlamaSampler::greedy()?;
+    let mut batch = LlamaBatch::new(512, 1)?;
+    let totals = ClassifySampleLoop {
+        classifier: &mut classifier,
+        sampler: &mut sampler,
+        context: &mut ctx,
+        batch: &mut batch,
+        initial_position: n_past,
+        max_generated_tokens: 512,
+    }
+    .run()?;
 
-    eprintln!("generated text: {}", totals.generated);
+    eprintln!("generated text: {}", totals.generated_raw);
 
     assert!(
-        !totals.generated.is_empty(),
+        !totals.generated_raw.is_empty(),
         "model should generate at least one token from image input"
     );
 
@@ -1088,7 +1039,7 @@ fn build_multimodal_chunks_and_eval_into_usage(
     let context_params = (*fixture.context_params).into_llama_context_params();
     let context = LlamaContext::from_model(model, fixture.backend, context_params)?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -1233,7 +1184,7 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let n_tokens = u64::try_from(text_chunk.n_tokens())?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
 
     ingest_prompt_chunk(&mut classifier, &text_chunk)?;
 
@@ -1299,7 +1250,7 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
         anyhow::bail!("image chunk should report at least one token");
     }
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
 
     ingest_prompt_chunk(&mut classifier, &image_chunk)?;
 
@@ -1348,7 +1299,7 @@ fn text_chunk_drives_marker_state_machine_to_reasoning(fixture: &LlamaFixture<'_
     };
     let chunks = mtmd_ctx.tokenize(input_text, &[])?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
 
     for index in 0..chunks.len() {
         let chunk = chunks
@@ -1413,7 +1364,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -1437,7 +1388,6 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let mut batch = LlamaBatch::new(2048, 1)?;
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1517,7 +1467,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -1533,7 +1483,6 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let mut sampler = LlamaSampler::greedy()?;
     let mut batch = LlamaBatch::new(2048, 1)?;
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1614,7 +1563,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -1638,7 +1587,6 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let mut batch = LlamaBatch::new(2048, 1)?;
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1710,7 +1658,7 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -1734,7 +1682,6 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let mut batch = LlamaBatch::new(2048, 1)?;
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,

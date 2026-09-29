@@ -68,10 +68,23 @@ impl StreamingMarkers {
     }
 
     #[must_use]
-    pub fn longest_matching_suffix(&self, tokens: &[LlamaToken]) -> Option<&StreamingMarker> {
+    pub fn longest_matching_suffix<TReversedTokens>(
+        &self,
+        reversed_tokens: &TReversedTokens,
+    ) -> Option<&StreamingMarker>
+    where
+        TReversedTokens: Iterator<Item = LlamaToken> + Clone,
+    {
         self.markers
             .iter()
-            .filter(|marker| tokens.ends_with(marker.tokens()))
+            .filter(|marker| {
+                marker
+                    .tokens()
+                    .iter()
+                    .rev()
+                    .copied()
+                    .eq(reversed_tokens.clone().take(marker.tokens().len()))
+            })
             .max_by_key(|marker| marker.tokens().len())
     }
 
@@ -173,7 +186,7 @@ mod tests {
         .expect("markers are valid");
 
         let matched = markers
-            .longest_matching_suffix(&[token(1), token(2)])
+            .longest_matching_suffix(&[token(1), token(2)].into_iter().rev())
             .expect("a suffix must match");
 
         assert_eq!(matched.tokens(), &[token(1), token(2)]);

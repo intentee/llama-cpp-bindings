@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
+use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ClearKvCacheSeqError;
 use llama_cpp_bindings::CopyKvCacheSeqError;
 use llama_cpp_bindings::KvCacheSeqAddError;
@@ -65,7 +66,7 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
 
     let t_main_start = ggml_time_us();
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut batch = LlamaBatch::new(n_ctx, 1)?;
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
@@ -166,7 +167,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
         bail!("one of the provided prompts exceeds the size of the context window");
     }
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut batch = LlamaBatch::new(2048, i32::try_from(document_count)?)?;
     let t_main_start = ggml_time_us();
 

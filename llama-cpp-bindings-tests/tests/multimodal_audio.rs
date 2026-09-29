@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -64,7 +65,7 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
         "tokenization should produce at least one chunk"
     );
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
@@ -99,7 +100,6 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
     let mut sampler = LlamaSampler::greedy()?;
     let mut batch = LlamaBatch::new(512, 1)?;
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,

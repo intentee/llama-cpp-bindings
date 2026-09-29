@@ -1,14 +1,14 @@
 use anyhow::Result;
+use llama_cpp_bindings::GenerationProgress;
+use llama_cpp_bindings::SampledTokenSection;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 
 pub struct ClassifySampleLoop<'borrow, 'model, 'tokens> {
-    pub model: &'model LlamaModel,
     pub classifier: &'borrow mut SampledTokenClassifier<'model>,
     pub sampler: &'borrow mut LlamaSampler,
     pub context: &'borrow mut LlamaContext<'model>,
@@ -29,150 +29,137 @@ pub struct ClassifySampleLoopOutcome {
     pub eog_seen: bool,
 }
 
+impl ClassifySampleLoopOutcome {
+    const fn record_end_of_generation(&mut self, section: SampledTokenSection) {
+        self.eog_seen = true;
+
+        match section {
+            SampledTokenSection::Content => self.observed_content += 1,
+            SampledTokenSection::Reasoning => self.observed_reasoning += 1,
+            SampledTokenSection::ToolCall => self.observed_tool_call += 1,
+            SampledTokenSection::Pending => self.observed_undeterminable += 1,
+        }
+    }
+
+    fn record_outcome(&mut self, ingest: &IngestOutcome) {
+        self.generated_raw.push_str(ingest.piece.raw());
+
+        match ingest.sampled_token {
+            SampledToken::Content(_) => {
+                self.observed_content += 1;
+                self.content_stream.push_str(ingest.piece.visible());
+            }
+            SampledToken::Reasoning(_) => {
+                self.observed_reasoning += 1;
+                self.reasoning_stream.push_str(ingest.piece.visible());
+            }
+            SampledToken::ToolCall(_) => self.observed_tool_call += 1,
+            SampledToken::Undeterminable(_) => self.observed_undeterminable += 1,
+        }
+    }
+}
+
 impl ClassifySampleLoop<'_, '_, '_> {
     /// # Errors
     /// Forwards [`SampledTokenClassifier::sample`] / [`LlamaContext::decode`] /
-    /// [`LlamaBatch::add`] errors verbatim. Stops on EOG, on
+    /// [`LlamaBatch::add`] errors verbatim. Stops on the end of generation, on
     /// `max_generated_tokens` exhaustion, or on the first error.
     pub fn run(self) -> Result<ClassifySampleLoopOutcome> {
         let mut outcome = ClassifySampleLoopOutcome::default();
+        let mut ingest_outcomes = Vec::new();
         let mut position = self.initial_position;
         let max_position = position + self.max_generated_tokens;
 
         while position < max_position {
-            let sampled =
-                self.classifier
-                    .sample(self.sampler, self.context, self.batch.n_tokens() - 1)?;
+            let sampled = self.classifier.sample(
+                self.sampler,
+                self.context,
+                self.batch.n_tokens() - 1,
+                &mut ingest_outcomes,
+            )?;
 
-            for ingest_outcome in &sampled.outcomes {
-                let is_eog = self.model.is_eog_token(&ingest_outcome.sampled_token);
-                if is_eog {
-                    outcome.eog_seen = true;
-                } else {
-                    outcome.generated_raw.push_str(&ingest_outcome.raw_piece);
-                }
-                record_outcome(ingest_outcome, &mut outcome, is_eog);
-            }
+            if sampled.progress == GenerationProgress::Ended {
+                outcome.record_end_of_generation(self.classifier.current_section());
 
-            let raw_as_sampled = SampledToken::Content(sampled.token);
-            if self.model.is_eog_token(&raw_as_sampled) {
-                outcome.eog_seen = true;
                 break;
             }
 
             self.batch.clear();
-            self.batch.add(&raw_as_sampled, position, &[0], true)?;
+            self.batch
+                .add(&SampledToken::Content(sampled.token), position, &[0], true)?;
             position += 1;
 
             self.context.decode(self.batch)?;
         }
 
-        for ingest_outcome in self.classifier.flush() {
-            let is_eog = self.model.is_eog_token(&ingest_outcome.sampled_token);
-            if is_eog {
-                outcome.eog_seen = true;
-            } else {
-                outcome.generated_raw.push_str(&ingest_outcome.raw_piece);
-            }
-            record_outcome(&ingest_outcome, &mut outcome, is_eog);
+        self.classifier.finish(&mut ingest_outcomes);
+
+        for ingest_outcome in &ingest_outcomes {
+            outcome.record_outcome(ingest_outcome);
         }
 
         Ok(outcome)
     }
 }
 
-fn record_outcome(ingest: &IngestOutcome, outcome: &mut ClassifySampleLoopOutcome, is_eog: bool) {
-    match ingest.sampled_token {
-        SampledToken::Content(_) => {
-            outcome.observed_content += 1;
-            if !is_eog {
-                outcome.content_stream.push_str(&ingest.visible_piece);
-            }
-        }
-        SampledToken::Reasoning(_) => {
-            outcome.observed_reasoning += 1;
-            if !is_eog {
-                outcome.reasoning_stream.push_str(&ingest.visible_piece);
-            }
-        }
-        SampledToken::ToolCall(_) => {
-            outcome.observed_tool_call += 1;
-        }
-        SampledToken::Undeterminable(_) => {
-            outcome.observed_undeterminable += 1;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::SampledTokenSection;
+    use llama_cpp_bindings::TokenPiece;
     use llama_cpp_bindings::ingest_outcome::IngestOutcome;
     use llama_cpp_bindings::sampled_token::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
 
     use super::ClassifySampleLoopOutcome;
-    use super::record_outcome;
 
     #[test]
-    fn record_outcome_tool_call_token() {
-        let ingest = IngestOutcome {
-            sampled_token: SampledToken::ToolCall(LlamaToken(42)),
-            visible_piece: String::new(),
-            raw_piece: String::new(),
-        };
+    fn records_a_tool_call_token_without_streaming_it() {
         let mut outcome = ClassifySampleLoopOutcome::default();
 
-        record_outcome(&ingest, &mut outcome, false);
+        outcome.record_outcome(&IngestOutcome {
+            sampled_token: SampledToken::ToolCall(LlamaToken(42)),
+            piece: TokenPiece::Visible("{".to_owned()),
+        });
 
         assert_eq!(outcome.observed_tool_call, 1);
-        assert_eq!(outcome.observed_content, 0);
-        assert_eq!(outcome.observed_reasoning, 0);
-        assert_eq!(outcome.observed_undeterminable, 0);
+        assert_eq!(outcome.generated_raw, "{");
+        assert!(outcome.content_stream.is_empty());
     }
 
     #[test]
-    fn record_outcome_reasoning_token_streams_visible_piece() {
-        let ingest = IngestOutcome {
-            sampled_token: SampledToken::Reasoning(LlamaToken(7)),
-            visible_piece: "thinking".to_string(),
-            raw_piece: String::new(),
-        };
+    fn streams_the_visible_part_of_a_reasoning_token() {
         let mut outcome = ClassifySampleLoopOutcome::default();
 
-        record_outcome(&ingest, &mut outcome, false);
+        outcome.record_outcome(&IngestOutcome {
+            sampled_token: SampledToken::Reasoning(LlamaToken(7)),
+            piece: TokenPiece::Visible("thinking".to_owned()),
+        });
 
         assert_eq!(outcome.observed_reasoning, 1);
         assert_eq!(outcome.reasoning_stream, "thinking");
     }
 
     #[test]
-    fn record_outcome_reasoning_token_at_end_of_generation_is_not_streamed() {
-        let ingest = IngestOutcome {
-            sampled_token: SampledToken::Reasoning(LlamaToken(7)),
-            visible_piece: "thinking".to_string(),
-            raw_piece: String::new(),
-        };
+    fn counts_an_undeterminable_token_without_streaming_it() {
         let mut outcome = ClassifySampleLoopOutcome::default();
 
-        record_outcome(&ingest, &mut outcome, true);
-
-        assert_eq!(outcome.observed_reasoning, 1);
-        assert!(outcome.reasoning_stream.is_empty());
-    }
-
-    #[test]
-    fn record_outcome_undeterminable_token_counts_without_streaming() {
-        let ingest = IngestOutcome {
+        outcome.record_outcome(&IngestOutcome {
             sampled_token: SampledToken::Undeterminable(LlamaToken(9)),
-            visible_piece: "ignored".to_string(),
-            raw_piece: String::new(),
-        };
-        let mut outcome = ClassifySampleLoopOutcome::default();
-
-        record_outcome(&ingest, &mut outcome, false);
+            piece: TokenPiece::Visible("ignored".to_owned()),
+        });
 
         assert_eq!(outcome.observed_undeterminable, 1);
         assert!(outcome.content_stream.is_empty());
         assert!(outcome.reasoning_stream.is_empty());
+    }
+
+    #[test]
+    fn counts_the_end_of_generation_in_the_section_it_ended() {
+        let mut outcome = ClassifySampleLoopOutcome::default();
+
+        outcome.record_end_of_generation(SampledTokenSection::Content);
+
+        assert!(outcome.eog_seen);
+        assert_eq!(outcome.observed_content, 1);
     }
 }

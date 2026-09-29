@@ -1,7 +1,9 @@
 use anyhow::Result;
 use anyhow::bail;
+use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ChatMessageParseOutcome;
 use llama_cpp_bindings::ChatTools;
+use llama_cpp_bindings::GenerationProgress;
 use llama_cpp_bindings::MarkerRole;
 use llama_cpp_bindings::ParsedChatMessage;
 use llama_cpp_bindings::SampledTokenSection;
@@ -66,7 +68,7 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens =
         model.str_to_token(DEEPSEEK_R1_8B_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
@@ -95,7 +97,6 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -177,7 +178,7 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(DEEPSEEK_R1_8B_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -205,7 +206,6 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -651,7 +651,7 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(GEMMA4_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -672,7 +672,6 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -752,7 +751,7 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(GEMMA4_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -773,7 +772,6 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -961,7 +959,7 @@ What is 2 + 2?
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(GLM47_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -989,7 +987,6 @@ What is 2 + 2?
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1041,7 +1038,7 @@ What is 2 + 2?
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(GLM47_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1069,7 +1066,6 @@ What is 2 + 2?
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1222,7 +1218,7 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(MISTRAL3_THINKING_DISABLED_PROMPT, AddBos::Always)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1243,7 +1239,6 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1299,7 +1294,7 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(MISTRAL3_THINKING_PROMPT, AddBos::Always)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1320,7 +1315,6 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1437,7 +1431,7 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     )?];
     let prompt = model.apply_chat_template(&chat_template, &messages, true, true)?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let tokens = model.str_to_token(&prompt, AddBos::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
@@ -1452,7 +1446,6 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1519,7 +1512,9 @@ fn qwen35_shared_reasoning_close_and_tool_call_open_is_one_transition(
         .tokens()
         .to_vec();
 
-    let mut classifier = fixture.model.sampled_token_classifier()?;
+    let mut classifier = fixture
+        .model
+        .sampled_token_classifier(BareJsonToolCalls::Detect)?;
     classifier.ingest_prompt_tokens(&reasoning_open);
     assert_eq!(classifier.current_section(), SampledTokenSection::Reasoning);
 
@@ -1557,7 +1552,7 @@ What is 2 + 2?<|im_end|>
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(QWEN35_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1585,7 +1580,6 @@ What is 2 + 2?<|im_end|>
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -1637,7 +1631,7 @@ What is 2 + 2?<|im_end|>
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(QWEN35_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -1665,7 +1659,6 @@ What is 2 + 2?<|im_end|>
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -2035,7 +2028,7 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     )?];
     let prompt = model.apply_chat_template(&chat_template, &messages, true, true)?;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let tokens = model.str_to_token(&prompt, AddBos::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
@@ -2050,7 +2043,6 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     let mut sampler = LlamaSampler::greedy()?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -2105,7 +2097,7 @@ What is 2 + 2?<|im_end|>
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(QWEN36_THINKING_DISABLED_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -2133,7 +2125,6 @@ What is 2 + 2?<|im_end|>
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -2185,7 +2176,7 @@ What is 2 + 2?<|im_end|>
     let model = fixture.model;
     let backend = fixture.backend;
 
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let prompt_tokens = model.str_to_token(QWEN36_THINKING_PROMPT, AddBos::Never)?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
@@ -2213,7 +2204,6 @@ What is 2 + 2?<|im_end|>
     ])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,
@@ -2244,6 +2234,73 @@ What is 2 + 2?<|im_end|>
         assert!(!outcome.reasoning_stream.contains(forbidden));
         assert!(!outcome.content_stream.contains(forbidden));
     }
+
+    Ok(())
+}
+
+fn visible_text_of_generation_ending_after(
+    model: &LlamaModel,
+    generated_text: &str,
+) -> Result<String> {
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let mut outcomes = Vec::new();
+
+    for token in model.str_to_token(generated_text, AddBos::Never)? {
+        assert_eq!(
+            classifier.ingest(token, &mut outcomes)?,
+            GenerationProgress::Continues
+        );
+    }
+
+    assert_eq!(
+        classifier.ingest(model.token_eos(), &mut outcomes)?,
+        GenerationProgress::Ended
+    );
+
+    Ok(outcomes
+        .iter()
+        .map(|outcome| outcome.piece.visible())
+        .collect())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_classifier_ends_generation_without_emitting_the_end_of_generation_token(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    const GENERATED_TEXT: &str = "The answer is four.";
+
+    assert_eq!(
+        visible_text_of_generation_ending_after(fixture.model, GENERATED_TEXT)?,
+        GENERATED_TEXT
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_classifier_releases_a_held_json_prefix_when_generation_ends(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    const GENERATED_TEXT: &str = r#"{"answer": 4"#;
+
+    assert_eq!(
+        visible_text_of_generation_ending_after(fixture.model, GENERATED_TEXT)?,
+        GENERATED_TEXT
+    );
 
     Ok(())
 }

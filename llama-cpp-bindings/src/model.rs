@@ -34,6 +34,7 @@ use llama_cpp_bindings_types::ReasoningMarkers;
 use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_bindings_types::ToolCallMarkers;
 
+use crate::bare_json_tool_calls::BareJsonToolCalls;
 use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
 use crate::chat_template_tool_calls;
 use crate::chat_tools::ChatTools;
@@ -1027,9 +1028,10 @@ impl LlamaModel {
     /// detection failure is surfaced to the caller instead of silently ignored.
     pub fn sampled_token_classifier(
         &self,
+        bare_json_tool_calls: BareJsonToolCalls,
     ) -> Result<SampledTokenClassifier<'_>, MarkerDetectionError> {
         self.streaming_markers()
-            .map(|markers| SampledTokenClassifier::new(self, markers))
+            .map(|markers| SampledTokenClassifier::new(self, markers, bare_json_tool_calls))
     }
 
     /// # Errors

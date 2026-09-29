@@ -1,8 +1,8 @@
-use crate::ingest_outcome::IngestOutcome;
+use crate::generation_progress::GenerationProgress;
 use crate::token::LlamaToken;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ClassifiedSample {
     pub token: LlamaToken,
-    pub outcomes: Vec<IngestOutcome>,
+    pub progress: GenerationProgress,
 }

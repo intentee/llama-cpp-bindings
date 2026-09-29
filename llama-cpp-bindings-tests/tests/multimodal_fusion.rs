@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -109,7 +110,7 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
     .with_context(|| "unable to create llama context")?;
 
     let n_batch = i32::try_from(context.n_batch())?;
-    let mut classifier = model.sampled_token_classifier()?;
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
@@ -134,7 +135,6 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut sampler = LlamaSampler::greedy()?;
     let mut batch = LlamaBatch::new(512, 1)?;
     let outcome = ClassifySampleLoop {
-        model,
         classifier: &mut classifier,
         sampler: &mut sampler,
         context: &mut context,

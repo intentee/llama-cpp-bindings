@@ -1179,6 +1179,7 @@ dependencies = [
  "log",
  "nom 8.0.0",
  "once_cell",
+ "serde",
  "serde_json",
  "serial_test",
  "thiserror",
