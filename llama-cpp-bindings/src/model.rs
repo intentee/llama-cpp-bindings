@@ -9,6 +9,7 @@ pub mod llama_lora_adapter;
 pub mod llama_split_mode_parse_error;
 pub mod lora_adapter_scale;
 pub mod params;
+pub mod parse_special_tokens;
 pub mod rope_type;
 pub mod split_mode;
 pub mod tokenizer_input;
@@ -59,6 +60,7 @@ pub use llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 pub use llama_load_mode::LlamaLoadMode;
 pub use llama_load_mode_parse_error::LlamaLoadModeParseError;
 pub use llama_lora_adapter::LlamaLoraAdapter;
+pub use parse_special_tokens::ParseSpecialTokens;
 pub use rope_type::RopeType;
 pub use vocab_type::VocabType;
 pub use vocab_type_from_int_error::VocabTypeFromIntError;
@@ -488,19 +490,19 @@ impl LlamaModel {
     ///
     /// - if [`str`] contains a null byte
     /// - if an integer conversion fails during tokenization
-    ///
-    ///
-    /// ```no_run
-    /// use llama_cpp_bindings::model::LlamaModel;
-    ///
     pub fn str_to_token(
         &self,
         str: &str,
         add_bos: AddBos,
+        parse_special_tokens: ParseSpecialTokens,
     ) -> Result<Vec<LlamaToken>, StringToTokenError> {
         let add_bos = match add_bos {
             AddBos::Always => true,
             AddBos::Never => false,
+        };
+        let parse_special = match parse_special_tokens {
+            ParseSpecialTokens::Always => true,
+            ParseSpecialTokens::Never => false,
         };
 
         let tokens_estimation = std::cmp::max(8, (str.len() / 2) + usize::from(add_bos));
@@ -518,6 +520,7 @@ impl LlamaModel {
                 tokens,
                 n_tokens_max,
                 add_bos,
+                parse_special,
             )
         })
     }
@@ -1000,7 +1003,7 @@ impl LlamaModel {
         if marker.is_empty() {
             return Ok(None);
         }
-        let tokens = self.str_to_token(marker, AddBos::Never)?;
+        let tokens = self.str_to_token(marker, AddBos::Never, ParseSpecialTokens::Always)?;
         if tokens.is_empty() {
             Ok(None)
         } else {
@@ -1588,6 +1591,7 @@ fn invoke_rs_tokenize(
     tokens: *mut llama_cpp_bindings_sys::llama_token,
     n_tokens_max: c_int,
     add_bos: bool,
+    parse_special: bool,
 ) -> Result<c_int, StringToTokenError> {
     let mut out_count: i32 = 0;
     let mut out_error: *mut c_char = ptr::null_mut();
@@ -1599,7 +1603,7 @@ fn invoke_rs_tokenize(
             tokens,
             n_tokens_max,
             add_bos,
-            true,
+            parse_special,
             &raw mut out_count,
             &raw mut out_error,
         )

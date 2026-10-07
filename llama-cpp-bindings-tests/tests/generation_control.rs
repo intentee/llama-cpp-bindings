@@ -19,6 +19,7 @@ use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::llguidance_sampler::create_llg_sampler;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaChatMessage;
+use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
@@ -66,7 +67,7 @@ fn sample_returns_result_and_succeeds_with_valid_index(fixture: &LlamaFixture<'_
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let tokens = model.str_to_token("Hello", AddBos::Always)?;
+    let tokens = model.str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
 
     batch.add_sequence(&tokens, 0, false)?;
@@ -123,7 +124,7 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
     )?;
 
     let prompt = "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
-    let tokens = model.str_to_token(prompt, AddBos::Always)?;
+    let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
 
     batch.add_sequence(&tokens, 0, false)?;
@@ -217,7 +218,7 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
     )?;
 
     let prompt = "<|im_start|>user\nWhat is 2+2? Respond with a JSON object.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
-    let tokens = model.str_to_token(prompt, AddBos::Always)?;
+    let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
 
     batch.add_sequence(&tokens, 0, false)?;
@@ -310,7 +311,7 @@ fn sample_with_grammar_produces_constrained_output_in_loop(
     )?;
 
     let prompt = "<|im_start|>user\nIs the sky blue? yes or no<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
-    let tokens = model.str_to_token(prompt, AddBos::Always)?;
+    let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
@@ -401,7 +402,7 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
 
     let prompt =
         "<|im_start|>user\nSay hello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
-    let tokens = model.str_to_token(prompt, AddBos::Always)?;
+    let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
 
     batch.add_sequence(&tokens, 0, false)?;
@@ -570,7 +571,10 @@ fn grammar_lazy_with_null_byte_in_pattern_returns_error(fixture: &LlamaFixture<'
 fn grammar_lazy_returns_sampler_for_valid_grammar_with_trigger_tokens(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let trigger_tokens = fixture.model.str_to_token("{", AddBos::Never)?;
+    let trigger_tokens =
+        fixture
+            .model
+            .str_to_token("{", AddBos::Never, ParseSpecialTokens::Always)?;
 
     assert!(
         !trigger_tokens.is_empty(),
@@ -768,7 +772,9 @@ fn apply_runs_sampler_over_token_data_array(fixture: &LlamaFixture<'_>) -> Resul
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture.model.str_to_token("Hi", AddBos::Always)?;
+    let tokens = fixture
+        .model
+        .str_to_token("Hi", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
@@ -794,7 +800,9 @@ fn sample_returns_token_after_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture.model.str_to_token("Hello", AddBos::Always)?;
+    let tokens = fixture
+        .model
+        .str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
@@ -854,7 +862,7 @@ fn raw_prompt_completion_with_timing(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let tokens_list = model
-        .str_to_token(prompt, AddBos::Always)
+        .str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)
         .with_context(|| format!("failed to tokenize {prompt}"))?;
     let prompt_token_count = u64::try_from(tokens_list.len())?;
 
@@ -999,7 +1007,7 @@ fn chat_inference_produces_coherent_output(fixture: &LlamaFixture<'_>) -> Result
     let prompt = model.apply_chat_template(&chat_template, &messages, true, true)?;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let tokens = model.str_to_token(&prompt, AddBos::Always)?;
+    let tokens = model.str_to_token(&prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
     let mut batch = LlamaBatch::new(512, 1)?;
@@ -1117,7 +1125,7 @@ fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let tokens_list = model.str_to_token(prompt, AddBos::Always)?;
+    let tokens_list = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
 
     let mut batch = LlamaBatch::new(512, 1)?;
     let last_index = i32::try_from(tokens_list.len())? - 1;
@@ -1552,7 +1560,7 @@ fn samples_token_constrained_by_grammar(fixture: &LlamaFixture<'_>) -> Result<()
     )?;
 
     let prompt = "Answer yes or no:";
-    let tokens = model.str_to_token(prompt, AddBos::Always)?;
+    let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
@@ -1604,7 +1612,10 @@ fn samples_token_constrained_by_grammar(fixture: &LlamaFixture<'_>) -> Result<()
 fn reset_rolls_back_accepted_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
 
-    let yes_tokens = fixture.model.str_to_token("yes", AddBos::Never)?;
+    let yes_tokens =
+        fixture
+            .model
+            .str_to_token("yes", AddBos::Never, ParseSpecialTokens::Always)?;
     let first_allowed_token = *yes_tokens
         .first()
         .ok_or_else(|| anyhow::anyhow!("the tokenizer must produce a token for \"yes\""))?;
@@ -1776,7 +1787,7 @@ fn llguidance_chain_samples_a_valid_token(fixture: &LlamaFixture<'_>) -> Result<
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let tokens = model.str_to_token("Answer:", AddBos::Always)?;
+    let tokens = model.str_to_token("Answer:", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
@@ -1915,7 +1926,9 @@ fn finishing_releases_an_unmatched_token_with_its_visible_and_raw_piece(
 ) -> Result<()> {
     let model = fixture.model;
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let [ordinary_token] = model.str_to_token("hello", AddBos::Never)?[..] else {
+    let [ordinary_token] =
+        model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?[..]
+    else {
         bail!("\"hello\" must be a single token");
     };
 
@@ -1971,7 +1984,9 @@ fn ingest_counts_every_token_through_the_end_of_generation(
 ) -> Result<()> {
     let model = fixture.model;
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let [ordinary_token] = model.str_to_token("hello", AddBos::Never)?[..] else {
+    let [ordinary_token] =
+        model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?[..]
+    else {
         bail!("\"hello\" must be a single token");
     };
     let mut outcomes = Vec::new();
@@ -2293,7 +2308,9 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let [think_token] = model.str_to_token("<think>", AddBos::Never)?[..] else {
+    let [think_token] =
+        model.str_to_token("<think>", AddBos::Never, ParseSpecialTokens::Always)?[..]
+    else {
         bail!("<think> must be a single token");
     };
     let mut context = LlamaContext::from_model(
@@ -2304,6 +2321,7 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
     let prompt_tokens = model.str_to_token(
         "<|im_start|>user\nSay hi<|im_end|>\n<|im_start|>assistant\n",
         AddBos::Never,
+        ParseSpecialTokens::Always,
     )?;
     let mut batch = LlamaBatch::new(128, 1)?;
 

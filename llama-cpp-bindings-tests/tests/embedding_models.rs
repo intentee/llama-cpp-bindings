@@ -16,6 +16,7 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::ggml_time_us;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
+use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings_tests::prime_kv_cache::prime_kv_cache;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
@@ -59,7 +60,7 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
 
     let prompt = "Hello my name is";
     let tokens = model
-        .str_to_token(prompt, AddBos::Always)
+        .str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)
         .with_context(|| format!("failed to tokenize {prompt}"))?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
@@ -159,7 +160,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let tokens_lines_list = prompt_lines
         .iter()
-        .map(|line| model.str_to_token(line, AddBos::Always))
+        .map(|line| model.str_to_token(line, AddBos::Always, ParseSpecialTokens::Always))
         .collect::<std::result::Result<Vec<_>, _>>()
         .with_context(|| "failed to tokenize prompts")?;
 
@@ -257,7 +258,9 @@ fn decode_with_embeddings_enabled(fixture: &LlamaFixture<'_>) -> Result<()> {
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture.model.str_to_token("hello", AddBos::Always)?;
+    let tokens = fixture
+        .model
+        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
 
@@ -283,7 +286,9 @@ fn embeddings_seq_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Re
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture.model.str_to_token("hello", AddBos::Always)?;
+    let tokens = fixture
+        .model
+        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
@@ -323,7 +328,10 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
     let mut batch = LlamaBatch::new(64, 4)?;
 
     for (sequence_index, text) in inputs.iter().enumerate() {
-        let tokens = fixture.model.str_to_token(text, AddBos::Always)?;
+        let tokens =
+            fixture
+                .model
+                .str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
         let sequence_id = i32::try_from(sequence_index)?;
 
         batch.add_sequence(&tokens, sequence_id, true)?;
@@ -395,7 +403,10 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
 
     for iteration_inputs in iterations {
         for (sequence_index, text) in iteration_inputs.iter().enumerate() {
-            let tokens = fixture.model.str_to_token(text, AddBos::Always)?;
+            let tokens =
+                fixture
+                    .model
+                    .str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
             let sequence_id = i32::try_from(sequence_index)?;
 
             batch.add_sequence(&tokens, sequence_id, true)?;
@@ -453,7 +464,9 @@ fn embeddings_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Result
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture.model.str_to_token("hello", AddBos::Always)?;
+    let tokens = fixture
+        .model
+        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(tokens.len() - 1)?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
@@ -506,7 +519,9 @@ fn encode_succeeds_with_encoder_model(fixture: &LlamaFixture<'_>) -> Result<()> 
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture.model.str_to_token("hello", AddBos::Never)?;
+    let tokens = fixture
+        .model
+        .str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
 
@@ -674,9 +689,11 @@ fn decoding_more_tokens_than_the_micro_batch_on_an_encoder_returns_an_error(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
-    let tokens = fixture
-        .model
-        .str_to_token(&"hello ".repeat(100), AddBos::Always)?;
+    let tokens = fixture.model.str_to_token(
+        &"hello ".repeat(100),
+        AddBos::Always,
+        ParseSpecialTokens::Always,
+    )?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
@@ -705,9 +722,11 @@ fn encoding_more_tokens_than_the_micro_batch_returns_an_error(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
-    let tokens = fixture
-        .model
-        .str_to_token(&"hello ".repeat(100), AddBos::Never)?;
+    let tokens = fixture.model.str_to_token(
+        &"hello ".repeat(100),
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let mut batch = LlamaBatch::new(512, 1)?;
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();

@@ -8,6 +8,7 @@ use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::max_devices;
 use llama_cpp_bindings::model::AddBos;
+use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::model::params::fit_extra_model::FitExtraModel;
 use llama_cpp_test_harness::LlamaFixture;
@@ -1184,7 +1185,7 @@ fn token_attr_returns_attrs_for_bos(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn str_to_token_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let tokens = model.str_to_token("hello world", AddBos::Never)?;
+    let tokens = model.str_to_token("hello world", AddBos::Never, ParseSpecialTokens::Always)?;
     assert!(!tokens.is_empty());
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let piece =
@@ -1231,9 +1232,10 @@ fn str_to_token_grows_buffer_when_initial_estimation_too_small(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let many_short_chars = "a b c d e f g h i j k l";
-    let tokens = fixture
-        .model
-        .str_to_token(many_short_chars, AddBos::Always)?;
+    let tokens =
+        fixture
+            .model
+            .str_to_token(many_short_chars, AddBos::Always, ParseSpecialTokens::Always)?;
 
     assert!(
         tokens.len() > 8,
@@ -1278,8 +1280,10 @@ fn str_to_token_grows_buffer_when_initial_estimation_too_small(
 )]
 fn str_to_token_with_add_bos_never(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let tokens_with_bos = model.str_to_token("hello", AddBos::Always)?;
-    let tokens_without_bos = model.str_to_token("hello", AddBos::Never)?;
+    let tokens_with_bos =
+        model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens_without_bos =
+        model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
 
     assert!(tokens_with_bos.len() >= tokens_without_bos.len());
 
@@ -1326,7 +1330,10 @@ fn str_to_token_with_many_tokens_triggers_buffer_resize(fixture: &LlamaFixture<'
         accumulator
     });
 
-    let tokens = fixture.model.str_to_token(&many_numbers, AddBos::Always)?;
+    let tokens =
+        fixture
+            .model
+            .str_to_token(&many_numbers, AddBos::Always, ParseSpecialTokens::Always)?;
 
     assert!(tokens.len() > many_numbers.len() / 2);
 
@@ -1367,7 +1374,7 @@ fn str_to_token_with_many_tokens_triggers_buffer_resize(fixture: &LlamaFixture<'
 )]
 fn token_to_piece_bytes_returns_bytes_for_known_token(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let tokens = model.str_to_token("hello", AddBos::Never)?;
+    let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
     let bytes = model.token_to_piece_bytes(tokens[0], 32, false, None)?;
 
     assert!(!bytes.is_empty());
@@ -1455,7 +1462,7 @@ fn token_to_piece_bytes_insufficient_buffer_returns_error(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let tokens = model.str_to_token("hello", AddBos::Never)?;
+    let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
     let result = model.token_to_piece_bytes(tokens[0], 1, false, None);
 
     assert!(
@@ -1502,7 +1509,7 @@ fn token_to_piece_bytes_insufficient_buffer_returns_error(
 fn token_to_piece_with_lstrip(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
-    let tokens = model.str_to_token("hello", AddBos::Never)?;
+    let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
     let result = model.token_to_piece(
         &SampledToken::Content(tokens[0]),
         &mut decoder,
@@ -1549,7 +1556,7 @@ fn token_to_piece_with_lstrip(fixture: &LlamaFixture<'_>) -> Result<()> {
 fn token_to_piece_decodes_reasoning_variant(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
-    let tokens = model.str_to_token("hi", AddBos::Never)?;
+    let tokens = model.str_to_token("hi", AddBos::Never, ParseSpecialTokens::Always)?;
 
     let piece = model.token_to_piece(
         &SampledToken::Reasoning(tokens[0]),
@@ -1597,7 +1604,7 @@ fn token_to_piece_decodes_reasoning_variant(fixture: &LlamaFixture<'_>) -> Resul
 fn token_to_piece_decodes_tool_call_variant(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
-    let tokens = model.str_to_token("hi", AddBos::Never)?;
+    let tokens = model.str_to_token("hi", AddBos::Never, ParseSpecialTokens::Always)?;
 
     let piece =
         model.token_to_piece(&SampledToken::ToolCall(tokens[0]), &mut decoder, true, None)?;
@@ -1641,7 +1648,7 @@ fn token_to_piece_decodes_tool_call_variant(fixture: &LlamaFixture<'_>) -> Resul
 fn token_to_piece_decodes_undeterminable_variant(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
-    let tokens = model.str_to_token("hi", AddBos::Never)?;
+    let tokens = model.str_to_token("hi", AddBos::Never, ParseSpecialTokens::Always)?;
 
     let piece = model.token_to_piece(
         &SampledToken::Undeterminable(tokens[0]),
