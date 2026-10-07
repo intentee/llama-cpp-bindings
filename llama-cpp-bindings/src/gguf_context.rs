@@ -171,7 +171,6 @@ mod tests {
         std::mem::discriminant(&GgufContextError::NulError(nul_err))
     }
 
-    #[cfg(unix)]
     fn path_to_str_error_disc() -> Discriminant<GgufContextError> {
         std::mem::discriminant(&GgufContextError::PathToStrError(PathBuf::new()))
     }
@@ -254,7 +253,6 @@ mod tests {
         assert!(!value.is_empty());
     }
 
-    #[cfg(unix)]
     #[test]
     fn from_file_non_utf8_path_returns_error() {
         use std::ffi::OsStr;

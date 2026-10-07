@@ -152,8 +152,6 @@ const fn detect_host_tag() -> Result<&'static str, AndroidNdkDetectionError> {
         Ok("darwin-x86_64")
     } else if cfg!(target_os = "linux") {
         Ok("linux-x86_64")
-    } else if cfg!(target_os = "windows") {
-        Ok("windows-x86_64")
     } else {
         Err(AndroidNdkDetectionError::UnsupportedHostPlatform)
     }

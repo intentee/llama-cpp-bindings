@@ -31,9 +31,6 @@ pub fn configure_and_build(context: &BuildContext) -> Result<PathBuf, BuildError
     configure_system_ggml(&mut config)?;
     let backends_dir = configure_dynamic_backends(&mut config, &context.cmake_dir)?;
 
-    config.static_crt(context.static_crt);
-    configure_msvc_exception_handling(&mut config, context.target_os);
-    configure_msvc_config_flags(&mut config, context.target_os, &context.profile);
     config
         .out_dir(&context.cmake_dir)
         .profile(&context.profile)
@@ -145,46 +142,6 @@ fn map_cpu_feature_to_ggml(feature: &str) -> Option<&'static str> {
     }
 }
 
-const fn msvc_exception_handling_flag(target_os: TargetOs) -> Option<&'static str> {
-    if target_os.is_msvc() {
-        Some("/EHsc")
-    } else {
-        None
-    }
-}
-
-fn configure_msvc_exception_handling(config: &mut Config, target_os: TargetOs) {
-    let Some(flag) = msvc_exception_handling_flag(target_os) else {
-        return;
-    };
-
-    config.cxxflag(flag);
-}
-
-fn msvc_config_flags(target_os: TargetOs, profile: &str) -> Option<&'static str> {
-    if !target_os.is_msvc() {
-        return None;
-    }
-
-    match profile {
-        "Debug" => Some("/Ob0 /Od /RTC1"),
-        "MinSizeRel" => Some("/O1 /Ob1 /DNDEBUG"),
-        "Release" => Some("/O2 /Ob2 /DNDEBUG"),
-        "RelWithDebInfo" => Some("/O2 /Ob1 /DNDEBUG"),
-        _ => None,
-    }
-}
-
-fn configure_msvc_config_flags(config: &mut Config, target_os: TargetOs, profile: &str) {
-    let Some(flags) = msvc_config_flags(target_os, profile) else {
-        return;
-    };
-    let config_suffix = profile.to_uppercase();
-
-    config.define(format!("CMAKE_C_FLAGS_{config_suffix}"), flags);
-    config.define(format!("CMAKE_CXX_FLAGS_{config_suffix}"), flags);
-}
-
 fn configure_shared_libs(config: &mut Config, build_shared_libs: bool) {
     config.define(
         "BUILD_SHARED_LIBS",
@@ -207,7 +164,7 @@ fn configure_platform_specific(
                 configure_android_cmake(config, ndk, target_triple);
             }
         }
-        _ => {}
+        TargetOs::Linux => {}
     }
 }
 
@@ -261,16 +218,6 @@ fn configure_gpu_backends(config: &mut Config, target_os: TargetOs) -> Result<()
 
 fn configure_vulkan_linking(target_os: TargetOs) -> Result<(), BuildError> {
     match target_os {
-        TargetOs::Windows(_) => {
-            let vulkan_path = env::var("VULKAN_SDK").map_err(|source| BuildError::Environment {
-                name: "VULKAN_SDK",
-                source,
-            })?;
-            let vulkan_lib_path = Path::new(&vulkan_path).join("Lib");
-
-            println!("cargo:rustc-link-search={}", vulkan_lib_path.display());
-            println!("cargo:rustc-link-lib=vulkan-1");
-        }
         TargetOs::Linux => {
             match env::var("VULKAN_SDK") {
                 Ok(vulkan_path) => {
@@ -289,7 +236,7 @@ fn configure_vulkan_linking(target_os: TargetOs) -> Result<(), BuildError> {
 
             println!("cargo:rustc-link-lib=vulkan");
         }
-        _ => (),
+        TargetOs::Apple(_) | TargetOs::Android => {}
     }
 
     Ok(())
@@ -313,67 +260,6 @@ fn configure_system_ggml(config: &mut Config) -> Result<(), BuildError> {
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod msvc_exception_handling_tests {
-    use crate::target_os::TargetOs;
-    use crate::windows_variant::WindowsVariant;
-
-    use super::msvc_exception_handling_flag;
-
-    #[test]
-    fn msvc_targets_compile_llama_cpp_with_unwind_semantics() {
-        assert_eq!(
-            msvc_exception_handling_flag(TargetOs::Windows(WindowsVariant::Msvc)),
-            Some("/EHsc")
-        );
-    }
-
-    #[test]
-    fn targets_without_msvc_keep_their_toolchain_default_exception_handling() {
-        assert_eq!(msvc_exception_handling_flag(TargetOs::Linux), None);
-        assert_eq!(
-            msvc_exception_handling_flag(TargetOs::Windows(WindowsVariant::Other)),
-            None
-        );
-    }
-}
-
-#[cfg(test)]
-mod msvc_config_flag_tests {
-    use crate::target_os::TargetOs;
-    use crate::windows_variant::WindowsVariant;
-
-    use super::msvc_config_flags;
-
-    #[test]
-    fn every_msvc_configuration_keeps_llama_cpp_assertions_compiled_out() {
-        let msvc = TargetOs::Windows(WindowsVariant::Msvc);
-
-        assert_eq!(msvc_config_flags(msvc, "Debug"), Some("/Ob0 /Od /RTC1"));
-        assert_eq!(
-            msvc_config_flags(msvc, "MinSizeRel"),
-            Some("/O1 /Ob1 /DNDEBUG")
-        );
-        assert_eq!(
-            msvc_config_flags(msvc, "Release"),
-            Some("/O2 /Ob2 /DNDEBUG")
-        );
-        assert_eq!(
-            msvc_config_flags(msvc, "RelWithDebInfo"),
-            Some("/O2 /Ob1 /DNDEBUG")
-        );
-    }
-
-    #[test]
-    fn targets_and_profiles_without_msvc_defaults_keep_the_flags_cmake_chose() {
-        assert_eq!(msvc_config_flags(TargetOs::Linux, "Release"), None);
-        assert_eq!(
-            msvc_config_flags(TargetOs::Windows(WindowsVariant::Msvc), "Fastest"),
-            None
-        );
-    }
 }
 
 #[cfg(test)]

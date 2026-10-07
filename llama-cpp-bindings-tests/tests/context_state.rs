@@ -2169,7 +2169,6 @@ fn state_seq_load_file_with_insufficient_max_tokens_returns_length_error(
     Ok(())
 }
 
-#[cfg(unix)]
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -2216,7 +2215,6 @@ fn state_save_file_with_non_utf8_path_returns_error(fixture: &LlamaFixture<'_>) 
     Ok(())
 }
 
-#[cfg(unix)]
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -2263,7 +2261,6 @@ fn state_load_file_with_non_utf8_path_returns_error(fixture: &LlamaFixture<'_>) 
     Ok(())
 }
 
-#[cfg(unix)]
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -2310,7 +2307,6 @@ fn state_seq_save_file_with_non_utf8_path_returns_error(fixture: &LlamaFixture<'
     Ok(())
 }
 
-#[cfg(unix)]
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,

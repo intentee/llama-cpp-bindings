@@ -20,11 +20,6 @@ pub fn compile_cpp_wrappers(target_os: TargetOs) -> Result<(), BuildError> {
         build.file(source);
     }
 
-    if target_os.is_msvc() {
-        build.flag(format!("/std:{CPP_STANDARD}"));
-        build.flag("/EHsc");
-    }
-
     if target_os.is_android() && cfg!(feature = "static-stdcxx") {
         build.cpp_link_stdlib(None);
     }

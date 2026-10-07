@@ -788,7 +788,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_os = "windows"))]
     fn append_kv_override_with_high_byte_returns_invalid_character_error() {
         use crate::model::params::param_override_value::ParamOverrideValue;
 
@@ -809,7 +808,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_os = "windows"))]
     fn add_cpu_buft_override_with_high_byte_returns_invalid_character_error() {
         let key_bytes: &[u8] = b"\xff\0";
         let key = std::ffi::CStr::from_bytes_with_nul(key_bytes).unwrap();

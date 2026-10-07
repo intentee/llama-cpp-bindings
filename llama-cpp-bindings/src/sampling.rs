@@ -367,8 +367,6 @@ impl LlamaSampler {
         no_perf: bool,
     ) -> Result<Self, SamplingError> {
         unsafe {
-            llama_cpp_bindings_sys::ggml_time_init();
-
             let chain = llama_cpp_bindings_sys::llama_sampler_chain_init(
                 llama_cpp_bindings_sys::llama_sampler_chain_params { no_perf },
             );

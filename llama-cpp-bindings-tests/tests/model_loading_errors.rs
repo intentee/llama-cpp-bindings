@@ -54,7 +54,6 @@ fn load_model_with_invalid_file_content_returns_unloadable_or_reported(
     Ok(())
 }
 
-#[cfg(unix)]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -121,7 +120,6 @@ fn lora_adapter_init_with_invalid_gguf_returns_unloadable(
     Ok(())
 }
 
-#[cfg(unix)]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
