@@ -154,10 +154,6 @@ pub fn generate_bindings(
         builder = configure_android_bindgen(builder, ndk, target_triple);
     }
 
-    if target_os.is_msvc() {
-        builder = configure_msvc_bindgen(builder, target_triple)?;
-    }
-
     let bindings = builder.generate().map_err(BuildError::Bindgen)?;
 
     callbacks.verify_every_privatized_field_was_found()?;
@@ -180,6 +176,7 @@ fn create_base_builder(llama_src: &Path, callbacks: BindingCallbacks) -> bindgen
         .derive_partialeq(true)
         .allowlist_function("ggml_.*")
         .allowlist_type("ggml_.*")
+        .allowlist_var("GGML_MAX_DIMS")
         .allowlist_function("gguf_.*")
         .allowlist_type("gguf_.*")
         .allowlist_function("llama_.*")
@@ -192,7 +189,6 @@ fn create_base_builder(llama_src: &Path, callbacks: BindingCallbacks) -> bindgen
         .blocklist_function("llama_model_load_from_file_ptr")
         .blocklist_type("FILE")
         .blocklist_type("_IO_.*")
-        .blocklist_type("_iobuf")
         .prepend_enum_name(false);
 
     for function in DEPRECATED_FUNCTIONS {
@@ -227,42 +223,4 @@ fn configure_android_bindgen(
         .clang_arg("stdint.h");
 
     builder.clang_arg(format!("--target={target_triple}"))
-}
-
-fn configure_msvc_bindgen(
-    mut builder: bindgen::Builder,
-    target_triple: &str,
-) -> Result<bindgen::Builder, BuildError> {
-    let compiler = cc::Build::new()
-        .try_get_compiler()
-        .map_err(BuildError::NativeCompiler)?;
-
-    let msvc_include_paths = compiler
-        .env()
-        .iter()
-        .find(|(key, _)| key.eq_ignore_ascii_case("INCLUDE"))
-        .map(|(_, value)| value.clone());
-
-    if let Some(include_paths) = msvc_include_paths {
-        for include_path in include_paths
-            .to_string_lossy()
-            .split(';')
-            .filter(|path| !path.is_empty())
-        {
-            builder = builder.clang_arg("-isystem").clang_arg(include_path);
-            debug_log!("Added MSVC include path: {}", include_path);
-        }
-    }
-
-    builder = builder
-        .clang_arg(format!("--target={target_triple}"))
-        .clang_arg("-fms-compatibility")
-        .clang_arg("-fms-extensions");
-
-    debug_log!(
-        "Configured bindgen with MSVC toolchain for target: {}",
-        target_triple
-    );
-
-    Ok(builder)
 }

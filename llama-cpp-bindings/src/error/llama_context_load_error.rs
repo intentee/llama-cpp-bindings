@@ -12,4 +12,11 @@ pub enum LlamaContextLoadError {
     LlamaCppOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
+    #[error(
+        "{n_seq_max} sequences need an output each, but a batch holds at most {output_capacity} outputs"
+    )]
+    SequencesExceedOutputCapacity {
+        n_seq_max: u32,
+        output_capacity: u32,
+    },
 }

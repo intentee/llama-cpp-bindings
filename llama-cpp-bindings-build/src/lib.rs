@@ -11,7 +11,6 @@ mod library_linking;
 mod native_library;
 mod rebuild_tracking;
 mod target_os;
-mod windows_variant;
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -42,8 +41,6 @@ pub enum BuildError {
     },
     #[error("generated bindings could not be written: {0}")]
     BindingsWrite(#[source] std::io::Error),
-    #[error("native compiler setup failed: {0}")]
-    NativeCompiler(#[source] cc::Error),
     #[error("native wrapper compilation failed: {0}")]
     NativeWrapper(#[source] cc::Error),
     #[error("filesystem operation failed for {path}: {source}")]
@@ -88,7 +85,6 @@ pub struct BuildContext {
     pub cargo_cfg_target_env: String,
     pub build_shared_libs: bool,
     pub profile: String,
-    pub static_crt: bool,
     pub android_ndk: Option<AndroidNdk>,
 }
 
@@ -97,20 +93,17 @@ impl BuildContext {
         let target_triple = required_env("TARGET")?;
         let cargo_cfg_target_os = required_env("CARGO_CFG_TARGET_OS")?;
         let cargo_cfg_target_env = optional_env("CARGO_CFG_TARGET_ENV")?.unwrap_or_default();
-        let target_os = TargetOs::from_cargo_cfg(&cargo_cfg_target_os, &cargo_cfg_target_env)
-            .ok_or_else(|| BuildError::UnsupportedTargetOs {
+        let target_os = TargetOs::from_cargo_cfg(&cargo_cfg_target_os).ok_or_else(|| {
+            BuildError::UnsupportedTargetOs {
                 cargo_cfg_target_os: cargo_cfg_target_os.clone(),
-            })?;
+            }
+        })?;
         let out_dir = PathBuf::from(required_env("OUT_DIR")?);
         let manifest_dir = required_env("CARGO_MANIFEST_DIR")?;
         let llama_src = Path::new(&manifest_dir).join("llama.cpp");
 
         let build_shared_libs = cfg!(feature = "dynamic-link");
         let profile = native_profile(&required_env("PROFILE")?);
-        let static_crt = optional_env("CARGO_CFG_TARGET_FEATURE")?
-            .unwrap_or_default()
-            .split(',')
-            .any(|feature| feature == "crt-static");
 
         let cargo_cfg_target_arch = required_env("CARGO_CFG_TARGET_ARCH")?;
         let android_ndk = if target_os.is_android() {
@@ -137,7 +130,6 @@ impl BuildContext {
             cargo_cfg_target_env,
             build_shared_libs,
             profile,
-            static_crt,
             android_ndk,
         })
     }

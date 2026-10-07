@@ -10,6 +10,8 @@ use std::sync::atomic::Ordering;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::context::params::LlamaContextParams;
+use crate::context::params::LlamaPoolingType;
+use crate::context::sequence_output_capacity::SequenceOutputCapacity;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_batch::LlamaBatch;
 use crate::model::LlamaModel;
@@ -245,6 +247,7 @@ pub mod params;
 pub mod rope_scaling_type;
 pub mod save_seq_state_error;
 pub mod save_session_error;
+mod sequence_output_capacity;
 pub mod session;
 pub mod state_data_error;
 
@@ -260,6 +263,7 @@ pub struct LlamaContext<'model> {
     abort_flag: Option<Arc<AtomicBool>>,
     initialized_logits: Vec<i32>,
     embeddings_enabled: bool,
+    nextn_embeddings_enabled: bool,
 }
 
 impl Debug for LlamaContext<'_> {
@@ -283,18 +287,40 @@ impl<'model> LlamaContext<'model> {
             abort_flag: None,
             initialized_logits: Vec::new(),
             embeddings_enabled,
+            nextn_embeddings_enabled: false,
         }
     }
 
     /// # Errors
     ///
-    /// Returns [`LlamaContextLoadError`] when llama.cpp fails to allocate the context.
+    /// Returns [`LlamaContextLoadError`] when llama.cpp fails to allocate the context, or when
+    /// the context has more sequences than one batch can output.
     pub fn from_model(
         model: &'model LlamaModel,
         _backend: &LlamaBackend,
         params: LlamaContextParams,
     ) -> Result<Self, LlamaContextLoadError> {
         let context_params = params.context_params;
+
+        SequenceOutputCapacity {
+            attention_type: params.attention_type(),
+            model_causal_attention: unsafe {
+                llama_cpp_bindings_sys::llama_rs_model_causal_attn(model.model.as_ptr())
+            },
+            model_has_encoder: unsafe {
+                llama_cpp_bindings_sys::llama_model_has_encoder(model.model.as_ptr())
+            },
+            model_n_ctx_train: unsafe {
+                llama_cpp_bindings_sys::llama_model_n_ctx_train(model.model.as_ptr())
+            }
+            .cast_unsigned(),
+            n_batch: context_params.n_batch,
+            n_ctx: context_params.n_ctx,
+            n_outputs_max: context_params.n_outputs_max,
+            n_seq_max: context_params.n_seq_max,
+        }
+        .validate()?;
+
         let mut out_ctx: *mut llama_cpp_bindings_sys::llama_context = std::ptr::null_mut();
         let mut out_error: *mut std::os::raw::c_char = std::ptr::null_mut();
         let status = unsafe {
@@ -492,6 +518,58 @@ impl<'model> LlamaContext<'model> {
             } else {
                 Ok(slice::from_raw_parts(embedding, n_embd))
             }
+        }
+    }
+
+    /// # Errors
+    ///
+    /// - When the context pools its outputs, because llama.cpp only extracts `NextN` embeddings
+    ///   with `LLAMA_POOLING_TYPE_NONE`.
+    pub fn enable_masked_nextn_embeddings(&mut self) -> Result<(), EmbeddingsError> {
+        let pooling_type = LlamaPoolingType::from(unsafe {
+            llama_cpp_bindings_sys::llama_pooling_type(self.context.as_ptr())
+        });
+
+        if pooling_type != LlamaPoolingType::None {
+            return Err(EmbeddingsError::NextnEmbeddingsRequireNonePooling { pooling_type });
+        }
+
+        unsafe {
+            llama_cpp_bindings_sys::llama_rs_set_embeddings_nextn(
+                self.context.as_ptr(),
+                true,
+                true,
+            );
+        }
+
+        self.nextn_embeddings_enabled = true;
+
+        Ok(())
+    }
+
+    /// # Errors
+    ///
+    /// - When masked `NextN` embeddings were not enabled on this context.
+    /// - When the given token was not marked as an output of the last decoded batch.
+    pub fn nextn_embeddings_ith(&self, token_index: i32) -> Result<&[f32], EmbeddingsError> {
+        if !self.nextn_embeddings_enabled {
+            return Err(EmbeddingsError::NextnEmbeddingsNotEnabled);
+        }
+
+        let row_length = unsafe {
+            llama_cpp_bindings_sys::llama_rs_context_embedding_row_length(self.context.as_ptr())
+        };
+        let embedding = unsafe {
+            llama_cpp_bindings_sys::llama_rs_get_embeddings_nextn_ith(
+                self.context.as_ptr(),
+                token_index,
+            )
+        };
+
+        if embedding.is_null() {
+            Err(EmbeddingsError::NextnEmbeddingUnavailable { token_index })
+        } else {
+            Ok(unsafe { slice::from_raw_parts(embedding, row_length) })
         }
     }
 

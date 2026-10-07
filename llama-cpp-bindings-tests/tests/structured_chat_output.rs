@@ -15,6 +15,7 @@ use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaChatMessage;
 use llama_cpp_bindings::model::LlamaModel;
+use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoopOutcome;
@@ -68,8 +69,11 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens =
-        model.str_to_token(DEEPSEEK_R1_8B_THINKING_DISABLED_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        DEEPSEEK_R1_8B_THINKING_DISABLED_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -178,7 +182,11 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(DEEPSEEK_R1_8B_THINKING_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        DEEPSEEK_R1_8B_THINKING_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -631,7 +639,11 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(GEMMA4_THINKING_DISABLED_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        GEMMA4_THINKING_DISABLED_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -731,7 +743,11 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(GEMMA4_THINKING_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        GEMMA4_THINKING_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -936,7 +952,11 @@ What is 2 + 2?
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(GLM47_THINKING_DISABLED_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        GLM47_THINKING_DISABLED_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -1015,7 +1035,11 @@ What is 2 + 2?
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(GLM47_THINKING_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        GLM47_THINKING_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -1192,7 +1216,11 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(MISTRAL3_THINKING_DISABLED_PROMPT, AddBos::Always)?;
+    let prompt_tokens = model.str_to_token(
+        MISTRAL3_THINKING_DISABLED_PROMPT,
+        AddBos::Always,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -1268,7 +1296,11 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(MISTRAL3_THINKING_PROMPT, AddBos::Always)?;
+    let prompt_tokens = model.str_to_token(
+        MISTRAL3_THINKING_PROMPT,
+        AddBos::Always,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -1402,7 +1434,7 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     let prompt = model.apply_chat_template(&chat_template, &messages, true, true)?;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let tokens = model.str_to_token(&prompt, AddBos::Always)?;
+    let tokens = model.str_to_token(&prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
     let mut batch = LlamaBatch::new(512, 1)?;
@@ -1523,7 +1555,11 @@ What is 2 + 2?<|im_end|>
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(QWEN35_THINKING_DISABLED_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        QWEN35_THINKING_DISABLED_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -1602,7 +1638,11 @@ What is 2 + 2?<|im_end|>
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(QWEN35_THINKING_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        QWEN35_THINKING_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -1983,7 +2023,7 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     let prompt = model.apply_chat_template(&chat_template, &messages, true, true)?;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let tokens = model.str_to_token(&prompt, AddBos::Always)?;
+    let tokens = model.str_to_token(&prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
     let mut batch = LlamaBatch::new(512, 1)?;
@@ -2052,7 +2092,11 @@ What is 2 + 2?<|im_end|>
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(QWEN36_THINKING_DISABLED_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        QWEN36_THINKING_DISABLED_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -2131,7 +2175,11 @@ What is 2 + 2?<|im_end|>
     let backend = fixture.backend;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let prompt_tokens = model.str_to_token(QWEN36_THINKING_PROMPT, AddBos::Never)?;
+    let prompt_tokens = model.str_to_token(
+        QWEN36_THINKING_PROMPT,
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
     let mut batch = LlamaBatch::new(2048, 1)?;
@@ -2199,7 +2247,7 @@ fn visible_text_of_generation_ending_after(
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     let mut outcomes = Vec::new();
 
-    for token in model.str_to_token(generated_text, AddBos::Never)? {
+    for token in model.str_to_token(generated_text, AddBos::Never, ParseSpecialTokens::Always)? {
         assert_eq!(
             classifier.ingest(token, &mut outcomes)?,
             GenerationProgress::Continues

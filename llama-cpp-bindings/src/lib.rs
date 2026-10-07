@@ -17,6 +17,7 @@ pub mod generation_progress;
 pub mod ggml_time_us;
 pub mod gguf_context;
 pub mod gguf_context_error;
+pub mod gguf_tensor_f32;
 pub mod gguf_type;
 pub mod grammar_matcher;
 pub mod ingest_outcome;

@@ -1,5 +1,5 @@
 name: install-build-dependencies
-description: Install OS-specific system packages needed to build llama-cpp-bindings (CMake, libclang, GNU make).
+description: Install the Linux system packages needed to build llama-cpp-bindings (CMake, libclang).
 
 runs:
   using: composite
@@ -8,15 +8,3 @@ runs:
       if: runner.os == 'Linux'
       shell: bash
       run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev
-
-    - name: install windows build dependencies
-      if: runner.os == 'Windows'
-      shell: bash
-      run: choco install -y make
-
-    - name: set windows libclang path
-      if: runner.os == 'Windows'
-      shell: bash
-      env:
-        WINDOWS_LIBCLANG_PATH: 'C:\Program Files\LLVM\bin'
-      run: echo "LIBCLANG_PATH=$WINDOWS_LIBCLANG_PATH" >> "$GITHUB_ENV"

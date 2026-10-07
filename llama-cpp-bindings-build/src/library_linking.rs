@@ -6,7 +6,6 @@ use crate::apple_variant::AppleVariant;
 use crate::debug_log;
 use crate::native_library::NativeLibrary;
 use crate::target_os::TargetOs;
-use crate::windows_variant::WindowsVariant;
 
 pub fn link_libraries(
     cmake_dir: &Path,
@@ -19,7 +18,7 @@ pub fn link_libraries(
     emit_search_paths(cmake_dir, build_dir);
     link_system_ggml_paths()?;
     link_cmake_built_libraries(cmake_dir, build_shared_libs, profile);
-    link_cuda_libraries(target_os, build_shared_libs);
+    link_cuda_libraries(build_shared_libs);
     link_rocm_libraries(build_shared_libs)?;
     link_openmp(cargo_cfg_target_env);
     link_platform_system_libraries(target_os);
@@ -190,7 +189,7 @@ fn emit_search_path_with_profile(lib_dir: &Path, profile: &str) {
     println!("cargo:rustc-link-search=native={}", profile_dir.display());
 }
 
-fn link_cuda_libraries(target_os: TargetOs, build_shared_libs: bool) {
+fn link_cuda_libraries(build_shared_libs: bool) {
     if !cfg!(feature = "cuda") || build_shared_libs {
         return;
     }
@@ -201,23 +200,6 @@ fn link_cuda_libraries(target_os: TargetOs, build_shared_libs: bool) {
         println!("cargo:rustc-link-search=native={}", lib_dir.display());
     }
 
-    match target_os {
-        TargetOs::Windows(_) => link_cuda_windows(),
-        _ => link_cuda_unix(),
-    }
-}
-
-fn link_cuda_windows() {
-    println!("cargo:rustc-link-lib=cudart");
-    println!("cargo:rustc-link-lib=cublas");
-    println!("cargo:rustc-link-lib=cublasLt");
-
-    if !cfg!(feature = "cuda-no-vmm") {
-        println!("cargo:rustc-link-lib=cuda");
-    }
-}
-
-fn link_cuda_unix() {
     println!("cargo:rustc-link-lib=static=cudart_static");
     println!("cargo:rustc-link-lib=static=cublas_static");
     println!("cargo:rustc-link-lib=static=cublasLt_static");
@@ -265,9 +247,6 @@ fn link_openmp(cargo_cfg_target_env: &str) {
 
 fn link_platform_system_libraries(target_os: TargetOs) {
     match target_os {
-        TargetOs::Windows(WindowsVariant::Msvc) => {
-            println!("cargo:rustc-link-lib=advapi32");
-        }
         TargetOs::Linux => {
             println!("cargo:rustc-link-lib=dylib=stdc++");
         }
@@ -276,9 +255,6 @@ fn link_platform_system_libraries(target_os: TargetOs) {
         }
         TargetOs::Android => {
             link_android_cpp_stdlib();
-        }
-        TargetOs::Windows(WindowsVariant::Other) => {
-            println!("cargo:rustc-link-lib=stdc++");
         }
     }
 }

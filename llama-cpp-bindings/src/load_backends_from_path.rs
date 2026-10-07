@@ -27,7 +27,6 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    #[cfg(unix)]
     fn load_backends_from_path_returns_path_null_byte_for_embedded_null() {
         use std::ffi::CString;
         use std::ffi::OsStr;
@@ -45,7 +44,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
     fn load_backends_from_path_returns_path_not_utf8_for_invalid_utf8() {
         use std::ffi::OsStr;
         use std::os::unix::ffi::OsStrExt;
