@@ -3,6 +3,7 @@ use std::ffi::c_char;
 use std::marker::PhantomData;
 
 use crate::context::LlamaContext;
+use crate::token::LlamaToken;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use super::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
@@ -10,6 +11,7 @@ use super::micro_batch_tokens::micro_batch_tokens;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_input_chunk::MtmdInputChunk;
+use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunks::MtmdInputChunks;
 use super::positive_batch_tokens::positive_batch_tokens;
 
@@ -81,6 +83,7 @@ fn eval_chunk_single_status_to_result(
 #[derive(Debug)]
 pub struct FittedMtmdInputChunk<'fitted> {
     chunk: MtmdInputChunk,
+    chunk_type: MtmdInputChunkType,
     fitted_chunks: PhantomData<&'fitted MtmdInputChunks>,
     micro_batch_tokens: u32,
 }
@@ -94,8 +97,11 @@ impl<'fitted> FittedMtmdInputChunk<'fitted> {
     where
         TChunks: Borrow<MtmdInputChunks>,
     {
+        let chunk_type = fitted_chunks.chunk_type(chunk_index)?;
+
         fitted_chunks.get(chunk_index).map(|chunk| Self {
             chunk,
+            chunk_type,
             fitted_chunks: PhantomData,
             micro_batch_tokens: fitted_chunks.micro_batch_tokens(),
         })
@@ -104,6 +110,18 @@ impl<'fitted> FittedMtmdInputChunk<'fitted> {
     #[must_use]
     pub const fn chunk(&self) -> &MtmdInputChunk {
         &self.chunk
+    }
+
+    #[must_use]
+    pub const fn chunk_type(&self) -> MtmdInputChunkType {
+        self.chunk_type
+    }
+
+    #[must_use]
+    pub fn text_tokens(&self) -> &[LlamaToken] {
+        self.chunk
+            .text_tokens_of(self.chunk_type)
+            .unwrap_or_default()
     }
 
     /// # Errors

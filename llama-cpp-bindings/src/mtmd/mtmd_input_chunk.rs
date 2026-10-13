@@ -71,8 +71,13 @@ impl MtmdInputChunk {
     /// binding does not know, so an unclassifiable chunk is never mistaken for a
     /// non-text chunk.
     pub fn text_tokens(&self) -> Result<Option<&[LlamaToken]>, MtmdInputChunkTypeError> {
-        if self.chunk_type()? != MtmdInputChunkType::Text {
-            return Ok(None);
+        Ok(self.text_tokens_of(self.chunk_type()?))
+    }
+
+    #[must_use]
+    pub fn text_tokens_of(&self, chunk_type: MtmdInputChunkType) -> Option<&[LlamaToken]> {
+        if chunk_type != MtmdInputChunkType::Text {
+            return None;
         }
 
         let mut n_tokens = 0usize;
@@ -83,7 +88,7 @@ impl MtmdInputChunk {
             )
         };
 
-        Ok(unsafe { tokens_from_raw_ptr(tokens_ptr, n_tokens) })
+        unsafe { tokens_from_raw_ptr(tokens_ptr, n_tokens) }
     }
 
     #[must_use]
@@ -119,9 +124,9 @@ impl MtmdInputChunk {
         Ok(Self { chunk, owned: true })
     }
 
-    /// Checks that this chunk can be evaluated in decodes of `micro_batch_tokens`. llama.cpp
-    /// splits a causal chunk across decodes, while a media chunk it decodes non-causally has to
-    /// fit a single decode.
+    /// Checks that this chunk can be evaluated in decodes of `micro_batch_tokens` and returns the
+    /// chunk type it classified. llama.cpp splits a causal chunk across decodes, while a media
+    /// chunk it decodes non-causally has to fit a single decode.
     ///
     /// # Errors
     ///
@@ -132,16 +137,17 @@ impl MtmdInputChunk {
         &self,
         mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
-    ) -> Result<(), MtmdEvalError> {
+    ) -> Result<MtmdInputChunkType, MtmdEvalError> {
+        let chunk_type = self.chunk_type()?;
         let decodes_non_causally =
-            self.chunk_type()? != MtmdInputChunkType::Text && mtmd_ctx.decode_use_non_causal(self);
+            chunk_type != MtmdInputChunkType::Text && mtmd_ctx.decode_use_non_causal(self);
 
         non_causal_chunk_micro_batch_error(
             decodes_non_causally,
             self.n_tokens(),
             micro_batch_tokens,
         )
-        .map_or(Ok(()), Err)
+        .map_or(Ok(chunk_type), Err)
     }
 }
 

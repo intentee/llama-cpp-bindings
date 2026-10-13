@@ -5,7 +5,6 @@ use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
-use llama_cpp_bindings::ingest_prompt_chunk::ingest_prompt_chunk;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::FittedMtmdInputChunk;
 use llama_cpp_bindings::mtmd::FittedMtmdInputChunks;
@@ -1407,20 +1406,29 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
         add_special: false,
         parse_special: false,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[])?;
+    let llama_ctx = LlamaContext::from_model(
+        model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(
+        mtmd_ctx.tokenize(input_text, &[])?,
+        mtmd_ctx,
+        llama_ctx.n_ubatch(),
+    )?;
 
-    let text_chunk = (0..chunks.len())
-        .filter_map(|index| chunks.get(index))
-        .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Text))
+    let text_chunk = (0..fitted_chunks.len())
+        .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
+        .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Text)
         .ok_or_else(|| {
             anyhow::anyhow!("text-only tokenization should produce at least one text chunk")
         })?;
 
-    let n_tokens = u64::try_from(text_chunk.n_tokens())?;
+    let n_tokens = u64::try_from(text_chunk.chunk().n_tokens())?;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
 
-    ingest_prompt_chunk(&mut classifier, &text_chunk)?;
+    classifier.ingest_fitted_chunk(&text_chunk);
 
     let usage = classifier.usage();
     if usage.prompt_tokens != n_tokens {
@@ -1472,21 +1480,30 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
         add_special: false,
         parse_special: true,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let llama_ctx = LlamaContext::from_model(
+        model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(
+        mtmd_ctx.tokenize(input_text, &[&bitmap])?,
+        mtmd_ctx,
+        llama_ctx.n_ubatch(),
+    )?;
 
-    let image_chunk = (0..chunks.len())
-        .filter_map(|index| chunks.get(index))
-        .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
+    let image_chunk = (0..fitted_chunks.len())
+        .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
+        .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Image)
         .ok_or_else(|| anyhow::anyhow!("multimodal tokenization should produce an image chunk"))?;
 
-    let n_tokens = u64::try_from(image_chunk.n_tokens())?;
+    let n_tokens = u64::try_from(image_chunk.chunk().n_tokens())?;
     if n_tokens == 0 {
         anyhow::bail!("image chunk should report at least one token");
     }
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
 
-    ingest_prompt_chunk(&mut classifier, &image_chunk)?;
+    classifier.ingest_fitted_chunk(&image_chunk);
 
     let usage = classifier.usage();
     if usage.input_image_tokens != n_tokens {
@@ -1531,15 +1548,23 @@ fn text_chunk_drives_marker_state_machine_to_reasoning(fixture: &LlamaFixture<'_
         add_special: false,
         parse_special: true,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[])?;
+    let llama_ctx = LlamaContext::from_model(
+        model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(
+        mtmd_ctx.tokenize(input_text, &[])?,
+        mtmd_ctx,
+        llama_ctx.n_ubatch(),
+    )?;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
 
-    for index in 0..chunks.len() {
-        let chunk = chunks
-            .get(index)
+    for index in 0..fitted_chunks.len() {
+        let chunk = FittedMtmdInputChunk::at(&fitted_chunks, index)
             .ok_or_else(|| anyhow::anyhow!("chunk index {index} must exist"))?;
-        ingest_prompt_chunk(&mut classifier, &chunk)?;
+        classifier.ingest_fitted_chunk(&chunk);
     }
 
     if classifier.current_section() != llama_cpp_bindings::SampledTokenSection::Reasoning {

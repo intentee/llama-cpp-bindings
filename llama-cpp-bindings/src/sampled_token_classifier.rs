@@ -21,6 +21,7 @@ use crate::model::LlamaModel;
 use crate::mtmd::FittedMtmdInputChunk;
 use crate::mtmd::FittedMtmdInputChunks;
 use crate::mtmd::MtmdContext;
+use crate::mtmd::MtmdInputChunkType;
 use crate::mtmd::MtmdInputChunks;
 use crate::mtmd::micro_batch_tokens;
 use crate::mtmd::positive_batch_tokens::positive_batch_tokens;
@@ -455,11 +456,9 @@ impl<'model> SampledTokenClassifier<'model> {
     /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
     ///
     /// # Errors
-    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when `params.n_batch` is not positive or
-    /// a chunk cannot be decoded (both before any chunk is evaluated), or when evaluating a
-    /// chunk fails,
-    /// [`EvalMultimodalChunksError::UnknownChunkType`] when a chunk reports a
-    /// type unknown to this binding, or
+    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when `params.n_batch` is not positive, a
+    /// chunk cannot be decoded or reports a type unknown to this binding (all before any chunk is
+    /// evaluated), or when evaluating a chunk fails, or
     /// [`EvalMultimodalChunksError::ChunkOutOfBounds`] when a valid index returns
     /// `None` from `chunks.get`.
     pub fn eval_multimodal_chunks(
@@ -490,10 +489,23 @@ impl<'model> SampledTokenClassifier<'model> {
                 params.n_batch,
                 logits_for_this_chunk,
             )?;
-            crate::ingest_prompt_chunk::ingest_prompt_chunk(self, fitted_chunk.chunk())?;
+            self.ingest_fitted_chunk(&fitted_chunk);
         }
 
         Ok(next_position)
+    }
+
+    pub fn ingest_fitted_chunk(&mut self, fitted_chunk: &FittedMtmdInputChunk<'_>) {
+        let n_tokens = fitted_chunk.chunk().n_tokens() as u64;
+
+        match fitted_chunk.chunk_type() {
+            MtmdInputChunkType::Text => {
+                self.record_prompt_tokens(n_tokens);
+                self.ingest_prompt_tokens(fitted_chunk.text_tokens());
+            }
+            MtmdInputChunkType::Image => self.record_input_image_tokens(n_tokens),
+            MtmdInputChunkType::Audio => self.record_input_audio_tokens(n_tokens),
+        }
     }
 
     pub const fn record_prompt_tokens(&mut self, count: u64) {

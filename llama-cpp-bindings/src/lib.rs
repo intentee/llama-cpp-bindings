@@ -21,7 +21,6 @@ pub mod gguf_tensor_f32;
 pub mod gguf_type;
 pub mod grammar_matcher;
 pub mod ingest_outcome;
-pub mod ingest_prompt_chunk;
 pub mod invalid_numa_strategy;
 pub mod json_probe_outcome;
 pub mod json_schema_to_grammar;
@@ -105,7 +104,6 @@ pub use synthetic_tool_call_renders::SyntheticToolCallRenders;
 pub use token_piece::TokenPiece;
 
 pub use ggml_time_us::ggml_time_us;
-pub use ingest_prompt_chunk::ingest_prompt_chunk;
 pub use json_schema_to_grammar::json_schema_to_grammar;
 pub use llama_time_us::llama_time_us;
 pub use max_devices::max_devices;

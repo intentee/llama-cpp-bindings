@@ -6,6 +6,7 @@ use super::micro_batch_tokens::micro_batch_tokens;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_input_chunk::MtmdInputChunk;
+use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunks_error::MtmdInputChunksError;
 use super::positive_batch_tokens::positive_batch_tokens;
 
@@ -63,7 +64,7 @@ impl MtmdInputChunks {
     }
 
     /// Checks every chunk with [`MtmdInputChunk::fit_to_micro_batch`] before any of them is
-    /// evaluated.
+    /// evaluated, and returns the chunk types it classified, in chunk order.
     ///
     /// # Errors
     ///
@@ -75,17 +76,17 @@ impl MtmdInputChunks {
         &self,
         mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
-    ) -> Result<(), MtmdEvalError> {
-        for index in 0..self.len() {
-            self.get(index)
-                .ok_or(crate::FfiContractError {
-                    operation: "mtmd_input_chunks_get",
-                    detail: "returned a null chunk within the chunk count",
-                })?
-                .fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)?;
-        }
-
-        Ok(())
+    ) -> Result<Vec<MtmdInputChunkType>, MtmdEvalError> {
+        (0..self.len())
+            .map(|index| {
+                self.get(index)
+                    .ok_or(crate::FfiContractError {
+                        operation: "mtmd_input_chunks_get",
+                        detail: "returned a null chunk within the chunk count",
+                    })?
+                    .fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)
+            })
+            .collect()
     }
 
     #[must_use]
