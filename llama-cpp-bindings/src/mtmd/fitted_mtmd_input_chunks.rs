@@ -3,6 +3,7 @@ use std::borrow::Borrow;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_input_chunk::MtmdInputChunk;
+use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunks::MtmdInputChunks;
 
 #[derive(Debug)]
@@ -10,6 +11,7 @@ pub struct FittedMtmdInputChunks<TChunks>
 where
     TChunks: Borrow<MtmdInputChunks>,
 {
+    chunk_types: Vec<MtmdInputChunkType>,
     chunks: TChunks,
     micro_batch_tokens: u32,
 }
@@ -19,7 +21,7 @@ where
     TChunks: Borrow<MtmdInputChunks>,
 {
     /// Checks every chunk once with [`MtmdInputChunks::fit_to_micro_batch`], so the chunks can
-    /// be evaluated without checking them again.
+    /// be evaluated and ingested without checking or classifying them again.
     ///
     /// # Errors
     ///
@@ -29,11 +31,12 @@ where
         mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
     ) -> Result<Self, MtmdEvalError> {
-        chunks
+        let chunk_types = chunks
             .borrow()
             .fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)?;
 
         Ok(Self {
+            chunk_types,
             chunks,
             micro_batch_tokens,
         })
@@ -45,13 +48,18 @@ where
     }
 
     #[must_use]
-    pub fn len(&self) -> usize {
-        self.chunks.borrow().len()
+    pub fn chunk_type(&self, chunk_index: usize) -> Option<MtmdInputChunkType> {
+        self.chunk_types.get(chunk_index).copied()
     }
 
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.chunks.borrow().is_empty()
+    pub const fn len(&self) -> usize {
+        self.chunk_types.len()
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.chunk_types.is_empty()
     }
 
     #[must_use]
