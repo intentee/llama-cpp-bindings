@@ -17,6 +17,13 @@ pub enum MtmdEvalError {
         .0.micro_batch_tokens,
     )]
     NonCausalChunkExceedsMicroBatch(NonCausalChunkMicroBatchMismatch),
+    #[error(
+        "a chunk fitted to decodes of {fitted_micro_batch_tokens} tokens cannot be evaluated in decodes of {evaluated_micro_batch_tokens}"
+    )]
+    EvaluatedMicroBatchSmallerThanFitted {
+        evaluated_micro_batch_tokens: u32,
+        fitted_micro_batch_tokens: u32,
+    },
     #[error("multimodal chunk eval failed with code: {code}")]
     EvalFailed { code: i32 },
     #[error("the chunk type could not be classified before evaluating it: {0}")]

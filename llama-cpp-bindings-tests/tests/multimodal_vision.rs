@@ -7,6 +7,8 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
 use llama_cpp_bindings::ingest_prompt_chunk::ingest_prompt_chunk;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_bindings::mtmd::FittedMtmdInputChunk;
+use llama_cpp_bindings::mtmd::FittedMtmdInputChunks;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
@@ -715,21 +717,120 @@ fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn fitting_no_chunks_leaves_nothing_to_evaluate(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
-    let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
-    let first_chunk = chunks.get(0).context("tokenization produced no chunks")?;
     let llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
+    let fitted_chunks =
+        FittedMtmdInputChunks::fit(MtmdInputChunks::new()?, mtmd_ctx, llama_ctx.n_ubatch())?;
+
+    assert!(fitted_chunks.is_empty());
+    assert!(FittedMtmdInputChunk::at(&fitted_chunks, 0).is_none());
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
+)]
+fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(
+        tokenize_synthetic(fixture, "Describe: <__media__>")?,
+        mtmd_ctx,
+        llama_ctx.n_ubatch(),
+    )?;
+    let first_chunk =
+        FittedMtmdInputChunk::at(&fitted_chunks, 0).context("tokenization produced no chunks")?;
 
     assert_eq!(
         first_chunk.eval_single(mtmd_ctx, &llama_ctx, 0, 0, 0, true),
         Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
+    );
+    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
+)]
+fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluating(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+    let fitted_micro_batch_tokens = llama_ctx.n_ubatch();
+    let fitted_chunks = FittedMtmdInputChunks::fit(
+        tokenize_synthetic(fixture, "Describe: <__media__>")?,
+        mtmd_ctx,
+        fitted_micro_batch_tokens,
+    )?;
+    let first_chunk =
+        FittedMtmdInputChunk::at(&fitted_chunks, 0).context("tokenization produced no chunks")?;
+    let smaller_micro_batch_tokens = fitted_micro_batch_tokens - 1;
+
+    assert_eq!(
+        first_chunk.eval_single(
+            mtmd_ctx,
+            &llama_ctx,
+            0,
+            0,
+            i32::try_from(smaller_micro_batch_tokens)?,
+            true
+        ),
+        Err(MtmdEvalError::EvaluatedMicroBatchSmallerThanFitted {
+            evaluated_micro_batch_tokens: smaller_micro_batch_tokens,
+            fitted_micro_batch_tokens,
+        })
     );
     assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
 
@@ -1913,7 +2014,7 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
     n_ubatch = 128,
     mmproj_source = HuggingFace("unsloth/gemma-3-4b-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn gemma3_eval_single_rejects_a_non_causal_image_larger_than_the_micro_batch_before_evaluating(
+fn gemma3_fitting_rejects_a_non_causal_image_larger_than_the_micro_batch(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = fixture
@@ -1931,14 +2032,7 @@ fn gemma3_eval_single_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
     )?;
 
     assert_eq!(
-        image_chunk.eval_single(
-            mtmd_ctx,
-            &llama_ctx,
-            0,
-            0,
-            i32::try_from(llama_ctx.n_batch())?,
-            true
-        ),
+        image_chunk.fit_to_micro_batch(mtmd_ctx, llama_ctx.n_ubatch()),
         Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
             NonCausalChunkMicroBatchMismatch {
                 chunk_tokens: image_chunk.n_tokens(),
@@ -1946,7 +2040,6 @@ fn gemma3_eval_single_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
             }
         ))
     );
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
 
     Ok(())
 }

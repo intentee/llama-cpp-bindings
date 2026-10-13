@@ -1,3 +1,5 @@
+pub mod fitted_mtmd_input_chunk;
+pub mod fitted_mtmd_input_chunks;
 pub mod micro_batch_tokens;
 pub mod mtmd_bitmap;
 pub mod mtmd_bitmap_error;
@@ -19,6 +21,8 @@ pub mod mtmd_tokenize_error;
 pub mod non_causal_chunk_micro_batch_mismatch;
 pub mod positive_batch_tokens;
 
+pub use fitted_mtmd_input_chunk::FittedMtmdInputChunk;
+pub use fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 pub use micro_batch_tokens::micro_batch_tokens;
 pub use mtmd_bitmap::MtmdBitmap;
 pub use mtmd_bitmap_error::MtmdBitmapError;
