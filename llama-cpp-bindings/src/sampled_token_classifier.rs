@@ -18,6 +18,8 @@ use crate::generation_progress::GenerationProgress;
 use crate::json_probe_outcome::JsonProbeOutcome;
 use crate::llama_batch::LlamaBatch;
 use crate::model::LlamaModel;
+use crate::mtmd::FittedMtmdInputChunk;
+use crate::mtmd::FittedMtmdInputChunks;
 use crate::mtmd::MtmdContext;
 use crate::mtmd::MtmdInputChunks;
 use crate::mtmd::micro_batch_tokens;
@@ -467,21 +469,20 @@ impl<'model> SampledTokenClassifier<'model> {
         llama_ctx: &LlamaContext,
         params: EvalMultimodalChunksParams,
     ) -> Result<llama_pos, EvalMultimodalChunksError> {
-        chunks.fit_to_micro_batch(
+        let fitted_chunks = FittedMtmdInputChunks::fit(
+            chunks,
             mtmd_ctx,
             micro_batch_tokens(llama_ctx, positive_batch_tokens(params.n_batch)?),
         )?;
-
-        let chunk_count = chunks.len();
+        let chunk_count = fitted_chunks.len();
         let mut next_position = params.start_position;
 
         for index in 0..chunk_count {
-            let chunk = chunks
-                .get(index)
+            let fitted_chunk = FittedMtmdInputChunk::at(&fitted_chunks, index)
                 .ok_or(EvalMultimodalChunksError::ChunkOutOfBounds(index))?;
             let logits_for_this_chunk = params.logits_last && index + 1 == chunk_count;
 
-            next_position = chunk.eval_single(
+            next_position = fitted_chunk.eval_single(
                 mtmd_ctx,
                 llama_ctx,
                 next_position,
@@ -489,7 +490,7 @@ impl<'model> SampledTokenClassifier<'model> {
                 params.n_batch,
                 logits_for_this_chunk,
             )?;
-            crate::ingest_prompt_chunk::ingest_prompt_chunk(self, &chunk)?;
+            crate::ingest_prompt_chunk::ingest_prompt_chunk(self, fitted_chunk.chunk())?;
         }
 
         Ok(next_position)
