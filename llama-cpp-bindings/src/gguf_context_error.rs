@@ -5,6 +5,13 @@ use crate::gguf_type::GgufType;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GgufContextError {
+    #[error("GGUF key id {key_id} holds an array of type {actual_raw_type}, not {expected:?}")]
+    ArrayElementTypeMismatch {
+        key_id: i64,
+        expected: GgufType,
+        actual_raw_type: u32,
+    },
+
     #[error("Failed to initialize GGUF context from file: {0}")]
     InitFailed(PathBuf),
 

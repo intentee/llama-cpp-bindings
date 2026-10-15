@@ -224,6 +224,47 @@ impl GgufContext {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
+    /// if the key does not hold a [`GgufType::Array`] value.
+    /// Returns [`GgufContextError::ArrayElementTypeMismatch`] if the array does not hold
+    /// [`GgufType::Int32`] elements.
+    pub fn val_arr_i32(&self, key_id: i64) -> Result<&[i32], GgufContextError> {
+        self.require_value_type(key_id, GgufType::Array)?;
+
+        let element_type =
+            unsafe { llama_cpp_bindings_sys::gguf_get_arr_type(self.context.as_ptr(), key_id) };
+
+        if element_type != GgufType::Int32.to_raw() {
+            return Err(GgufContextError::ArrayElementTypeMismatch {
+                key_id,
+                expected: GgufType::Int32,
+                actual_raw_type: element_type,
+            });
+        }
+
+        Ok(unsafe {
+            slice::from_raw_parts(
+                llama_cpp_bindings_sys::gguf_get_arr_data(self.context.as_ptr(), key_id)
+                    .cast::<i32>(),
+                llama_cpp_bindings_sys::gguf_get_arr_n(self.context.as_ptr(), key_id),
+            )
+        })
+    }
+
+    pub fn set_arr_i32(&mut self, key: &CStr, values: &[i32]) {
+        unsafe {
+            llama_cpp_bindings_sys::gguf_set_arr_data(
+                self.context.as_ptr(),
+                key.as_ptr(),
+                GgufType::Int32.to_raw(),
+                values.as_ptr().cast(),
+                values.len(),
+            );
+        }
+    }
+
     #[must_use]
     pub fn n_tensors(&self) -> i64 {
         unsafe { llama_cpp_bindings_sys::gguf_get_n_tensors(self.context.as_ptr()) }
@@ -419,6 +460,26 @@ mod tests {
             name: String::new(),
             ggml_type: 0,
         })
+    }
+
+    fn array_element_type_mismatch_disc() -> Discriminant<GgufContextError> {
+        std::mem::discriminant(&GgufContextError::ArrayElementTypeMismatch {
+            key_id: 0,
+            expected: GgufType::Int32,
+            actual_raw_type: 0,
+        })
+    }
+
+    fn i32_array_bytes(values: &[i32]) -> Vec<u8> {
+        let mut encoded = GgufType::Int32.to_raw().to_le_bytes().to_vec();
+
+        encoded.extend_from_slice(&(values.len() as u64).to_le_bytes());
+
+        for value in values {
+            encoded.extend_from_slice(&value.to_le_bytes());
+        }
+
+        encoded
     }
 
     fn source_file_read_failed_disc() -> Discriminant<GgufContextError> {
@@ -856,6 +917,50 @@ mod tests {
     }
 
     #[test]
+    fn val_arr_i32_returns_the_stored_elements() {
+        let fixture = SyntheticGgufBuilder::default()
+            .value(
+                b"synthetic.i32_array",
+                GgufType::Array,
+                &i32_array_bytes(&[3, -1, 7]),
+            )
+            .write("val_arr_i32_returns_the_stored_elements");
+        let context = GgufContext::from_file(&fixture.path).unwrap();
+        let array_index = context.find_key("synthetic.i32_array").unwrap();
+
+        assert_eq!(context.val_arr_i32(array_index).unwrap(), &[3, -1, 7]);
+    }
+
+    #[test]
+    fn val_arr_i32_rejects_a_key_that_holds_no_array() {
+        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let index = context.find_key("general.architecture").unwrap();
+        let err = context.val_arr_i32(index).unwrap_err();
+
+        assert_eq!(std::mem::discriminant(&err), value_type_mismatch_disc());
+    }
+
+    #[test]
+    fn val_arr_i32_rejects_an_array_of_another_element_type() {
+        let mut encoded = GgufType::Uint8.to_raw().to_le_bytes().to_vec();
+
+        encoded.extend_from_slice(&1u64.to_le_bytes());
+        encoded.push(9);
+
+        let fixture = SyntheticGgufBuilder::default()
+            .value(b"synthetic.u8_array", GgufType::Array, &encoded)
+            .write("val_arr_i32_rejects_an_array_of_another_element_type");
+        let context = GgufContext::from_file(&fixture.path).unwrap();
+        let array_index = context.find_key("synthetic.u8_array").unwrap();
+        let err = context.val_arr_i32(array_index).unwrap_err();
+
+        assert_eq!(
+            std::mem::discriminant(&err),
+            array_element_type_mismatch_disc()
+        );
+    }
+
+    #[test]
     fn remove_key_rejects_a_missing_key() {
         let mut context = GgufContext::from_file(fixture_path()).unwrap();
         let err = context.remove_key("nonexistent.key").unwrap_err();
@@ -911,16 +1016,19 @@ mod tests {
 
         context.set_val_u32(c"synthetic.u32_value", 4096);
         context.set_val_str(c"synthetic.str_value", c"set value");
+        context.set_arr_i32(c"synthetic.i32_array", &[5, -8]);
         context.write_to_file(&rewritten_path).unwrap();
 
         let rewritten = GgufContext::from_file(&rewritten_path).unwrap();
         let u32_index = rewritten.find_key("synthetic.u32_value").unwrap();
         let str_index = rewritten.find_key("synthetic.str_value").unwrap();
+        let array_index = rewritten.find_key("synthetic.i32_array").unwrap();
 
         std::fs::remove_file(&rewritten_path).unwrap();
 
         assert_eq!(rewritten.val_u32(u32_index).unwrap(), 4096);
         assert_eq!(rewritten.val_str(str_index).unwrap(), "set value");
+        assert_eq!(rewritten.val_arr_i32(array_index).unwrap(), &[5, -8]);
     }
 
     #[test]
