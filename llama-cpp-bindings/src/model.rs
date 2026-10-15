@@ -26,6 +26,7 @@ use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 use toktrie::ApproximateTokEnv;
+use toktrie::INVALID_TOKEN;
 use toktrie::TokRxInfo;
 use toktrie::TokTrie;
 
@@ -36,7 +37,6 @@ use crate::bare_json_tool_calls::BareJsonToolCalls;
 use crate::chat_template_tool_calls;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
-use crate::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
 use crate::marker_role::MarkerRole;
 use crate::marker_role_candidate::MarkerRoleCandidate;
 use crate::model::tokenizer_input::TokenizerInput;
@@ -48,8 +48,8 @@ use crate::synthetic_tool_call_renders::SyntheticToolCallRenders;
 use crate::token::LlamaToken;
 use crate::{
     ApplyChatTemplateError, ChatTemplateError, LlamaLoraAdapterInitError, LlamaModelLoadError,
-    MarkerDetectionError, MetaValError, ParseChatMessageError, StringToTokenError,
-    TokenToStringError,
+    MarkerDetectionError, MetaValError, ParseChatMessageError, StringToTokenError, TokenAttrError,
+    TokenOutsideVocabulary, TokenToStringError,
 };
 
 pub use add_bos::AddBos;
@@ -80,6 +80,16 @@ fn cstring_with_validated_len(text: &str) -> Result<TokenizerInput, StringToToke
         text: c_string,
         length,
     })
+}
+
+const fn present_special_token(
+    token_id: llama_cpp_bindings_sys::llama_token,
+) -> Option<LlamaToken> {
+    if token_id == llama_cpp_bindings_sys::LLAMA_TOKEN_NULL {
+        None
+    } else {
+        Some(LlamaToken(token_id))
+    }
 }
 
 pub struct LlamaModel {
@@ -405,6 +415,19 @@ unsafe fn apply_chat_template_status_to_result(
 }
 
 impl LlamaModel {
+    fn require_vocabulary_token(
+        &self,
+        token: LlamaToken,
+    ) -> Result<LlamaToken, TokenOutsideVocabulary> {
+        let n_vocab = self.n_vocab();
+
+        if (0..n_vocab).contains(&token.0) {
+            Ok(token)
+        } else {
+            Err(TokenOutsideVocabulary { token, n_vocab })
+        }
+    }
+
     #[must_use]
     pub fn vocab_ptr(&self) -> *const llama_cpp_bindings_sys::llama_vocab {
         unsafe { llama_cpp_bindings_sys::llama_model_get_vocab(self.model.as_ptr()) }
@@ -441,21 +464,18 @@ impl LlamaModel {
     }
 
     #[must_use]
-    pub fn token_bos(&self) -> LlamaToken {
-        let token = unsafe { llama_cpp_bindings_sys::llama_vocab_bos(self.vocab_ptr()) };
-        LlamaToken(token)
+    pub fn token_bos(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_bos(self.vocab_ptr()) })
     }
 
     #[must_use]
-    pub fn token_eos(&self) -> LlamaToken {
-        let token = unsafe { llama_cpp_bindings_sys::llama_vocab_eos(self.vocab_ptr()) };
-        LlamaToken(token)
+    pub fn token_eos(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_eos(self.vocab_ptr()) })
     }
 
     #[must_use]
-    pub fn token_nl(&self) -> LlamaToken {
-        let token = unsafe { llama_cpp_bindings_sys::llama_vocab_nl(self.vocab_ptr()) };
-        LlamaToken(token)
+    pub fn token_nl(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_nl(self.vocab_ptr()) })
     }
 
     #[must_use]
@@ -474,16 +494,15 @@ impl LlamaModel {
     }
 
     #[must_use]
-    pub fn decode_start_token(&self) -> LlamaToken {
-        let token =
-            unsafe { llama_cpp_bindings_sys::llama_model_decoder_start_token(self.model.as_ptr()) };
-        LlamaToken(token)
+    pub fn decode_start_token(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe {
+            llama_cpp_bindings_sys::llama_model_decoder_start_token(self.model.as_ptr())
+        })
     }
 
     #[must_use]
-    pub fn token_sep(&self) -> LlamaToken {
-        let token = unsafe { llama_cpp_bindings_sys::llama_vocab_sep(self.vocab_ptr()) };
-        LlamaToken(token)
+    pub fn token_sep(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_sep(self.vocab_ptr()) })
     }
 
     /// # Errors
@@ -527,15 +546,15 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns an error if the token type is not known to this library.
-    pub fn token_attr(
-        &self,
-        LlamaToken(id): LlamaToken,
-    ) -> Result<LlamaTokenAttrs, LlamaTokenAttrsFromIntError> {
+    /// Returns [`TokenAttrError::TokenOutsideVocabulary`] when the token is not part of this
+    /// model's vocabulary, or [`TokenAttrError::UnknownAttributes`] when the token type is not
+    /// known to this library.
+    pub fn token_attr(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
+        let LlamaToken(id) = self.require_vocabulary_token(token)?;
         let token_type =
             unsafe { llama_cpp_bindings_sys::llama_vocab_get_attr(self.vocab_ptr(), id) };
 
-        LlamaTokenAttrs::try_from(token_type)
+        LlamaTokenAttrs::try_from(token_type).map_err(TokenAttrError::UnknownAttributes)
     }
 
     /// # Errors
@@ -572,6 +591,7 @@ impl LlamaModel {
 
     /// # Errors
     ///
+    /// - if the token is not part of this model's vocabulary
     /// - if the token type is unknown
     /// - the resultant token is larger than `buffer_size`.
     /// - if an integer conversion fails
@@ -582,6 +602,7 @@ impl LlamaModel {
         special: bool,
         lstrip: Option<NonZeroU16>,
     ) -> Result<Vec<u8>, TokenToStringError> {
+        let token = self.require_vocabulary_token(token)?;
         let mut buffer: Vec<u8> = vec![0u8; buffer_size];
         let buffer_len = c_int::try_from(buffer.len())?;
         let lstrip = lstrip.map_or(0, |strip_count| i32::from(strip_count.get()));
@@ -1096,13 +1117,13 @@ fn build_approximate_tok_env(
     model: &LlamaModel,
 ) -> Result<Arc<ApproximateTokEnv>, TokenToStringError> {
     let n_vocab = model.n_vocab().cast_unsigned();
-    let tok_eos = {
-        let eot = unsafe { llama_cpp_bindings_sys::llama_vocab_eot(model.vocab_ptr()) };
-        if eot == -1 {
-            model.token_eos().0.cast_unsigned()
-        } else {
-            eot.cast_unsigned()
-        }
+    let end_of_generation_token = present_special_token(unsafe {
+        llama_cpp_bindings_sys::llama_vocab_eot(model.vocab_ptr())
+    })
+    .or_else(|| model.token_eos());
+    let tok_eos = match end_of_generation_token {
+        Some(LlamaToken(token_id)) => token_id.cast_unsigned(),
+        None => INVALID_TOKEN,
     };
     let info = TokRxInfo::new(n_vocab, tok_eos);
 

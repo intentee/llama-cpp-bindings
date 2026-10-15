@@ -181,6 +181,7 @@ fn create_base_builder(llama_src: &Path, callbacks: BindingCallbacks) -> bindgen
         .allowlist_type("gguf_.*")
         .allowlist_function("llama_.*")
         .allowlist_type("llama_.*")
+        .allowlist_var("LLAMA_TOKEN_NULL")
         .allowlist_function("mtmd_.*")
         .allowlist_type("mtmd_.*")
         .blocklist_function("ggml_fopen")

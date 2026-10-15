@@ -176,6 +176,11 @@ impl LlamaContext<'_> {
         if mem.is_null() { None } else { Some(mem) }
     }
 
+    #[must_use]
+    pub fn has_memory(&self) -> bool {
+        self.memory_handle().is_some()
+    }
+
     fn required_memory_handle(
         &self,
     ) -> Result<llama_cpp_bindings_sys::llama_memory_t, CopyKvCacheSeqError> {
