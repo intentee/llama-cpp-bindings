@@ -14,6 +14,7 @@ use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
+use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -133,7 +134,7 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
     }
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,

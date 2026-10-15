@@ -1213,8 +1213,10 @@ dependencies = [
  "encoding_rs",
  "llama-cpp-bindings",
  "llama-cpp-bindings-sys",
+ "llama-cpp-bindings-types",
  "llama-cpp-test-harness",
  "serde_json",
+ "toktrie",
 ]
 
 [[package]]

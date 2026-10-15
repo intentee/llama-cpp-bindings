@@ -22,6 +22,7 @@ use llama_cpp_bindings::token::data::LlamaTokenData;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 use llama_cpp_bindings_tests::prime_kv_cache::prime_kv_cache;
 use llama_cpp_bindings_tests::prime_kv_cache_with::prime_kv_cache_with;
+use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::download_model::download_model;
 use llama_cpp_test_harness::llama_test;
@@ -224,7 +225,7 @@ fn decode_and_get_logits(fixture: &LlamaFixture<'_>) -> Result<()> {
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
 
     let decode_result = context.decode(&mut batch);
@@ -275,7 +276,7 @@ fn token_data_array_has_entries_after_decode(fixture: &LlamaFixture<'_>) -> Resu
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -304,7 +305,7 @@ fn get_logits_ith_returns_valid_slice(fixture: &LlamaFixture<'_>) -> Result<()> 
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(tokens.len() - 1)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -333,7 +334,7 @@ fn token_data_array_ith_returns_valid_data(fixture: &LlamaFixture<'_>) -> Result
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(tokens.len() - 1)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -410,7 +411,7 @@ fn candidates_returns_n_vocab_entries(fixture: &LlamaFixture<'_>) -> Result<()> 
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -460,7 +461,7 @@ fn candidates_ith_returns_n_vocab_entries(fixture: &LlamaFixture<'_>) -> Result<
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(tokens.len() - 1)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -545,7 +546,7 @@ fn encode_on_non_encoder_model_returns_error(fixture: &LlamaFixture<'_>) -> Resu
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
 
     let result = context.encode(&mut batch);
@@ -575,7 +576,7 @@ fn embeddings_seq_ith_returns_null_embedding_error_for_invalid_seq(
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -600,7 +601,7 @@ fn decode_empty_batch_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
 
     let result = context.decode(&mut batch);
 
@@ -629,7 +630,7 @@ fn set_abort_flag_aborts_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
 
     let result = context.decode(&mut batch);
@@ -659,7 +660,7 @@ fn set_abort_flag_false_allows_decode(fixture: &LlamaFixture<'_>) -> Result<()> 
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
 
     let result = context.decode(&mut batch);
@@ -690,7 +691,7 @@ fn clear_abort_callback_allows_decode_with_flag_true(fixture: &LlamaFixture<'_>)
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
 
     let result = context.decode(&mut batch);
@@ -893,23 +894,33 @@ fn prime_kv_cache_surfaces_each_underlying_error(fixture: &LlamaFixture<'_>) -> 
     let mut context = fixture.build_context()?;
 
     assert!(
-        prime_kv_cache_with(fixture, &mut context, "Hello\0world", 512).is_err(),
+        prime_kv_cache_with(
+            fixture,
+            &mut context,
+            "Hello\0world",
+            BatchCapacity::try_from(512)?
+        )
+        .is_err(),
         "an interior null byte must surface a tokenization error"
     );
     assert!(
-        prime_kv_cache_with(fixture, &mut context, "Hello", usize::MAX).is_err(),
-        "a batch capacity exceeding i32::MAX must surface a batch construction error"
-    );
-    assert!(
-        prime_kv_cache_with(fixture, &mut context, &"word ".repeat(64), 4).is_err(),
+        prime_kv_cache_with(
+            fixture,
+            &mut context,
+            &"word ".repeat(64),
+            BatchCapacity::try_from(4)?
+        )
+        .is_err(),
         "more tokens than the batch capacity must surface an add-sequence error"
     );
 
     let filler = "word ".repeat(40);
-    let mut decode_result = prime_kv_cache_with(fixture, &mut context, &filler, 256);
+    let filler_batch_capacity = BatchCapacity::try_from(256)?;
+    let mut decode_result =
+        prime_kv_cache_with(fixture, &mut context, &filler, filler_batch_capacity);
     let mut attempts = 0;
     while decode_result.is_ok() && attempts < 16 {
-        decode_result = prime_kv_cache_with(fixture, &mut context, &filler, 256);
+        decode_result = prime_kv_cache_with(fixture, &mut context, &filler, filler_batch_capacity);
         attempts += 1;
     }
     assert!(
@@ -1667,7 +1678,7 @@ fn save_and_load_session_file(fixture: &LlamaFixture<'_>) -> Result<()> {
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -1761,7 +1772,7 @@ fn state_seq_save_and_load_file_roundtrip(fixture: &LlamaFixture<'_>) -> Result<
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -1821,7 +1832,7 @@ fn set_state_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -1857,7 +1868,7 @@ fn copy_state_data_and_set_state_data_roundtrip(fixture: &LlamaFixture<'_>) -> R
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -2088,7 +2099,7 @@ fn state_load_file_with_zero_max_tokens_returns_error(fixture: &LlamaFixture<'_>
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -2144,7 +2155,7 @@ fn state_seq_load_file_with_zero_max_tokens_returns_error(
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -2201,7 +2212,7 @@ fn state_load_file_with_insufficient_max_tokens_returns_length_error(
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -2258,7 +2269,7 @@ fn state_seq_load_file_with_insufficient_max_tokens_returns_length_error(
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -2676,7 +2687,7 @@ fn state_seq_get_size_ext_returns_size_for_decoded_sequence(
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -2729,7 +2740,7 @@ fn state_seq_get_data_ext_and_set_data_ext_round_trip(fixture: &LlamaFixture<'_>
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
@@ -2768,7 +2779,7 @@ fn qwen35_refilled_candidate_array_matches_a_freshly_built_one(
         (*fixture.context_params).into_llama_context_params(),
     )?;
     let prompt_tokens = model.str_to_token("Hello", AddBos::Never, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(64, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(64)?, 1);
 
     batch.add_sequence(&prompt_tokens, 0, false)?;
     context.decode(&mut batch)?;
@@ -2810,7 +2821,7 @@ fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_returns_a
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 

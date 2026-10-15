@@ -1,4 +1,5 @@
 use std::ffi::{CStr, CString};
+use std::fs;
 use std::fs::File;
 use std::io;
 use std::os::unix::fs::FileExt as _;
@@ -158,6 +159,112 @@ impl GgufContext {
         Ok(c_str.to_str()?)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyNotFound`] if the key does not exist.
+    /// Returns [`GgufContextError::NulError`] if the key contains a null byte.
+    pub fn remove_key(&mut self, key: &str) -> Result<(), GgufContextError> {
+        let key_id = self.find_key(key)?;
+        let stored_key =
+            unsafe { llama_cpp_bindings_sys::gguf_get_key(self.context.as_ptr(), key_id) };
+
+        unsafe { llama_cpp_bindings_sys::gguf_remove_key(self.context.as_ptr(), stored_key) };
+
+        Ok(())
+    }
+
+    pub fn set_val_u32(&mut self, key: &CStr, value: u32) {
+        unsafe {
+            llama_cpp_bindings_sys::gguf_set_val_u32(self.context.as_ptr(), key.as_ptr(), value);
+        }
+    }
+
+    pub fn set_val_str(&mut self, key: &CStr, value: &CStr) {
+        unsafe {
+            llama_cpp_bindings_sys::gguf_set_val_str(
+                self.context.as_ptr(),
+                key.as_ptr(),
+                value.as_ptr(),
+            );
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::SourceFileReadFailed`] if the loaded file cannot be read.
+    /// Returns [`GgufContextError::SourceFileTruncated`] if the loaded file ends before its
+    /// tensor data begins.
+    /// Returns [`GgufContextError::DestinationFileWriteFailed`] if the destination cannot be
+    /// written.
+    pub fn write_to_file(&self, destination: impl AsRef<Path>) -> Result<(), GgufContextError> {
+        let destination_ref = destination.as_ref();
+        let mut gguf_bytes =
+            fs::read(&self.path).map_err(|source| GgufContextError::SourceFileReadFailed {
+                path: self.path.clone(),
+                source,
+            })?;
+        let data_offset =
+            unsafe { llama_cpp_bindings_sys::gguf_get_data_offset(self.context.as_ptr()) };
+
+        if gguf_bytes.len() < data_offset {
+            return Err(GgufContextError::SourceFileTruncated {
+                path: self.path.clone(),
+                data_offset,
+                file_size: gguf_bytes.len(),
+            });
+        }
+
+        gguf_bytes.splice(..data_offset, self.metadata_bytes());
+
+        fs::write(destination_ref, gguf_bytes).map_err(|source| {
+            GgufContextError::DestinationFileWriteFailed {
+                path: destination_ref.to_path_buf(),
+                source,
+            }
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
+    /// if the key does not hold a [`GgufType::Array`] value.
+    /// Returns [`GgufContextError::ArrayElementTypeMismatch`] if the array does not hold
+    /// [`GgufType::Int32`] elements.
+    pub fn val_arr_i32(&self, key_id: i64) -> Result<&[i32], GgufContextError> {
+        self.require_value_type(key_id, GgufType::Array)?;
+
+        let element_type =
+            unsafe { llama_cpp_bindings_sys::gguf_get_arr_type(self.context.as_ptr(), key_id) };
+
+        if element_type != GgufType::Int32.to_raw() {
+            return Err(GgufContextError::ArrayElementTypeMismatch {
+                key_id,
+                expected: GgufType::Int32,
+                actual_raw_type: element_type,
+            });
+        }
+
+        Ok(unsafe {
+            slice::from_raw_parts(
+                llama_cpp_bindings_sys::gguf_get_arr_data(self.context.as_ptr(), key_id)
+                    .cast::<i32>(),
+                llama_cpp_bindings_sys::gguf_get_arr_n(self.context.as_ptr(), key_id),
+            )
+        })
+    }
+
+    pub fn set_arr_i32(&mut self, key: &CStr, values: &[i32]) {
+        unsafe {
+            llama_cpp_bindings_sys::gguf_set_arr_data(
+                self.context.as_ptr(),
+                key.as_ptr(),
+                GgufType::Int32.to_raw(),
+                values.as_ptr().cast(),
+                values.len(),
+            );
+        }
+    }
+
     #[must_use]
     pub fn n_tensors(&self) -> i64 {
         unsafe { llama_cpp_bindings_sys::gguf_get_n_tensors(self.context.as_ptr()) }
@@ -196,6 +303,20 @@ impl GgufContext {
             shape: self.tensor_shape(tensor_id),
             values: self.tensor_f32_values(name, tensor_id)?,
         })
+    }
+
+    fn metadata_bytes(&self) -> Vec<u8> {
+        let mut metadata =
+            vec![0; unsafe { llama_cpp_bindings_sys::gguf_get_meta_size(self.context.as_ptr()) }];
+
+        unsafe {
+            llama_cpp_bindings_sys::gguf_get_meta_data(
+                self.context.as_ptr(),
+                metadata.as_mut_ptr().cast(),
+            );
+        };
+
+        metadata
     }
 
     fn require_key_id_in_range(&self, key_id: i64) -> Result<(), GgufContextError> {
@@ -339,6 +460,56 @@ mod tests {
             name: String::new(),
             ggml_type: 0,
         })
+    }
+
+    fn array_element_type_mismatch_disc() -> Discriminant<GgufContextError> {
+        std::mem::discriminant(&GgufContextError::ArrayElementTypeMismatch {
+            key_id: 0,
+            expected: GgufType::Int32,
+            actual_raw_type: 0,
+        })
+    }
+
+    fn i32_array_bytes(values: &[i32]) -> Vec<u8> {
+        let mut encoded = GgufType::Int32.to_raw().to_le_bytes().to_vec();
+
+        encoded.extend_from_slice(&(values.len() as u64).to_le_bytes());
+
+        for value in values {
+            encoded.extend_from_slice(&value.to_le_bytes());
+        }
+
+        encoded
+    }
+
+    fn source_file_read_failed_disc() -> Discriminant<GgufContextError> {
+        std::mem::discriminant(&GgufContextError::SourceFileReadFailed {
+            path: PathBuf::new(),
+            source: std::io::Error::other("discriminant"),
+        })
+    }
+
+    fn source_file_truncated_disc() -> Discriminant<GgufContextError> {
+        std::mem::discriminant(&GgufContextError::SourceFileTruncated {
+            path: PathBuf::new(),
+            data_offset: 0,
+            file_size: 0,
+        })
+    }
+
+    fn destination_file_write_failed_disc() -> Discriminant<GgufContextError> {
+        std::mem::discriminant(&GgufContextError::DestinationFileWriteFailed {
+            path: PathBuf::new(),
+            source: std::io::Error::other("discriminant"),
+        })
+    }
+
+    fn rewritten_gguf_path(test_name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "llama_cpp_bindings_rewritten_{}_{}.gguf",
+            std::process::id(),
+            test_name,
+        ))
     }
 
     fn tensor_read_failed_disc() -> Discriminant<GgufContextError> {
@@ -743,5 +914,177 @@ mod tests {
         let err = context.read_tensor_f32("foo\0bar").unwrap_err();
 
         assert_eq!(std::mem::discriminant(&err), nul_error_disc());
+    }
+
+    #[test]
+    fn val_arr_i32_returns_the_stored_elements() {
+        let fixture = SyntheticGgufBuilder::default()
+            .value(
+                b"synthetic.i32_array",
+                GgufType::Array,
+                &i32_array_bytes(&[3, -1, 7]),
+            )
+            .write("val_arr_i32_returns_the_stored_elements");
+        let context = GgufContext::from_file(&fixture.path).unwrap();
+        let array_index = context.find_key("synthetic.i32_array").unwrap();
+
+        assert_eq!(context.val_arr_i32(array_index).unwrap(), &[3, -1, 7]);
+    }
+
+    #[test]
+    fn val_arr_i32_rejects_a_key_that_holds_no_array() {
+        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let index = context.find_key("general.architecture").unwrap();
+        let err = context.val_arr_i32(index).unwrap_err();
+
+        assert_eq!(std::mem::discriminant(&err), value_type_mismatch_disc());
+    }
+
+    #[test]
+    fn val_arr_i32_rejects_an_array_of_another_element_type() {
+        let mut encoded = GgufType::Uint8.to_raw().to_le_bytes().to_vec();
+
+        encoded.extend_from_slice(&1u64.to_le_bytes());
+        encoded.push(9);
+
+        let fixture = SyntheticGgufBuilder::default()
+            .value(b"synthetic.u8_array", GgufType::Array, &encoded)
+            .write("val_arr_i32_rejects_an_array_of_another_element_type");
+        let context = GgufContext::from_file(&fixture.path).unwrap();
+        let array_index = context.find_key("synthetic.u8_array").unwrap();
+        let err = context.val_arr_i32(array_index).unwrap_err();
+
+        assert_eq!(
+            std::mem::discriminant(&err),
+            array_element_type_mismatch_disc()
+        );
+    }
+
+    #[test]
+    fn remove_key_rejects_a_missing_key() {
+        let mut context = GgufContext::from_file(fixture_path()).unwrap();
+        let err = context.remove_key("nonexistent.key").unwrap_err();
+
+        assert_eq!(std::mem::discriminant(&err), key_not_found_disc());
+    }
+
+    #[test]
+    fn write_to_file_keeps_every_tensor_and_key_except_the_removed_one() {
+        let fixture = SyntheticGgufBuilder::default()
+            .string_value(b"synthetic.kept", b"kept value")
+            .string_value(b"synthetic.removed", b"removed value")
+            .tensor(
+                b"synthetic.weight",
+                &[3, 2],
+                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+            )
+            .write("write_to_file_keeps_every_tensor_and_key_except_the_removed_one");
+        let rewritten_path =
+            rewritten_gguf_path("write_to_file_keeps_every_tensor_and_key_except_the_removed_one");
+        let mut context = GgufContext::from_file(&fixture.path).unwrap();
+
+        context.remove_key("synthetic.removed").unwrap();
+        context.write_to_file(&rewritten_path).unwrap();
+
+        let rewritten = GgufContext::from_file(&rewritten_path).unwrap();
+        let kept_index = rewritten.find_key("synthetic.kept").unwrap();
+        let removed_err = rewritten.find_key("synthetic.removed").unwrap_err();
+        let tensor = rewritten.read_tensor_f32("synthetic.weight").unwrap();
+
+        std::fs::remove_file(&rewritten_path).unwrap();
+
+        assert_eq!(rewritten.n_kv(), 1);
+        assert_eq!(rewritten.val_str(kept_index).unwrap(), "kept value");
+        assert_eq!(std::mem::discriminant(&removed_err), key_not_found_disc());
+        assert_eq!(tensor.shape, [3, 2, 1, 1]);
+        assert_eq!(tensor.values, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    }
+
+    #[test]
+    fn write_to_file_holds_the_values_set_after_loading() {
+        let fixture = SyntheticGgufBuilder::default()
+            .value(
+                b"synthetic.u32_value",
+                GgufType::Uint32,
+                &7u32.to_le_bytes(),
+            )
+            .write("write_to_file_holds_the_values_set_after_loading");
+        let rewritten_path =
+            rewritten_gguf_path("write_to_file_holds_the_values_set_after_loading");
+        let mut context = GgufContext::from_file(&fixture.path).unwrap();
+
+        context.set_val_u32(c"synthetic.u32_value", 4096);
+        context.set_val_str(c"synthetic.str_value", c"set value");
+        context.set_arr_i32(c"synthetic.i32_array", &[5, -8]);
+        context.write_to_file(&rewritten_path).unwrap();
+
+        let rewritten = GgufContext::from_file(&rewritten_path).unwrap();
+        let u32_index = rewritten.find_key("synthetic.u32_value").unwrap();
+        let str_index = rewritten.find_key("synthetic.str_value").unwrap();
+        let array_index = rewritten.find_key("synthetic.i32_array").unwrap();
+
+        std::fs::remove_file(&rewritten_path).unwrap();
+
+        assert_eq!(rewritten.val_u32(u32_index).unwrap(), 4096);
+        assert_eq!(rewritten.val_str(str_index).unwrap(), "set value");
+        assert_eq!(rewritten.val_arr_i32(array_index).unwrap(), &[5, -8]);
+    }
+
+    #[test]
+    fn write_to_file_reports_a_source_file_removed_after_opening() {
+        let fixture = SyntheticGgufBuilder::default()
+            .string_value(b"synthetic.kept", b"kept value")
+            .write("write_to_file_reports_a_source_file_removed_after_opening");
+        let context = GgufContext::from_file(&fixture.path).unwrap();
+
+        std::fs::remove_file(&fixture.path).unwrap();
+
+        let result = context.write_to_file(rewritten_gguf_path(
+            "write_to_file_reports_a_source_file_removed_after_opening",
+        ));
+
+        std::fs::write(&fixture.path, b"").unwrap();
+
+        assert_eq!(
+            std::mem::discriminant(&result.unwrap_err()),
+            source_file_read_failed_disc()
+        );
+    }
+
+    #[test]
+    fn write_to_file_reports_a_source_file_truncated_before_its_tensor_data() {
+        let fixture = SyntheticGgufBuilder::default()
+            .tensor(
+                b"synthetic.weight",
+                &[2],
+                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                f32_bytes(&[1.0, 2.0]),
+            )
+            .write("write_to_file_reports_a_source_file_truncated_before_its_tensor_data");
+        let context = GgufContext::from_file(&fixture.path).unwrap();
+
+        std::fs::write(&fixture.path, b"").unwrap();
+
+        let err = context
+            .write_to_file(rewritten_gguf_path(
+                "write_to_file_reports_a_source_file_truncated_before_its_tensor_data",
+            ))
+            .unwrap_err();
+
+        assert_eq!(std::mem::discriminant(&err), source_file_truncated_disc());
+    }
+
+    #[test]
+    fn write_to_file_reports_a_destination_it_cannot_write() {
+        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let err = context
+            .write_to_file("/nonexistent/directory/rewritten.gguf")
+            .unwrap_err();
+
+        assert_eq!(
+            std::mem::discriminant(&err),
+            destination_file_write_failed_disc()
+        );
     }
 }

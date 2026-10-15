@@ -3,6 +3,8 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod batch_capacity;
+pub mod batch_capacity_error;
 pub mod bracketed_json_shape;
 pub mod json_object_shape;
 pub mod key_value_xml_tags_shape;
@@ -18,6 +20,8 @@ pub mod tool_call_markers;
 pub mod tool_call_value_quote;
 pub mod xml_tags_shape;
 
+pub use batch_capacity::BatchCapacity;
+pub use batch_capacity_error::BatchCapacityError;
 pub use bracketed_json_shape::BracketedJsonShape;
 pub use json_object_shape::JsonObjectShape;
 pub use key_value_xml_tags_shape::KeyValueXmlTagsShape;

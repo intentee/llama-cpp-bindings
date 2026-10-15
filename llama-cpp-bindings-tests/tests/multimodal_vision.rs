@@ -22,6 +22,7 @@ use llama_cpp_bindings_tests::build_user_prompt_with_media_marker::build_user_pr
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
+use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -286,7 +287,7 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
         .get(0)
         .ok_or_else(|| anyhow::anyhow!("missing first chunk"))?;
     let tokens = first_chunk
-        .text_tokens()?
+        .text_tokens_of(first_chunk.chunk_type()?)
         .ok_or_else(|| anyhow::anyhow!("the first chunk of a text prompt must carry tokens"))?;
 
     assert!(!tokens.is_empty());
@@ -401,7 +402,7 @@ fn image_chunk_returns_none_for_text_tokens(fixture: &LlamaFixture<'_>) -> Resul
             .get(chunk_index)
             .ok_or_else(|| anyhow::anyhow!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type()? == MtmdInputChunkType::Image {
-            assert_eq!(chunk.text_tokens()?, None);
+            assert_eq!(chunk.text_tokens_of(MtmdInputChunkType::Image), None);
 
             return Ok(());
         }
@@ -1209,7 +1210,7 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
     }
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(512, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
     let totals = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -1645,7 +1646,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(2048, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -1740,7 +1741,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     )?;
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(2048, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -1844,7 +1845,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(2048, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -1939,7 +1940,7 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(2048, 1)?;
+    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,

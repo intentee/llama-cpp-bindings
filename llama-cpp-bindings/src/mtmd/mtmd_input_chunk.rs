@@ -65,15 +65,6 @@ impl MtmdInputChunk {
         MtmdInputChunkType::try_from(chunk_type)
     }
 
-    /// # Errors
-    ///
-    /// Returns [`MtmdInputChunkTypeError`] when the wrapper reports a chunk type this
-    /// binding does not know, so an unclassifiable chunk is never mistaken for a
-    /// non-text chunk.
-    pub fn text_tokens(&self) -> Result<Option<&[LlamaToken]>, MtmdInputChunkTypeError> {
-        Ok(self.text_tokens_of(self.chunk_type()?))
-    }
-
     #[must_use]
     pub fn text_tokens_of(&self, chunk_type: MtmdInputChunkType) -> Option<&[LlamaToken]> {
         if chunk_type != MtmdInputChunkType::Text {

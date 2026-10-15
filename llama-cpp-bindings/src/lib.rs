@@ -75,7 +75,8 @@ pub use error::{
     KvCacheSeqPosMaxError, LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError,
     LlamaLoraAdaptersError, LlamaModelLoadError, LogitsError, MarkerDetectionError, MetaValError,
     ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError, Result, SampleError,
-    SamplerAcceptError, SamplingError, StringToTokenError, TokenSamplingError, TokenToStringError,
+    SamplerAcceptError, SamplingError, StringToTokenError, TokenAttrError, TokenOutsideVocabulary,
+    TokenSamplingError, TokenToStringError,
 };
 
 pub use bare_json_tool_calls::BareJsonToolCalls;

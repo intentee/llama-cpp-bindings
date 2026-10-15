@@ -4,6 +4,8 @@ use llama_cpp_bindings_sys::{
     llama_batch, llama_batch_free, llama_batch_init, llama_pos, llama_seq_id,
 };
 
+use llama_cpp_bindings_types::BatchCapacity;
+
 use crate::batch_add_error::BatchAddError;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
@@ -144,19 +146,16 @@ impl<'tokens> LlamaBatch<'tokens> {
         Ok(())
     }
 
-    /// # Errors
-    ///
-    /// Returns an error if `n_tokens` exceeds `i32::MAX`.
-    pub fn new(n_tokens: usize, n_seq_max: i32) -> Result<Self, BatchAddError> {
-        let n_tokens_i32 = checked_usize_as_i32(n_tokens, "n_tokens")?;
-        let batch = unsafe { llama_batch_init(n_tokens_i32, 0, n_seq_max) };
+    #[must_use]
+    pub fn new(capacity: BatchCapacity, n_seq_max: i32) -> Self {
+        let batch = unsafe { llama_batch_init(capacity.tokens_i32(), 0, n_seq_max) };
 
-        Ok(LlamaBatch {
-            allocated: n_tokens,
+        LlamaBatch {
+            allocated: capacity.tokens_usize(),
             initialized_logits: vec![],
             llama_batch: batch,
             phantom: PhantomData,
-        })
+        }
     }
 
     /// # Errors
@@ -202,6 +201,8 @@ impl Drop for LlamaBatch<'_> {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings_types::BatchCapacity;
+
     use crate::sampled_token::SampledToken;
     use crate::token::LlamaToken;
 
@@ -212,7 +213,7 @@ mod tests {
 
     #[test]
     fn new_creates_empty_batch() {
-        let batch = LlamaBatch::new(16, 1).unwrap();
+        let batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
 
         assert_eq!(batch.n_tokens(), 0);
         assert!(batch.initialized_logits.is_empty());
@@ -220,7 +221,7 @@ mod tests {
 
     #[test]
     fn clear_resets_batch() {
-        let mut batch = LlamaBatch::new(16, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
         batch
             .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)
             .unwrap();
@@ -234,7 +235,7 @@ mod tests {
 
     #[test]
     fn add_increments_token_count() {
-        let mut batch = LlamaBatch::new(16, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
 
         batch
             .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
@@ -249,7 +250,7 @@ mod tests {
 
     #[test]
     fn add_tracks_logits() {
-        let mut batch = LlamaBatch::new(16, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
 
         batch
             .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
@@ -264,7 +265,7 @@ mod tests {
 
     #[test]
     fn add_returns_insufficient_space_when_full() {
-        let mut batch = LlamaBatch::new(1, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(1).unwrap(), 1);
         batch
             .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
             .unwrap();
@@ -276,7 +277,7 @@ mod tests {
 
     #[test]
     fn add_accepts_reasoning_sampled_token_variant() {
-        let mut batch = LlamaBatch::new(4, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(4).unwrap(), 1);
 
         batch
             .add(&SampledToken::Reasoning(LlamaToken::new(11)), 0, &[0], true)
@@ -287,7 +288,7 @@ mod tests {
 
     #[test]
     fn add_accepts_tool_call_sampled_token_variant() {
-        let mut batch = LlamaBatch::new(4, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(4).unwrap(), 1);
 
         batch
             .add(&SampledToken::ToolCall(LlamaToken::new(22)), 0, &[0], true)
@@ -298,7 +299,7 @@ mod tests {
 
     #[test]
     fn add_accepts_undeterminable_sampled_token_variant() {
-        let mut batch = LlamaBatch::new(4, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(4).unwrap(), 1);
 
         batch
             .add(
@@ -314,7 +315,7 @@ mod tests {
 
     #[test]
     fn add_sequence_adds_all_tokens() {
-        let mut batch = LlamaBatch::new(16, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
         let tokens = vec![
             LlamaToken::new(10),
             LlamaToken::new(20),
@@ -328,7 +329,7 @@ mod tests {
 
     #[test]
     fn add_sequence_sets_logits_on_last_token() {
-        let mut batch = LlamaBatch::new(16, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
         let tokens = vec![
             LlamaToken::new(10),
             LlamaToken::new(20),
@@ -342,7 +343,7 @@ mod tests {
 
     #[test]
     fn add_sequence_insufficient_space() {
-        let mut batch = LlamaBatch::new(2, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(2).unwrap(), 1);
         let tokens = vec![
             LlamaToken::new(10),
             LlamaToken::new(20),
@@ -356,7 +357,7 @@ mod tests {
 
     #[test]
     fn add_sequence_fails_mid_loop_when_batch_fills() {
-        let mut batch = LlamaBatch::new(2, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(2).unwrap(), 1);
         batch
             .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
             .unwrap();
@@ -395,7 +396,7 @@ mod tests {
 
     #[test]
     fn add_with_logits_false_retains_only_previous_logits() {
-        let mut batch = LlamaBatch::new(16, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
 
         batch
             .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)
@@ -410,7 +411,7 @@ mod tests {
 
     #[test]
     fn add_sequence_with_logits_all_marks_every_token() -> Result<(), BatchAddError> {
-        let mut batch = LlamaBatch::new(16, 1)?;
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
         let tokens = vec![
             LlamaToken::new(10),
             LlamaToken::new(20),
@@ -427,7 +428,7 @@ mod tests {
 
     #[test]
     fn add_with_multiple_seq_ids() -> Result<(), BatchAddError> {
-        let mut batch = LlamaBatch::new(16, 4)?;
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 4);
 
         batch.add(
             &SampledToken::Content(LlamaToken::new(1)),
@@ -557,20 +558,8 @@ mod tests {
     }
 
     #[test]
-    fn new_fails_for_oversized_n_tokens() {
-        assert_eq!(
-            LlamaBatch::new(usize::MAX, 1).unwrap_err(),
-            BatchAddError::IntegerOverflow {
-                value_description: "n_tokens",
-                target_type: "i32",
-                source: i32::try_from(usize::MAX).expect_err("the conversion must fail"),
-            }
-        );
-    }
-
-    #[test]
     fn add_fails_when_required_token_count_overflows_i32() {
-        let mut batch = LlamaBatch::new(16, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
         batch.llama_batch.n_tokens = i32::MAX;
 
         assert_eq!(
@@ -581,7 +570,7 @@ mod tests {
 
     #[test]
     fn add_fails_when_existing_offset_is_negative() {
-        let mut batch = LlamaBatch::new(16, 1).unwrap();
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
         batch.llama_batch.n_tokens = -1;
 
         assert_eq!(

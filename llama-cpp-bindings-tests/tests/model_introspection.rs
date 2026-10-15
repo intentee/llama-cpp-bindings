@@ -3,14 +3,19 @@ use std::num::NonZeroU16;
 use std::num::NonZeroU32;
 use std::pin::pin;
 
+use anyhow::Context;
 use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::TokenAttrError;
+use llama_cpp_bindings::TokenOutsideVocabulary;
+use llama_cpp_bindings::TokenToStringError;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::max_devices;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::model::params::fit_extra_model::FitExtraModel;
+use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -848,11 +853,24 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
 )]
 fn special_tokens_exist(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let bos = model.token_bos();
-    let eos = model.token_eos();
+    let eos = model.token_eos().context("model declares an EOS token")?;
 
-    assert_ne!(bos, eos);
+    assert_ne!(model.token_bos(), Some(eos));
     assert!(model.is_eog_token(&SampledToken::Content(eos)));
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("Xiaojian9992024/t5-small-GGUF", "t5-small.bf16.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 64,
+    embeddings = true,
+)]
+fn model_without_a_bos_token_reports_none(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(fixture.model.token_bos(), None);
     Ok(())
 }
 
@@ -888,9 +906,11 @@ fn special_tokens_exist(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_nl_returns_valid_token(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let nl_token = fixture.model.token_nl();
-    assert!(nl_token.0 >= 0);
+fn token_nl_is_the_first_token_of_a_tokenized_newline(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let model = fixture.model;
+    let newline_tokens = model.str_to_token("\n", AddBos::Never, ParseSpecialTokens::Never)?;
+
+    assert_eq!(model.token_nl(), newline_tokens.first().copied());
     Ok(())
 }
 
@@ -928,7 +948,7 @@ fn token_nl_returns_valid_token(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn is_eog_token_classifies_reasoning_variant(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let eos = model.token_eos();
+    let eos = model.token_eos().context("model declares an EOS token")?;
     assert!(model.is_eog_token(&SampledToken::Reasoning(eos)));
     Ok(())
 }
@@ -967,7 +987,7 @@ fn is_eog_token_classifies_reasoning_variant(fixture: &LlamaFixture<'_>) -> Resu
 )]
 fn is_eog_token_classifies_tool_call_variant(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let eos = model.token_eos();
+    let eos = model.token_eos().context("model declares an EOS token")?;
     assert!(model.is_eog_token(&SampledToken::ToolCall(eos)));
     Ok(())
 }
@@ -1006,7 +1026,7 @@ fn is_eog_token_classifies_tool_call_variant(fixture: &LlamaFixture<'_>) -> Resu
 )]
 fn is_eog_token_classifies_undeterminable_variant(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let eos = model.token_eos();
+    let eos = model.token_eos().context("model declares an EOS token")?;
     assert!(model.is_eog_token(&SampledToken::Undeterminable(eos)));
     Ok(())
 }
@@ -1043,19 +1063,8 @@ fn is_eog_token_classifies_undeterminable_variant(fixture: &LlamaFixture<'_>) ->
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn decode_start_token_returns_valid_token(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let token = model.decode_start_token();
-    let n_vocab = model.n_vocab();
-    assert!(
-        token.0 == -1 || (0..n_vocab).contains(&token.0),
-        "decode_start_token must be either -1 (no decoder-start defined) or a valid vocab index < {n_vocab}; got {token}"
-    );
-    assert_eq!(
-        token,
-        model.decode_start_token(),
-        "decode_start_token must be deterministic across calls"
-    );
+fn decoder_only_model_has_no_decoder_start_token(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(fixture.model.decode_start_token(), None);
     Ok(())
 }
 
@@ -1091,19 +1100,8 @@ fn decode_start_token_returns_valid_token(fixture: &LlamaFixture<'_>) -> Result<
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_sep_returns_valid_token(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let token = model.token_sep();
-    let n_vocab = model.n_vocab();
-    assert!(
-        token.0 == -1 || (0..n_vocab).contains(&token.0),
-        "token_sep must be either -1 (no SEP token defined) or a valid vocab index < {n_vocab}; got {token}"
-    );
-    assert_eq!(
-        token,
-        model.token_sep(),
-        "token_sep must be deterministic across calls"
-    );
+fn chat_model_has_no_separator_token(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(fixture.model.token_sep(), None);
     Ok(())
 }
 
@@ -1141,7 +1139,7 @@ fn token_sep_returns_valid_token(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn token_attr_returns_attrs_for_bos(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let bos = model.token_bos();
+    let bos = model.token_bos().context("model declares a BOS token")?;
     let attrs = model.token_attr(bos)?;
     let bit_repr = format!("{:?}", *attrs);
     assert!(
@@ -1792,6 +1790,67 @@ fn deepseek_r1_8b_adds_a_bos_token(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn qwen35_does_not_add_a_bos_token(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert!(!fixture.model.adds_bos_token());
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn token_to_piece_bytes_rejects_tokens_outside_the_vocabulary(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let n_vocab = model.n_vocab();
+
+    assert_eq!(
+        [LlamaToken::new(-1), LlamaToken::new(n_vocab)]
+            .map(|token| model.token_to_piece_bytes(token, 8, true, None)),
+        [
+            Err(TokenToStringError::TokenOutsideVocabulary(
+                TokenOutsideVocabulary {
+                    token: LlamaToken::new(-1),
+                    n_vocab,
+                }
+            )),
+            Err(TokenToStringError::TokenOutsideVocabulary(
+                TokenOutsideVocabulary {
+                    token: LlamaToken::new(n_vocab),
+                    n_vocab,
+                }
+            )),
+        ]
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn token_attr_rejects_tokens_outside_the_vocabulary(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let model = fixture.model;
+    let n_vocab = model.n_vocab();
+
+    assert_eq!(
+        model.token_attr(LlamaToken::new(n_vocab)).err(),
+        Some(TokenAttrError::TokenOutsideVocabulary(
+            TokenOutsideVocabulary {
+                token: LlamaToken::new(n_vocab),
+                n_vocab,
+            }
+        ))
+    );
 
     Ok(())
 }
