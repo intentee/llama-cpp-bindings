@@ -232,7 +232,7 @@ fn decode_and_get_logits(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert!(decode_result.is_ok());
 
     let logits = context.get_logits()?;
-    assert!(!logits.is_empty());
+    assert_ne!(logits, Vec::<f32>::new());
 
     Ok(())
 }
@@ -282,7 +282,7 @@ fn token_data_array_has_entries_after_decode(fixture: &LlamaFixture<'_>) -> Resu
 
     let token_data_array = context.token_data_array()?;
 
-    assert!(!token_data_array.data.is_empty());
+    assert_ne!(token_data_array.data, Vec::<LlamaTokenData>::new());
 
     Ok(())
 }

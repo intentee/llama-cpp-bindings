@@ -748,7 +748,7 @@ mod tests {
         push_pending(&mut classifier, 300, "<tool");
         classifier.try_consume_marker_at_tail();
         assert_eq!(classifier.section, SampledTokenSection::Content);
-        assert!(drained(&mut classifier).is_empty());
+        assert_eq!(drained(&mut classifier), Vec::<IngestOutcome>::new());
 
         push_pending(&mut classifier, 301, "_call>");
         classifier.try_consume_marker_at_tail();
@@ -782,7 +782,7 @@ mod tests {
         push_pending(&mut classifier, 300, "</think");
         classifier.try_consume_marker_at_tail();
         assert_eq!(classifier.section, SampledTokenSection::Content);
-        assert!(drained(&mut classifier).is_empty());
+        assert_eq!(drained(&mut classifier), Vec::<IngestOutcome>::new());
 
         push_pending(&mut classifier, 301, ">");
         classifier.try_consume_marker_at_tail();
@@ -1057,7 +1057,7 @@ mod tests {
             drained(&mut classifier);
         }
         let drained = finished(&mut classifier);
-        assert!(drained.is_empty());
+        assert_eq!(drained, Vec::<IngestOutcome>::new());
 
         assert_eq!(classifier.usage().reasoning_tokens, 0);
         assert_eq!(classifier.usage().content_tokens, 0);
@@ -1335,7 +1335,7 @@ mod tests {
 
         let outcomes = feed_json_string(&mut classifier, r#"{"name":"f","arguments":{}}"#, 100);
 
-        assert!(!outcomes.is_empty());
+        assert_ne!(outcomes, Vec::<IngestOutcome>::new());
         let sections = outcome_sections(&outcomes);
         assert!(
             sections

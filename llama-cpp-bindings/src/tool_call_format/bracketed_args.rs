@@ -98,6 +98,7 @@ pub fn parse(
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::BracketedJsonShape;
+    use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ToolCallArgsShape;
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::ToolCallMarkers;
@@ -223,7 +224,7 @@ mod tests {
         )
         .expect("whitespace-name input must parse");
 
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
@@ -237,14 +238,14 @@ mod tests {
         )
         .expect("empty-separator shape must parse");
 
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
     fn returns_empty_vec_for_empty_body() {
         let parsed =
             parse("", &mistral3_markers(), &mistral3_shape()).expect("empty body must parse");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
@@ -255,6 +256,6 @@ mod tests {
             &mistral3_shape(),
         )
         .expect("body without separator must parse");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 }

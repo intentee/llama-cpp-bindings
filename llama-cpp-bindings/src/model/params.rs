@@ -517,7 +517,7 @@ mod tests {
         assert!(!params.vocab_only());
         assert_eq!(params.load_mode(), Ok(LlamaLoadMode::Auto));
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Layer));
-        assert!(params.devices().is_empty());
+        assert_eq!(params.devices(), Vec::<usize>::new());
     }
 
     #[test]
@@ -685,7 +685,7 @@ mod tests {
         let params = LlamaModelParams::default().with_devices(&[]);
 
         assert!(params.is_ok());
-        assert!(params.unwrap().devices().is_empty());
+        assert_eq!(params.unwrap().devices(), Vec::<usize>::new());
     }
 
     #[test]

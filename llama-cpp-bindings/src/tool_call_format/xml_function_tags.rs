@@ -169,6 +169,7 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::XmlTagsShape;
     use serde_json::json;
@@ -312,13 +313,13 @@ mod tests {
     fn returns_empty_when_body_has_no_function_tag() {
         let parsed =
             parse("plain text without function tags", &xml_shape()).expect("must parse empty");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
     fn returns_empty_for_empty_body() {
         let parsed = parse("", &xml_shape()).expect("must parse empty");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
@@ -327,7 +328,7 @@ mod tests {
         shape.function_close.clear();
         let body = "<function=f><parameter=x>1</parameter></function>";
         let parsed = parse(body, &shape).expect("must parse empty");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]

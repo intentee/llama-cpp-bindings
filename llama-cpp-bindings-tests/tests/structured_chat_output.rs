@@ -996,7 +996,7 @@ What is 2 + 2?
 
     let usage = classifier.usage();
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert_eq!(outcome.observed_reasoning, 0);
     assert_eq!(outcome.observed_undeterminable, 0);
     assert_eq!(usage.reasoning_tokens, 0);
@@ -1080,7 +1080,7 @@ What is 2 + 2?
     let usage = classifier.usage();
     let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert!(outcome.observed_reasoning > 0);
     assert!(usage.reasoning_tokens > 0);
     assert_eq!(outcome.observed_undeterminable, 0);
@@ -1253,7 +1253,7 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
 
     let usage = classifier.usage();
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert_eq!(outcome.observed_reasoning, 0);
     assert_eq!(outcome.observed_undeterminable, 0);
     assert_eq!(usage.reasoning_tokens, 0);
@@ -1334,7 +1334,7 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     let usage = classifier.usage();
     let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert!(outcome.observed_reasoning > 0);
     assert!(usage.reasoning_tokens > 0);
     assert_eq!(outcome.observed_undeterminable, 0);
@@ -1343,7 +1343,7 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
         usage.completion_tokens(),
         outcome.observed_content + outcome.observed_reasoning,
     );
-    assert!(!parsed.reasoning_content.is_empty());
+    assert_ne!(parsed.reasoning_content, "");
     assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
     assert_eq!(outcome.content_stream, parsed.content);
 
@@ -1459,7 +1459,7 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     }
     .run()?;
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert!(outcome.observed_reasoning > 0);
     assert_eq!(outcome.observed_undeterminable, 0);
     assert_eq!(outcome.observed_tool_call, 0);
@@ -1599,7 +1599,7 @@ What is 2 + 2?<|im_end|>
 
     let usage = classifier.usage();
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert_eq!(outcome.observed_reasoning, 0);
     assert_eq!(outcome.observed_undeterminable, 0);
     assert_eq!(usage.reasoning_tokens, 0);
@@ -1683,7 +1683,7 @@ What is 2 + 2?<|im_end|>
     let usage = classifier.usage();
     let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert!(outcome.observed_reasoning > 0);
     assert!(usage.reasoning_tokens > 0);
     assert_eq!(outcome.observed_undeterminable, 0);
@@ -2048,14 +2048,14 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     }
     .run()?;
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert!(outcome.observed_reasoning > 0);
     assert!(outcome.observed_content > 0);
     assert_eq!(outcome.observed_undeterminable, 0);
     assert_eq!(outcome.observed_tool_call, 0);
 
     let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
-    assert!(!parsed.content.is_empty());
+    assert_ne!(parsed.content, "");
 
     let usage = classifier.into_usage();
     assert_eq!(usage.prompt_tokens, prompt_token_count);
@@ -2136,7 +2136,7 @@ What is 2 + 2?<|im_end|>
 
     let usage = classifier.usage();
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert_eq!(outcome.observed_reasoning, 0);
     assert_eq!(outcome.observed_undeterminable, 0);
     assert_eq!(usage.reasoning_tokens, 0);
@@ -2220,7 +2220,7 @@ What is 2 + 2?<|im_end|>
     let usage = classifier.usage();
     let parsed = parse_partial_reasoning_response(model, &outcome.generated_raw)?;
 
-    assert!(!outcome.generated_raw.is_empty());
+    assert_ne!(outcome.generated_raw, "");
     assert!(outcome.observed_reasoning > 0);
     assert!(usage.reasoning_tokens > 0);
     assert_eq!(outcome.observed_undeterminable, 0);
@@ -2230,7 +2230,7 @@ What is 2 + 2?<|im_end|>
         outcome.observed_content + outcome.observed_reasoning,
     );
 
-    assert!(!parsed.reasoning_content.is_empty());
+    assert_ne!(parsed.reasoning_content, "");
     assert_eq!(outcome.reasoning_stream, parsed.reasoning_content);
     assert_eq!(outcome.content_stream, parsed.content);
 

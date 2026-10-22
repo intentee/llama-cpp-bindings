@@ -1640,7 +1640,7 @@ mod tests {
         let ReasoningSplit { reasoning, content } =
             split_reasoning_prefix("answer<tool>rest", None, Some("<tool>"), false);
 
-        assert!(reasoning.is_empty());
+        assert_eq!(reasoning, "");
         assert_eq!(content, "answer");
     }
 
@@ -1653,7 +1653,7 @@ mod tests {
         let ReasoningSplit { reasoning, content } =
             split_reasoning_prefix("plain answer", Some(&markers), Some("<tool>"), false);
 
-        assert!(reasoning.is_empty());
+        assert_eq!(reasoning, "");
         assert_eq!(content, "plain answer");
     }
 
@@ -1666,7 +1666,7 @@ mod tests {
         let ReasoningSplit { reasoning, content } =
             split_reasoning_prefix("<think>unterminated", Some(&markers), Some("<tool>"), false);
 
-        assert!(reasoning.is_empty());
+        assert_eq!(reasoning, "");
         assert_eq!(content, "<think>unterminated");
     }
 
@@ -1697,7 +1697,7 @@ mod tests {
             split_reasoning_prefix("<think>unfinished", Some(&markers), None, true);
 
         assert_eq!(reasoning, "unfinished");
-        assert!(content.is_empty());
+        assert_eq!(content, "");
     }
 
     #[test]
@@ -1729,7 +1729,7 @@ mod tests {
         restore_partial_reasoning(&mut parsed, "<think>unfinished", Some(&markers), false);
 
         assert_eq!(parsed.content, "parsed content");
-        assert!(parsed.reasoning_content.is_empty());
+        assert_eq!(parsed.reasoning_content, "");
     }
 
     #[test]
@@ -1764,7 +1764,7 @@ mod tests {
 
         restore_partial_reasoning(&mut parsed, "complete response", Some(&markers), true);
 
-        assert!(parsed.content.is_empty());
+        assert_eq!(parsed.content, "");
         assert_eq!(parsed.reasoning_content, "parsed reasoning");
     }
 
@@ -1779,7 +1779,7 @@ mod tests {
 
         restore_partial_reasoning(&mut parsed, "<think>\n\nreasoning", Some(&markers), true);
 
-        assert!(parsed.content.is_empty());
+        assert_eq!(parsed.content, "");
         assert_eq!(parsed.reasoning_content, "\n\nreasoning");
     }
 
@@ -1820,7 +1820,7 @@ mod tests {
 
         restore_partial_reasoning(&mut parsed, "complete response", Some(&markers), true);
 
-        assert!(parsed.content.is_empty());
+        assert_eq!(parsed.content, "");
         assert_eq!(parsed.reasoning_content, "parsed reasoning");
     }
 
@@ -1836,7 +1836,7 @@ mod tests {
         restore_partial_reasoning(&mut parsed, "unfinished", Some(&markers), true);
 
         assert_eq!(parsed.content, "parsed content");
-        assert!(parsed.reasoning_content.is_empty());
+        assert_eq!(parsed.reasoning_content, "");
     }
 
     #[test]
@@ -1850,7 +1850,7 @@ mod tests {
 
         restore_partial_reasoning(&mut parsed, "<think>unfinished", Some(&markers), true);
 
-        assert!(parsed.content.is_empty());
+        assert_eq!(parsed.content, "");
         assert_eq!(parsed.reasoning_content, "unfinished");
     }
 

@@ -41,7 +41,7 @@ mod tests {
             Mistral3ArrowArgsFormat::detect(template).expect("Mistral 3 template must be detected");
 
         assert_eq!(markers.open, "[TOOL_CALLS]");
-        assert!(markers.close.is_empty());
+        assert_eq!(markers.close, "");
         assert_eq!(
             markers.args_shape,
             ToolCallArgsShape::BracketedJson(BracketedJsonShape {

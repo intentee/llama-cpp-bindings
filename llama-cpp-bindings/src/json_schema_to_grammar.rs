@@ -116,7 +116,7 @@ mod tests {
         let schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}}"#;
         let grammar = json_schema_to_grammar(schema).expect("schema converts to grammar");
 
-        assert!(!grammar.is_empty());
+        assert_ne!(grammar, "");
     }
 
     #[test]
@@ -140,7 +140,7 @@ mod tests {
         let schema = r#"{"type": "string"}"#;
         let grammar = json_schema_to_grammar(schema).expect("schema converts to grammar");
 
-        assert!(!grammar.is_empty());
+        assert_ne!(grammar, "");
     }
 
     #[test]
