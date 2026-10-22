@@ -216,7 +216,7 @@ mod tests {
         let batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
 
         assert_eq!(batch.n_tokens(), 0);
-        assert!(batch.initialized_logits.is_empty());
+        assert_eq!(batch.initialized_logits, Vec::<i32>::new());
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod tests {
         batch.clear();
 
         assert_eq!(batch.n_tokens(), 0);
-        assert!(batch.initialized_logits.is_empty());
+        assert_eq!(batch.initialized_logits, Vec::<i32>::new());
     }
 
     #[test]
@@ -255,7 +255,7 @@ mod tests {
         batch
             .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
             .unwrap();
-        assert!(batch.initialized_logits.is_empty());
+        assert_eq!(batch.initialized_logits, Vec::<i32>::new());
 
         batch
             .add(&SampledToken::Content(LlamaToken::new(2)), 1, &[0], true)

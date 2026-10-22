@@ -11,6 +11,7 @@ pub enum ChatMessageParseOutcome {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::ParsedChatMessage;
+    use llama_cpp_bindings_types::ParsedToolCall;
 
     use super::ChatMessageParseOutcome;
     use crate::raw_chat_message::RawChatMessage;
@@ -37,7 +38,7 @@ mod tests {
                 ChatMessageParseOutcome::Recognized(parsed) => {
                     assert_eq!(parsed.content, "content");
                     assert_eq!(parsed.reasoning_content, "reasoning");
-                    assert!(parsed.tool_calls.is_empty());
+                    assert_eq!(parsed.tool_calls, Vec::<ParsedToolCall>::new());
                     saw_recognized = true;
                 }
                 ChatMessageParseOutcome::Unrecognized(raw) => {

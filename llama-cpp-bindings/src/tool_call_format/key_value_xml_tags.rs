@@ -164,6 +164,7 @@ pub fn parse(
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::KeyValueXmlTagsShape;
+    use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ToolCallArgsShape;
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::ToolCallMarkers;
@@ -317,7 +318,7 @@ mod tests {
     fn returns_empty_for_body_without_open_marker() {
         let parsed =
             parse("plain text", &glm47_markers(), &glm47_shape()).expect("must parse empty");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
@@ -326,6 +327,6 @@ mod tests {
         shape.value_close.clear();
         let body = "<tool_call>f<arg_key>k</arg_key><arg_value>v</arg_value></tool_call>";
         let parsed = parse(body, &glm47_markers(), &shape).expect("must parse empty");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 }

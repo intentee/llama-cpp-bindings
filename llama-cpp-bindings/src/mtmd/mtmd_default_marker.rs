@@ -30,7 +30,7 @@ mod tests {
     #[test]
     fn returns_non_empty_marker() {
         let marker = mtmd_default_marker().expect("llama.cpp marker must be valid UTF-8");
-        assert!(!marker.is_empty());
+        assert_ne!(marker, "");
     }
 
     #[test]

@@ -46,8 +46,8 @@ mod tests {
     fn default_is_empty_strings_and_invalid_arguments() {
         let parsed = ParsedToolCall::default();
 
-        assert!(parsed.id.is_empty());
-        assert!(parsed.name.is_empty());
+        assert_eq!(parsed.id, "");
+        assert_eq!(parsed.name, "");
         assert_eq!(
             parsed.arguments,
             ToolCallArguments::InvalidJson(String::new())

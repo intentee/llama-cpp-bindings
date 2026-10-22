@@ -18,6 +18,7 @@ use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::NonCausalChunkMicroBatchMismatch;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::build_user_prompt_with_media_marker::build_user_prompt_with_media_marker;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
@@ -290,7 +291,7 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
         .text_tokens_of(first_chunk.chunk_type()?)
         .ok_or_else(|| anyhow::anyhow!("the first chunk of a text prompt must carry tokens"))?;
 
-    assert!(!tokens.is_empty());
+    assert_ne!(tokens, Vec::<LlamaToken>::new());
 
     Ok(())
 }

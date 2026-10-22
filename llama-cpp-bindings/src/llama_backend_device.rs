@@ -86,6 +86,6 @@ mod tests {
         let devices = LlamaBackendDevice::list_all();
         assert!(!devices.is_empty());
         assert_eq!(devices[0].index, 0);
-        assert!(!devices[0].name.is_empty());
+        assert_ne!(devices[0].name, "");
     }
 }

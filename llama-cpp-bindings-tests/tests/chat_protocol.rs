@@ -6,6 +6,7 @@ use llama_cpp_bindings::ChatTemplateError;
 use llama_cpp_bindings::ParseChatMessageError;
 use llama_cpp_bindings::model::LlamaChatMessage;
 use llama_cpp_bindings_tests::build_user_prompt_with_media_marker::build_user_prompt_with_media_marker;
+use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -254,7 +255,7 @@ fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for plain content; got Unrecognized");
     };
-    assert!(parsed.tool_calls.is_empty());
+    assert_eq!(parsed.tool_calls, Vec::<ParsedToolCall>::new());
     assert!(!parsed.is_empty());
     assert!(parsed.content.contains("hello world"));
 
@@ -348,7 +349,7 @@ fn parses_empty_input_yields_empty_message(fixture: &LlamaFixture<'_>) -> Result
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for empty input; got Unrecognized");
     };
-    assert!(parsed.tool_calls.is_empty());
+    assert_eq!(parsed.tool_calls, Vec::<ParsedToolCall>::new());
 
     Ok(())
 }

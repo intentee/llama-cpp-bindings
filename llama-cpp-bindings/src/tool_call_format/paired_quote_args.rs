@@ -206,6 +206,7 @@ pub fn parse(
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::PairedQuoteShape;
+    use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ToolCallArgsShape;
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::ToolCallMarkers;
@@ -352,14 +353,14 @@ mod tests {
     #[test]
     fn returns_empty_vec_for_empty_body() {
         let parsed = parse("", &gemma4_markers(), &gemma4_shape()).expect("empty body must parse");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
     fn returns_empty_vec_when_body_lacks_separator() {
         let parsed = parse("no separator anywhere", &gemma4_markers(), &gemma4_shape())
             .expect("body without separator must parse");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
@@ -461,7 +462,7 @@ mod tests {
         )
         .expect("empty tool name must yield no calls");
 
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
@@ -480,6 +481,6 @@ mod tests {
         )
         .expect("empty separator must yield no calls");
 
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 }

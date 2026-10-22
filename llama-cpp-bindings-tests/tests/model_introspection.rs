@@ -464,7 +464,7 @@ fn meta_count_returns_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn meta_key_by_index_returns_valid_key(fixture: &LlamaFixture<'_>) -> Result<()> {
     let key = fixture.model.meta_key_by_index(0)?;
-    assert!(!key.is_empty());
+    assert_ne!(key, "");
     Ok(())
 }
 
@@ -502,7 +502,7 @@ fn meta_key_by_index_returns_valid_key(fixture: &LlamaFixture<'_>) -> Result<()>
 )]
 fn meta_val_str_by_index_returns_valid_value(fixture: &LlamaFixture<'_>) -> Result<()> {
     let value = fixture.model.meta_val_str_by_index(0)?;
-    assert!(!value.is_empty());
+    assert_ne!(value, "");
     Ok(())
 }
 
@@ -618,7 +618,7 @@ fn meta_val_str_returns_value_for_known_key(fixture: &LlamaFixture<'_>) -> Resul
     let model = fixture.model;
     let first_key = model.meta_key_by_index(0)?;
     let value = model.meta_val_str(&first_key)?;
-    assert!(!value.is_empty());
+    assert_ne!(value, "");
     Ok(())
 }
 
@@ -1184,12 +1184,12 @@ fn token_attr_returns_attrs_for_bos(fixture: &LlamaFixture<'_>) -> Result<()> {
 fn str_to_token_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let tokens = model.str_to_token("hello world", AddBos::Never, ParseSpecialTokens::Always)?;
-    assert!(!tokens.is_empty());
+    assert_ne!(tokens, Vec::<LlamaToken>::new());
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let piece =
         model.token_to_piece(&SampledToken::Content(tokens[0]), &mut decoder, false, None)?;
 
-    assert!(!piece.is_empty());
+    assert_ne!(piece, "");
 
     Ok(())
 }
@@ -1375,7 +1375,7 @@ fn token_to_piece_bytes_returns_bytes_for_known_token(fixture: &LlamaFixture<'_>
     let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
     let bytes = model.token_to_piece_bytes(tokens[0], 32, false, None)?;
 
-    assert!(!bytes.is_empty());
+    assert_ne!(bytes, Vec::<u8>::new());
     Ok(())
 }
 
@@ -1563,7 +1563,7 @@ fn token_to_piece_decodes_reasoning_variant(fixture: &LlamaFixture<'_>) -> Resul
         None,
     )?;
 
-    assert!(!piece.is_empty());
+    assert_ne!(piece, "");
     Ok(())
 }
 
@@ -1607,7 +1607,7 @@ fn token_to_piece_decodes_tool_call_variant(fixture: &LlamaFixture<'_>) -> Resul
     let piece =
         model.token_to_piece(&SampledToken::ToolCall(tokens[0]), &mut decoder, true, None)?;
 
-    assert!(!piece.is_empty());
+    assert_ne!(piece, "");
     Ok(())
 }
 
@@ -1655,7 +1655,7 @@ fn token_to_piece_decodes_undeterminable_variant(fixture: &LlamaFixture<'_>) -> 
         None,
     )?;
 
-    assert!(!piece.is_empty());
+    assert_ne!(piece, "");
     Ok(())
 }
 

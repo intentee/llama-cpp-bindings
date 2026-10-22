@@ -123,7 +123,7 @@ mod tests {
 
         assert_eq!(outcome.observed_tool_call, 1);
         assert_eq!(outcome.generated_raw, "{");
-        assert!(outcome.content_stream.is_empty());
+        assert_eq!(outcome.content_stream, "");
     }
 
     #[test]
@@ -149,8 +149,8 @@ mod tests {
         });
 
         assert_eq!(outcome.observed_undeterminable, 1);
-        assert!(outcome.content_stream.is_empty());
-        assert!(outcome.reasoning_stream.is_empty());
+        assert_eq!(outcome.content_stream, "");
+        assert_eq!(outcome.reasoning_stream, "");
     }
 
     #[test]

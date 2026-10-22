@@ -79,6 +79,7 @@ pub fn parse(
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::JsonObjectShape;
+    use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::json;
 
@@ -164,13 +165,13 @@ mod tests {
     #[test]
     fn rejects_input_without_open_brace() {
         let parsed = parse("plain content", &qwen3_shape()).expect("must parse");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
     fn rejects_array_instead_of_object() {
         let parsed = parse("[1, 2, 3]", &qwen3_shape()).expect("must parse");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
@@ -178,14 +179,14 @@ mod tests {
         let err = parse(r#"{"name": "f", "arguments": {"a": }"#, &qwen3_shape()).unwrap_err();
         let JsonObjectFailure::InvalidJson { message } = err;
 
-        assert!(!message.is_empty());
+        assert_ne!(message, "");
     }
 
     #[test]
     fn returns_empty_when_object_is_not_a_tool_call_shape() {
         let parsed = parse("{ \"foo\": 1 }", &qwen3_shape()).expect("must parse");
 
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
@@ -193,6 +194,6 @@ mod tests {
         let mut shape = qwen3_shape();
         shape.name_field.clear();
         let parsed = parse(r#"{"name": "x", "arguments": {}}"#, &shape).expect("must parse");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 }

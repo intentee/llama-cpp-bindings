@@ -597,8 +597,8 @@ fn embedding_model_exposes_tool_call_markers(fixture: &LlamaFixture<'_>) -> Resu
         .tool_call_markers()?
         .expect("Qwen3 embedding model must expose tool-call markers");
 
-    assert!(!markers.open.is_empty());
-    assert!(!markers.close.is_empty());
+    assert_ne!(markers.open, "");
+    assert_ne!(markers.close, "");
 
     Ok(())
 }

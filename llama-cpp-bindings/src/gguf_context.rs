@@ -381,16 +381,13 @@ impl GgufContext {
         file.read_exact_at(&mut bytes, (data_offset + tensor_offset) as u64)
             .map_err(read_failed)?;
 
-        Ok(bytes
-            .chunks_exact(F32_SIZE_IN_BYTES)
-            .map(|value_bytes| {
-                f32::from_ne_bytes([
-                    value_bytes[0],
-                    value_bytes[1],
-                    value_bytes[2],
-                    value_bytes[3],
-                ])
-            })
+        let (value_byte_chunks, _bytes_after_the_last_value) =
+            bytes.as_chunks::<F32_SIZE_IN_BYTES>();
+
+        Ok(value_byte_chunks
+            .iter()
+            .copied()
+            .map(f32::from_ne_bytes)
             .collect())
     }
 }
@@ -712,7 +709,7 @@ mod tests {
         let index = context.find_key("general.architecture").unwrap();
         let value = context.val_str(index).unwrap();
 
-        assert!(!value.is_empty());
+        assert_ne!(value, "");
     }
 
     #[test]

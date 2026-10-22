@@ -843,7 +843,10 @@ mod tests {
         let result = LlamaSampler::sanitize_trigger_patterns(&patterns);
 
         assert!(result.is_ok());
-        assert!(result.expect("valid trigger patterns").is_empty());
+        assert_eq!(
+            result.expect("valid trigger patterns"),
+            Vec::<CString>::new()
+        );
     }
 
     #[test]
