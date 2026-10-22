@@ -163,7 +163,7 @@ impl LlamaTokenDataArray {
     /// sampler runs out of memory, it throws a C++ exception while applying, or it
     /// excludes every candidate so that no token is left to select.
     pub fn apply_sampler(&mut self, sampler: &LlamaSampler) -> Result<(), SamplerApplyError> {
-        unsafe {
+        let applied = unsafe {
             self.modify_as_c_llama_token_data_array(|c_llama_token_data_array| {
                 let mut out_error: *mut std::os::raw::c_char = ptr::null_mut();
                 let status = llama_cpp_bindings_sys::llama_rs_sampler_apply(
@@ -172,9 +172,13 @@ impl LlamaTokenDataArray {
                     &raw mut out_error,
                 );
                 sampler_apply_status_to_result(status, out_error)
-            })??;
-        }
+            })?
+        };
 
+        applied.and_then(|()| self.ensure_a_candidate_remains())
+    }
+
+    fn ensure_a_candidate_remains(&self) -> Result<(), SamplerApplyError> {
         if self
             .data
             .iter()
