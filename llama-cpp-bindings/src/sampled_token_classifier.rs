@@ -205,6 +205,13 @@ impl<'model> SampledTokenClassifier<'model> {
             return;
         }
 
+        if self.model.is_eog_token(&SampledToken::Content(token)) {
+            self.pending.clear();
+            self.section = SampledTokenSection::Pending;
+
+            return;
+        }
+
         self.pending.push_back(PendingToken {
             token,
             decoded: String::new(),

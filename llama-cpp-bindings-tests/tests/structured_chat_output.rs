@@ -1529,6 +1529,35 @@ fn qwen35_shared_reasoning_close_and_tool_call_open_is_one_transition(
 }
 
 #[llama_test(
+    model_source = HuggingFace("unsloth/Ministral-3-3B-Reasoning-2512-GGUF", "Ministral-3-3B-Reasoning-2512-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn mistral3_tool_call_turn_finished_in_the_prompt_leaves_the_classifier_pending(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let mut finished_tool_call_turn = model.str_to_token(
+        "[TOOL_CALLS]read[ARGS]{\"path\":\"marker.txt\"}",
+        AddBos::Never,
+        ParseSpecialTokens::Always,
+    )?;
+
+    finished_tool_call_turn.push(model.token_eos().context("model declares an EOS token")?);
+
+    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+
+    classifier.ingest_prompt_tokens(&finished_tool_call_turn);
+
+    assert_eq!(classifier.current_section(), SampledTokenSection::Pending);
+
+    Ok(())
+}
+
+#[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
     load_mode = Mmap,
