@@ -8,5 +8,6 @@
 #include "wrapper_gbnf.h"
 #include "wrapper_mtmd.h"
 #include "wrapper_reasoning.h"
+#include "wrapper_sampler_init.h"
 #include "wrapper_state.h"
 #include "wrapper_tool_calls.h"

@@ -8,6 +8,7 @@ pub const WRAPPER_HEADERS: &[&str] = &[
     "wrapper_gbnf.h",
     "wrapper_mtmd.h",
     "wrapper_reasoning.h",
+    "wrapper_sampler_init.h",
     "wrapper_state.h",
     "wrapper_token_text.h",
     "wrapper_tool_calls.h",
