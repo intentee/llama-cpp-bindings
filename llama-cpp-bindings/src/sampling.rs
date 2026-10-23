@@ -291,12 +291,16 @@ impl LlamaSampler {
 
     /// # Errors
     ///
-    /// Returns [`SampleError`] if the grammar sampler callback recorded a failure during application.
+    /// Returns [`SampleError::GrammarCallbackFailed`] if the grammar sampler callback recorded a
+    /// failure during application, which takes precedence over any other failure, or
+    /// [`SampleError::SamplerApply`] if applying the sampler fails, including when it excludes
+    /// every candidate.
     pub fn apply(&self, data_array: &mut LlamaTokenDataArray) -> Result<(), SampleError> {
         let scope = ErrorScope::enter();
-        data_array.apply_sampler(self)?;
+        let applied = data_array.apply_sampler(self);
+        grammar_callback_error_to_result(scope.take())?;
 
-        grammar_callback_error_to_result(scope.take())
+        Ok(applied?)
     }
 
     /// # Errors
@@ -722,6 +726,7 @@ mod tests {
     use std::ffi::CString;
 
     use llama_cpp_error_recorder::RecordedError;
+    use llama_cpp_error_recorder::record;
 
     use super::LlamaSampler;
     use super::grammar_callback_error_to_accept_result;
@@ -737,6 +742,70 @@ mod tests {
     fn penalties_sampler() -> LlamaSampler {
         LlamaSampler::penalties(32_000, 64, 1.1, 0.0, 0.0)
             .expect("penalties sampler must initialize")
+    }
+
+    unsafe extern "C" fn record_a_failure_and_exclude_every_candidate(
+        _sampler: *mut llama_cpp_bindings_sys::llama_sampler,
+        candidates: *mut llama_cpp_bindings_sys::llama_token_data_array,
+    ) {
+        record(RecordedError::new("mask failed".to_string()));
+
+        let candidates = unsafe { &mut *candidates };
+        let candidate_data =
+            unsafe { std::slice::from_raw_parts_mut(candidates.data, candidates.size) };
+        for candidate in candidate_data {
+            candidate.logit = f32::NEG_INFINITY;
+        }
+    }
+
+    static mut FAILING_EXCLUDING_SAMPLER_I: llama_cpp_bindings_sys::llama_sampler_i =
+        llama_cpp_bindings_sys::llama_sampler_i {
+            name: None,
+            accept: None,
+            apply: Some(record_a_failure_and_exclude_every_candidate),
+            reset: None,
+            clone: None,
+            free: None,
+            backend_init: None,
+            backend_accept: None,
+            backend_apply: None,
+            backend_set_input: None,
+            backend_reset: None,
+            copy_state: None,
+        };
+
+    fn failing_excluding_sampler() -> LlamaSampler {
+        let sampler = unsafe {
+            llama_cpp_bindings_sys::llama_sampler_init(
+                &raw mut FAILING_EXCLUDING_SAMPLER_I,
+                std::ptr::null_mut(),
+            )
+        };
+
+        LlamaSampler::from_raw(sampler, "failing excluding sampler")
+            .expect("the failing excluding sampler must initialize")
+    }
+
+    #[test]
+    fn a_grammar_callback_failure_takes_precedence_over_a_failed_application() {
+        use crate::token::LlamaToken;
+        use crate::token::data::LlamaTokenData;
+        use crate::token::data_array::LlamaTokenDataArray;
+
+        let mut data_array = LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0),
+                LlamaTokenData::new(LlamaToken::new(1), 2.0, 0.0),
+            ],
+            false,
+        );
+
+        assert_eq!(
+            failing_excluding_sampler().apply(&mut data_array),
+            Err(SampleError::GrammarCallbackFailed {
+                message: "mask failed".to_string()
+            })
+        );
     }
 
     #[test]
@@ -878,6 +947,38 @@ mod tests {
         assert!(sampler.apply(&mut data_array).is_ok());
 
         assert_eq!(data_array.selected_token(), Some(LlamaToken::new(1)));
+    }
+
+    #[test]
+    fn apply_surfaces_a_sampler_that_excludes_every_candidate() {
+        use crate::error::sampler_apply_error::SamplerApplyError;
+        use crate::token::LlamaToken;
+        use crate::token::data::LlamaTokenData;
+        use crate::token::data_array::LlamaTokenDataArray;
+        use crate::token::logit_bias::LlamaLogitBias;
+
+        let excluding_sampler = LlamaSampler::logit_bias(
+            2,
+            &[
+                LlamaLogitBias::new(LlamaToken::new(0), f32::NEG_INFINITY),
+                LlamaLogitBias::new(LlamaToken::new(1), f32::NEG_INFINITY),
+            ],
+        )
+        .expect("the logit bias sampler must initialize");
+        let mut data_array = LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0),
+                LlamaTokenData::new(LlamaToken::new(1), 2.0, 0.0),
+            ],
+            false,
+        );
+
+        assert_eq!(
+            excluding_sampler.apply(&mut data_array),
+            Err(SampleError::SamplerApply(
+                SamplerApplyError::EveryCandidateExcluded
+            ))
+        );
     }
 
     #[test]

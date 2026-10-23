@@ -160,9 +160,10 @@ impl LlamaTokenDataArray {
     /// # Errors
     ///
     /// Returns [`SamplerApplyError`] if the sampler pointer is null, the llama.cpp
-    /// sampler runs out of memory, or it throws a C++ exception while applying.
+    /// sampler runs out of memory, it throws a C++ exception while applying, or it
+    /// excludes every candidate so that no token is left to select.
     pub fn apply_sampler(&mut self, sampler: &LlamaSampler) -> Result<(), SamplerApplyError> {
-        unsafe {
+        let applied = unsafe {
             self.modify_as_c_llama_token_data_array(|c_llama_token_data_array| {
                 let mut out_error: *mut std::os::raw::c_char = ptr::null_mut();
                 let status = llama_cpp_bindings_sys::llama_rs_sampler_apply(
@@ -172,6 +173,20 @@ impl LlamaTokenDataArray {
                 );
                 sampler_apply_status_to_result(status, out_error)
             })?
+        };
+
+        applied.and_then(|()| self.ensure_a_candidate_remains())
+    }
+
+    fn ensure_a_candidate_remains(&self) -> Result<(), SamplerApplyError> {
+        if self
+            .data
+            .iter()
+            .any(|candidate| candidate.logit() > f32::NEG_INFINITY)
+        {
+            Ok(())
+        } else {
+            Err(SamplerApplyError::EveryCandidateExcluded)
         }
     }
 
@@ -248,6 +263,33 @@ mod tests {
                 operation: "llama_rs_sampler_apply",
                 code: 255,
             }))
+        );
+    }
+
+    #[test]
+    fn a_sampler_excluding_every_candidate_leaves_nothing_to_select() {
+        use crate::sampling::LlamaSampler;
+        use crate::token::logit_bias::LlamaLogitBias;
+
+        let mut array = LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0),
+                LlamaTokenData::new(LlamaToken::new(1), 2.0, 0.0),
+            ],
+            false,
+        );
+        let excluding_sampler = LlamaSampler::logit_bias(
+            2,
+            &[
+                LlamaLogitBias::new(LlamaToken::new(0), f32::NEG_INFINITY),
+                LlamaLogitBias::new(LlamaToken::new(1), f32::NEG_INFINITY),
+            ],
+        )
+        .expect("the logit bias sampler must initialize");
+
+        assert_eq!(
+            array.apply_sampler(&excluding_sampler),
+            Err(SamplerApplyError::EveryCandidateExcluded)
         );
     }
 

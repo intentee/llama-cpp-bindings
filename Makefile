@@ -8,7 +8,7 @@ CLANG_TIDY ?= clang-tidy
 
 COMPILE_COMMANDS = target/compile_commands.json
 
-CPPCHECK = target/cppcheck-src/cppcheck
+CPPCHECK = lint-tools/cppcheck-src/cppcheck
 
 CPPCHECK_COMMIT = f726f98ed2c3277780ee133ec5338f6352d7b43b
 
@@ -33,6 +33,19 @@ LLAMA_CPP_AND_GSL_SUPPRESSIONS = \
 	--suppress='*:*llama-cpp-bindings-sys/llama.cpp/*' \
 	--suppress='*:*llama-cpp-bindings-sys/GSL/*'
 
+lint-tools/clang-tidy-venv/bin/clang-tidy: requirements-lint.txt
+	python3 -m venv lint-tools/clang-tidy-venv
+	lint-tools/clang-tidy-venv/bin/pip install --quiet --requirement requirements-lint.txt
+
+lint-tools/cppcheck-src/Makefile:
+	git init --quiet lint-tools/cppcheck-src
+	git -C lint-tools/cppcheck-src fetch --quiet --depth 1 $(CPPCHECK_SOURCE) $(CPPCHECK_COMMIT)
+	git -C lint-tools/cppcheck-src checkout --quiet FETCH_HEAD
+
+$(CPPCHECK): lint-tools/cppcheck-src/Makefile
+	$(MAKE) --directory=lint-tools/cppcheck-src cppcheck \
+		FILESDIR=$(CURDIR)/lint-tools/cppcheck-src
+
 node_modules: package-lock.json
 	npm ci
 	touch node_modules
@@ -42,19 +55,6 @@ package-lock.json: package.json
 
 $(COMPILE_COMMANDS): $(WRAPPER_SOURCES_CRATE_FILES)
 	$(EMIT_WRAPPER_BUILD_INPUTS)
-
-target/cppcheck-src/Makefile:
-	git init --quiet target/cppcheck-src
-	git -C target/cppcheck-src fetch --quiet --depth 1 $(CPPCHECK_SOURCE) $(CPPCHECK_COMMIT)
-	git -C target/cppcheck-src checkout --quiet FETCH_HEAD
-
-$(CPPCHECK): target/cppcheck-src/Makefile
-	$(MAKE) --directory=target/cppcheck-src cppcheck \
-		FILESDIR=$(CURDIR)/target/cppcheck-src
-
-target/lint-venv/bin/clang-tidy: requirements-lint.txt
-	python3 -m venv target/lint-venv
-	target/lint-venv/bin/pip install --quiet --requirement requirements-lint.txt
 
 $(WRAPPER_SOURCES_RESPONSE_FILE): $(WRAPPER_SOURCES_CRATE_FILES)
 	$(EMIT_WRAPPER_BUILD_INPUTS)

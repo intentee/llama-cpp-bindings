@@ -1,4 +1,5 @@
 .DS_Store
 **/*.rs.bk
+lint-tools/
 node_modules/
 target/
