@@ -53,7 +53,7 @@ $(CPPCHECK): target/cppcheck-src/Makefile
 		FILESDIR=$(CURDIR)/target/cppcheck-src
 
 target/lint-venv/bin/clang-tidy: requirements-lint.txt
-	python3 -m venv target/lint-venv
+	python3 -m venv --clear target/lint-venv
 	target/lint-venv/bin/pip install --quiet --requirement requirements-lint.txt
 
 $(WRAPPER_SOURCES_RESPONSE_FILE): $(WRAPPER_SOURCES_CRATE_FILES)
