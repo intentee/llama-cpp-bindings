@@ -144,12 +144,16 @@ pub fn create_llg_sampler(
         grammar_data: grammar_data.to_string(),
     });
 
-    let sampler = unsafe {
-        llama_cpp_bindings_sys::llama_sampler_init(
+    LlamaSampler::initialize("llguidance", |out_sampler, out_error| unsafe {
+        llama_cpp_bindings_sys::llama_rs_sampler_init(
             &raw mut LLG_SAMPLER_I,
-            Box::into_raw(ctx).cast::<c_void>(),
+            std::ptr::null_mut(),
+            out_sampler,
+            out_error,
         )
-    };
-
-    LlamaSampler::from_raw(sampler, "llguidance").map_err(Into::into)
+    })
+    .inspect(|sampler| {
+        unsafe { (*sampler.as_ptr()).ctx = Box::into_raw(ctx).cast::<c_void>() };
+    })
+    .map_err(Into::into)
 }

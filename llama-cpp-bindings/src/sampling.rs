@@ -214,6 +214,118 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
     }
 }
 
+fn sampler_init_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_sampler_init_status,
+    sampler: *mut llama_cpp_bindings_sys::llama_sampler,
+    error_ptr: *mut c_char,
+    sampler_name: &'static str,
+) -> Result<LlamaSampler, SamplingError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_OK => {
+            LlamaSampler::from_raw(sampler, sampler_name)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_RETURNED_NULL => {
+            Err(SamplingError::SamplerUnavailable {
+                sampler: sampler_name,
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(SamplingError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(SamplingError::LlamaCppOutOfMemory {
+                sampler: sampler_name,
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_sampler_init",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(SamplingError::Reported {
+                sampler: sampler_name,
+                message,
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_SAMPLER_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_init",
+                detail: "was given a null out_sampler argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_init",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_sampler_init",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
+fn sampler_chain_add_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_sampler_chain_add_status,
+    error_ptr: *mut c_char,
+) -> Result<(), SamplingError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_OK => Ok(()),
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(SamplingError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(SamplingError::LlamaCppOutOfMemory { sampler: "chain" })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_sampler_chain_add",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(SamplingError::Reported {
+                sampler: "chain",
+                message,
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_CHAIN_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_chain_add",
+                detail: "was given a null chain argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_SAMPLER_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_chain_add",
+                detail: "was given a null sampler argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_chain_add",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_sampler_chain_add",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
 fn checked_usize_as_i32_sampling(value: usize) -> Result<i32, SamplingError> {
     i32::try_from(value).map_err(SamplingError::IntegerOverflow)
 }
@@ -258,6 +370,39 @@ impl LlamaSampler {
                 sampler: sampler_name,
             },
         )
+    }
+
+    /// Initializes a sampler through one of the `llama_rs_sampler_init*` wrappers, which
+    /// report C++ exceptions thrown by llama.cpp instead of letting them cross into Rust.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if llama.cpp cannot initialize the sampler.
+    pub fn initialize(
+        sampler_name: &'static str,
+        initialize_sampler: impl FnOnce(
+            *mut *mut llama_cpp_bindings_sys::llama_sampler,
+            *mut *mut c_char,
+        ) -> llama_cpp_bindings_sys::llama_rs_sampler_init_status,
+    ) -> Result<Self, SamplingError> {
+        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = std::ptr::null_mut();
+        let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let status = initialize_sampler(&raw mut sampler, &raw mut error_ptr);
+
+        sampler_init_status_to_result(status, sampler, error_ptr, sampler_name)
+    }
+
+    fn take_into_chain(&self, sampler: Self) -> Result<(), SamplingError> {
+        let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_chain_add(
+                self.sampler.as_ptr(),
+                sampler.sampler.as_ptr(),
+                &raw mut error_ptr,
+            )
+        };
+
+        sampler_chain_add_status_to_result(status, error_ptr).map(|()| std::mem::forget(sampler))
     }
 
     #[must_use]
@@ -370,22 +515,19 @@ impl LlamaSampler {
         samplers: impl IntoIterator<Item = Self>,
         no_perf: bool,
     ) -> Result<Self, SamplingError> {
-        unsafe {
-            let chain = llama_cpp_bindings_sys::llama_sampler_chain_init(
+        Self::initialize("chain", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_chain_init(
                 llama_cpp_bindings_sys::llama_sampler_chain_params { no_perf },
-            );
-            let chain = Self::from_raw(chain, "chain")?;
-
-            for sampler in samplers {
-                llama_cpp_bindings_sys::llama_sampler_chain_add(
-                    chain.sampler.as_ptr(),
-                    sampler.sampler.as_ptr(),
-                );
-                std::mem::forget(sampler);
-            }
-
-            Ok(chain)
-        }
+                out_sampler,
+                out_error,
+            )
+        })
+        .and_then(|chain| {
+            samplers
+                .into_iter()
+                .try_for_each(|sampler| chain.take_into_chain(sampler))
+                .map(|()| chain)
+        })
     }
 
     /// # Errors
@@ -399,62 +541,88 @@ impl LlamaSampler {
     ///
     /// Returns [`SamplingError`] if the temperature sampler cannot be initialized.
     pub fn temp(temperature: f32) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_temp(temperature) };
-        Self::from_raw(sampler, "temperature")
+        Self::initialize("temperature", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_temp(temperature, out_sampler, out_error)
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the extended temperature sampler cannot be initialized.
     pub fn temp_ext(temperature: f32, delta: f32, exponent: f32) -> Result<Self, SamplingError> {
-        let sampler = unsafe {
-            llama_cpp_bindings_sys::llama_sampler_init_temp_ext(temperature, delta, exponent)
-        };
-        Self::from_raw(sampler, "extended temperature")
+        Self::initialize("extended temperature", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_temp_ext(
+                temperature,
+                delta,
+                exponent,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the top-k sampler cannot be initialized.
     pub fn top_k(keep_count: i32) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_k(keep_count) };
-        Self::from_raw(sampler, "top-k")
+        Self::initialize("top-k", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_top_k(keep_count, out_sampler, out_error)
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the top-n-sigma sampler cannot be initialized.
     pub fn top_n_sigma(sigma_multiplier: f32) -> Result<Self, SamplingError> {
-        let sampler =
-            unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_n_sigma(sigma_multiplier) };
-        Self::from_raw(sampler, "top-n-sigma")
+        Self::initialize("top-n-sigma", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_top_n_sigma(
+                sigma_multiplier,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the typical sampler cannot be initialized.
     pub fn typical(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        let sampler =
-            unsafe { llama_cpp_bindings_sys::llama_sampler_init_typical(probability, min_keep) };
-        Self::from_raw(sampler, "typical")
+        Self::initialize("typical", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_typical(
+                probability,
+                min_keep,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the top-p sampler cannot be initialized.
     pub fn top_p(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        let sampler =
-            unsafe { llama_cpp_bindings_sys::llama_sampler_init_top_p(probability, min_keep) };
-        Self::from_raw(sampler, "top-p")
+        Self::initialize("top-p", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_top_p(
+                probability,
+                min_keep,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the min-p sampler cannot be initialized.
     pub fn min_p(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        let sampler =
-            unsafe { llama_cpp_bindings_sys::llama_sampler_init_min_p(probability, min_keep) };
-        Self::from_raw(sampler, "min-p")
+        Self::initialize("min-p", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_min_p(
+                probability,
+                min_keep,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 
     /// # Errors
@@ -466,10 +634,16 @@ impl LlamaSampler {
         min_keep: usize,
         seed: u32,
     ) -> Result<Self, SamplingError> {
-        let sampler = unsafe {
-            llama_cpp_bindings_sys::llama_sampler_init_xtc(probability, temperature, min_keep, seed)
-        };
-        Self::from_raw(sampler, "XTC")
+        Self::initialize("XTC", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_xtc(
+                probability,
+                temperature,
+                min_keep,
+                seed,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 
     /// # Errors
@@ -617,8 +791,8 @@ impl LlamaSampler {
             .map(|seq_breaker| seq_breaker.as_ptr())
             .collect();
 
-        let sampler = unsafe {
-            llama_cpp_bindings_sys::llama_sampler_init_dry(
+        Self::initialize("DRY", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_dry(
                 model.vocab_ptr(),
                 multiplier,
                 base,
@@ -626,10 +800,11 @@ impl LlamaSampler {
                 penalty_last_n,
                 seq_breaker_pointers.as_mut_ptr(),
                 seq_breaker_pointers.len(),
+                out_sampler,
+                out_error,
             )
-        };
-
-        Ok(Self::from_raw(sampler, "DRY")?)
+        })
+        .map_err(Into::into)
     }
 
     /// # Errors
@@ -642,16 +817,17 @@ impl LlamaSampler {
         penalty_freq: f32,
         penalty_present: f32,
     ) -> Result<Self, SamplingError> {
-        let sampler = unsafe {
-            llama_cpp_bindings_sys::llama_sampler_init_penalties(
+        Self::initialize("penalties", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_penalties(
                 n_vocab,
                 penalty_last_n,
                 penalty_repeat,
                 penalty_freq,
                 penalty_present,
+                out_sampler,
+                out_error,
             )
-        };
-        Self::from_raw(sampler, "penalties")
+        })
     }
 
     /// # Errors
@@ -664,35 +840,50 @@ impl LlamaSampler {
         eta: f32,
         m: i32,
     ) -> Result<Self, SamplingError> {
-        let sampler = unsafe {
-            llama_cpp_bindings_sys::llama_sampler_init_mirostat(n_vocab, seed, tau, eta, m)
-        };
-        Self::from_raw(sampler, "Mirostat")
+        Self::initialize("Mirostat", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_mirostat(
+                n_vocab,
+                seed,
+                tau,
+                eta,
+                m,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the Mirostat v2 sampler cannot be initialized.
     pub fn mirostat_v2(seed: u32, tau: f32, eta: f32) -> Result<Self, SamplingError> {
-        let sampler =
-            unsafe { llama_cpp_bindings_sys::llama_sampler_init_mirostat_v2(seed, tau, eta) };
-        Self::from_raw(sampler, "Mirostat v2")
+        Self::initialize("Mirostat v2", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_mirostat_v2(
+                seed,
+                tau,
+                eta,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the distribution sampler cannot be initialized.
     pub fn dist(seed: u32) -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_dist(seed) };
-        Self::from_raw(sampler, "distribution")
+        Self::initialize("distribution", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_dist(seed, out_sampler, out_error)
+        })
     }
 
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the greedy sampler cannot be initialized.
     pub fn greedy() -> Result<Self, SamplingError> {
-        let sampler = unsafe { llama_cpp_bindings_sys::llama_sampler_init_greedy() };
-        Self::from_raw(sampler, "greedy")
+        Self::initialize("greedy", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_greedy(out_sampler, out_error)
+        })
     }
 
     /// # Errors
@@ -704,11 +895,15 @@ impl LlamaSampler {
             .as_ptr()
             .cast::<llama_cpp_bindings_sys::llama_logit_bias>();
 
-        let sampler = unsafe {
-            llama_cpp_bindings_sys::llama_sampler_init_logit_bias(n_vocab, bias_count, data)
-        };
-
-        Self::from_raw(sampler, "logit bias")
+        Self::initialize("logit bias", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_logit_bias(
+                n_vocab,
+                bias_count,
+                data,
+                out_sampler,
+                out_error,
+            )
+        })
     }
 }
 
@@ -1164,6 +1359,111 @@ mod tests {
     }
 
     #[test]
+    fn sampler_init_status_null_maps_to_sampler_unavailable() {
+        assert_eq!(
+            super::sampler_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_RETURNED_NULL,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                "penalties",
+            )
+            .err(),
+            Some(crate::SamplingError::SamplerUnavailable {
+                sampler: "penalties"
+            })
+        );
+    }
+
+    #[test]
+    fn sampler_init_status_allocation_failure_maps_to_not_enough_memory() {
+        assert_eq!(
+            super::sampler_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_ERROR_STRING_ALLOCATION_FAILED,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                "penalties",
+            )
+            .err(),
+            Some(crate::SamplingError::NotEnoughMemory)
+        );
+    }
+
+    #[test]
+    fn sampler_init_status_out_of_memory_names_the_sampler() {
+        assert_eq!(
+            super::sampler_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                "penalties",
+            )
+            .err(),
+            Some(crate::SamplingError::LlamaCppOutOfMemory {
+                sampler: "penalties"
+            })
+        );
+    }
+
+    #[test]
+    fn sampler_init_status_exception_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"vector too long".as_ptr()) };
+
+        assert_eq!(
+            super::sampler_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                std::ptr::null_mut(),
+                out_error,
+                "penalties",
+            )
+            .err(),
+            Some(crate::SamplingError::Reported {
+                sampler: "penalties",
+                message: "vector too long".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn sampler_chain_add_status_allocation_failure_maps_to_not_enough_memory() {
+        assert_eq!(
+            super::sampler_chain_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_ERROR_STRING_ALLOCATION_FAILED,
+                std::ptr::null_mut(),
+            ),
+            Err(crate::SamplingError::NotEnoughMemory)
+        );
+    }
+
+    #[test]
+    fn sampler_chain_add_status_out_of_memory_names_the_chain() {
+        assert_eq!(
+            super::sampler_chain_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_OUT_OF_MEMORY,
+                std::ptr::null_mut(),
+            ),
+            Err(crate::SamplingError::LlamaCppOutOfMemory { sampler: "chain" })
+        );
+    }
+
+    #[test]
+    fn sampler_chain_add_status_exception_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"vector too long".as_ptr()) };
+
+        assert_eq!(
+            super::sampler_chain_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                out_error,
+            ),
+            Err(crate::SamplingError::Reported {
+                sampler: "chain",
+                message: "vector too long".to_owned(),
+            })
+        );
+    }
+
+    #[test]
     fn sampler_init_grammar_status_null_maps_to_grammar_malformed() {
         let result = super::sampler_init_grammar_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_RETURNED_NULL,
@@ -1283,13 +1583,149 @@ mod tests {
 #[cfg(test)]
 mod ffi_contract_status_tests {
     use super::check_sampler_accept_status;
+    use super::sampler_chain_add_status_to_result;
     use super::sampler_init_grammar_lazy_patterns_status_to_result;
     use super::sampler_init_grammar_status_to_result;
+    use super::sampler_init_status_to_result;
     use super::sampler_sample_status_to_result;
     use crate::error::grammar_error::GrammarError;
     use crate::error::sample_error::SampleError;
     use crate::error::sampler_accept_error::SamplerAcceptError;
     use std::ptr;
+
+    #[test]
+    fn sampler_init_status_to_result_maps_every_contract_status() {
+        assert_eq!(
+            sampler_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_SAMPLER_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "penalties",
+            )
+            .err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_sampler_init",
+                    detail: "was given a null out_sampler argument",
+                }
+                .into()
+            )
+        );
+        assert_eq!(
+            sampler_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_ERROR_ARG,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "penalties",
+            )
+            .err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_sampler_init",
+                    detail: "was given a null out_error argument",
+                }
+                .into()
+            )
+        );
+        assert_eq!(
+            sampler_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "penalties",
+            )
+            .err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_sampler_init",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+                .into()
+            )
+        );
+        assert_eq!(
+            sampler_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION + 1,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                "penalties",
+            )
+            .err(),
+            Some(
+                crate::FfiStatusError {
+                    operation: "llama_rs_sampler_init",
+                    code: i64::from(
+                        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION
+                            + 1
+                    ),
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
+    fn sampler_chain_add_status_to_result_maps_every_contract_status() {
+        assert_eq!(
+            sampler_chain_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_CHAIN_ARG,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_chain_add",
+                detail: "was given a null chain argument",
+            }
+            .into())
+        );
+        assert_eq!(
+            sampler_chain_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_SAMPLER_ARG,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_chain_add",
+                detail: "was given a null sampler argument",
+            }
+            .into())
+        );
+        assert_eq!(
+            sampler_chain_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_OUT_ERROR_ARG,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_chain_add",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        );
+        assert_eq!(
+            sampler_chain_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_chain_add",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
+        );
+        assert_eq!(
+            sampler_chain_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION
+                    + 1,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiStatusError {
+                operation: "llama_rs_sampler_chain_add",
+                code: i64::from(
+                    llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION
+                        + 1
+                ),
+            }
+            .into())
+        );
+    }
 
     #[test]
     fn check_sampler_accept_status_maps_every_contract_status() {
