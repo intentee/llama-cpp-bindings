@@ -1,5 +1,6 @@
 use llama_cpp_bindings_types::JsonObjectShape;
 use llama_cpp_bindings_types::ParsedToolCall;
+use llama_cpp_bindings_types::ParsedToolCallId;
 use llama_cpp_bindings_types::ToolCallArguments;
 
 use crate::error::JsonObjectFailure;
@@ -47,7 +48,11 @@ fn try_parse_one_object(
     }
 
     Ok(Some((
-        ParsedToolCall::new(String::new(), name.clone(), arguments),
+        ParsedToolCall::new(
+            ParsedToolCallId::NotProvidedByModel,
+            name.clone(),
+            arguments,
+        ),
         start + consumed,
     )))
 }

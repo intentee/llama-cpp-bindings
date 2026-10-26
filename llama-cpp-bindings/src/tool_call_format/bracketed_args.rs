@@ -1,5 +1,6 @@
 use llama_cpp_bindings_types::BracketedJsonShape;
 use llama_cpp_bindings_types::ParsedToolCall;
+use llama_cpp_bindings_types::ParsedToolCallId;
 use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_bindings_types::ToolCallMarkers;
 
@@ -57,7 +58,7 @@ fn parse_one_call<'body>(
 
     Ok(ParseStep::Call {
         call: ParsedToolCall::new(
-            String::new(),
+            ParsedToolCallId::NotProvidedByModel,
             name,
             ToolCallArguments::ValidJson(arguments_value),
         ),
