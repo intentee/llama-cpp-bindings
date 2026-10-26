@@ -14,7 +14,9 @@ use llama_cpp_bindings::mtmd::MtmdContextParams;
 use llama_cpp_bindings::mtmd::MtmdEvalError;
 use llama_cpp_bindings::mtmd::MtmdInputChunkType;
 use llama_cpp_bindings::mtmd::MtmdInputChunks;
+use llama_cpp_bindings::mtmd::MtmdInputPart;
 use llama_cpp_bindings::mtmd::MtmdInputText;
+use llama_cpp_bindings::mtmd::MtmdInputTextPart;
 use llama_cpp_bindings::mtmd::NonCausalChunkMicroBatchMismatch;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::sampling::LlamaSampler;
@@ -2119,6 +2121,51 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
     ));
     assert_eq!(classifier.usage().prompt_tokens, 0);
     assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn tokenize_from_parts_reads_the_media_marker_in_a_text_part_as_text(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let image_data = vec![128u8; 64 * 64 * 3];
+    let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
+    let chunks = mtmd_ctx.tokenize_from_parts(
+        &[
+            MtmdInputPart::Text(MtmdInputTextPart::new(
+                &format!("What does {} mean? ", mtmd_default_marker()?),
+                true,
+            )?),
+            MtmdInputPart::Bitmap(&bitmap),
+            MtmdInputPart::Text(MtmdInputTextPart::new(" Describe it.", true)?),
+        ],
+        true,
+    )?;
+    let mut image_chunks = 0;
+
+    for chunk_index in 0..chunks.len() {
+        let chunk = chunks
+            .get(chunk_index)
+            .ok_or_else(|| anyhow::anyhow!("missing chunk at index {chunk_index}"))?;
+
+        if chunk.chunk_type()? == MtmdInputChunkType::Image {
+            image_chunks += 1;
+        }
+    }
+
+    assert_eq!(image_chunks, 1);
 
     Ok(())
 }
