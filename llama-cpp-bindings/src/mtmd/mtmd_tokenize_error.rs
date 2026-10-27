@@ -16,6 +16,8 @@ pub enum MtmdTokenizeError {
     MediaPreprocessingFailed,
     #[error("mtmd_tokenize returned an unknown status code: {code}")]
     UnknownStatus { code: i32 },
+    #[error("mtmd_tokenize_from_parts returned an unknown status code: {code}")]
+    UnknownTokenizeFromPartsStatus { code: i32 },
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]

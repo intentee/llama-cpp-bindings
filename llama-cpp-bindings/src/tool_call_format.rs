@@ -51,6 +51,7 @@ mod tests {
     use llama_cpp_bindings_types::KeyValueXmlTagsShape;
     use llama_cpp_bindings_types::PairedQuoteShape;
     use llama_cpp_bindings_types::ParsedToolCall;
+    use llama_cpp_bindings_types::ParsedToolCallId;
     use llama_cpp_bindings_types::ToolCallArgsShape;
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::ToolCallMarkers;
@@ -123,7 +124,7 @@ mod tests {
         assert_eq!(
             outcome,
             ToolCallFormatOutcome::Parsed(vec![ParsedToolCall::new(
-                String::new(),
+                ParsedToolCallId::NotProvidedByModel,
                 "get_weather".to_owned(),
                 ToolCallArguments::ValidJson(json!({"location": "Paris"})),
             )]),
@@ -140,7 +141,7 @@ mod tests {
         assert_eq!(
             outcome,
             ToolCallFormatOutcome::Parsed(vec![ParsedToolCall::new(
-                String::new(),
+                ParsedToolCallId::NotProvidedByModel,
                 "get_weather".to_owned(),
                 ToolCallArguments::ValidJson(json!({"location": "Paris"})),
             )]),
@@ -157,7 +158,7 @@ mod tests {
         assert_eq!(
             outcome,
             ToolCallFormatOutcome::Parsed(vec![ParsedToolCall::new(
-                String::new(),
+                ParsedToolCallId::NotProvidedByModel,
                 "get_weather".to_owned(),
                 ToolCallArguments::ValidJson(json!({"location": "Paris"})),
             )]),
@@ -174,7 +175,7 @@ mod tests {
         assert_eq!(
             outcome,
             ToolCallFormatOutcome::Parsed(vec![ParsedToolCall::new(
-                String::new(),
+                ParsedToolCallId::NotProvidedByModel,
                 "get_weather".to_owned(),
                 ToolCallArguments::ValidJson(json!({"location": "Paris"})),
             )]),

@@ -7,6 +7,8 @@ use llama_cpp_bindings::ChatMessageParser;
 use llama_cpp_bindings::GenerationProgress;
 use llama_cpp_bindings::MarkerRole;
 use llama_cpp_bindings::ParsedChatMessage;
+use llama_cpp_bindings::ParsedToolCall;
+use llama_cpp_bindings::ParsedToolCallId;
 use llama_cpp_bindings::SampledTokenSection;
 use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::ToolCallArgsShape;
@@ -1813,7 +1815,10 @@ get off the keyboard\n\
 
     assert_eq!(parsed.tool_calls.len(), 1);
     assert_eq!(parsed.tool_calls[0].name, "negotiate_with_cat");
-    assert_eq!(parsed.tool_calls[0].id, "call_0");
+    assert_eq!(
+        parsed.tool_calls[0].id,
+        ParsedToolCallId::NotProvidedByModel
+    );
     assert_eq!(
         arguments_as_json(&parsed.tool_calls[0].arguments)?,
         &json!({
@@ -1970,10 +1975,20 @@ Berlin\n\
             "expected Recognized for two Qwen XML payloads on a Qwen-3.5 model; got Unrecognized"
         );
     };
-    assert!(
-        !parsed.tool_calls.is_empty(),
-        "expected at least one tool call; got {:?}",
-        parsed.tool_calls
+    assert_eq!(
+        parsed.tool_calls,
+        vec![
+            ParsedToolCall::new(
+                ParsedToolCallId::NotProvidedByModel,
+                "get_weather".to_owned(),
+                ToolCallArguments::ValidJson(json!({"location": "Paris"})),
+            ),
+            ParsedToolCall::new(
+                ParsedToolCallId::NotProvidedByModel,
+                "get_weather".to_owned(),
+                ToolCallArguments::ValidJson(json!({"location": "Berlin"})),
+            ),
+        ]
     );
 
     Ok(())

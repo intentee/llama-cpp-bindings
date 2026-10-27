@@ -6,6 +6,7 @@ use std::ptr::NonNull;
 
 use llama_cpp_bindings_types::ParsedChatMessage;
 use llama_cpp_bindings_types::ParsedToolCall;
+use llama_cpp_bindings_types::ParsedToolCallId;
 use llama_cpp_bindings_types::ReasoningMarkers;
 use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
@@ -157,10 +158,7 @@ fn outcome_from_via_ffi_result(
     is_partial: bool,
 ) -> Result<ChatMessageParseOutcome, ParseChatMessageError> {
     match via_ffi_result {
-        Ok(mut parsed) => {
-            synthesize_missing_tool_call_ids(&mut parsed.tool_calls);
-            Ok(ChatMessageParseOutcome::Recognized(parsed))
-        }
+        Ok(parsed) => Ok(ChatMessageParseOutcome::Recognized(parsed)),
         Err(ParseChatMessageError::MessageUnrecognized { message }) => {
             Ok(ChatMessageParseOutcome::Unrecognized(RawChatMessage {
                 text: input.to_owned(),
@@ -185,7 +183,7 @@ fn collect_parsed_chat_message(
 
     let mut tool_calls = Vec::with_capacity(count);
     for index in 0..count {
-        let id = read_parsed_chat_tool_call_id(handle, index)?;
+        let id = tool_call_id_reported_by_llama_cpp(read_parsed_chat_tool_call_id(handle, index)?);
         let name = read_parsed_chat_tool_call_name(handle, index)?;
         let arguments_json = read_parsed_chat_tool_call_arguments(handle, index)?;
 
@@ -754,11 +752,11 @@ fn prefix_before_optional(text: &str, marker: Option<&str>) -> String {
     )
 }
 
-fn synthesize_missing_tool_call_ids(tool_calls: &mut [ParsedToolCall]) {
-    for (index, call) in tool_calls.iter_mut().enumerate() {
-        if call.id.is_empty() {
-            call.id = format!("call_{index}");
-        }
+fn tool_call_id_reported_by_llama_cpp(llama_cpp_tool_call_id: String) -> ParsedToolCallId {
+    if llama_cpp_tool_call_id.is_empty() {
+        ParsedToolCallId::NotProvidedByModel
+    } else {
+        ParsedToolCallId::ModelProvided(llama_cpp_tool_call_id)
     }
 }
 
@@ -941,10 +939,11 @@ impl ChatMessageParser {
                         Some(&candidate.open),
                         is_partial,
                     );
-                    let mut parsed = ParsedChatMessage::new(split.content, split.reasoning, calls);
-                    synthesize_missing_tool_call_ids(&mut parsed.tool_calls);
-
-                    return Ok(ChatMessageParseOutcome::Recognized(parsed));
+                    return Ok(ChatMessageParseOutcome::Recognized(ParsedChatMessage::new(
+                        split.content,
+                        split.reasoning,
+                        calls,
+                    )));
                 }
                 ToolCallFormatOutcome::Failed(_shape_does_not_fit) => {}
             }
@@ -1030,6 +1029,7 @@ mod tests {
 
     use llama_cpp_bindings_types::ParsedChatMessage;
     use llama_cpp_bindings_types::ParsedToolCall;
+    use llama_cpp_bindings_types::ParsedToolCallId;
     use llama_cpp_bindings_types::ReasoningMarkers;
     use llama_cpp_bindings_types::ToolCallArguments;
 
@@ -1047,6 +1047,7 @@ mod tests {
     use super::parsed_chat_tool_call_name_status_to_result;
     use super::restore_partial_reasoning;
     use super::split_reasoning_prefix;
+    use super::tool_call_id_reported_by_llama_cpp;
     use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
     use crate::error::parse_chat_message_error::ParseChatMessageError;
     use crate::raw_chat_message::RawChatMessage;
@@ -1855,30 +1856,38 @@ mod tests {
     }
 
     #[test]
-    fn outcome_from_via_ffi_result_recognized_synthesizes_tool_call_ids() {
+    fn outcome_from_via_ffi_result_recognized_keeps_a_tool_call_the_model_gave_no_id() {
         let parsed = ParsedChatMessage::new(
             "answer".to_owned(),
             String::new(),
             vec![ParsedToolCall::new(
-                String::new(),
+                ParsedToolCallId::NotProvidedByModel,
                 "tool".to_owned(),
                 ToolCallArguments::default(),
             )],
         );
 
-        let outcome = outcome_from_via_ffi_result(Ok(parsed), "answer", false);
+        let outcome = outcome_from_via_ffi_result(Ok(parsed.clone()), "answer", false);
 
         assert_eq!(
             outcome.unwrap(),
-            ChatMessageParseOutcome::Recognized(ParsedChatMessage::new(
-                "answer".to_owned(),
-                String::new(),
-                vec![ParsedToolCall::new(
-                    "call_0".to_owned(),
-                    "tool".to_owned(),
-                    ToolCallArguments::default(),
-                )],
-            ))
+            ChatMessageParseOutcome::Recognized(parsed)
+        );
+    }
+
+    #[test]
+    fn an_empty_llama_cpp_tool_call_id_is_not_provided_by_the_model() {
+        assert_eq!(
+            tool_call_id_reported_by_llama_cpp(String::new()),
+            ParsedToolCallId::NotProvidedByModel
+        );
+    }
+
+    #[test]
+    fn a_non_empty_llama_cpp_tool_call_id_is_provided_by_the_model() {
+        assert_eq!(
+            tool_call_id_reported_by_llama_cpp("abc123def".to_owned()),
+            ParsedToolCallId::ModelProvided("abc123def".to_owned())
         );
     }
 

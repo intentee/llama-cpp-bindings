@@ -87,6 +87,28 @@ llama_rs_mtmd_tokenize_status llama_rs_mtmd_tokenize(
     int32_t * out_undocumented_return_code,
     char ** out_error);
 
+typedef enum llama_rs_mtmd_tokenize_from_parts_status {
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK = 0,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MEDIA_PREPROCESSING_ERROR,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_mtmd_tokenize_from_parts_status;
+
+llama_rs_mtmd_tokenize_from_parts_status llama_rs_mtmd_tokenize_from_parts(
+    const struct mtmd_context * ctx,
+    struct mtmd_input_chunks * output,
+    const struct mtmd_input_part * const * parts,
+    size_t num_parts,
+    bool add_special,
+    int32_t * out_undocumented_return_code,
+    char ** out_error);
+
 typedef enum llama_rs_mtmd_encode_chunk_status {
     LLAMA_RS_MTMD_ENCODE_CHUNK_OK = 0,
     LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG,

@@ -35,6 +35,7 @@ impl ParsedChatMessage {
 mod tests {
     use super::ParsedChatMessage;
     use super::ParsedToolCall;
+    use crate::parsed_tool_call_id::ParsedToolCallId;
     use crate::tool_call_arguments::ToolCallArguments;
 
     #[test]
@@ -62,7 +63,7 @@ mod tests {
             String::new(),
             String::new(),
             vec![ParsedToolCall::new(
-                String::new(),
+                ParsedToolCallId::NotProvidedByModel,
                 "tool".to_owned(),
                 ToolCallArguments::default(),
             )],
@@ -77,7 +78,7 @@ mod tests {
             "hello".to_owned(),
             "thinking".to_owned(),
             vec![ParsedToolCall::new(
-                "id-1".to_owned(),
+                ParsedToolCallId::ModelProvided("id-1".to_owned()),
                 "tool".to_owned(),
                 ToolCallArguments::default(),
             )],

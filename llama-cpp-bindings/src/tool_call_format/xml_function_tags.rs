@@ -1,4 +1,5 @@
 use llama_cpp_bindings_types::ParsedToolCall;
+use llama_cpp_bindings_types::ParsedToolCallId;
 use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_bindings_types::XmlTagsShape;
 use nom::IResult;
@@ -137,7 +138,11 @@ fn parse_one_function<'body>(
     let arguments = ToolCallArguments::from_string(arguments_value.to_string());
 
     Ok(Some((
-        ParsedToolCall::new(String::new(), function_name, arguments),
+        ParsedToolCall::new(
+            ParsedToolCallId::NotProvidedByModel,
+            function_name,
+            arguments,
+        ),
         after_function_close,
     )))
 }

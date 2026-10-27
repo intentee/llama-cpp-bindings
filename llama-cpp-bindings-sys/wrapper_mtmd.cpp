@@ -220,6 +220,66 @@ extern "C" auto llama_rs_mtmd_tokenize(
     }
 }
 
+extern "C" auto llama_rs_mtmd_tokenize_from_parts(
+    const struct mtmd_context * ctx,
+    struct mtmd_input_chunks * output,
+    const struct mtmd_input_part * const * parts,
+    size_t num_parts,
+    bool add_special,
+    int32_t * out_undocumented_return_code,
+    char ** out_error) -> llama_rs_mtmd_tokenize_from_parts_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    if (out_undocumented_return_code != nullptr) {
+        *out_undocumented_return_code = 0;
+    }
+    if (ctx == nullptr) {
+        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG;
+    }
+    if (output == nullptr) {
+        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG;
+    }
+    if (num_parts > 0 && (parts == nullptr)) {
+        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO;
+    }
+
+    try {
+        int32_t const result = mtmd_tokenize_from_parts(ctx, output, parts, num_parts, add_special);
+        switch (result) {
+            case 0:
+                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK;
+            case 1:
+                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART;
+            case 2:
+                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MEDIA_PREPROCESSING_ERROR;
+            default:
+                if (out_undocumented_return_code != nullptr) {
+                    *out_undocumented_return_code = result;
+                }
+                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE;
+        }
+    } catch (const std::bad_alloc &) {
+        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY;
+    } catch (const std::exception & err) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string(err.what());
+            if (*out_error == nullptr) {
+                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION;
+    } catch (...) {
+        if (out_error != nullptr) {
+            *out_error = llama_rs_dup_string("unknown c++ exception");
+            if (*out_error == nullptr) {
+                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED;
+            }
+        }
+        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION;
+    }
+}
+
 extern "C" auto llama_rs_mtmd_encode_chunk(
     struct mtmd_context * ctx,
     const struct mtmd_input_chunk * chunk,

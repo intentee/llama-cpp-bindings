@@ -89,8 +89,8 @@ pub use llama_backend_device::LlamaBackendDevice;
 pub use llama_backend_device_type::LlamaBackendDeviceType;
 pub use llama_cpp_bindings_types::{
     BracketedJsonShape, KeyValueXmlTagsShape, PairedQuoteShape, ParsedChatMessage, ParsedToolCall,
-    ReasoningMarkers, TokenUsage, TokenUsageError, ToolCallArgsShape, ToolCallArguments,
-    ToolCallMarkers, ToolCallValueQuote, XmlTagsShape,
+    ParsedToolCallId, ReasoningMarkers, TokenUsage, TokenUsageError, ToolCallArgsShape,
+    ToolCallArguments, ToolCallMarkers, ToolCallValueQuote, XmlTagsShape,
 };
 pub use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
 pub use marker_role::MarkerRole;
