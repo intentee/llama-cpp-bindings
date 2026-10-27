@@ -1,26 +1,5 @@
-use std::sync::Arc;
-use std::sync::OnceLock;
-
-use libtest_mimic::Arguments;
-use libtest_mimic::Conclusion;
-use libtest_mimic::Failed;
-use libtest_mimic::Trial;
-use llama_cpp_bindings::llama_backend::LlamaBackend;
-
-use crate::GgufSource;
-use crate::llama_fixture::LlamaFixture;
 use crate::llama_test_registration::LlamaTestRegistration;
 use crate::load_key::LoadKey;
-use crate::phase_state::PhaseState;
-
-type LazyPhaseState = Arc<OnceLock<Result<PhaseState, String>>>;
-
-fn source_label(source: GgufSource) -> String {
-    match source {
-        GgufSource::HuggingFace { repo, file } => format!("{repo} / {file}"),
-        GgufSource::LocalPath(path) => format!("local:{path}"),
-    }
-}
 
 pub struct ExecutionPhase {
     pub key: LoadKey,
@@ -31,10 +10,10 @@ impl ExecutionPhase {
     #[must_use]
     pub fn header_line(&self, index: usize, total: usize) -> String {
         format!(
-            "--- phase {phase_number}/{total_phases}: {source_label} (n_gpu_layers={n_gpu_layers}) ({trial_count} tests) ---",
+            "--- phase {phase_number}/{total_phases}: {model_source} (n_gpu_layers={n_gpu_layers}) ({trial_count} tests) ---",
             phase_number = index + 1,
             total_phases = total,
-            source_label = source_label(self.key.model_source),
+            model_source = self.key.model_source,
             n_gpu_layers = self.key.model_load_params.n_gpu_layers,
             trial_count = self.registrations.len(),
         )
@@ -42,46 +21,6 @@ impl ExecutionPhase {
 
     pub fn print_header(&self, index: usize, total: usize) {
         eprintln!("{}", self.header_line(index, total));
-    }
-
-    pub fn run(&self, backend: &Arc<LlamaBackend>, arguments: &Arguments) -> Conclusion {
-        let phase_state: LazyPhaseState = Arc::new(OnceLock::new());
-
-        libtest_mimic::run(
-            arguments,
-            self.registrations
-                .iter()
-                .map(|registration| self.trial(registration, backend, &phase_state))
-                .collect(),
-        )
-    }
-
-    fn trial(
-        &self,
-        registration: &'static LlamaTestRegistration,
-        backend: &Arc<LlamaBackend>,
-        phase_state: &LazyPhaseState,
-    ) -> Trial {
-        let key = self.key;
-        let backend = Arc::clone(backend);
-        let phase_state = Arc::clone(phase_state);
-
-        Trial::test(registration.name, move || {
-            match phase_state.get_or_init(|| {
-                key.load_phase_state(&backend)
-                    .map_err(|error| format!("phase setup failed: {error:#}"))
-            }) {
-                Ok(state) => (registration.func)(&LlamaFixture {
-                    model: &state.model,
-                    backend: &state.backend,
-                    context_params: &registration.context_params,
-                    mtmd_context: state.mtmd_context.as_ref(),
-                    model_path: &state.model_path,
-                })
-                .map_err(|error| Failed::from(format!("{error:#}"))),
-                Err(setup_failure) => Err(Failed::from(setup_failure)),
-            }
-        })
     }
 }
 

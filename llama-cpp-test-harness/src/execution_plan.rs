@@ -7,6 +7,7 @@ use llama_cpp_bindings::llama_backend::LlamaBackend;
 
 use crate::execution_phase::ExecutionPhase;
 use crate::llama_test_registration::LlamaTestRegistration;
+use crate::scheduled_phase::ScheduledPhase;
 
 fn collect_inventory_registrations() -> Vec<&'static LlamaTestRegistration> {
     inventory::iter::<LlamaTestRegistration>
@@ -52,12 +53,21 @@ impl ExecutionPlan {
     #[must_use]
     pub fn run(&self, backend: &Arc<LlamaBackend>, arguments: &Arguments) -> Vec<Conclusion> {
         let total = self.phases.len();
-        let mut conclusions = Vec::with_capacity(total);
-        for (index, phase) in self.phases.iter().enumerate() {
-            phase.print_header(index, total);
-            conclusions.push(phase.run(backend, arguments));
+        let scheduled_phases: Vec<ScheduledPhase<'_>> = self
+            .phases
+            .iter()
+            .map(|phase| ScheduledPhase::new(phase, backend))
+            .collect();
+
+        for scheduled_phase in &scheduled_phases {
+            scheduled_phase.download_model_files(arguments);
         }
-        conclusions
+
+        scheduled_phases
+            .into_iter()
+            .enumerate()
+            .map(|(index, scheduled_phase)| scheduled_phase.run(index, total, arguments))
+            .collect()
     }
 }
 

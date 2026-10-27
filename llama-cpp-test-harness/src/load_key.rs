@@ -1,14 +1,8 @@
-use std::sync::Arc;
-
 use anyhow::Result;
-use llama_cpp_bindings::llama_backend::LlamaBackend;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::mtmd::MtmdContext;
-use llama_cpp_bindings::mtmd::MtmdContextParams;
 
 use crate::gguf_source::GgufSource;
 use crate::model_load_params::ModelLoadParams;
-use crate::phase_state::PhaseState;
+use crate::phase_model_files::PhaseModelFiles;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct LoadKey {
@@ -20,38 +14,22 @@ pub struct LoadKey {
 impl LoadKey {
     /// # Errors
     ///
-    /// Returns an error if any of: source resolution fails, loading the model into llama.cpp
-    /// fails, or initializing the `MtmdContext` fails.
-    pub fn load_phase_state(&self, backend: &Arc<LlamaBackend>) -> Result<PhaseState> {
-        let model_path = self.model_source.resolve_path()?;
-        let model_params = self.model_load_params.into_llama_model_params();
-        let model = LlamaModel::load_from_file(backend, &model_path, &model_params)?;
-
-        let mtmd_context = match self.mmproj_source {
-            Some(mmproj_source) => {
-                let mmproj_path = mmproj_source.resolve_path()?;
-                let mmproj_path_str = mmproj_path.to_string_lossy();
-                let params = MtmdContextParams::default();
-                Some(MtmdContext::init_from_file(
-                    mmproj_path_str.as_ref(),
-                    &model,
-                    &params,
-                )?)
-            }
-            None => None,
-        };
-
-        Ok(PhaseState {
-            mtmd_context,
-            model,
-            backend: Arc::clone(backend),
-            model_path,
+    /// Returns an error if downloading the model file or the mmproj file fails.
+    pub fn download_model_files(&self) -> Result<PhaseModelFiles> {
+        Ok(PhaseModelFiles {
+            model_path: self.model_source.resolve_path()?,
+            mmproj_path: self
+                .mmproj_source
+                .map(GgufSource::resolve_path)
+                .transpose()?,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use llama_cpp_bindings::model::LlamaLoadMode;
 
     use crate::gguf_source::GgufSource;
@@ -116,84 +94,40 @@ mod tests {
         assert_ne!(baseline(), other);
     }
 
-    use std::sync::Arc;
-
-    use llama_cpp_bindings::llama_backend::LlamaBackend;
-
-    use crate::test_backend_gate::BACKEND_INIT_GATE;
-
-    const NON_GGUF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
-
     #[test]
-    fn load_phase_state_propagates_model_load_failure() {
-        let _gate = BACKEND_INIT_GATE
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let backend = Arc::new(LlamaBackend::init().expect("backend init must succeed"));
-        let key = LoadKey {
-            model_source: GgufSource::LocalPath(NON_GGUF_PATH),
-            mmproj_source: None,
-            model_load_params: ModelLoadParams {
-                n_gpu_layers: 0,
-                load_mode: LlamaLoadMode::Mmap,
-            },
-        };
+    fn download_model_files_resolves_local_sources_to_their_paths() {
+        let mut key = baseline();
+        key.model_source = GgufSource::LocalPath("/abs/model.gguf");
+        key.mmproj_source = Some(GgufSource::LocalPath("/abs/mmproj.gguf"));
 
-        let result = key.load_phase_state(&backend);
+        let model_files = key
+            .download_model_files()
+            .expect("local sources resolve without downloading anything");
 
-        assert!(
-            result.is_err(),
-            "LoadKey pointing at a non-GGUF file must fail to load"
+        assert_eq!(model_files.model_path, PathBuf::from("/abs/model.gguf"));
+        assert_eq!(
+            model_files.mmproj_path,
+            Some(PathBuf::from("/abs/mmproj.gguf"))
         );
     }
 
     #[test]
-    fn load_phase_state_propagates_mmproj_download_failure() {
-        let _gate = BACKEND_INIT_GATE
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let backend = Arc::new(LlamaBackend::init().expect("backend init must succeed"));
-        let key = LoadKey {
-            model_source: GgufSource::LocalPath(NON_GGUF_PATH),
-            mmproj_source: Some(GgufSource::HuggingFace {
-                repo: "intentee-test-harness/does-not-exist",
-                file: "no-such-mmproj.gguf",
-            }),
-            model_load_params: ModelLoadParams {
-                n_gpu_layers: 0,
-                load_mode: LlamaLoadMode::Mmap,
-            },
+    fn download_model_files_propagates_mmproj_download_failure() {
+        let missing_mmproj_source = GgufSource::HuggingFace {
+            repo: "intentee-test-harness/does-not-exist",
+            file: "no-such-mmproj.gguf",
         };
+        let mut key = baseline();
+        key.model_source = GgufSource::LocalPath("/abs/model.gguf");
+        key.mmproj_source = Some(missing_mmproj_source);
 
-        let result = key.load_phase_state(&backend);
+        let download_failure = key
+            .download_model_files()
+            .expect_err("an mmproj from a repository that does not exist must fail to download");
 
-        assert!(
-            result.is_err(),
-            "LoadKey with bogus mmproj HF repo must fail; the error must surface either at model \
-             load (the non-GGUF model fails first) or at mmproj download"
-        );
-    }
-
-    #[test]
-    fn load_phase_state_propagates_mmproj_local_load_failure() {
-        let _gate = BACKEND_INIT_GATE
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let backend = Arc::new(LlamaBackend::init().expect("backend init must succeed"));
-        let key = LoadKey {
-            model_source: GgufSource::LocalPath(NON_GGUF_PATH),
-            mmproj_source: Some(GgufSource::LocalPath(NON_GGUF_PATH)),
-            model_load_params: ModelLoadParams {
-                n_gpu_layers: 0,
-                load_mode: LlamaLoadMode::Mmap,
-            },
-        };
-
-        let result = key.load_phase_state(&backend);
-
-        assert!(
-            result.is_err(),
-            "LoadKey pointing at a non-mmproj LocalPath must fail at MtmdContext init"
+        assert_eq!(
+            download_failure.downcast_ref::<GgufSource>(),
+            Some(&missing_mmproj_source)
         );
     }
 }
