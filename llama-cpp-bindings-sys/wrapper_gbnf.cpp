@@ -1,10 +1,8 @@
 #include "wrapper_gbnf.h"
-#include "wrapper_utils.h"
+#include "wrapper_report_current_exception.h"
 
 #include "llama.cpp/src/llama-grammar.h"
 
-#include <exception>
-#include <new>
 
 extern "C" auto llama_rs_validate_gbnf(
     const struct llama_vocab * vocab,
@@ -48,19 +46,11 @@ extern "C" auto llama_rs_validate_gbnf(
         llama_grammar_free_impl(grammar);
 
         return LLAMA_RS_GBNF_VALIDATION_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        *out_error = llama_rs_dup_string(err.what());
-        if (*out_error == nullptr) {
-            return LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
     } catch (...) {
-        *out_error = llama_rs_dup_string("unknown c++ exception");
-        if (*out_error == nullptr) {
-            return LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION,
+            LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

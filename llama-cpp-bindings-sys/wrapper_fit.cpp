@@ -1,12 +1,10 @@
 #include "wrapper_fit.h"
 #include "llama.h"
 #include "ggml.h"
-#include "wrapper_utils.h"
+#include "wrapper_report_current_exception.h"
 
 #include <cstddef>
 #include <cstdint>
-#include <exception>
-#include <new>
 
 #include "llama.cpp/common/fit.h"
 
@@ -77,19 +75,11 @@ extern "C" auto llama_rs_fit_params(
         }
         *out_unrecognized_status_code = static_cast<int32_t>(status);
         return LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        *out_error = llama_rs_dup_string(err.what());
-        if (*out_error == nullptr) {
-            return LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        *out_error = llama_rs_dup_string("unknown c++ exception");
-        if (*out_error == nullptr) {
-            return LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

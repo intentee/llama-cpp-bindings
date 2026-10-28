@@ -368,7 +368,7 @@ fn parses_with_input_null_byte_reports_the_input_as_the_source(
     let result = ChatMessageParser::new(fixture.model, "[]")?.parse("hello\0world", false);
 
     let Err(ParseChatMessageError::InputContainsNulByte(nul_error)) = result else {
-        anyhow::bail!("a NUL byte in the message must be reported against the message");
+        bail!("a NUL byte in the message must be reported against the message");
     };
 
     assert_eq!(nul_error.nul_position(), 5);

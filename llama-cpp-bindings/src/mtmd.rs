@@ -1,3 +1,5 @@
+mod mtmd_ffi_input_part;
+
 pub mod fitted_mtmd_input_chunk;
 pub mod fitted_mtmd_input_chunks;
 pub mod micro_batch_tokens;

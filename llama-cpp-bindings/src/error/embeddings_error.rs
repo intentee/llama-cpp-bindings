@@ -4,8 +4,14 @@ pub enum EmbeddingsError {
     NotEnabled,
     #[error("Logits were not enabled for the given token")]
     LogitsNotEnabled,
-    #[error("Can't use sequence embeddings with a model supporting only LLAMA_POOLING_TYPE_NONE")]
+    #[error(
+        "Sequence embeddings need a pooling context, but this context uses LLAMA_POOLING_TYPE_NONE"
+    )]
     NonePoolType,
+    #[error(
+        "No sequence embedding exists for sequence {sequence_index}; it was not part of the last decoded batch"
+    )]
+    SequenceEmbeddingUnavailable { sequence_index: i32 },
     #[error("Invalid embedding dimension: {0}")]
     InvalidEmbeddingDimension(#[source] std::num::TryFromIntError),
     #[error(

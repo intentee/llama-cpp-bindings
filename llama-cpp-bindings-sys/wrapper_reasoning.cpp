@@ -5,12 +5,10 @@
 #include "llama.cpp/common/chat.h"
 #include "llama.cpp/common/json.h"
 #include "llama.cpp/include/llama.h"
-#include "wrapper_utils.h"
+#include "wrapper_report_current_exception.h"
 
 #include <cstddef>
-#include <exception>
 #include <memory>
-#include <new>
 #include <string>
 #include <utility>
 #include <vector>
@@ -109,20 +107,12 @@ extern "C" auto llama_rs_detect_reasoning_markers(
         *out_markers = detected.release();
 
         return LLAMA_RS_DETECT_REASONING_MARKERS_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_DETECT_REASONING_MARKERS_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & ex) {
-        *out_error = llama_rs_dup_string(std::string(ex.what()));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_DETECT_REASONING_MARKERS_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_DETECT_REASONING_MARKERS_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_DETECT_REASONING_MARKERS_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_DETECT_REASONING_MARKERS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_DETECT_REASONING_MARKERS_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -160,23 +150,11 @@ extern "C" auto llama_rs_reasoning_markers_free(
     try {
         const std::unique_ptr<llama_rs_reasoning_markers> reclaimed(markers);
         return LLAMA_RS_REASONING_MARKERS_FREE_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_REASONING_MARKERS_FREE_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_REASONING_MARKERS_FREE_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_REASONING_MARKERS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
+            LLAMA_RS_REASONING_MARKERS_FREE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

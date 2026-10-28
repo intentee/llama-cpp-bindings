@@ -651,6 +651,16 @@ impl LlamaModel {
     }
 
     #[must_use]
+    pub fn n_embd_out(&self) -> c_int {
+        unsafe { llama_cpp_bindings_sys::llama_model_n_embd_out(self.model.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn n_cls_out(&self) -> u32 {
+        unsafe { llama_cpp_bindings_sys::llama_model_n_cls_out(self.model.as_ptr()) }
+    }
+
+    #[must_use]
     pub fn size(&self) -> u64 {
         unsafe { llama_cpp_bindings_sys::llama_model_size(self.model.as_ptr()) }
     }
@@ -2908,8 +2918,8 @@ mod ffi_contract_status_tests {
     use std::ptr;
 
     #[test]
-    fn load_model_from_file_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn load_model_from_file_status_to_result_maps_null_path_arg() {
+        let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG,
                 ptr::null_mut(),
@@ -2918,7 +2928,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_load_model_from_file",
@@ -2927,7 +2937,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn load_model_from_file_status_to_result_maps_null_out_model_arg() {
+        let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG,
                 ptr::null_mut(),
@@ -2936,7 +2950,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_load_model_from_file",
@@ -2945,7 +2959,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn load_model_from_file_status_to_result_maps_null_out_error_arg() {
+        let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG,
                 ptr::null_mut(),
@@ -2954,7 +2972,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_load_model_from_file",
@@ -2963,7 +2981,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = unsafe {
+    }
+
+    #[test]
+    fn load_model_from_file_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
@@ -2972,73 +2994,88 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_3.err(),
+            outcome.err(),
             Some(LlamaModelLoadError::LlamaCppOutOfMemory)
         );
     }
 
     #[test]
-    fn chat_parser_create_status_to_result_maps_every_contract_status() {
+    fn chat_parser_create_status_to_result_maps_null_model_arg() {
         let mut out_error_slot: *mut c_char = ptr::null_mut();
-        let outcome_0 = unsafe {
+        let outcome = unsafe {
             chat_parser_create_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_NULL_MODEL_ARG,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_0)) = outcome_0 else {
+        let Err(ParseChatMessageError::FfiContract(contract)) = outcome else {
             panic!("LLAMA_RS_CHAT_PARSER_CREATE_NULL_MODEL_ARG must map to a contract error");
         };
         assert_eq!(
-            contract_0,
+            contract,
             crate::FfiContractError {
                 operation: "llama_rs_chat_parser_create",
                 detail: "was given a null model argument",
             }
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn chat_parser_create_status_to_result_maps_null_out_parser_arg() {
+        let mut out_error_slot: *mut c_char = ptr::null_mut();
+        let outcome = unsafe {
             chat_parser_create_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_NULL_OUT_PARSER_ARG,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_1)) = outcome_1 else {
+        let Err(ParseChatMessageError::FfiContract(contract)) = outcome else {
             panic!("LLAMA_RS_CHAT_PARSER_CREATE_NULL_OUT_PARSER_ARG must map to a contract error");
         };
         assert_eq!(
-            contract_1,
+            contract,
             crate::FfiContractError {
                 operation: "llama_rs_chat_parser_create",
                 detail: "was given a null out_parser argument",
             }
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn chat_parser_create_status_to_result_maps_null_out_error_arg() {
+        let mut out_error_slot: *mut c_char = ptr::null_mut();
+        let outcome = unsafe {
             chat_parser_create_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_NULL_OUT_ERROR_ARG,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_2)) = outcome_2 else {
+        let Err(ParseChatMessageError::FfiContract(contract)) = outcome else {
             panic!("LLAMA_RS_CHAT_PARSER_CREATE_NULL_OUT_ERROR_ARG must map to a contract error");
         };
         assert_eq!(
-            contract_2,
+            contract,
             crate::FfiContractError {
                 operation: "llama_rs_chat_parser_create",
                 detail: "was given a null out_error argument",
             }
         );
-        let outcome_3 = unsafe {
+    }
+
+    #[test]
+    fn chat_parser_create_status_to_result_maps_llama_cpp_out_of_memory() {
+        let mut out_error_slot: *mut c_char = ptr::null_mut();
+        let outcome = unsafe {
             chat_parser_create_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_PARSER_CREATE_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome_3 else {
+        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome else {
             panic!(
                 "LLAMA_RS_CHAT_PARSER_CREATE_LLAMA_CPP_OUT_OF_MEMORY must map to LlamaCppOutOfMemory"
             );
@@ -3046,8 +3083,8 @@ mod ffi_contract_status_tests {
     }
 
     #[test]
-    fn apply_chat_template_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn apply_chat_template_status_to_result_maps_null_model_arg() {
+        let outcome = unsafe {
             apply_chat_template_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_MODEL_ARG,
                 ptr::null_mut(),
@@ -3055,7 +3092,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_apply_chat_template",
@@ -3064,7 +3101,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn apply_chat_template_status_to_result_maps_null_template_arg() {
+        let outcome = unsafe {
             apply_chat_template_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_TEMPLATE_ARG,
                 ptr::null_mut(),
@@ -3072,7 +3113,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_apply_chat_template",
@@ -3081,7 +3122,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn apply_chat_template_status_to_result_maps_null_messages_arg() {
+        let outcome = unsafe {
             apply_chat_template_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_MESSAGES_ARG,
                 ptr::null_mut(),
@@ -3089,7 +3134,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_apply_chat_template",
@@ -3098,7 +3143,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = unsafe {
+    }
+
+    #[test]
+    fn apply_chat_template_status_to_result_maps_null_out_string_arg() {
+        let outcome = unsafe {
             apply_chat_template_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_OUT_STRING_ARG,
                 ptr::null_mut(),
@@ -3106,7 +3155,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_3.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_apply_chat_template",
@@ -3115,7 +3164,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_4 = unsafe {
+    }
+
+    #[test]
+    fn apply_chat_template_status_to_result_maps_null_out_error_arg() {
+        let outcome = unsafe {
             apply_chat_template_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_NULL_OUT_ERROR_ARG,
                 ptr::null_mut(),
@@ -3123,7 +3176,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_4.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_apply_chat_template",
@@ -3132,7 +3185,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_5 = unsafe {
+    }
+
+    #[test]
+    fn apply_chat_template_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             apply_chat_template_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
@@ -3140,14 +3197,14 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_5.err(),
+            outcome.err(),
             Some(ApplyChatTemplateError::LlamaCppOutOfMemory)
         );
     }
 
     #[test]
-    fn detect_reasoning_markers_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn detect_reasoning_markers_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             detect_reasoning_markers_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_DETECT_REASONING_MARKERS_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null(),
@@ -3155,14 +3212,14 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(MarkerDetectionError::LlamaCppOutOfMemory)
         );
     }
 
     #[test]
-    fn compute_tool_call_haystack_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn compute_tool_call_haystack_status_to_result_maps_null_model_arg() {
+        let outcome = unsafe {
             compute_tool_call_haystack_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_NULL_MODEL_ARG,
                 ptr::null(),
@@ -3170,7 +3227,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_compute_tool_call_haystack",
@@ -3179,7 +3236,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn compute_tool_call_haystack_status_to_result_maps_null_out_haystack_arg() {
+        let outcome = unsafe {
             compute_tool_call_haystack_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_NULL_OUT_HAYSTACK_ARG,
                 ptr::null(),
@@ -3187,7 +3248,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_compute_tool_call_haystack",
@@ -3196,7 +3257,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn compute_tool_call_haystack_status_to_result_maps_null_out_error_arg() {
+        let outcome = unsafe {
             compute_tool_call_haystack_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_NULL_OUT_ERROR_ARG,
                 ptr::null(),
@@ -3204,7 +3269,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_compute_tool_call_haystack",
@@ -3213,7 +3278,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = unsafe {
+    }
+
+    #[test]
+    fn compute_tool_call_haystack_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             compute_tool_call_haystack_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null(),
@@ -3221,18 +3290,18 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_3.err(),
+            outcome.err(),
             Some(MarkerDetectionError::LlamaCppOutOfMemory)
         );
     }
 
     #[test]
-    fn diagnose_tool_call_synthetic_renders_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn diagnose_tool_call_synthetic_renders_status_to_result_maps_null_model_arg() {
+        let outcome = unsafe {
             diagnose_tool_call_synthetic_renders_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_NULL_MODEL_ARG, ptr::null(), ptr::null(), ptr::null_mut())
         };
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_diagnose_tool_call_synthetic_renders",
@@ -3241,11 +3310,15 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn diagnose_tool_call_synthetic_renders_status_to_result_maps_null_out_no_tools_arg() {
+        let outcome = unsafe {
             diagnose_tool_call_synthetic_renders_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_NULL_OUT_NO_TOOLS_ARG, ptr::null(), ptr::null(), ptr::null_mut())
         };
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_diagnose_tool_call_synthetic_renders",
@@ -3254,11 +3327,15 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn diagnose_tool_call_synthetic_renders_status_to_result_maps_null_out_with_tools_arg() {
+        let outcome = unsafe {
             diagnose_tool_call_synthetic_renders_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_NULL_OUT_WITH_TOOLS_ARG, ptr::null(), ptr::null(), ptr::null_mut())
         };
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_diagnose_tool_call_synthetic_renders",
@@ -3267,11 +3344,15 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = unsafe {
+    }
+
+    #[test]
+    fn diagnose_tool_call_synthetic_renders_status_to_result_maps_null_out_error_arg() {
+        let outcome = unsafe {
             diagnose_tool_call_synthetic_renders_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_NULL_OUT_ERROR_ARG, ptr::null(), ptr::null(), ptr::null_mut())
         };
         assert_eq!(
-            outcome_3.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_diagnose_tool_call_synthetic_renders",
@@ -3280,18 +3361,22 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_4 = unsafe {
+    }
+
+    #[test]
+    fn diagnose_tool_call_synthetic_renders_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             diagnose_tool_call_synthetic_renders_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_OUT_OF_MEMORY, ptr::null(), ptr::null(), ptr::null_mut())
         };
         assert_eq!(
-            outcome_4.err(),
+            outcome.err(),
             Some(MarkerDetectionError::LlamaCppOutOfMemory)
         );
     }
 
     #[test]
-    fn tokenize_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn tokenize_status_to_result_maps_null_vocab_arg() {
+        let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG,
                 0,
@@ -3299,7 +3384,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_tokenize",
@@ -3308,7 +3393,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn tokenize_status_to_result_maps_null_text_arg() {
+        let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_TEXT_ARG,
                 0,
@@ -3316,7 +3405,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_tokenize",
@@ -3325,7 +3414,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn tokenize_status_to_result_maps_null_out_returned_count_arg() {
+        let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_RETURNED_COUNT_ARG,
                 0,
@@ -3333,7 +3426,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_tokenize",
@@ -3342,7 +3435,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = unsafe {
+    }
+
+    #[test]
+    fn tokenize_status_to_result_maps_null_out_error_arg() {
+        let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_ERROR_ARG,
                 0,
@@ -3350,7 +3447,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_3.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_tokenize",
@@ -3359,16 +3456,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_4 = unsafe {
+    }
+
+    #[test]
+    fn tokenize_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,
                 0,
                 ptr::null_mut(),
             )
         };
-        assert_eq!(
-            outcome_4.err(),
-            Some(StringToTokenError::LlamaCppOutOfMemory)
-        );
+        assert_eq!(outcome.err(), Some(StringToTokenError::LlamaCppOutOfMemory));
     }
 }

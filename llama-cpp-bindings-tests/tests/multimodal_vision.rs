@@ -1,5 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::bail;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::TokenUsage;
@@ -14,9 +16,7 @@ use llama_cpp_bindings::mtmd::MtmdContextParams;
 use llama_cpp_bindings::mtmd::MtmdEvalError;
 use llama_cpp_bindings::mtmd::MtmdInputChunkType;
 use llama_cpp_bindings::mtmd::MtmdInputChunks;
-use llama_cpp_bindings::mtmd::MtmdInputPart;
 use llama_cpp_bindings::mtmd::MtmdInputText;
-use llama_cpp_bindings::mtmd::MtmdInputTextPart;
 use llama_cpp_bindings::mtmd::NonCausalChunkMicroBatchMismatch;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::sampling::LlamaSampler;
@@ -125,7 +125,7 @@ fn copy_creates_owned_duplicate(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
     let first_chunk = chunks
         .get(0)
-        .ok_or_else(|| anyhow::anyhow!("missing first chunk"))?;
+        .ok_or_else(|| anyhow!("missing first chunk"))?;
     let copied = first_chunk.copy()?;
 
     assert!(copied.owned);
@@ -168,7 +168,7 @@ fn encode_chunk_succeeds_for_image_chunk(fixture: &LlamaFixture<'_>) -> Result<(
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow::anyhow!("missing chunk at index {chunk_index}"))?;
+            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
             let result = mtmd_ctx.encode_chunk(&chunk);
             assert!(result.is_ok());
@@ -211,7 +211,7 @@ fn decode_use_non_causal_returns_bool_for_image_chunk(fixture: &LlamaFixture<'_>
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow::anyhow!("missing chunk at index {chunk_index}"))?;
+            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
             let value = mtmd_ctx.decode_use_non_causal(&chunk);
             let printed = format!("{value:?}");
@@ -222,7 +222,7 @@ fn decode_use_non_causal_returns_bool_for_image_chunk(fixture: &LlamaFixture<'_>
             return Ok(());
         }
     }
-    anyhow::bail!("tokenization should produce at least one Image chunk");
+    bail!("tokenization should produce at least one Image chunk");
 }
 
 fn tokenize_synthetic(fixture: &LlamaFixture<'_>, prompt: &str) -> Result<MtmdInputChunks> {
@@ -261,7 +261,7 @@ fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
     let first_chunk = chunks
         .get(0)
-        .ok_or_else(|| anyhow::anyhow!("missing first chunk"))?;
+        .ok_or_else(|| anyhow!("missing first chunk"))?;
     assert_eq!(first_chunk.chunk_type()?, MtmdInputChunkType::Text);
     Ok(())
 }
@@ -288,10 +288,10 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
     let first_chunk = chunks
         .get(0)
-        .ok_or_else(|| anyhow::anyhow!("missing first chunk"))?;
+        .ok_or_else(|| anyhow!("missing first chunk"))?;
     let tokens = first_chunk
         .text_tokens_of(first_chunk.chunk_type()?)
-        .ok_or_else(|| anyhow::anyhow!("the first chunk of a text prompt must carry tokens"))?;
+        .ok_or_else(|| anyhow!("the first chunk of a text prompt must carry tokens"))?;
 
     assert_ne!(tokens, Vec::<LlamaToken>::new());
 
@@ -320,7 +320,7 @@ fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
     let first_chunk = chunks
         .get(0)
-        .ok_or_else(|| anyhow::anyhow!("missing first chunk"))?;
+        .ok_or_else(|| anyhow!("missing first chunk"))?;
     assert!(first_chunk.n_tokens() > 0);
     Ok(())
 }
@@ -347,7 +347,7 @@ fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
     let first_chunk = chunks
         .get(0)
-        .ok_or_else(|| anyhow::anyhow!("missing first chunk"))?;
+        .ok_or_else(|| anyhow!("missing first chunk"))?;
     assert!(first_chunk.n_positions() > 0);
     Ok(())
 }
@@ -374,7 +374,7 @@ fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello <__media__>")?;
     let first_chunk = chunks
         .get(0)
-        .ok_or_else(|| anyhow::anyhow!("missing first chunk"))?;
+        .ok_or_else(|| anyhow!("missing first chunk"))?;
     assert_eq!(first_chunk.chunk_type()?, MtmdInputChunkType::Text);
     assert!(first_chunk.id().is_none());
     Ok(())
@@ -403,7 +403,7 @@ fn image_chunk_returns_none_for_text_tokens(fixture: &LlamaFixture<'_>) -> Resul
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow::anyhow!("missing chunk at index {chunk_index}"))?;
+            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type()? == MtmdInputChunkType::Image {
             assert_eq!(chunk.text_tokens_of(MtmdInputChunkType::Image), None);
 
@@ -436,7 +436,7 @@ fn image_chunk_id_returns_some(fixture: &LlamaFixture<'_>) -> Result<()> {
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow::anyhow!("missing chunk at index {chunk_index}"))?;
+            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
             assert!(chunk.id().is_some());
             return Ok(());
@@ -599,7 +599,7 @@ fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) ->
     let n_positions = chunks.total_positions();
     let required_n_ctx = u32::try_from(n_positions + 256)?;
     if fixture.context_params.n_ctx < required_n_ctx {
-        anyhow::bail!(
+        bail!(
             "fixture n_ctx ({}) below required ({}) for {}x{} image",
             fixture.context_params.n_ctx,
             required_n_ctx,
@@ -921,7 +921,7 @@ fn eval_chunks_with_standard_image(fixture: &LlamaFixture<'_>) -> Result<()> {
     let image_path = fixtures.join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("image path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
     let input_text = MtmdInputText {
         text: "What is in this image? <__media__>".to_string(),
@@ -1258,7 +1258,7 @@ fn build_multimodal_chunks_and_eval_into_usage(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("image path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -1305,7 +1305,7 @@ fn prompt_tokens_match_text_chunk_total(fixture: &LlamaFixture<'_>) -> Result<()
     let (usage, expected) = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
     if usage.prompt_tokens != expected.text {
-        anyhow::bail!(
+        bail!(
             "prompt_tokens must equal sum of text-chunk n_tokens; expected {}, got {}",
             expected.text,
             usage.prompt_tokens
@@ -1328,7 +1328,7 @@ fn input_image_tokens_match_image_chunk_total(fixture: &LlamaFixture<'_>) -> Res
     let (usage, expected) = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
     if usage.input_image_tokens != expected.image {
-        anyhow::bail!(
+        bail!(
             "input_image_tokens must equal sum of image-chunk n_tokens; expected {}, got {}",
             expected.image,
             usage.input_image_tokens
@@ -1351,13 +1351,13 @@ fn input_audio_tokens_are_zero_for_image_only_input(fixture: &LlamaFixture<'_>) 
     let (usage, expected) = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
     if expected.audio != 0 {
-        anyhow::bail!(
+        bail!(
             "fixture invariant: image-only multimodal input should produce zero audio chunk tokens, got {}",
             expected.audio
         );
     }
     if usage.input_audio_tokens != 0 {
-        anyhow::bail!(
+        bail!(
             "input_audio_tokens must be zero when no audio chunks are evaluated; got {}",
             usage.input_audio_tokens
         );
@@ -1381,7 +1381,7 @@ fn completion_tokens_are_zero_after_eval_before_generation(
     let (usage, _expected) = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
     if usage.completion_tokens() != 0 {
-        anyhow::bail!(
+        bail!(
             "completion_tokens must be zero immediately after eval (no generation has occurred); got {}",
             usage.completion_tokens()
         );
@@ -1424,9 +1424,7 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let text_chunk = (0..fitted_chunks.len())
         .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Text)
-        .ok_or_else(|| {
-            anyhow::anyhow!("text-only tokenization should produce at least one text chunk")
-        })?;
+        .ok_or_else(|| anyhow!("text-only tokenization should produce at least one text chunk"))?;
 
     let n_tokens = u64::try_from(text_chunk.chunk().n_tokens())?;
 
@@ -1436,19 +1434,19 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let usage = classifier.usage();
     if usage.prompt_tokens != n_tokens {
-        anyhow::bail!(
+        bail!(
             "text chunk must record n_tokens as prompt_tokens; expected {n_tokens}, got {}",
             usage.prompt_tokens
         );
     }
     if usage.input_image_tokens != 0 {
-        anyhow::bail!(
+        bail!(
             "text chunk must not bump input_image_tokens; got {}",
             usage.input_image_tokens
         );
     }
     if usage.input_audio_tokens != 0 {
-        anyhow::bail!(
+        bail!(
             "text chunk must not bump input_audio_tokens; got {}",
             usage.input_audio_tokens
         );
@@ -1475,7 +1473,7 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("image path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -1498,11 +1496,11 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
     let image_chunk = (0..fitted_chunks.len())
         .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Image)
-        .ok_or_else(|| anyhow::anyhow!("multimodal tokenization should produce an image chunk"))?;
+        .ok_or_else(|| anyhow!("multimodal tokenization should produce an image chunk"))?;
 
     let n_tokens = u64::try_from(image_chunk.chunk().n_tokens())?;
     if n_tokens == 0 {
-        anyhow::bail!("image chunk should report at least one token");
+        bail!("image chunk should report at least one token");
     }
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
@@ -1511,19 +1509,19 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
 
     let usage = classifier.usage();
     if usage.input_image_tokens != n_tokens {
-        anyhow::bail!(
+        bail!(
             "image chunk must record n_tokens as input_image_tokens; expected {n_tokens}, got {}",
             usage.input_image_tokens
         );
     }
     if usage.prompt_tokens != 0 {
-        anyhow::bail!(
+        bail!(
             "image chunk must not bump prompt_tokens; got {}",
             usage.prompt_tokens
         );
     }
     if usage.input_audio_tokens != 0 {
-        anyhow::bail!(
+        bail!(
             "image chunk must not bump input_audio_tokens; got {}",
             usage.input_audio_tokens
         );
@@ -1567,12 +1565,12 @@ fn text_chunk_drives_marker_state_machine_to_reasoning(fixture: &LlamaFixture<'_
 
     for index in 0..fitted_chunks.len() {
         let chunk = FittedMtmdInputChunk::at(&fitted_chunks, index)
-            .ok_or_else(|| anyhow::anyhow!("chunk index {index} must exist"))?;
+            .ok_or_else(|| anyhow!("chunk index {index} must exist"))?;
         classifier.ingest_fitted_chunk(&chunk);
     }
 
     if classifier.current_section() != llama_cpp_bindings::SampledTokenSection::Reasoning {
-        anyhow::bail!(
+        bail!(
             "text chunk replay must transition the classifier section to Reasoning when the \
              prompt opens a `<think>` block; got {:?}",
             classifier.current_section()
@@ -1611,7 +1609,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("image path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -1663,13 +1661,13 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let usage = classifier.usage();
 
     if outcome.observed_reasoning == 0 {
-        anyhow::bail!(
+        bail!(
             "Gemma 4 multimodal + thinking: classifier must emit at least one Reasoning token \
              when the prompt opens a `<|channel>thought` block; outcome={outcome:?}"
         );
     }
     if usage.reasoning_tokens == 0 {
-        anyhow::bail!(
+        bail!(
             "Gemma 4 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
         );
     }
@@ -1706,7 +1704,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("image path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -1758,13 +1756,13 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let usage = classifier.usage();
 
     if outcome.observed_reasoning == 0 {
-        anyhow::bail!(
+        bail!(
             "Mistral 3 multimodal + thinking: classifier must emit at least one Reasoning token \
              when the model opens a `[THINK]` block; outcome={outcome:?}"
         );
     }
     if usage.reasoning_tokens == 0 {
-        anyhow::bail!(
+        bail!(
             "Mistral 3 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
         );
     }
@@ -1810,7 +1808,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("image path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -1862,13 +1860,13 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let usage = classifier.usage();
 
     if outcome.observed_reasoning == 0 {
-        anyhow::bail!(
+        bail!(
             "Qwen 3.5 multimodal + thinking: classifier must emit at least one Reasoning token \
              when the prompt opens a `<think>` block; outcome={outcome:?}"
         );
     }
     if usage.reasoning_tokens == 0 {
-        anyhow::bail!(
+        bail!(
             "Qwen 3.5 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
         );
     }
@@ -1905,7 +1903,7 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("image path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -1957,12 +1955,12 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let usage = classifier.usage();
 
     if outcome.observed_reasoning == 0 {
-        anyhow::bail!(
+        bail!(
             "Qwen 3.6 multimodal + thinking: classifier must emit at least one Reasoning token; outcome={outcome:?}"
         );
     }
     if usage.reasoning_tokens == 0 {
-        anyhow::bail!(
+        bail!(
             "Qwen 3.6 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
         );
     }
@@ -2121,51 +2119,6 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
     ));
     assert_eq!(classifier.usage().prompt_tokens, 0);
     assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
-)]
-fn tokenize_from_parts_reads_the_media_marker_in_a_text_part_as_text(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    let image_data = vec![128u8; 64 * 64 * 3];
-    let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
-    let chunks = mtmd_ctx.tokenize_from_parts(
-        &[
-            MtmdInputPart::Text(MtmdInputTextPart::new(
-                &format!("What does {} mean? ", mtmd_default_marker()?),
-                true,
-            )?),
-            MtmdInputPart::Bitmap(&bitmap),
-            MtmdInputPart::Text(MtmdInputTextPart::new(" Describe it.", true)?),
-        ],
-        true,
-    )?;
-    let mut image_chunks = 0;
-
-    for chunk_index in 0..chunks.len() {
-        let chunk = chunks
-            .get(chunk_index)
-            .ok_or_else(|| anyhow::anyhow!("missing chunk at index {chunk_index}"))?;
-
-        if chunk.chunk_type()? == MtmdInputChunkType::Image {
-            image_chunks += 1;
-        }
-    }
-
-    assert_eq!(image_chunks, 1);
 
     Ok(())
 }

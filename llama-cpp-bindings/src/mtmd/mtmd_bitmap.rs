@@ -137,7 +137,14 @@ unsafe fn from_buf_status_to_result(
     }
 }
 
-#[derive(Debug, Clone)]
+/// Owns the bitmap and frees it on drop, so it cannot be cloned.
+///
+/// ```compile_fail,E0277
+/// fn require_clone<TValue: Clone>() {}
+///
+/// require_clone::<llama_cpp_bindings::mtmd::MtmdBitmap>();
+/// ```
+#[derive(Debug)]
 pub struct MtmdBitmap {
     pub bitmap: NonNull<llama_cpp_bindings_sys::mtmd_bitmap>,
 }
@@ -508,13 +515,14 @@ mod tests {
 
 #[cfg(test)]
 mod ffi_contract_status_tests {
-    use super::from_file_status_to_result;
-    use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
     use std::ptr;
 
+    use super::from_file_status_to_result;
+    use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
+
     #[test]
-    fn from_file_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn from_file_status_to_result_maps_null_fname_arg() {
+        let outcome = unsafe {
             from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_FNAME_ARG,
                 ptr::null_mut(),
@@ -523,7 +531,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_bitmap_init_from_file",
@@ -532,7 +540,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn from_file_status_to_result_maps_null_out_bitmap_arg() {
+        let outcome = unsafe {
             from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_OUT_BITMAP_ARG,
                 ptr::null_mut(),
@@ -541,7 +553,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_bitmap_init_from_file",
@@ -550,7 +562,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn from_file_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
@@ -558,7 +574,7 @@ mod ffi_contract_status_tests {
                 "",
             )
         };
-        assert_eq!(outcome_2.err(), Some(MtmdBitmapError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(MtmdBitmapError::LlamaCppOutOfMemory));
     }
 }
 

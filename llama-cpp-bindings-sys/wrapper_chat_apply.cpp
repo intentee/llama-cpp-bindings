@@ -5,12 +5,11 @@
 #include "llama.cpp/common/chat.h"
 #include "llama.cpp/common/json.h"
 #include "llama.cpp/include/llama.h"
+#include "wrapper_report_current_exception.h"
 #include "wrapper_utils.h"
 
 #include <cstddef>
-#include <exception>
 #include <gsl/span>
-#include <new>
 #include <string>
 #include <utility>
 
@@ -86,19 +85,11 @@ extern "C" auto llama_rs_apply_chat_template(
         }
 
         return LLAMA_RS_APPLY_CHAT_TEMPLATE_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & ex) {
-        *out_error = llama_rs_dup_string(std::string(ex.what()));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_APPLY_CHAT_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_APPLY_CHAT_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

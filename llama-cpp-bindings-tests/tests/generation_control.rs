@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::GbnfValidationError;
@@ -159,10 +160,10 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
     let first_char = piece
         .chars()
         .next()
-        .ok_or_else(|| anyhow::anyhow!("piece should have at least one character"))?
+        .ok_or_else(|| anyhow!("piece should have at least one character"))?
         .to_lowercase()
         .next()
-        .ok_or_else(|| anyhow::anyhow!("lowercase iterator should yield a character"))?;
+        .ok_or_else(|| anyhow!("lowercase iterator should yield a character"))?;
 
     assert!(
         first_char == 'y' || first_char == 'n',
@@ -1203,7 +1204,7 @@ fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
     let parsed = serde_json::Deserializer::from_str(&generated)
         .into_iter::<serde_json::Value>()
         .next()
-        .ok_or_else(|| anyhow::anyhow!("model produced no JSON value"))??;
+        .ok_or_else(|| anyhow!("model produced no JSON value"))??;
 
     assert!(parsed.get("city").is_some());
     assert!(parsed.get("temperature").is_some());
@@ -1641,7 +1642,7 @@ fn reset_rolls_back_accepted_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
             .str_to_token("yes", AddBos::Never, ParseSpecialTokens::Always)?;
     let first_allowed_token = *yes_tokens
         .first()
-        .ok_or_else(|| anyhow::anyhow!("the tokenizer must produce a token for \"yes\""))?;
+        .ok_or_else(|| anyhow!("the tokenizer must produce a token for \"yes\""))?;
 
     sampler
         .accept(first_allowed_token)

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -13,7 +12,11 @@ struct llama_model;
 
 bool llama_rs_context_decodes_batches_in_one_micro_batch(const struct llama_context * ctx);
 
-size_t llama_rs_context_embedding_row_length(const struct llama_context * ctx);
+bool llama_rs_context_embeddings_enabled(const struct llama_context * ctx);
+
+bool llama_rs_context_embeddings_nextn_enabled(const struct llama_context * ctx);
+
+bool llama_rs_context_embeddings_nextn_masked(const struct llama_context * ctx);
 
 void llama_rs_set_embeddings_nextn(struct llama_context * ctx, bool value, bool masked);
 

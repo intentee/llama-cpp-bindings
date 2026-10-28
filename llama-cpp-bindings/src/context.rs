@@ -262,8 +262,6 @@ pub struct LlamaContext<'model> {
     pub model: &'model LlamaModel,
     abort_flag: Option<Arc<AtomicBool>>,
     initialized_logits: Vec<i32>,
-    embeddings_enabled: bool,
-    nextn_embeddings_enabled: bool,
 }
 
 impl Debug for LlamaContext<'_> {
@@ -279,15 +277,12 @@ impl<'model> LlamaContext<'model> {
     pub const fn new(
         llama_model: &'model LlamaModel,
         llama_context: NonNull<llama_cpp_bindings_sys::llama_context>,
-        embeddings_enabled: bool,
     ) -> Self {
         Self {
             context: llama_context,
             model: llama_model,
             abort_flag: None,
             initialized_logits: Vec::new(),
-            embeddings_enabled,
-            nextn_embeddings_enabled: false,
         }
     }
 
@@ -333,7 +328,7 @@ impl<'model> LlamaContext<'model> {
         };
         let context = new_context_with_model_status_to_result(status, out_ctx, out_error)?;
 
-        Ok(Self::new(model, context, params.embeddings()))
+        Ok(Self::new(model, context))
     }
 
     #[must_use]
@@ -465,59 +460,100 @@ impl<'model> LlamaContext<'model> {
         Ok(())
     }
 
-    /// # Errors
-    ///
-    /// - When the current context was constructed without enabling embeddings.
-    /// - If the current model had a pooling type of [`llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_NONE`]
-    /// - If the given sequence index exceeds the max sequence id.
-    ///
-    pub fn embeddings_seq_ith(&self, sequence_index: i32) -> Result<&[f32], EmbeddingsError> {
-        if !self.embeddings_enabled {
-            return Err(EmbeddingsError::NotEnabled);
-        }
+    #[must_use]
+    pub fn pooling_type(&self) -> LlamaPoolingType {
+        LlamaPoolingType::from(unsafe {
+            llama_cpp_bindings_sys::llama_pooling_type(self.context.as_ptr())
+        })
+    }
 
-        let n_embd = usize::try_from(self.model.n_embd())
-            .map_err(EmbeddingsError::InvalidEmbeddingDimension)?;
-
+    pub fn set_embeddings(&mut self, embeddings: bool) {
         unsafe {
-            let embedding = llama_cpp_bindings_sys::llama_get_embeddings_seq(
-                self.context.as_ptr(),
-                sequence_index,
-            );
+            llama_cpp_bindings_sys::llama_set_embeddings(self.context.as_ptr(), embeddings);
+        }
+    }
 
-            if embedding.is_null() {
+    fn embeddings_enabled(&self) -> bool {
+        unsafe {
+            llama_cpp_bindings_sys::llama_rs_context_embeddings_enabled(self.context.as_ptr())
+        }
+    }
+
+    fn masked_nextn_embeddings_enabled(&self) -> bool {
+        let nextn_enabled = unsafe {
+            llama_cpp_bindings_sys::llama_rs_context_embeddings_nextn_enabled(self.context.as_ptr())
+        };
+        let nextn_masked = unsafe {
+            llama_cpp_bindings_sys::llama_rs_context_embeddings_nextn_masked(self.context.as_ptr())
+        };
+
+        nextn_enabled && nextn_masked
+    }
+
+    fn output_embedding_width(&self) -> Result<usize, EmbeddingsError> {
+        usize::try_from(self.model.n_embd_out()).map_err(EmbeddingsError::InvalidEmbeddingDimension)
+    }
+
+    fn output_embedding_row(&self, embedding: *const f32) -> Result<&[f32], EmbeddingsError> {
+        self.output_embedding_width()
+            .map(|output_embedding_width| unsafe {
+                slice::from_raw_parts(embedding, output_embedding_width)
+            })
+    }
+
+    fn sequence_embedding_width(&self) -> Result<usize, EmbeddingsError> {
+        match self.pooling_type() {
+            LlamaPoolingType::Rank => usize::try_from(self.model.n_cls_out())
+                .map_err(EmbeddingsError::InvalidEmbeddingDimension),
+            LlamaPoolingType::Mean | LlamaPoolingType::Cls | LlamaPoolingType::Last => {
+                self.output_embedding_width()
+            }
+            LlamaPoolingType::None | LlamaPoolingType::Unspecified => {
                 Err(EmbeddingsError::NonePoolType)
-            } else {
-                Ok(slice::from_raw_parts(embedding, n_embd))
             }
         }
     }
 
     /// # Errors
     ///
-    /// - When the current context was constructed without enabling embeddings.
-    /// - When the given token didn't have logits enabled when it was passed.
-    /// - If the given token index exceeds the max token id.
-    ///
-    pub fn embeddings_ith(&self, token_index: i32) -> Result<&[f32], EmbeddingsError> {
-        if !self.embeddings_enabled {
+    /// - When embeddings are not enabled on this context.
+    /// - When this context does not pool its outputs.
+    /// - When the given sequence was not part of the last decoded batch.
+    pub fn embeddings_seq_ith(&self, sequence_index: i32) -> Result<&[f32], EmbeddingsError> {
+        if !self.embeddings_enabled() {
             return Err(EmbeddingsError::NotEnabled);
         }
 
-        let n_embd = usize::try_from(self.model.n_embd())
-            .map_err(EmbeddingsError::InvalidEmbeddingDimension)?;
+        let sequence_embedding_width = self.sequence_embedding_width()?;
+        let embedding = unsafe {
+            llama_cpp_bindings_sys::llama_get_embeddings_seq(self.context.as_ptr(), sequence_index)
+        };
 
-        unsafe {
-            let embedding = llama_cpp_bindings_sys::llama_get_embeddings_ith(
-                self.context.as_ptr(),
-                token_index,
-            );
+        if embedding.is_null() {
+            Err(EmbeddingsError::SequenceEmbeddingUnavailable { sequence_index })
+        } else {
+            Ok(unsafe { slice::from_raw_parts(embedding, sequence_embedding_width) })
+        }
+    }
 
-            if embedding.is_null() {
-                Err(EmbeddingsError::LogitsNotEnabled)
-            } else {
-                Ok(slice::from_raw_parts(embedding, n_embd))
-            }
+    /// # Errors
+    ///
+    /// - When embeddings are not enabled on this context.
+    /// - When the given token didn't have logits enabled when it was passed.
+    /// - If the given token index exceeds the max token id.
+    pub fn embeddings_ith(&self, token_index: i32) -> Result<&[f32], EmbeddingsError> {
+        if !self.embeddings_enabled() {
+            return Err(EmbeddingsError::NotEnabled);
+        }
+
+        let embedding = unsafe {
+            llama_cpp_bindings_sys::llama_get_embeddings_ith(self.context.as_ptr(), token_index)
+        };
+
+        if embedding.is_null() {
+            Err(EmbeddingsError::LogitsNotEnabled)
+        } else {
+            self.output_embedding_row(embedding)
         }
     }
 
@@ -526,9 +562,7 @@ impl<'model> LlamaContext<'model> {
     /// - When the context pools its outputs, because llama.cpp only extracts `NextN` embeddings
     ///   with `LLAMA_POOLING_TYPE_NONE`.
     pub fn enable_masked_nextn_embeddings(&mut self) -> Result<(), EmbeddingsError> {
-        let pooling_type = LlamaPoolingType::from(unsafe {
-            llama_cpp_bindings_sys::llama_pooling_type(self.context.as_ptr())
-        });
+        let pooling_type = self.pooling_type();
 
         if pooling_type != LlamaPoolingType::None {
             return Err(EmbeddingsError::NextnEmbeddingsRequireNonePooling { pooling_type });
@@ -542,8 +576,6 @@ impl<'model> LlamaContext<'model> {
             );
         }
 
-        self.nextn_embeddings_enabled = true;
-
         Ok(())
     }
 
@@ -552,13 +584,10 @@ impl<'model> LlamaContext<'model> {
     /// - When masked `NextN` embeddings were not enabled on this context.
     /// - When the given token was not marked as an output of the last decoded batch.
     pub fn nextn_embeddings_ith(&self, token_index: i32) -> Result<&[f32], EmbeddingsError> {
-        if !self.nextn_embeddings_enabled {
+        if !self.masked_nextn_embeddings_enabled() {
             return Err(EmbeddingsError::NextnEmbeddingsNotEnabled);
         }
 
-        let row_length = unsafe {
-            llama_cpp_bindings_sys::llama_rs_context_embedding_row_length(self.context.as_ptr())
-        };
         let embedding = unsafe {
             llama_cpp_bindings_sys::llama_rs_get_embeddings_nextn_ith(
                 self.context.as_ptr(),
@@ -569,7 +598,7 @@ impl<'model> LlamaContext<'model> {
         if embedding.is_null() {
             Err(EmbeddingsError::NextnEmbeddingUnavailable { token_index })
         } else {
-            Ok(unsafe { slice::from_raw_parts(embedding, row_length) })
+            self.output_embedding_row(embedding)
         }
     }
 
@@ -1050,23 +1079,24 @@ mod unit_tests {
 
 #[cfg(test)]
 mod ffi_contract_status_tests {
+    use std::ptr;
+
     use super::decode_status_to_result;
     use super::encode_status_to_result;
     use super::new_context_with_model_status_to_result;
     use crate::error::decode_error::DecodeError;
     use crate::error::encode_error::EncodeError;
     use crate::error::llama_context_load_error::LlamaContextLoadError;
-    use std::ptr;
 
     #[test]
-    fn new_context_with_model_status_to_result_maps_every_contract_status() {
-        let outcome_0 = new_context_with_model_status_to_result(
+    fn new_context_with_model_status_to_result_maps_null_model_arg() {
+        let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG,
             ptr::null_mut(),
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_new_context_with_model",
@@ -1075,13 +1105,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = new_context_with_model_status_to_result(
+    }
+
+    #[test]
+    fn new_context_with_model_status_to_result_maps_null_out_ctx_arg() {
+        let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG,
             ptr::null_mut(),
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_new_context_with_model",
@@ -1090,13 +1124,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = new_context_with_model_status_to_result(
+    }
+
+    #[test]
+    fn new_context_with_model_status_to_result_maps_null_out_error_arg() {
+        let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_new_context_with_model",
@@ -1105,26 +1143,30 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = new_context_with_model_status_to_result(
+    }
+
+    #[test]
+    fn new_context_with_model_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_3.err(),
+            outcome.err(),
             Some(LlamaContextLoadError::LlamaCppOutOfMemory)
         );
     }
 
     #[test]
-    fn decode_status_to_result_maps_every_contract_status() {
-        let outcome_0 = decode_status_to_result(
+    fn decode_status_to_result_maps_null_ctx_arg() {
+        let outcome = decode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_CTX_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_decode",
@@ -1133,13 +1175,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = decode_status_to_result(
+    }
+
+    #[test]
+    fn decode_status_to_result_maps_null_out_error_arg() {
+        let outcome = decode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_decode",
@@ -1148,23 +1194,27 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = decode_status_to_result(
+    }
+
+    #[test]
+    fn decode_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = decode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_2.err(), Some(DecodeError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(DecodeError::LlamaCppOutOfMemory));
     }
 
     #[test]
-    fn encode_status_to_result_maps_every_contract_status() {
-        let outcome_0 = encode_status_to_result(
+    fn encode_status_to_result_maps_null_ctx_arg() {
+        let outcome = encode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_CTX_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_encode",
@@ -1173,13 +1223,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = encode_status_to_result(
+    }
+
+    #[test]
+    fn encode_status_to_result_maps_null_model() {
+        let outcome = encode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_MODEL,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_encode",
@@ -1188,11 +1242,15 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = encode_status_to_result(
+    }
+
+    #[test]
+    fn encode_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = encode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_2.err(), Some(EncodeError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(EncodeError::LlamaCppOutOfMemory));
     }
 }

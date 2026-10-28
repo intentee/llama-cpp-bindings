@@ -1582,6 +1582,8 @@ mod tests {
 
 #[cfg(test)]
 mod ffi_contract_status_tests {
+    use std::ptr;
+
     use super::check_sampler_accept_status;
     use super::sampler_chain_add_status_to_result;
     use super::sampler_init_grammar_lazy_patterns_status_to_result;
@@ -1591,10 +1593,9 @@ mod ffi_contract_status_tests {
     use crate::error::grammar_error::GrammarError;
     use crate::error::sample_error::SampleError;
     use crate::error::sampler_accept_error::SamplerAcceptError;
-    use std::ptr;
 
     #[test]
-    fn sampler_init_status_to_result_maps_every_contract_status() {
+    fn sampler_init_status_to_result_maps_null_out_sampler_arg() {
         assert_eq!(
             sampler_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_SAMPLER_ARG,
@@ -1611,6 +1612,10 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
+    }
+
+    #[test]
+    fn sampler_init_status_to_result_maps_null_out_error_arg() {
         assert_eq!(
             sampler_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_ERROR_ARG,
@@ -1627,6 +1632,10 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
+    }
+
+    #[test]
+    fn sampler_init_status_to_result_maps_llama_cpp_threw_cxx_exception_without_a_message() {
         assert_eq!(
             sampler_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1643,6 +1652,10 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
+    }
+
+    #[test]
+    fn sampler_init_status_to_result_maps_an_unknown_status() {
         assert_eq!(
             sampler_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION + 1,
@@ -1665,7 +1678,7 @@ mod ffi_contract_status_tests {
     }
 
     #[test]
-    fn sampler_chain_add_status_to_result_maps_every_contract_status() {
+    fn sampler_chain_add_status_to_result_maps_null_chain_arg() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_CHAIN_ARG,
@@ -1677,6 +1690,10 @@ mod ffi_contract_status_tests {
             }
             .into())
         );
+    }
+
+    #[test]
+    fn sampler_chain_add_status_to_result_maps_null_sampler_arg() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_SAMPLER_ARG,
@@ -1688,6 +1705,10 @@ mod ffi_contract_status_tests {
             }
             .into())
         );
+    }
+
+    #[test]
+    fn sampler_chain_add_status_to_result_maps_null_out_error_arg() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_OUT_ERROR_ARG,
@@ -1699,6 +1720,10 @@ mod ffi_contract_status_tests {
             }
             .into())
         );
+    }
+
+    #[test]
+    fn sampler_chain_add_status_to_result_maps_llama_cpp_threw_cxx_exception_without_a_message() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1710,6 +1735,10 @@ mod ffi_contract_status_tests {
             }
             .into())
         );
+    }
+
+    #[test]
+    fn sampler_chain_add_status_to_result_maps_an_unknown_status() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION
@@ -1728,13 +1757,13 @@ mod ffi_contract_status_tests {
     }
 
     #[test]
-    fn check_sampler_accept_status_maps_every_contract_status() {
-        let outcome_0 = check_sampler_accept_status(
+    fn check_sampler_accept_status_maps_null_out_error_arg() {
+        let outcome = check_sampler_accept_status(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_sampler_accept",
@@ -1743,25 +1772,26 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = check_sampler_accept_status(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_OUT_OF_MEMORY,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_1.err(),
-            Some(SamplerAcceptError::LlamaCppOutOfMemory)
-        );
     }
 
     #[test]
-    fn sampler_sample_status_to_result_maps_every_contract_status() {
-        let outcome_0 = sampler_sample_status_to_result(
+    fn check_sampler_accept_status_maps_llama_cpp_out_of_memory() {
+        let outcome = check_sampler_accept_status(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_OUT_OF_MEMORY,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome.err(), Some(SamplerAcceptError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn sampler_sample_status_to_result_maps_null_sampler_arg() {
+        let outcome = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_SAMPLER_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_sampler_sample",
@@ -1770,13 +1800,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = sampler_sample_status_to_result(
+    }
+
+    #[test]
+    fn sampler_sample_status_to_result_maps_null_out_token_arg() {
+        let outcome = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_OUT_TOKEN_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_sampler_sample",
@@ -1785,13 +1819,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = sampler_sample_status_to_result(
+    }
+
+    #[test]
+    fn sampler_sample_status_to_result_maps_null_out_error_arg() {
+        let outcome = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_OUT_ERROR_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_sampler_sample",
@@ -1800,23 +1838,27 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = sampler_sample_status_to_result(
+    }
+
+    #[test]
+    fn sampler_sample_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_3.err(), Some(SampleError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(SampleError::LlamaCppOutOfMemory));
     }
 
     #[test]
-    fn sampler_init_grammar_status_to_result_maps_every_contract_status() {
-        let outcome_0 = sampler_init_grammar_status_to_result(
+    fn sampler_init_grammar_status_to_result_maps_null_out_error_arg() {
+        let outcome = sampler_init_grammar_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_sampler_init_grammar",
@@ -1825,23 +1867,27 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = sampler_init_grammar_status_to_result(
+    }
+
+    #[test]
+    fn sampler_init_grammar_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = sampler_init_grammar_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
             ptr::null_mut(),
         );
-        assert_eq!(outcome_1.err(), Some(GrammarError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(GrammarError::LlamaCppOutOfMemory));
     }
 
     #[test]
-    fn sampler_init_grammar_lazy_patterns_status_to_result_maps_every_contract_status() {
-        let outcome_0 = sampler_init_grammar_lazy_patterns_status_to_result(
+    fn sampler_init_grammar_lazy_patterns_status_to_result_maps_null_out_error_arg() {
+        let outcome = sampler_init_grammar_lazy_patterns_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_sampler_init_grammar_lazy_patterns",
@@ -1850,7 +1896,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = sampler_init_grammar_lazy_patterns_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_OUT_OF_MEMORY, ptr::null_mut(), ptr::null_mut());
-        assert_eq!(outcome_1.err(), Some(GrammarError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn sampler_init_grammar_lazy_patterns_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = sampler_init_grammar_lazy_patterns_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_OUT_OF_MEMORY, ptr::null_mut(), ptr::null_mut());
+        assert_eq!(outcome.err(), Some(GrammarError::LlamaCppOutOfMemory));
     }
 }
