@@ -14,7 +14,7 @@ mod model_introspection;
 mod model_loading_errors;
 mod multimodal_audio;
 mod multimodal_fusion;
-mod multimodal_prompt_parts;
+mod multimodal_prompt_parts_tokenization;
 mod multimodal_vision;
 mod sequence_embedding_availability;
 mod structured_chat_output;

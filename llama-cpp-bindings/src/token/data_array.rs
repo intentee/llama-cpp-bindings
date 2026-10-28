@@ -220,51 +220,10 @@ impl LlamaTokenDataArray {
 
 #[cfg(test)]
 mod tests {
+    use super::LlamaTokenDataArray;
     use crate::error::SamplerApplyError;
     use crate::token::LlamaToken;
     use crate::token::data::LlamaTokenData;
-
-    use super::LlamaTokenDataArray;
-    use super::sampler_apply_status_to_result;
-
-    #[test]
-    fn sampler_apply_status_allocation_failed_returns_not_enough_memory() {
-        assert_eq!(
-            sampler_apply_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED,
-                std::ptr::null_mut(),
-            ),
-            Err(SamplerApplyError::NotEnoughMemory),
-        );
-    }
-
-    #[test]
-    fn sampler_apply_status_cxx_exception_without_a_message_is_a_contract_error() {
-        assert_eq!(
-            sampler_apply_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                std::ptr::null_mut(),
-            ),
-            Err(crate::FfiContractError {
-                operation: "llama_rs_sampler_apply",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into()),
-        );
-    }
-
-    #[test]
-    fn sampler_apply_unknown_status_is_preserved() {
-        let result = sampler_apply_status_to_result(255, std::ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(SamplerApplyError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_sampler_apply",
-                code: 255,
-            }))
-        );
-    }
 
     #[test]
     fn a_sampler_excluding_every_candidate_leaves_nothing_to_select() {
@@ -526,11 +485,50 @@ mod tests {
 }
 
 #[cfg(test)]
-mod ffi_contract_status_tests {
+mod sampler_apply_status_to_result_tests {
     use std::ptr;
 
     use super::sampler_apply_status_to_result;
-    use crate::error::sampler_apply_error::SamplerApplyError;
+    use crate::error::SamplerApplyError;
+
+    #[test]
+    fn sampler_apply_status_allocation_failed_returns_not_enough_memory() {
+        assert_eq!(
+            sampler_apply_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED,
+                ptr::null_mut(),
+            ),
+            Err(SamplerApplyError::NotEnoughMemory),
+        );
+    }
+
+    #[test]
+    fn sampler_apply_status_cxx_exception_without_a_message_is_a_contract_error() {
+        assert_eq!(
+            sampler_apply_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_apply",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into()),
+        );
+    }
+
+    #[test]
+    fn sampler_apply_unknown_status_is_preserved() {
+        let result = sampler_apply_status_to_result(255, ptr::null_mut());
+
+        assert_eq!(
+            result,
+            Err(SamplerApplyError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_sampler_apply",
+                code: 255,
+            }))
+        );
+    }
 
     #[test]
     fn sampler_apply_status_to_result_maps_null_sampler_arg() {

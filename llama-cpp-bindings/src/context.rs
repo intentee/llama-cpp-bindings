@@ -737,18 +737,9 @@ impl Drop for LlamaContext<'_> {
 }
 
 #[cfg(test)]
-mod unit_tests {
-    use crate::DecodeError;
-    use crate::EncodeError;
-    use crate::LlamaContextLoadError;
+mod check_lora_adapters_result_tests {
+    use super::check_lora_adapters_result;
     use crate::LlamaLoraAdaptersError;
-    use crate::LogitsError;
-
-    use super::{
-        check_lora_adapters_result, decode_status_to_result, encode_status_to_result,
-        logits_slice_from_raw_parts, new_context_with_model_status_to_result,
-        token_index_within_context,
-    };
 
     #[test]
     fn check_lora_adapters_result_ok_for_zero() {
@@ -761,13 +752,21 @@ mod unit_tests {
 
         assert_eq!(result, Err(LlamaLoraAdaptersError::ErrorResult(-1)));
     }
+}
+
+#[cfg(test)]
+mod new_context_with_model_status_to_result_tests {
+    use std::ptr;
+
+    use super::new_context_with_model_status_to_result;
+    use crate::LlamaContextLoadError;
 
     #[test]
     fn new_context_success_with_null_context_is_contract_error() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         assert_eq!(
@@ -785,8 +784,8 @@ mod unit_tests {
     fn new_context_llama_cpp_returned_null_maps_unconstructible() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_RETURNED_NULL,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         assert_eq!(result, Err(LlamaContextLoadError::Unconstructible));
@@ -796,8 +795,8 @@ mod unit_tests {
     fn new_context_allocation_failed_maps_not_enough_memory() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_ERROR_STRING_ALLOCATION_FAILED,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         assert_eq!(result, Err(LlamaContextLoadError::NotEnoughMemory));
@@ -807,8 +806,8 @@ mod unit_tests {
     fn new_context_cxx_exception_without_a_message_is_a_contract_error() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         assert_eq!(
@@ -823,11 +822,7 @@ mod unit_tests {
 
     #[test]
     fn new_context_unknown_status_is_preserved() {
-        let result = new_context_with_model_status_to_result(
-            255,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-        );
+        let result = new_context_with_model_status_to_result(255, ptr::null_mut(), ptr::null_mut());
 
         assert_eq!(
             result,
@@ -837,256 +832,6 @@ mod unit_tests {
             }))
         );
     }
-
-    #[test]
-    fn decode_nonzero_code_maps_from_code() {
-        let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
-            1,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(DecodeError::NoKvCacheSlot));
-    }
-
-    #[test]
-    fn decode_out_of_memory_maps_decode_out_of_memory() {
-        let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_OUT_OF_MEMORY,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(DecodeError::DecodeOutOfMemory));
-    }
-
-    #[test]
-    fn decode_compute_failed_maps_compute_failed() {
-        let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_COMPUTE_FAILED,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(DecodeError::ComputeFailed));
-    }
-
-    #[test]
-    fn decode_allocation_failed_maps_not_enough_memory() {
-        let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_ERROR_STRING_ALLOCATION_FAILED,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(DecodeError::NotEnoughMemory));
-    }
-
-    #[test]
-    fn decode_cxx_exception_without_a_message_is_a_contract_error() {
-        let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(crate::FfiContractError {
-                operation: "llama_rs_decode",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
-        );
-    }
-
-    #[test]
-    fn decode_nonzero_status_with_zero_code_is_contract_error() {
-        let result = decode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(DecodeError::FfiContract(crate::FfiContractError {
-                operation: "llama_rs_decode",
-                detail: "nonzero llama.cpp return status contained zero",
-            }))
-        );
-    }
-
-    #[test]
-    fn decode_unknown_status_is_preserved() {
-        let result = decode_status_to_result(255, 0, std::ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(DecodeError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_decode",
-                code: 255,
-            }))
-        );
-    }
-
-    #[test]
-    fn encode_model_has_no_encoder_maps_model_has_no_encoder() {
-        let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(EncodeError::ModelHasNoEncoder));
-    }
-
-    #[test]
-    fn encode_nonzero_code_maps_from_code() {
-        let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
-            1,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(EncodeError::NoKvCacheSlot));
-    }
-
-    #[test]
-    fn encode_out_of_memory_maps_encode_out_of_memory() {
-        let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_OUT_OF_MEMORY,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(EncodeError::EncodeOutOfMemory));
-    }
-
-    #[test]
-    fn encode_compute_failed_maps_compute_failed() {
-        let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_COMPUTE_FAILED,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(EncodeError::ComputeFailed));
-    }
-
-    #[test]
-    fn encode_allocation_failed_maps_not_enough_memory() {
-        let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_ERROR_STRING_ALLOCATION_FAILED,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(EncodeError::NotEnoughMemory));
-    }
-
-    #[test]
-    fn encode_cxx_exception_without_a_message_is_a_contract_error() {
-        let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(crate::FfiContractError {
-                operation: "llama_rs_encode",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
-        );
-    }
-
-    #[test]
-    fn encode_nonzero_status_with_zero_code_is_contract_error() {
-        let result = encode_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(EncodeError::FfiContract(crate::FfiContractError {
-                operation: "llama_rs_encode",
-                detail: "nonzero llama.cpp return status contained zero",
-            }))
-        );
-    }
-
-    #[test]
-    fn encode_unknown_status_is_preserved() {
-        let result = encode_status_to_result(255, 0, std::ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(EncodeError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_encode",
-                code: 255,
-            }))
-        );
-    }
-
-    #[test]
-    fn token_index_beyond_context_size_maps_exceeds_context() {
-        let result = token_index_within_context(5, 4);
-
-        assert_eq!(
-            result,
-            Err(LogitsError::TokenIndexExceedsContext {
-                token_index: 5,
-                context_size: 4,
-            })
-        );
-    }
-
-    #[test]
-    fn token_index_within_context_size_is_ok() {
-        assert!(token_index_within_context(2, 4).is_ok());
-    }
-
-    #[test]
-    fn token_index_negative_skips_context_check() {
-        assert!(token_index_within_context(-1, 4).is_ok());
-    }
-
-    #[test]
-    fn logits_slice_from_null_data_maps_null_logits() {
-        let result = unsafe { logits_slice_from_raw_parts(std::ptr::null(), 4) };
-
-        assert_eq!(result, Err(LogitsError::NullLogits));
-    }
-
-    #[test]
-    fn logits_slice_from_negative_vocab_maps_vocab_size_overflow() {
-        let logit_value = 0.0_f32;
-        let result = unsafe { logits_slice_from_raw_parts(&raw const logit_value, -1) };
-
-        let conversion_error = usize::try_from(-1_i32).unwrap_err();
-
-        assert_eq!(
-            result,
-            Err(LogitsError::VocabSizeOverflow(conversion_error))
-        );
-    }
-}
-
-#[cfg(test)]
-mod ffi_contract_status_tests {
-    use std::ptr;
-
-    use super::decode_status_to_result;
-    use super::encode_status_to_result;
-    use super::new_context_with_model_status_to_result;
-    use crate::error::decode_error::DecodeError;
-    use crate::error::encode_error::EncodeError;
-    use crate::error::llama_context_load_error::LlamaContextLoadError;
 
     #[test]
     fn new_context_with_model_status_to_result_maps_null_model_arg() {
@@ -1157,6 +902,106 @@ mod ffi_contract_status_tests {
             Some(LlamaContextLoadError::LlamaCppOutOfMemory)
         );
     }
+}
+
+#[cfg(test)]
+mod decode_status_to_result_tests {
+    use std::ptr;
+
+    use super::decode_status_to_result;
+    use crate::DecodeError;
+
+    #[test]
+    fn decode_nonzero_code_maps_from_code() {
+        let result = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
+            1,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(DecodeError::NoKvCacheSlot));
+    }
+
+    #[test]
+    fn decode_out_of_memory_maps_decode_out_of_memory() {
+        let result = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_OUT_OF_MEMORY,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(DecodeError::DecodeOutOfMemory));
+    }
+
+    #[test]
+    fn decode_compute_failed_maps_compute_failed() {
+        let result = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_COMPUTE_FAILED,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(DecodeError::ComputeFailed));
+    }
+
+    #[test]
+    fn decode_allocation_failed_maps_not_enough_memory() {
+        let result = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_ERROR_STRING_ALLOCATION_FAILED,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(DecodeError::NotEnoughMemory));
+    }
+
+    #[test]
+    fn decode_cxx_exception_without_a_message_is_a_contract_error() {
+        let result = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(crate::FfiContractError {
+                operation: "llama_rs_decode",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn decode_nonzero_status_with_zero_code_is_contract_error() {
+        let result = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(DecodeError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_decode",
+                detail: "nonzero llama.cpp return status contained zero",
+            }))
+        );
+    }
+
+    #[test]
+    fn decode_unknown_status_is_preserved() {
+        let result = decode_status_to_result(255, 0, ptr::null_mut());
+
+        assert_eq!(
+            result,
+            Err(DecodeError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_decode",
+                code: 255,
+            }))
+        );
+    }
 
     #[test]
     fn decode_status_to_result_maps_null_ctx_arg() {
@@ -1205,6 +1050,117 @@ mod ffi_contract_status_tests {
         );
         assert_eq!(outcome.err(), Some(DecodeError::LlamaCppOutOfMemory));
     }
+}
+
+#[cfg(test)]
+mod encode_status_to_result_tests {
+    use std::ptr;
+
+    use super::encode_status_to_result;
+    use crate::EncodeError;
+
+    #[test]
+    fn encode_model_has_no_encoder_maps_model_has_no_encoder() {
+        let result = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(EncodeError::ModelHasNoEncoder));
+    }
+
+    #[test]
+    fn encode_nonzero_code_maps_from_code() {
+        let result = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
+            1,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(EncodeError::NoKvCacheSlot));
+    }
+
+    #[test]
+    fn encode_out_of_memory_maps_encode_out_of_memory() {
+        let result = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_OUT_OF_MEMORY,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(EncodeError::EncodeOutOfMemory));
+    }
+
+    #[test]
+    fn encode_compute_failed_maps_compute_failed() {
+        let result = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_COMPUTE_FAILED,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(EncodeError::ComputeFailed));
+    }
+
+    #[test]
+    fn encode_allocation_failed_maps_not_enough_memory() {
+        let result = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_ERROR_STRING_ALLOCATION_FAILED,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(EncodeError::NotEnoughMemory));
+    }
+
+    #[test]
+    fn encode_cxx_exception_without_a_message_is_a_contract_error() {
+        let result = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(crate::FfiContractError {
+                operation: "llama_rs_encode",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn encode_nonzero_status_with_zero_code_is_contract_error() {
+        let result = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(EncodeError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_encode",
+                detail: "nonzero llama.cpp return status contained zero",
+            }))
+        );
+    }
+
+    #[test]
+    fn encode_unknown_status_is_preserved() {
+        let result = encode_status_to_result(255, 0, ptr::null_mut());
+
+        assert_eq!(
+            result,
+            Err(EncodeError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_encode",
+                code: 255,
+            }))
+        );
+    }
 
     #[test]
     fn encode_status_to_result_maps_null_ctx_arg() {
@@ -1252,5 +1208,62 @@ mod ffi_contract_status_tests {
             ptr::null_mut(),
         );
         assert_eq!(outcome.err(), Some(EncodeError::LlamaCppOutOfMemory));
+    }
+}
+
+#[cfg(test)]
+mod token_index_within_context_tests {
+    use super::token_index_within_context;
+    use crate::LogitsError;
+
+    #[test]
+    fn token_index_beyond_context_size_maps_exceeds_context() {
+        let result = token_index_within_context(5, 4);
+
+        assert_eq!(
+            result,
+            Err(LogitsError::TokenIndexExceedsContext {
+                token_index: 5,
+                context_size: 4,
+            })
+        );
+    }
+
+    #[test]
+    fn token_index_within_context_size_is_ok() {
+        assert!(token_index_within_context(2, 4).is_ok());
+    }
+
+    #[test]
+    fn token_index_negative_skips_context_check() {
+        assert!(token_index_within_context(-1, 4).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod logits_slice_from_raw_parts_tests {
+    use std::ptr;
+
+    use super::logits_slice_from_raw_parts;
+    use crate::LogitsError;
+
+    #[test]
+    fn logits_slice_from_null_data_maps_null_logits() {
+        let result = unsafe { logits_slice_from_raw_parts(ptr::null(), 4) };
+
+        assert_eq!(result, Err(LogitsError::NullLogits));
+    }
+
+    #[test]
+    fn logits_slice_from_negative_vocab_maps_vocab_size_overflow() {
+        let logit_value = 0.0_f32;
+        let result = unsafe { logits_slice_from_raw_parts(&raw const logit_value, -1) };
+
+        let conversion_error = usize::try_from(-1_i32).unwrap_err();
+
+        assert_eq!(
+            result,
+            Err(LogitsError::VocabSizeOverflow(conversion_error))
+        );
     }
 }

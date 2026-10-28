@@ -396,13 +396,10 @@ impl LlamaContext<'_> {
 }
 
 #[cfg(test)]
-mod unit_tests {
-    use crate::token::LlamaToken;
-
-    use crate::context::load_seq_state_error::LoadSeqStateError;
+mod process_session_load_result_tests {
+    use super::process_session_load_result;
     use crate::context::load_session_error::LoadSessionError;
-
-    use super::{process_seq_load_result, process_session_load_result};
+    use crate::token::LlamaToken;
 
     #[test]
     fn session_load_success_within_bounds() {
@@ -434,6 +431,13 @@ mod unit_tests {
             })
         );
     }
+}
+
+#[cfg(test)]
+mod process_seq_load_result_tests {
+    use super::process_seq_load_result;
+    use crate::context::load_seq_state_error::LoadSeqStateError;
+    use crate::token::LlamaToken;
 
     #[test]
     fn seq_load_success_within_bounds() {
@@ -468,7 +472,7 @@ mod unit_tests {
 }
 
 #[cfg(test)]
-mod ffi_contract_status_tests {
+mod state_data_status_to_result_tests {
     use std::ptr;
 
     use super::state_data_status_to_result;

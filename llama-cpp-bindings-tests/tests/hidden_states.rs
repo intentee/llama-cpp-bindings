@@ -14,6 +14,7 @@ use llama_cpp_test_harness::llama_test;
 const STATE: &str = "Shoes arrived two weeks late and in the wrong size.";
 const FIRST_BRANCH: &str = " Which team should handle this ticket?";
 const SECOND_BRANCH: &str = " Is the customer angry about the delay?";
+const OTHER_STATE: &str = "The weather in Oslo is cold, dark and windy all week.";
 
 fn tokenize(fixture: &LlamaFixture<'_>, text: &str) -> Result<Vec<LlamaToken>> {
     Ok(fixture
@@ -313,6 +314,21 @@ fn final_hidden_state_context<'fixture>(
     )?)
 }
 
+fn row_hidden_state_after_enabling_embeddings(
+    fixture: &LlamaFixture<'_>,
+    state: &[LlamaToken],
+    row: &[LlamaToken],
+) -> Result<Vec<f32>> {
+    let mut context = final_hidden_state_context(fixture, false)?;
+
+    decode_tokens(&mut context, state, 0, false)?;
+    context.set_embeddings(true);
+
+    let row_last_index = decode_tokens(&mut context, row, i32::try_from(state.len())?, true)?;
+
+    Ok(context.embeddings_ith(row_last_index)?.to_vec())
+}
+
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
     n_gpu_layers = 999,
@@ -326,22 +342,22 @@ fn final_hidden_states_after_enabling_embeddings_for_a_row_equal_those_of_an_emb
 ) -> Result<()> {
     let state = tokenize(fixture, STATE)?;
     let row = tokenize(fixture, FIRST_BRANCH)?;
-    let row_position = i32::try_from(state.len())?;
-
-    let mut toggled_context = final_hidden_state_context(fixture, false)?;
-
-    decode_tokens(&mut toggled_context, &state, 0, false)?;
-    toggled_context.set_embeddings(true);
-
-    let row_last_index = decode_tokens(&mut toggled_context, &row, row_position, true)?;
+    let toggled_row_hidden_state =
+        row_hidden_state_after_enabling_embeddings(fixture, &state, &row)?;
 
     let mut embeddings_context = final_hidden_state_context(fixture, true)?;
 
     decode_tokens(&mut embeddings_context, &state, 0, false)?;
-    decode_tokens(&mut embeddings_context, &row, row_position, true)?;
+
+    let row_last_index = decode_tokens(
+        &mut embeddings_context,
+        &row,
+        i32::try_from(state.len())?,
+        true,
+    )?;
 
     assert_eq!(
-        toggled_context.embeddings_ith(row_last_index)?,
+        toggled_row_hidden_state.as_slice(),
         embeddings_context.embeddings_ith(row_last_index)?,
     );
 
@@ -368,6 +384,31 @@ fn disabling_embeddings_makes_token_embeddings_unavailable(
     assert_eq!(
         context.embeddings_ith(last_index),
         Err(EmbeddingsError::NotEnabled)
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 512,
+)]
+fn final_hidden_states_of_a_row_follow_the_state_decoded_before_it(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let row = tokenize(fixture, FIRST_BRANCH)?;
+
+    assert_ne!(
+        row_hidden_state_after_enabling_embeddings(fixture, &tokenize(fixture, STATE)?, &row)?,
+        row_hidden_state_after_enabling_embeddings(
+            fixture,
+            &tokenize(fixture, OTHER_STATE)?,
+            &row
+        )?,
     );
 
     Ok(())
