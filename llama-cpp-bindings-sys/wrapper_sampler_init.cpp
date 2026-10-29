@@ -1,24 +1,12 @@
 #include "wrapper_sampler_init.h"
 
 #include "llama.cpp/include/llama.h"
-#include "wrapper_utils.h"
+#include "wrapper_report_current_exception.h"
 
 #include <cstddef>
 #include <cstdint>
-#include <exception>
-#include <new>
-#include <string>
 
 namespace {
-
-auto describe_init_failure(char ** out_error, const char * message) -> llama_rs_sampler_init_status {
-    *out_error = llama_rs_dup_string(std::string(message));
-    if (*out_error == nullptr) {
-        return LLAMA_RS_SAMPLER_INIT_ERROR_STRING_ALLOCATION_FAILED;
-    }
-
-    return LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION;
-}
 
 template <typename TInitializeSampler>
 auto init_sampler(
@@ -44,23 +32,13 @@ auto init_sampler(
         }
 
         return LLAMA_RS_SAMPLER_INIT_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        return describe_init_failure(out_error, err.what());
     } catch (...) {
-        return describe_init_failure(out_error, "unknown c++ exception");
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_SAMPLER_INIT_ERROR_STRING_ALLOCATION_FAILED);
     }
-}
-
-auto describe_chain_add_failure(char ** out_error, const char * message)
-    -> llama_rs_sampler_chain_add_status {
-    *out_error = llama_rs_dup_string(std::string(message));
-    if (*out_error == nullptr) {
-        return LLAMA_RS_SAMPLER_CHAIN_ADD_ERROR_STRING_ALLOCATION_FAILED;
-    }
-
-    return LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION;
 }
 
 }  // namespace
@@ -268,11 +246,11 @@ extern "C" auto llama_rs_sampler_chain_add(
         llama_sampler_chain_add(chain, sampler);
 
         return LLAMA_RS_SAMPLER_CHAIN_ADD_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        return describe_chain_add_failure(out_error, err.what());
     } catch (...) {
-        return describe_chain_add_failure(out_error, "unknown c++ exception");
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_SAMPLER_CHAIN_ADD_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

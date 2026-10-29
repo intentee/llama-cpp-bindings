@@ -178,7 +178,9 @@ impl<'fitted> FittedMtmdInputChunk<'fitted> {
 }
 
 #[cfg(test)]
-mod unit_tests {
+mod eval_chunk_single_status_to_result_tests {
+    use std::ptr;
+
     use llama_cpp_ffi_status::read_and_free_cpp_string;
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer;
 
@@ -215,7 +217,7 @@ mod unit_tests {
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK,
             7,
             0,
-            std::ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         assert_eq!(result, Ok(7));
@@ -227,7 +229,7 @@ mod unit_tests {
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_RETURNED_NONZERO_CODE,
             0,
             -3,
-            std::ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         assert_eq!(result, Err(MtmdEvalError::EvalFailed { code: -3 }));
@@ -239,7 +241,7 @@ mod unit_tests {
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED,
             0,
             0,
-            std::ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         assert_eq!(result, Err(MtmdEvalError::NotEnoughMemory));
@@ -251,7 +253,7 @@ mod unit_tests {
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
             0,
-            std::ptr::null_mut(),
+            ptr::null_mut(),
         );
 
         assert_eq!(
@@ -266,7 +268,7 @@ mod unit_tests {
 
     #[test]
     fn eval_chunk_single_unknown_status_is_preserved() {
-        let result = eval_chunk_single_status_to_result(255, 0, 0, std::ptr::null_mut());
+        let result = eval_chunk_single_status_to_result(255, 0, 0, ptr::null_mut());
 
         assert_eq!(
             result,
@@ -276,24 +278,17 @@ mod unit_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod ffi_contract_status_tests {
-    use super::eval_chunk_single_status_to_result;
-    use crate::mtmd::mtmd_eval_error::MtmdEvalError;
-    use std::ptr;
 
     #[test]
-    fn eval_chunk_single_status_to_result_maps_every_contract_status() {
-        let outcome_0 = eval_chunk_single_status_to_result(
+    fn eval_chunk_single_status_to_result_maps_null_mtmd_ctx_arg() {
+        let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG,
             0,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_eval_chunk_single",
@@ -302,14 +297,18 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = eval_chunk_single_status_to_result(
+    }
+
+    #[test]
+    fn eval_chunk_single_status_to_result_maps_null_llama_ctx_arg() {
+        let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG,
             0,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_eval_chunk_single",
@@ -318,14 +317,18 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = eval_chunk_single_status_to_result(
+    }
+
+    #[test]
+    fn eval_chunk_single_status_to_result_maps_null_chunk_arg() {
+        let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG,
             0,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_eval_chunk_single",
@@ -334,14 +337,18 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = eval_chunk_single_status_to_result(
+    }
+
+    #[test]
+    fn eval_chunk_single_status_to_result_maps_null_out_new_n_past_arg() {
+        let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG,
             0,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_3.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_eval_chunk_single",
@@ -350,12 +357,16 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_4 = eval_chunk_single_status_to_result(
+    }
+
+    #[test]
+    fn eval_chunk_single_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_4.err(), Some(MtmdEvalError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(MtmdEvalError::LlamaCppOutOfMemory));
     }
 }

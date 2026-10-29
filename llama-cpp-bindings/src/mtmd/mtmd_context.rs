@@ -1,14 +1,17 @@
 use std::ffi::CString;
 use std::ffi::c_char;
+use std::path::PathBuf;
 use std::ptr;
 use std::ptr::NonNull;
 
-use crate::model::LlamaModel;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
+
+use crate::model::LlamaModel;
 
 use super::mtmd_bitmap::MtmdBitmap;
 use super::mtmd_context_params::MtmdContextParams;
 use super::mtmd_encode_error::MtmdEncodeError;
+use super::mtmd_ffi_input_part::MtmdFfiInputPart;
 use super::mtmd_init_error::MtmdInitError;
 use super::mtmd_input_chunk::MtmdInputChunk;
 use super::mtmd_input_chunks::MtmdInputChunks;
@@ -26,8 +29,8 @@ fn map_tokenize_status(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT => {
             Err(MtmdTokenizeError::BitmapCountDoesNotMatchMarkerCount)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_IMAGE_PREPROCESSING_ERROR => {
-            Err(MtmdTokenizeError::MediaPreprocessingFailed)
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE => {
+            Err(MtmdTokenizeError::MediaPreprocessingOrTokenizationFailed)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE => {
             Err(MtmdTokenizeError::UnknownStatus {
@@ -84,12 +87,12 @@ fn map_tokenize_from_parts_status(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART => {
             Err(crate::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize_from_parts",
-                detail: "llama.cpp reported a part holding both or neither of text and bitmap",
+                detail: "llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts",
             }
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MEDIA_PREPROCESSING_ERROR => {
-            Err(MtmdTokenizeError::MediaPreprocessingFailed)
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE => {
+            Err(MtmdTokenizeError::MediaPreprocessingOrTokenizationFailed)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE => {
             Err(MtmdTokenizeError::UnknownTokenizeFromPartsStatus {
@@ -130,6 +133,13 @@ fn map_tokenize_from_parts_status(
             Err(crate::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize_from_parts",
                 detail: "nonzero part count was observed with a null part array",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_tokenize_from_parts",
+                detail: "was given a null element in the parts argument",
             }
             .into())
         }
@@ -209,7 +219,7 @@ fn map_init_from_file_status(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_RETURNED_NULL => {
             Err(MtmdInitError::Unloadable {
-                path: std::path::PathBuf::from(mmproj_path),
+                path: PathBuf::from(mmproj_path),
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED => {
@@ -375,8 +385,14 @@ impl MtmdContext {
         add_special: bool,
     ) -> Result<MtmdInputChunks, MtmdTokenizeError> {
         let chunks = MtmdInputChunks::new()?;
-        let ffi_parts: Vec<llama_cpp_bindings_sys::mtmd_input_part> =
-            parts.iter().map(MtmdInputPart::ffi_part).collect();
+        let ffi_input_parts = parts
+            .iter()
+            .map(MtmdFfiInputPart::try_from)
+            .collect::<Result<Vec<MtmdFfiInputPart<'_>>, _>>()?;
+        let ffi_parts: Vec<llama_cpp_bindings_sys::mtmd_input_part> = ffi_input_parts
+            .iter()
+            .map(MtmdFfiInputPart::ffi_part)
+            .collect();
         let ffi_part_pointers: Vec<*const llama_cpp_bindings_sys::mtmd_input_part> =
             ffi_parts.iter().map(ptr::from_ref).collect();
 
@@ -426,16 +442,13 @@ impl Drop for MtmdContext {
 }
 
 #[cfg(test)]
-mod unit_tests {
+mod map_tokenize_from_parts_status_tests {
+    use std::ptr;
+
     use llama_cpp_ffi_status::read_and_free_cpp_string;
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer;
 
-    use super::map_encode_chunk_status;
-    use super::map_init_from_file_status;
     use super::map_tokenize_from_parts_status;
-    use super::map_tokenize_status;
-    use crate::mtmd::mtmd_encode_error::MtmdEncodeError;
-    use crate::mtmd::mtmd_init_error::MtmdInitError;
     use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
 
     #[test]
@@ -444,21 +457,21 @@ mod unit_tests {
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK,
                 0,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Ok(())
         );
     }
 
     #[test]
-    fn tokenize_from_parts_status_maps_media_preprocessing_failed() {
+    fn tokenize_from_parts_status_maps_preprocessing_or_tokenization_failure() {
         assert_eq!(
             map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MEDIA_PREPROCESSING_ERROR,
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
                 0,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
-            Err(MtmdTokenizeError::MediaPreprocessingFailed)
+            Err(MtmdTokenizeError::MediaPreprocessingOrTokenizationFailed)
         );
     }
 
@@ -468,7 +481,7 @@ mod unit_tests {
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
                 42,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(MtmdTokenizeError::UnknownTokenizeFromPartsStatus { code: 42 })
         );
@@ -480,7 +493,7 @@ mod unit_tests {
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED,
                 0,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(MtmdTokenizeError::NotEnoughMemory)
         );
@@ -492,7 +505,7 @@ mod unit_tests {
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY,
                 0,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(MtmdTokenizeError::LlamaCppOutOfMemory)
         );
@@ -522,256 +535,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn tokenize_status_maps_bitmap_count_mismatch() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(MtmdTokenizeError::BitmapCountDoesNotMatchMarkerCount)
-        );
-    }
-
-    #[test]
-    fn tokenize_status_maps_media_preprocessing_failed() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_IMAGE_PREPROCESSING_ERROR,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(MtmdTokenizeError::MediaPreprocessingFailed));
-    }
-
-    #[test]
-    fn tokenize_status_maps_unknown_status_with_value() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
-            42,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(MtmdTokenizeError::UnknownStatus { code: 42 }));
-    }
-
-    #[test]
-    fn tokenize_status_maps_ok_to_unit() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_OK,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Ok(()));
-    }
-
-    #[test]
-    fn encode_chunk_status_maps_ok_to_unit() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_OK,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Ok(()));
-    }
-
-    #[test]
-    fn encode_chunk_status_maps_encoding_failed_with_code() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_RETURNED_NONZERO_CODE,
-            5,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(MtmdEncodeError::EncodingFailed { code: 5 }));
-    }
-
-    #[test]
-    fn tokenize_status_maps_string_allocation_failed_to_not_enough_memory() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(MtmdTokenizeError::NotEnoughMemory));
-    }
-
-    #[test]
-    fn tokenize_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(crate::FfiContractError {
-                operation: "llama_rs_mtmd_tokenize",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
-        );
-    }
-
-    #[test]
-    fn tokenize_null_bitmaps_status_is_contract_error() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(MtmdTokenizeError::FfiContract(crate::FfiContractError {
-                operation: "llama_rs_mtmd_tokenize",
-                detail: "nonzero bitmap count was observed with a null bitmap array",
-            }))
-        );
-    }
-
-    #[test]
-    fn tokenize_unknown_status_is_preserved() {
-        let result = map_tokenize_status(255, 0, std::ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(MtmdTokenizeError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_mtmd_tokenize",
-                code: 255,
-            }))
-        );
-    }
-
-    #[test]
-    fn encode_chunk_status_maps_string_allocation_failed_to_not_enough_memory() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(result, Err(MtmdEncodeError::NotEnoughMemory));
-    }
-
-    #[test]
-    fn encode_chunk_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            std::ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(crate::FfiContractError {
-                operation: "llama_rs_mtmd_encode_chunk",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
-        );
-    }
-
-    #[test]
-    fn encode_chunk_unknown_status_is_preserved() {
-        let result = map_encode_chunk_status(255, 0, std::ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(MtmdEncodeError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_mtmd_encode_chunk",
-                code: 255,
-            }))
-        );
-    }
-
-    #[test]
-    fn init_from_file_success_with_null_context_is_contract_error() {
-        let result = map_init_from_file_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_OK,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            "mmproj.gguf",
-        );
-
-        assert_eq!(
-            result.unwrap_err(),
-            MtmdInitError::FfiContract(crate::FfiContractError {
-                operation: "llama_rs_mtmd_init_from_file",
-                detail: "success status contained a null multimodal context",
-            })
-        );
-    }
-
-    #[test]
-    fn init_from_file_status_maps_string_allocation_failed_to_not_enough_memory() {
-        let result = map_init_from_file_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            "mmproj.gguf",
-        );
-
-        assert_eq!(result.unwrap_err(), MtmdInitError::NotEnoughMemory);
-    }
-
-    #[test]
-    fn init_from_file_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
-        let result = map_init_from_file_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            "mmproj.gguf",
-        );
-
-        assert_eq!(
-            result.unwrap_err(),
-            crate::FfiContractError {
-                operation: "llama_rs_mtmd_init_from_file",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into()
-        );
-    }
-
-    #[test]
-    fn init_from_file_unknown_status_is_preserved() {
-        let result = map_init_from_file_status(
-            255,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            "mmproj.gguf",
-        );
-
-        assert_eq!(
-            result.unwrap_err(),
-            MtmdInitError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_mtmd_init_from_file",
-                code: 255,
-            })
-        );
-    }
-}
-
-#[cfg(test)]
-mod ffi_contract_status_tests {
-    use super::map_encode_chunk_status;
-    use super::map_init_from_file_status;
-    use super::map_tokenize_from_parts_status;
-    use super::map_tokenize_status;
-    use crate::mtmd::mtmd_encode_error::MtmdEncodeError;
-    use crate::mtmd::mtmd_init_error::MtmdInitError;
-    use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
-    use std::ptr;
-
-    #[test]
-    fn map_tokenize_from_parts_status_maps_every_contract_status() {
+    fn map_tokenize_from_parts_status_maps_llama_cpp_reported_malformed_part() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART,
@@ -782,11 +546,34 @@ mod ffi_contract_status_tests {
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
-                    detail: "llama.cpp reported a part holding both or neither of text and bitmap",
+                    detail: "llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts",
                 }
                 .into()
             )
         );
+    }
+
+    #[test]
+    fn map_tokenize_from_parts_status_maps_null_part_element() {
+        assert_eq!(
+            map_tokenize_from_parts_status(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT,
+                0,
+                ptr::null_mut(),
+            )
+            .err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_mtmd_tokenize_from_parts",
+                    detail: "was given a null element in the parts argument",
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
+    fn map_tokenize_from_parts_status_maps_llama_cpp_threw_cxx_exception_without_a_message() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -802,6 +589,10 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
+    }
+
+    #[test]
+    fn map_tokenize_from_parts_status_maps_null_ctx_arg() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG,
@@ -817,6 +608,10 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
+    }
+
+    #[test]
+    fn map_tokenize_from_parts_status_maps_null_output_arg() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG,
@@ -832,6 +627,10 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
+    }
+
+    #[test]
+    fn map_tokenize_from_parts_status_maps_null_parts_arg_when_num_parts_nonzero() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO,
@@ -855,16 +654,133 @@ mod ffi_contract_status_tests {
             }))
         );
     }
+}
+
+#[cfg(test)]
+mod map_tokenize_status_tests {
+    use std::ptr;
+
+    use super::map_tokenize_status;
+    use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
 
     #[test]
-    fn map_tokenize_status_maps_every_contract_status() {
-        let outcome_0 = map_tokenize_status(
+    fn tokenize_status_maps_bitmap_count_mismatch() {
+        let result = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(MtmdTokenizeError::BitmapCountDoesNotMatchMarkerCount)
+        );
+    }
+
+    #[test]
+    fn tokenize_status_maps_preprocessing_or_tokenization_failure() {
+        let result = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(MtmdTokenizeError::MediaPreprocessingOrTokenizationFailed)
+        );
+    }
+
+    #[test]
+    fn tokenize_status_maps_unknown_status_with_value() {
+        let result = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
+            42,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(MtmdTokenizeError::UnknownStatus { code: 42 }));
+    }
+
+    #[test]
+    fn tokenize_status_maps_ok_to_unit() {
+        let result = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_OK,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn tokenize_status_maps_string_allocation_failed_to_not_enough_memory() {
+        let result = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(MtmdTokenizeError::NotEnoughMemory));
+    }
+
+    #[test]
+    fn tokenize_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
+        let result = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_tokenize",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn tokenize_null_bitmaps_status_is_contract_error() {
+        let result = map_tokenize_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result,
+            Err(MtmdTokenizeError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_mtmd_tokenize",
+                detail: "nonzero bitmap count was observed with a null bitmap array",
+            }))
+        );
+    }
+
+    #[test]
+    fn tokenize_unknown_status_is_preserved() {
+        let result = map_tokenize_status(255, 0, ptr::null_mut());
+
+        assert_eq!(
+            result,
+            Err(MtmdTokenizeError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_tokenize",
+                code: 255,
+            }))
+        );
+    }
+
+    #[test]
+    fn map_tokenize_status_maps_null_ctx_arg() {
+        let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize",
@@ -873,13 +789,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = map_tokenize_status(
+    }
+
+    #[test]
+    fn map_tokenize_status_maps_null_output_arg() {
+        let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize",
@@ -888,13 +808,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = map_tokenize_status(
+    }
+
+    #[test]
+    fn map_tokenize_status_maps_null_text_arg() {
+        let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize",
@@ -903,26 +827,99 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = map_tokenize_status(
+    }
+
+    #[test]
+    fn map_tokenize_status_maps_llama_cpp_out_of_memory() {
+        let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
+        assert_eq!(outcome.err(), Some(MtmdTokenizeError::LlamaCppOutOfMemory));
+    }
+}
+
+#[cfg(test)]
+mod map_encode_chunk_status_tests {
+    use std::ptr;
+
+    use super::map_encode_chunk_status;
+    use crate::mtmd::mtmd_encode_error::MtmdEncodeError;
+
+    #[test]
+    fn encode_chunk_status_maps_ok_to_unit() {
+        let result = map_encode_chunk_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_OK,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn encode_chunk_status_maps_encoding_failed_with_code() {
+        let result = map_encode_chunk_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_RETURNED_NONZERO_CODE,
+            5,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(MtmdEncodeError::EncodingFailed { code: 5 }));
+    }
+
+    #[test]
+    fn encode_chunk_status_maps_string_allocation_failed_to_not_enough_memory() {
+        let result = map_encode_chunk_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED,
+            0,
+            ptr::null_mut(),
+        );
+
+        assert_eq!(result, Err(MtmdEncodeError::NotEnoughMemory));
+    }
+
+    #[test]
+    fn encode_chunk_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
+        let result = map_encode_chunk_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            0,
+            ptr::null_mut(),
+        );
+
         assert_eq!(
-            outcome_3.err(),
-            Some(MtmdTokenizeError::LlamaCppOutOfMemory)
+            result,
+            Err(crate::FfiContractError {
+                operation: "llama_rs_mtmd_encode_chunk",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
         );
     }
 
     #[test]
-    fn map_encode_chunk_status_maps_every_contract_status() {
-        let outcome_0 = map_encode_chunk_status(
+    fn encode_chunk_unknown_status_is_preserved() {
+        let result = map_encode_chunk_status(255, 0, ptr::null_mut());
+
+        assert_eq!(
+            result,
+            Err(MtmdEncodeError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_encode_chunk",
+                code: 255,
+            }))
+        );
+    }
+
+    #[test]
+    fn map_encode_chunk_status_maps_null_ctx_arg() {
+        let outcome = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_encode_chunk",
@@ -931,13 +928,17 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = map_encode_chunk_status(
+    }
+
+    #[test]
+    fn map_encode_chunk_status_maps_null_chunk_arg() {
+        let outcome = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_encode_chunk",
@@ -946,24 +947,99 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = map_encode_chunk_status(
+    }
+
+    #[test]
+    fn map_encode_chunk_status_maps_llama_cpp_out_of_memory() {
+        let outcome = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
         );
-        assert_eq!(outcome_2.err(), Some(MtmdEncodeError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(MtmdEncodeError::LlamaCppOutOfMemory));
+    }
+}
+
+#[cfg(test)]
+mod map_init_from_file_status_tests {
+    use std::ptr;
+
+    use super::map_init_from_file_status;
+    use crate::mtmd::mtmd_init_error::MtmdInitError;
+
+    #[test]
+    fn init_from_file_success_with_null_context_is_contract_error() {
+        let result = map_init_from_file_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_OK,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            "mmproj.gguf",
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            MtmdInitError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_mtmd_init_from_file",
+                detail: "success status contained a null multimodal context",
+            })
+        );
     }
 
     #[test]
-    fn map_init_from_file_status_maps_every_contract_status() {
-        let outcome_0 = map_init_from_file_status(
+    fn init_from_file_status_maps_string_allocation_failed_to_not_enough_memory() {
+        let result = map_init_from_file_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            "mmproj.gguf",
+        );
+
+        assert_eq!(result.unwrap_err(), MtmdInitError::NotEnoughMemory);
+    }
+
+    #[test]
+    fn init_from_file_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
+        let result = map_init_from_file_status(
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            "mmproj.gguf",
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            crate::FfiContractError {
+                operation: "llama_rs_mtmd_init_from_file",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into()
+        );
+    }
+
+    #[test]
+    fn init_from_file_unknown_status_is_preserved() {
+        let result =
+            map_init_from_file_status(255, ptr::null_mut(), ptr::null_mut(), "mmproj.gguf");
+
+        assert_eq!(
+            result.unwrap_err(),
+            MtmdInitError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_mtmd_init_from_file",
+                code: 255,
+            })
+        );
+    }
+
+    #[test]
+    fn map_init_from_file_status_maps_null_mmproj_path_arg() {
+        let outcome = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_MMPROJ_PATH_ARG,
             ptr::null_mut(),
             ptr::null_mut(),
             "",
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_init_from_file",
@@ -972,14 +1048,18 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = map_init_from_file_status(
+    }
+
+    #[test]
+    fn map_init_from_file_status_maps_null_text_model_arg() {
+        let outcome = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_TEXT_MODEL_ARG,
             ptr::null_mut(),
             ptr::null_mut(),
             "",
         );
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_init_from_file",
@@ -988,14 +1068,18 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = map_init_from_file_status(
+    }
+
+    #[test]
+    fn map_init_from_file_status_maps_null_out_ctx_arg() {
+        let outcome = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_OUT_CTX_ARG,
             ptr::null_mut(),
             ptr::null_mut(),
             "",
         );
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_mtmd_init_from_file",
@@ -1004,12 +1088,16 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = map_init_from_file_status(
+    }
+
+    #[test]
+    fn map_init_from_file_status_maps_llama_cpp_out_of_memory() {
+        let outcome = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
             ptr::null_mut(),
             "",
         );
-        assert_eq!(outcome_3.err(), Some(MtmdInitError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(MtmdInitError::LlamaCppOutOfMemory));
     }
 }

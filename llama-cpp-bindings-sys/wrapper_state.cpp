@@ -1,24 +1,12 @@
 #include "wrapper_state.h"
 
 #include "llama.cpp/include/llama.h"
-#include "wrapper_utils.h"
+#include "wrapper_report_current_exception.h"
 
 #include <cstddef>
 #include <cstdint>
-#include <exception>
-#include <new>
-#include <string>
 
 namespace {
-
-auto describe_failure(char ** out_error, const char * message) -> llama_rs_state_data_status {
-    *out_error = llama_rs_dup_string(std::string(message));
-    if (*out_error == nullptr) {
-        return LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED;
-    }
-
-    return LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION;
-}
 
 auto validate_arguments(
     const struct llama_context * ctx,
@@ -66,12 +54,12 @@ extern "C" auto llama_rs_state_get_data(
         *out_byte_count = llama_state_get_data(ctx, dst, size);
 
         return LLAMA_RS_STATE_DATA_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        return describe_failure(out_error, err.what());
     } catch (...) {
-        return describe_failure(out_error, "unknown c++ exception");
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -98,12 +86,12 @@ extern "C" auto llama_rs_state_set_data(
         *out_byte_count = llama_state_set_data(ctx, src, size);
 
         return LLAMA_RS_STATE_DATA_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        return describe_failure(out_error, err.what());
     } catch (...) {
-        return describe_failure(out_error, "unknown c++ exception");
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -132,12 +120,12 @@ extern "C" auto llama_rs_state_seq_get_data(
         *out_byte_count = llama_state_seq_get_data_ext(ctx, dst, size, seq_id, flags);
 
         return LLAMA_RS_STATE_DATA_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        return describe_failure(out_error, err.what());
     } catch (...) {
-        return describe_failure(out_error, "unknown c++ exception");
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -166,11 +154,11 @@ extern "C" auto llama_rs_state_seq_set_data(
         *out_byte_count = llama_state_seq_set_data_ext(ctx, src, size, dest_seq_id, flags);
 
         return LLAMA_RS_STATE_DATA_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        return describe_failure(out_error, err.what());
     } catch (...) {
-        return describe_failure(out_error, "unknown c++ exception");
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

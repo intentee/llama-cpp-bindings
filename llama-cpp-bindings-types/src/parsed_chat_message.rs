@@ -33,6 +33,8 @@ impl ParsedChatMessage {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::ParsedChatMessage;
     use super::ParsedToolCall;
     use crate::parsed_tool_call_id::ParsedToolCallId;
@@ -65,7 +67,7 @@ mod tests {
             vec![ParsedToolCall::new(
                 ParsedToolCallId::NotProvidedByModel,
                 "tool".to_owned(),
-                ToolCallArguments::default(),
+                ToolCallArguments::ValidJson(json!({})),
             )],
         );
 
@@ -78,9 +80,9 @@ mod tests {
             "hello".to_owned(),
             "thinking".to_owned(),
             vec![ParsedToolCall::new(
-                ParsedToolCallId::ModelProvided("id-1".to_owned()),
+                ParsedToolCallId::NotProvidedByModel,
                 "tool".to_owned(),
-                ToolCallArguments::default(),
+                ToolCallArguments::ValidJson(json!({})),
             )],
         );
 

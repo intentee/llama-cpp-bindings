@@ -111,6 +111,14 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 64,
     mmproj_source = LocalPath("/nonexistent/llama-cpp-test-harness/no-such-mmproj.gguf"),
 )]
+#[llama_test(
+    model_source = LocalPath("Cargo.toml"),
+    n_gpu_layers = 0,
+    load_mode = Mmap,
+    n_ctx = 1,
+    n_batch = 1,
+    n_ubatch = 1
+)]
 fn shared_setup_failure_and_phase_a_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert!(fixture.model_path.exists());
     Ok(())
@@ -133,9 +141,9 @@ fn phase_d_mmproj_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
     Ok(())
 }
 
-const EXPECTED_PHASES: usize = 6;
+const EXPECTED_PHASES: usize = 7;
 const EXPECTED_PASSED: u64 = 6;
-const EXPECTED_FAILED: u64 = 4;
+const EXPECTED_FAILED: u64 = 5;
 
 fn main() -> ExitCode {
     let conclusions = match run_to_conclusions() {

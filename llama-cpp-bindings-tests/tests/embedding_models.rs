@@ -3,11 +3,13 @@ use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ClearKvCacheSeqError;
 use llama_cpp_bindings::CopyKvCacheSeqError;
 use llama_cpp_bindings::DecodeError;
+use llama_cpp_bindings::EmbeddingsError;
 use llama_cpp_bindings::EncodeError;
 use llama_cpp_bindings::KvCacheSeqAddError;
 use llama_cpp_bindings::KvCacheSeqDivError;
@@ -507,9 +509,10 @@ fn embeddings_ith_returns_null_embedding_error_for_non_embedding_token(
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let result = context.embeddings_ith(999);
-
-    assert!(result.is_err());
+    assert_eq!(
+        context.embeddings_ith(999),
+        Err(EmbeddingsError::LogitsNotEnabled)
+    );
 
     Ok(())
 }
@@ -575,7 +578,7 @@ fn kv_cache_seq_div_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> R
 
     prime_kv_cache(fixture, &mut context)?;
 
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
     let result = context.kv_cache_seq_div(0, Some(0), None, divisor);
 
     assert!(result.is_ok());
@@ -676,7 +679,7 @@ fn kv_cache_operations_respect_an_embedding_context_without_memory(
         context.kv_cache_seq_add(0, None, None, 1),
         Err(KvCacheSeqAddError::MemoryHandleUnavailable)
     );
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
     assert_eq!(
         context.kv_cache_seq_div(0, None, None, divisor),
         Err(KvCacheSeqDivError::MemoryHandleUnavailable)

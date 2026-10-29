@@ -6,11 +6,10 @@
 #include "llama.cpp/common/chat.h"
 #include "llama.cpp/common/json.h"
 #include "llama.cpp/include/llama.h"
+#include "wrapper_report_current_exception.h"
 #include "wrapper_utils.h"
 
-#include <exception>
 #include <memory>
-#include <new>
 #include <string>
 
 using wrapper_helpers::token_text_or_empty;
@@ -159,20 +158,12 @@ extern "C" auto llama_rs_compute_tool_call_haystack(
         *out_haystack = haystack_dup;
 
         return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & ex) {
-        *out_error = llama_rs_dup_string(std::string(ex.what()));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_COMPUTE_TOOL_CALL_HAYSTACK_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -235,19 +226,11 @@ extern "C" auto llama_rs_diagnose_tool_call_synthetic_renders(
         *out_with_tools = b_dup.release();
 
         return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & ex) {
-        *out_error = llama_rs_dup_string(std::string(ex.what()));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        *out_error = llama_rs_dup_string(std::string("unknown c++ exception"));
-        if (*out_error == nullptr) {
-            return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_ERROR_STRING_ALLOCATION_FAILED;
-        }
-        return LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_DIAGNOSE_TOOL_CALL_SYNTHETIC_RENDERS_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

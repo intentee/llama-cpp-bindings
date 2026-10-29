@@ -5,6 +5,7 @@ use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::MtmdContext;
 
+#[derive(Debug)]
 pub struct PhaseState {
     pub mtmd_context: Option<MtmdContext>,
     pub model: LlamaModel,

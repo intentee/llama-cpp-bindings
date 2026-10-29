@@ -333,13 +333,11 @@ impl LlamaContext<'_> {
 }
 
 #[cfg(test)]
-mod tests {
+mod kv_cache_seq_add_status_to_result_tests {
     use std::ptr;
 
     use super::kv_cache_seq_add_status_to_result;
-    use super::kv_cache_seq_div_status_to_result;
-    use super::kv_cache_seq_pos_max_status_to_result;
-    use crate::error::{KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError};
+    use crate::error::KvCacheSeqAddError;
 
     #[test]
     fn add_ok_status_maps_to_ok() {
@@ -413,6 +411,41 @@ mod tests {
     }
 
     #[test]
+    fn kv_cache_seq_add_status_to_result_maps_null_model() {
+        let outcome = kv_cache_seq_add_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_memory_seq_add",
+                    detail: "was given a null model argument",
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
+    fn kv_cache_seq_add_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = kv_cache_seq_add_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome.err(), Some(KvCacheSeqAddError::LlamaCppOutOfMemory));
+    }
+}
+
+#[cfg(test)]
+mod kv_cache_seq_div_status_to_result_tests {
+    use std::ptr;
+
+    use super::kv_cache_seq_div_status_to_result;
+    use crate::error::KvCacheSeqDivError;
+
+    #[test]
     fn div_ok_status_maps_to_ok() {
         let result = kv_cache_seq_div_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK,
@@ -482,6 +515,41 @@ mod tests {
             }))
         );
     }
+
+    #[test]
+    fn kv_cache_seq_div_status_to_result_maps_null_model() {
+        let outcome = kv_cache_seq_div_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_memory_seq_div",
+                    detail: "was given a null model argument",
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
+    fn kv_cache_seq_div_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = kv_cache_seq_div_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome.err(), Some(KvCacheSeqDivError::LlamaCppOutOfMemory));
+    }
+}
+
+#[cfg(test)]
+mod kv_cache_seq_pos_max_status_to_result_tests {
+    use std::ptr;
+
+    use super::kv_cache_seq_pos_max_status_to_result;
+    use crate::error::KvCacheSeqPosMaxError;
 
     #[test]
     fn seq_pos_max_ok_status_returns_position() {
@@ -616,80 +684,17 @@ mod tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod ffi_contract_status_tests {
-    use super::kv_cache_seq_add_status_to_result;
-    use super::kv_cache_seq_div_status_to_result;
-    use super::kv_cache_seq_pos_max_status_to_result;
-    use crate::error::kv_cache_seq_add_error::KvCacheSeqAddError;
-    use crate::error::kv_cache_seq_div_error::KvCacheSeqDivError;
-    use crate::error::kv_cache_seq_pos_max_error::KvCacheSeqPosMaxError;
-    use std::ptr;
 
     #[test]
-    fn kv_cache_seq_add_status_to_result_maps_every_contract_status() {
-        let outcome_0 = kv_cache_seq_add_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_0.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_memory_seq_add",
-                    detail: "was given a null model argument",
-                }
-                .into()
-            )
-        );
-        let outcome_1 = kv_cache_seq_add_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_1.err(),
-            Some(KvCacheSeqAddError::LlamaCppOutOfMemory)
-        );
-    }
-
-    #[test]
-    fn kv_cache_seq_div_status_to_result_maps_every_contract_status() {
-        let outcome_0 = kv_cache_seq_div_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_0.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_memory_seq_div",
-                    detail: "was given a null model argument",
-                }
-                .into()
-            )
-        );
-        let outcome_1 = kv_cache_seq_div_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome_1.err(),
-            Some(KvCacheSeqDivError::LlamaCppOutOfMemory)
-        );
-    }
-
-    #[test]
-    fn kv_cache_seq_pos_max_status_to_result_maps_every_contract_status() {
-        let outcome_0 = kv_cache_seq_pos_max_status_to_result(
+    fn kv_cache_seq_pos_max_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = kv_cache_seq_pos_max_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             0,
             ptr::null_mut(),
         );
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(KvCacheSeqPosMaxError::LlamaCppOutOfMemory)
         );
     }

@@ -34,15 +34,12 @@ mod tests {
     #[test]
     fn new_assigns_fields_in_order() {
         let parsed = ParsedToolCall::new(
-            ParsedToolCallId::ModelProvided("id-1".to_owned()),
+            ParsedToolCallId::NotProvidedByModel,
             "tool".to_owned(),
             ToolCallArguments::ValidJson(json!({})),
         );
 
-        assert_eq!(
-            parsed.id,
-            ParsedToolCallId::ModelProvided("id-1".to_owned())
-        );
+        assert_eq!(parsed.id, ParsedToolCallId::NotProvidedByModel);
         assert_eq!(parsed.name, "tool");
         assert_eq!(parsed.arguments, ToolCallArguments::ValidJson(json!({})));
     }

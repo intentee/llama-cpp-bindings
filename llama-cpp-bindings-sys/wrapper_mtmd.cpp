@@ -2,13 +2,12 @@
 #include "llama.h"
 #include "tools/mtmd/mtmd.h"
 #include "tools/mtmd/mtmd-helper.h"
-#include "wrapper_utils.h"
+#include "wrapper_report_current_exception.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <exception>
-#include <new>
-#include <string>
+#include <gsl/span>
 
 extern "C" auto llama_rs_mtmd_init_from_file(
     const char * mmproj_path,
@@ -37,24 +36,12 @@ extern "C" auto llama_rs_mtmd_init_from_file(
         }
         *out_ctx = ctx;
         return LLAMA_RS_MTMD_INIT_FROM_FILE_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -86,24 +73,12 @@ extern "C" auto llama_rs_mtmd_bitmap_init_from_file(
         }
         *out_bitmap = bitmap;
         return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -136,24 +111,12 @@ extern "C" auto llama_rs_mtmd_bitmap_init_from_buf(
         }
         *out_bitmap = bitmap;
         return LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -192,31 +155,19 @@ extern "C" auto llama_rs_mtmd_tokenize(
             case 1:
                 return LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT;
             case 2:
-                return LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_IMAGE_PREPROCESSING_ERROR;
+                return LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE;
             default:
                 if (out_undocumented_return_code != nullptr) {
                     *out_undocumented_return_code = result;
                 }
                 return LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE;
         }
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -243,6 +194,12 @@ extern "C" auto llama_rs_mtmd_tokenize_from_parts(
     if (num_parts > 0 && (parts == nullptr)) {
         return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO;
     }
+    const gsl::span<const struct mtmd_input_part * const> part_span(parts, num_parts);
+    if (std::any_of(part_span.begin(), part_span.end(), [](const struct mtmd_input_part * part) -> bool {
+            return part == nullptr;
+        })) {
+        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT;
+    }
 
     try {
         int32_t const result = mtmd_tokenize_from_parts(ctx, output, parts, num_parts, add_special);
@@ -252,31 +209,19 @@ extern "C" auto llama_rs_mtmd_tokenize_from_parts(
             case 1:
                 return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART;
             case 2:
-                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MEDIA_PREPROCESSING_ERROR;
+                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE;
             default:
                 if (out_undocumented_return_code != nullptr) {
                     *out_undocumented_return_code = result;
                 }
                 return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE;
         }
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -307,24 +252,12 @@ extern "C" auto llama_rs_mtmd_encode_chunk(
             return LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_RETURNED_NONZERO_CODE;
         }
         return LLAMA_RS_MTMD_ENCODE_CHUNK_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -368,23 +301,11 @@ extern "C" auto llama_rs_mtmd_eval_chunk_single(
             return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_RETURNED_NONZERO_CODE;
         }
         return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK;
-    } catch (const std::bad_alloc &) {
-        return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY;
-    } catch (const std::exception & err) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string(err.what());
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION;
     } catch (...) {
-        if (out_error != nullptr) {
-            *out_error = llama_rs_dup_string("unknown c++ exception");
-            if (*out_error == nullptr) {
-                return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED;
-            }
-        }
-        return LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION;
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

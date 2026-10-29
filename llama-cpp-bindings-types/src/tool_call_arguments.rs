@@ -15,12 +15,6 @@ impl ToolCallArguments {
     }
 }
 
-impl Default for ToolCallArguments {
-    fn default() -> Self {
-        Self::InvalidJson(String::new())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -64,13 +58,5 @@ mod tests {
         let result = ToolCallArguments::from_string(String::new());
 
         assert_eq!(result, ToolCallArguments::InvalidJson(String::new()));
-    }
-
-    #[test]
-    fn default_is_empty_invalid() {
-        assert_eq!(
-            ToolCallArguments::default(),
-            ToolCallArguments::InvalidJson(String::new())
-        );
     }
 }

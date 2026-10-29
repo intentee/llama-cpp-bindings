@@ -1,5 +1,9 @@
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::path::PathBuf;
 
+use anyhow::Context;
 use anyhow::Result;
 
 use crate::download_model::download_model;
@@ -13,14 +17,23 @@ pub enum GgufSource {
     LocalPath(&'static str),
 }
 
+impl Display for GgufSource {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::HuggingFace { repo, file } => write!(formatter, "{repo} / {file}"),
+            Self::LocalPath(path) => write!(formatter, "local:{path}"),
+        }
+    }
+}
+
 impl GgufSource {
     /// # Errors
     ///
-    /// Returns an error if the HF download fails. `LocalPath` is infallible here — file
-    /// existence is checked when the file is loaded.
+    /// Returns an error if the HF download fails, with this source attached as its context.
+    /// `LocalPath` is infallible here — file existence is checked when the file is loaded.
     pub fn resolve_path(self) -> Result<PathBuf> {
         match self {
-            Self::HuggingFace { repo, file } => download_model(repo, file),
+            Self::HuggingFace { repo, file } => download_model(repo, file).context(self),
             Self::LocalPath(path) => Ok(PathBuf::from(path)),
         }
     }
@@ -41,5 +54,19 @@ mod tests {
             .expect("LocalPath resolve is infallible");
 
         assert_eq!(resolved, PathBuf::from("/abs/example.gguf"));
+    }
+
+    #[test]
+    fn resolve_path_failure_names_the_huggingface_source() {
+        let source = GgufSource::HuggingFace {
+            repo: "intentee-test-harness/does-not-exist",
+            file: "no-such-file.gguf",
+        };
+
+        let download_failure = source
+            .resolve_path()
+            .expect_err("a file from a repository that does not exist must fail to download");
+
+        assert_eq!(download_failure.downcast_ref::<GgufSource>(), Some(&source));
     }
 }

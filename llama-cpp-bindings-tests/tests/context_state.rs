@@ -4,11 +4,14 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use llama_cpp_bindings::DecodeError;
+use llama_cpp_bindings::EmbeddingsError;
 use llama_cpp_bindings::LlamaContextLoadError;
 use llama_cpp_bindings::LogitsError;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::params::LlamaAttentionType;
+use llama_cpp_bindings::context::params::LlamaPoolingType;
 use llama_cpp_bindings::error::ClearKvCacheSeqError;
 use llama_cpp_bindings::error::CopyKvCacheSeqError;
 use llama_cpp_bindings::error::KvCacheSeqAddError;
@@ -363,9 +366,7 @@ fn embeddings_ith_returns_error_when_embeddings_disabled(fixture: &LlamaFixture<
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let result = context.embeddings_ith(0);
-
-    assert!(result.is_err());
+    assert_eq!(context.embeddings_ith(0), Err(EmbeddingsError::NotEnabled));
 
     Ok(())
 }
@@ -387,9 +388,10 @@ fn embeddings_seq_ith_returns_error_when_embeddings_disabled(
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let result = context.embeddings_seq_ith(0);
-
-    assert!(result.is_err());
+    assert_eq!(
+        context.embeddings_seq_ith(0),
+        Err(EmbeddingsError::NotEnabled)
+    );
 
     Ok(())
 }
@@ -571,7 +573,9 @@ fn embeddings_seq_ith_returns_null_embedding_error_for_invalid_seq(
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*fixture.context_params)
+            .into_llama_context_params()
+            .with_pooling_type(LlamaPoolingType::Last),
     )?;
     let tokens = fixture
         .model
@@ -580,9 +584,12 @@ fn embeddings_seq_ith_returns_null_embedding_error_for_invalid_seq(
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&mut batch)?;
 
-    let result = context.embeddings_seq_ith(999);
-
-    assert!(result.is_err());
+    assert_eq!(
+        context.embeddings_seq_ith(999),
+        Err(EmbeddingsError::SequenceEmbeddingUnavailable {
+            sequence_index: 999
+        })
+    );
 
     Ok(())
 }
@@ -1070,7 +1077,7 @@ fn kv_cache_seq_div_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) ->
 
     prime_kv_cache(fixture, &mut context)?;
 
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
     let result = context.kv_cache_seq_div(0, Some(0), None, divisor);
 
     assert_eq!(
@@ -1578,7 +1585,7 @@ fn kv_cache_seq_add_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
 fn kv_cache_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
     let result = context.kv_cache_seq_div(0, Some(u32::MAX), None, divisor);
 
     assert_eq!(
@@ -1626,7 +1633,7 @@ fn kv_cache_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
 fn kv_cache_seq_div_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow::anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
     let result = context.kv_cache_seq_div(0, Some(0), Some(u32::MAX), divisor);
 
     assert_eq!(

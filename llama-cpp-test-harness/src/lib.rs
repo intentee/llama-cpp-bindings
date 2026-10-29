@@ -18,9 +18,12 @@ pub mod load_key;
 pub mod model_load_params;
 pub mod no_op;
 pub mod parse_harness_arguments;
+pub mod phase_model_files;
+pub mod phase_setup;
 pub mod phase_state;
 pub mod run;
 pub mod run_to_conclusions;
+pub mod scheduled_phase;
 #[cfg(test)]
 mod test_backend_gate;
 
@@ -34,9 +37,12 @@ pub use crate::llama_test_registration::LlamaTestRegistration;
 pub use crate::load_key::LoadKey;
 pub use crate::model_load_params::ModelLoadParams;
 pub use crate::no_op::no_op;
+pub use crate::phase_model_files::PhaseModelFiles;
+pub use crate::phase_setup::PhaseSetup;
 pub use crate::phase_state::PhaseState;
 pub use crate::run::run;
 pub use crate::run_to_conclusions::run_to_conclusions;
+pub use crate::scheduled_phase::ScheduledPhase;
 pub use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 pub use llama_cpp_test_harness_macros::llama_test;
 

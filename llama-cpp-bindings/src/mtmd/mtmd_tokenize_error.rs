@@ -12,8 +12,10 @@ pub enum MtmdTokenizeError {
     InputChunksError(#[from] MtmdInputChunksError),
     #[error("number of bitmaps does not match number of markers in the text")]
     BitmapCountDoesNotMatchMarkerCount,
-    #[error("media preprocessing failed (image or audio)")]
-    MediaPreprocessingFailed,
+    #[error(
+        "llama.cpp returned 2: media preprocessing failed, or its tokenizer threw (text too large, missing vocab, media marker and bitmap count mismatch, or allocation failure)"
+    )]
+    MediaPreprocessingOrTokenizationFailed,
     #[error("mtmd_tokenize returned an unknown status code: {code}")]
     UnknownStatus { code: i32 },
     #[error("mtmd_tokenize_from_parts returned an unknown status code: {code}")]

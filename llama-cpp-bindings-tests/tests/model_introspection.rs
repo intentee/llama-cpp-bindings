@@ -5,6 +5,7 @@ use std::pin::pin;
 
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::TokenAttrError;
 use llama_cpp_bindings::TokenOutsideVocabulary;
@@ -741,7 +742,7 @@ fn fit_params_succeeds_with_test_model(fixture: &LlamaFixture<'_>) -> Result<()>
     let model_path_utf8 = fixture
         .model_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("model path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("model path is not valid UTF-8"))?;
     let model_path_c = CString::new(model_path_utf8)?;
 
     let mut params = pin!(LlamaModelParams::default());
@@ -757,7 +758,7 @@ fn fit_params_succeeds_with_test_model(fixture: &LlamaFixture<'_>) -> Result<()>
         llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
     );
 
-    let fit = result.map_err(|fit_error| anyhow::anyhow!("fit_params failed: {fit_error:?}"))?;
+    let fit = result.map_err(|fit_error| anyhow!("fit_params failed: {fit_error:?}"))?;
     assert!(fit.n_ctx > 0);
 
     Ok(())
@@ -777,7 +778,7 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
     let model_path_utf8 = fixture
         .model_path
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("model path is not valid UTF-8"))?;
+        .ok_or_else(|| anyhow!("model path is not valid UTF-8"))?;
     let model_path_c = CString::new(model_path_utf8)?;
 
     let mut params = pin!(LlamaModelParams::default());
@@ -804,7 +805,7 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
         llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
     );
 
-    let fit = result.map_err(|fit_error| anyhow::anyhow!("fit_params failed: {fit_error:?}"))?;
+    let fit = result.map_err(|fit_error| anyhow!("fit_params failed: {fit_error:?}"))?;
     assert!(fit.n_ctx > 0);
     assert_ne!(
         extra_context_params.n_ctx(),

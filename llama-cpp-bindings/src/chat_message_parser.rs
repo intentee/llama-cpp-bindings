@@ -4,6 +4,8 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
+use llama_cpp_bindings_types::ModelProvidedToolCallId;
+use llama_cpp_bindings_types::ModelProvidedToolCallIdError;
 use llama_cpp_bindings_types::ParsedChatMessage;
 use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::ParsedToolCallId;
@@ -753,10 +755,11 @@ fn prefix_before_optional(text: &str, marker: Option<&str>) -> String {
 }
 
 fn tool_call_id_reported_by_llama_cpp(llama_cpp_tool_call_id: String) -> ParsedToolCallId {
-    if llama_cpp_tool_call_id.is_empty() {
-        ParsedToolCallId::NotProvidedByModel
-    } else {
-        ParsedToolCallId::ModelProvided(llama_cpp_tool_call_id)
+    match ModelProvidedToolCallId::try_from(llama_cpp_tool_call_id) {
+        Ok(model_provided_tool_call_id) => {
+            ParsedToolCallId::ModelProvided(model_provided_tool_call_id)
+        }
+        Err(ModelProvidedToolCallIdError::Empty) => ParsedToolCallId::NotProvidedByModel,
     }
 }
 
@@ -1027,11 +1030,13 @@ mod tests {
     use std::mem::discriminant;
     use std::ptr;
 
+    use llama_cpp_bindings_types::ModelProvidedToolCallId;
     use llama_cpp_bindings_types::ParsedChatMessage;
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ParsedToolCallId;
     use llama_cpp_bindings_types::ReasoningMarkers;
     use llama_cpp_bindings_types::ToolCallArguments;
+    use serde_json::json;
 
     use super::ReasoningSplit;
     use super::chat_tools_parser_create_status_to_result;
@@ -1103,11 +1108,13 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::MessageUnrecognized { message }) = result else {
-            panic!("the llama.cpp exception status must surface the wrapper message");
-        };
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::MessageUnrecognized {
+                message: "the message could not be parsed".to_owned()
+            })
+        );
 
-        assert_eq!(message, "the message could not be parsed");
         assert!(
             out_error.is_null(),
             "the reclaimed pointer must be nulled so the caller does not free it twice"
@@ -1199,11 +1206,12 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::Reported { message }) = result else {
-            panic!("the llama.cpp exception status must surface the wrapper message");
-        };
-
-        assert_eq!(message, "content read failed");
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::Reported {
+                message: "content read failed".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -1270,11 +1278,12 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::Reported { message }) = result else {
-            panic!("the llama.cpp exception status must surface the wrapper message");
-        };
-
-        assert_eq!(message, "reasoning read failed");
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::Reported {
+                message: "reasoning read failed".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -1334,11 +1343,12 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::Reported { message }) = result else {
-            panic!("the llama.cpp exception status must surface the wrapper message");
-        };
-
-        assert_eq!(message, "tool-call count failed");
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::Reported {
+                message: "tool-call count failed".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -1388,10 +1398,10 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::ToolCallIdIndexOutOfBounds { index }) = result else {
-            panic!("expected ToolCallIdIndexOutOfBounds, got {result:?}");
-        };
-        assert_eq!(index, 4);
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::ToolCallIdIndexOutOfBounds { index: 4 })
+        );
     }
 
     #[test]
@@ -1425,11 +1435,12 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::Reported { message }) = result else {
-            panic!("the llama.cpp exception status must surface the wrapper message");
-        };
-
-        assert_eq!(message, "tool-call id read failed");
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::Reported {
+                message: "tool-call id read failed".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -1480,10 +1491,10 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::ToolCallNameIndexOutOfBounds { index }) = result else {
-            panic!("expected ToolCallNameIndexOutOfBounds, got {result:?}");
-        };
-        assert_eq!(index, 2);
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::ToolCallNameIndexOutOfBounds { index: 2 })
+        );
     }
 
     #[test]
@@ -1517,11 +1528,12 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::Reported { message }) = result else {
-            panic!("the llama.cpp exception status must surface the wrapper message");
-        };
-
-        assert_eq!(message, "tool-call name read failed");
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::Reported {
+                message: "tool-call name read failed".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -1572,10 +1584,10 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::ToolCallArgumentsIndexOutOfBounds { index }) = result else {
-            panic!("expected ToolCallArgumentsIndexOutOfBounds, got {result:?}");
-        };
-        assert_eq!(index, 9);
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::ToolCallArgumentsIndexOutOfBounds { index: 9 })
+        );
     }
 
     #[test]
@@ -1609,11 +1621,12 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::Reported { message }) = result else {
-            panic!("the llama.cpp exception status must surface the wrapper message");
-        };
-
-        assert_eq!(message, "tool-call arguments read failed");
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::Reported {
+                message: "tool-call arguments read failed".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -1863,7 +1876,7 @@ mod tests {
             vec![ParsedToolCall::new(
                 ParsedToolCallId::NotProvidedByModel,
                 "tool".to_owned(),
-                ToolCallArguments::default(),
+                ToolCallArguments::ValidJson(json!({})),
             )],
         );
 
@@ -1886,8 +1899,9 @@ mod tests {
     #[test]
     fn a_non_empty_llama_cpp_tool_call_id_is_provided_by_the_model() {
         assert_eq!(
-            tool_call_id_reported_by_llama_cpp("abc123def".to_owned()),
-            ParsedToolCallId::ModelProvided("abc123def".to_owned())
+            Ok(tool_call_id_reported_by_llama_cpp("abc123def".to_owned())),
+            ModelProvidedToolCallId::try_from("abc123def".to_owned())
+                .map(ParsedToolCallId::ModelProvided)
         );
     }
 
@@ -1963,9 +1977,7 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::NotEnoughMemory) = result else {
-            panic!("an error-string allocation failure must map to NotEnoughMemory");
-        };
+        assert_eq!(result.err(), Some(ParseChatMessageError::NotEnoughMemory));
     }
 
     #[test]
@@ -1977,9 +1989,10 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = result else {
-            panic!("a llama.cpp allocation failure must be reported as its own variant");
-        };
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::LlamaCppOutOfMemory)
+        );
     }
 
     #[test]
@@ -1994,274 +2007,291 @@ mod tests {
             )
         };
 
-        let Err(ParseChatMessageError::DestructorFailed { message }) = result else {
-            panic!("a throwing destructor must surface its message");
-        };
-
-        assert_eq!(message, "the destructor threw");
+        assert_eq!(
+            result.err(),
+            Some(ParseChatMessageError::DestructorFailed {
+                message: "the destructor threw".to_owned()
+            })
+        );
     }
 
     #[test]
     fn parsed_chat_free_unknown_status_is_preserved() {
         let result = unsafe { parsed_chat_free_status_to_result(255, ptr::null_mut()) };
 
-        let Err(ParseChatMessageError::FfiStatus(status_error)) = result else {
-            panic!("an unrecognized status must be preserved verbatim");
-        };
-
         assert_eq!(
-            status_error,
-            crate::FfiStatusError {
+            result.err(),
+            Some(ParseChatMessageError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_parsed_chat_free",
                 code: 255,
-            }
+            }))
         );
     }
 
     #[test]
-    fn parse_chat_message_status_to_result_maps_every_contract_status() {
+    fn parse_chat_message_status_to_result_maps_null_tools_parser_arg() {
         let mut out_error_slot: *mut c_char = ptr::null_mut();
-        let outcome_0 = unsafe {
+        let outcome = unsafe {
             parse_chat_message_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_TOOLS_PARSER_ARG,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_0)) = outcome_0 else {
-            panic!(
-                "LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_TOOLS_PARSER_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_0,
-            crate::FfiContractError {
-                operation: "llama_rs_parse_chat_message",
-                detail: "was given a null tools parser argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parse_chat_message",
+                    detail: "was given a null tools parser argument",
+                }
+            ))
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn parse_chat_message_status_to_result_maps_null_input_arg() {
+        let mut out_error_slot: *mut c_char = ptr::null_mut();
+        let outcome = unsafe {
             parse_chat_message_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_INPUT_ARG,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_1)) = outcome_1 else {
-            panic!("LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_INPUT_ARG must map to a contract error");
-        };
         assert_eq!(
-            contract_1,
-            crate::FfiContractError {
-                operation: "llama_rs_parse_chat_message",
-                detail: "was given a null input argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parse_chat_message",
+                    detail: "was given a null input argument",
+                }
+            ))
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn parse_chat_message_status_to_result_maps_null_out_handle_arg() {
+        let mut out_error_slot: *mut c_char = ptr::null_mut();
+        let outcome = unsafe {
             parse_chat_message_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_HANDLE_ARG,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_2)) = outcome_2 else {
-            panic!("LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_HANDLE_ARG must map to a contract error");
-        };
         assert_eq!(
-            contract_2,
-            crate::FfiContractError {
-                operation: "llama_rs_parse_chat_message",
-                detail: "was given a null out_handle argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parse_chat_message",
+                    detail: "was given a null out_handle argument",
+                }
+            ))
         );
-        let outcome_3 = unsafe {
+    }
+
+    #[test]
+    fn parse_chat_message_status_to_result_maps_null_out_error_arg() {
+        let mut out_error_slot: *mut c_char = ptr::null_mut();
+        let outcome = unsafe {
             parse_chat_message_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_ERROR_ARG,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_3)) = outcome_3 else {
-            panic!("LLAMA_RS_PARSE_CHAT_MESSAGE_NULL_OUT_ERROR_ARG must map to a contract error");
-        };
         assert_eq!(
-            contract_3,
-            crate::FfiContractError {
-                operation: "llama_rs_parse_chat_message",
-                detail: "was given a null out_error argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parse_chat_message",
+                    detail: "was given a null out_error argument",
+                }
+            ))
         );
-        let outcome_4 = unsafe {
+    }
+
+    #[test]
+    fn parse_chat_message_status_to_result_maps_llama_cpp_out_of_memory() {
+        let mut out_error_slot: *mut c_char = ptr::null_mut();
+        let outcome = unsafe {
             parse_chat_message_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
                 &raw mut out_error_slot,
             )
         };
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome_4 else {
-            panic!(
-                "LLAMA_RS_PARSE_CHAT_MESSAGE_LLAMA_CPP_OUT_OF_MEMORY must map to LlamaCppOutOfMemory"
-            );
-        };
+        assert_eq!(
+            outcome.err(),
+            Some(ParseChatMessageError::LlamaCppOutOfMemory)
+        );
     }
 
     #[test]
-    fn parsed_chat_content_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn parsed_chat_content_status_to_result_maps_null_handle_arg() {
+        let outcome = unsafe {
             parsed_chat_content_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_NULL_HANDLE_ARG,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_0)) = outcome_0 else {
-            panic!("LLAMA_RS_PARSED_CHAT_CONTENT_NULL_HANDLE_ARG must map to a contract error");
-        };
         assert_eq!(
-            contract_0,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_content",
-                detail: "was given a null handle argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_content",
+                    detail: "was given a null handle argument",
+                }
+            ))
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_content_status_to_result_maps_null_out_string_arg() {
+        let outcome = unsafe {
             parsed_chat_content_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_NULL_OUT_STRING_ARG,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_1)) = outcome_1 else {
-            panic!("LLAMA_RS_PARSED_CHAT_CONTENT_NULL_OUT_STRING_ARG must map to a contract error");
-        };
         assert_eq!(
-            contract_1,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_content",
-                detail: "was given a null out_string argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_content",
+                    detail: "was given a null out_string argument",
+                }
+            ))
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_content_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             parsed_chat_content_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_CONTENT_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome_2 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_CONTENT_LLAMA_CPP_OUT_OF_MEMORY must map to LlamaCppOutOfMemory"
-            );
-        };
+        assert_eq!(
+            outcome.err(),
+            Some(ParseChatMessageError::LlamaCppOutOfMemory)
+        );
     }
 
     #[test]
-    fn parsed_chat_reasoning_content_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn parsed_chat_reasoning_content_status_to_result_maps_null_handle_arg() {
+        let outcome = unsafe {
             parsed_chat_reasoning_content_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_NULL_HANDLE_ARG,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_0)) = outcome_0 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_NULL_HANDLE_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_0,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_reasoning_content",
-                detail: "was given a null handle argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_reasoning_content",
+                    detail: "was given a null handle argument",
+                }
+            ))
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_reasoning_content_status_to_result_maps_null_out_string_arg() {
+        let outcome = unsafe {
             parsed_chat_reasoning_content_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_NULL_OUT_STRING_ARG,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_1)) = outcome_1 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_NULL_OUT_STRING_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_1,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_reasoning_content",
-                detail: "was given a null out_string argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_reasoning_content",
+                    detail: "was given a null out_string argument",
+                }
+            ))
         );
-        let outcome_2 = unsafe {
-            parsed_chat_reasoning_content_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_LLAMA_CPP_OUT_OF_MEMORY, ptr::null_mut(), ptr::null_mut())
-        };
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome_2 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_LLAMA_CPP_OUT_OF_MEMORY must map to LlamaCppOutOfMemory"
-            );
-        };
     }
 
     #[test]
-    fn parsed_chat_tool_call_count_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn parsed_chat_reasoning_content_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
+            parsed_chat_reasoning_content_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_REASONING_CONTENT_LLAMA_CPP_OUT_OF_MEMORY, ptr::null_mut(), ptr::null_mut())
+        };
+        assert_eq!(
+            outcome.err(),
+            Some(ParseChatMessageError::LlamaCppOutOfMemory)
+        );
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_count_status_to_result_maps_null_handle_arg() {
+        let outcome = unsafe {
             parsed_chat_tool_call_count_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_NULL_HANDLE_ARG,
                 0,
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_0)) = outcome_0 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_NULL_HANDLE_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_0,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_tool_call_count",
-                detail: "was given a null handle argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_tool_call_count",
+                    detail: "was given a null handle argument",
+                }
+            ))
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_count_status_to_result_maps_null_out_count_arg() {
+        let outcome = unsafe {
             parsed_chat_tool_call_count_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_NULL_OUT_COUNT_ARG,
                 0,
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_1)) = outcome_1 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_NULL_OUT_COUNT_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_1,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_tool_call_count",
-                detail: "was given a null out_count argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_tool_call_count",
+                    detail: "was given a null out_count argument",
+                }
+            ))
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_count_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             parsed_chat_tool_call_count_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_LLAMA_CPP_OUT_OF_MEMORY,
                 0,
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome_2 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_COUNT_LLAMA_CPP_OUT_OF_MEMORY must map to LlamaCppOutOfMemory"
-            );
-        };
+        assert_eq!(
+            outcome.err(),
+            Some(ParseChatMessageError::LlamaCppOutOfMemory)
+        );
     }
 
     #[test]
-    fn parsed_chat_tool_call_id_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn parsed_chat_tool_call_id_status_to_result_maps_null_handle_arg() {
+        let outcome = unsafe {
             parsed_chat_tool_call_id_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_NULL_HANDLE_ARG,
                 0,
@@ -2269,19 +2299,20 @@ mod tests {
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_0)) = outcome_0 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_NULL_HANDLE_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_0,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_tool_call_id",
-                detail: "was given a null handle argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_tool_call_id",
+                    detail: "was given a null handle argument",
+                }
+            ))
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_id_status_to_result_maps_null_out_string_arg() {
+        let outcome = unsafe {
             parsed_chat_tool_call_id_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_NULL_OUT_STRING_ARG,
                 0,
@@ -2289,19 +2320,20 @@ mod tests {
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_1)) = outcome_1 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_NULL_OUT_STRING_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_1,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_tool_call_id",
-                detail: "was given a null out_string argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_tool_call_id",
+                    detail: "was given a null out_string argument",
+                }
+            ))
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_id_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             parsed_chat_tool_call_id_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_LLAMA_CPP_OUT_OF_MEMORY,
                 0,
@@ -2309,16 +2341,15 @@ mod tests {
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome_2 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_ID_LLAMA_CPP_OUT_OF_MEMORY must map to LlamaCppOutOfMemory"
-            );
-        };
+        assert_eq!(
+            outcome.err(),
+            Some(ParseChatMessageError::LlamaCppOutOfMemory)
+        );
     }
 
     #[test]
-    fn parsed_chat_tool_call_name_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn parsed_chat_tool_call_name_status_to_result_maps_null_handle_arg() {
+        let outcome = unsafe {
             parsed_chat_tool_call_name_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_NULL_HANDLE_ARG,
                 0,
@@ -2326,19 +2357,20 @@ mod tests {
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_0)) = outcome_0 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_NULL_HANDLE_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_0,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_tool_call_name",
-                detail: "was given a null handle argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_tool_call_name",
+                    detail: "was given a null handle argument",
+                }
+            ))
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_name_status_to_result_maps_null_out_string_arg() {
+        let outcome = unsafe {
             parsed_chat_tool_call_name_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_NULL_OUT_STRING_ARG,
                 0,
@@ -2346,19 +2378,20 @@ mod tests {
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_1)) = outcome_1 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_NULL_OUT_STRING_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_1,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_tool_call_name",
-                detail: "was given a null out_string argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_tool_call_name",
+                    detail: "was given a null out_string argument",
+                }
+            ))
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_name_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             parsed_chat_tool_call_name_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_LLAMA_CPP_OUT_OF_MEMORY,
                 0,
@@ -2366,16 +2399,15 @@ mod tests {
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome_2 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_NAME_LLAMA_CPP_OUT_OF_MEMORY must map to LlamaCppOutOfMemory"
-            );
-        };
+        assert_eq!(
+            outcome.err(),
+            Some(ParseChatMessageError::LlamaCppOutOfMemory)
+        );
     }
 
     #[test]
-    fn parsed_chat_tool_call_arguments_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn parsed_chat_tool_call_arguments_status_to_result_maps_null_handle_arg() {
+        let outcome = unsafe {
             parsed_chat_tool_call_arguments_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NULL_HANDLE_ARG,
                 0,
@@ -2383,41 +2415,42 @@ mod tests {
                 ptr::null_mut(),
             )
         };
-        let Err(ParseChatMessageError::FfiContract(contract_0)) = outcome_0 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NULL_HANDLE_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_0,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_tool_call_arguments",
-                detail: "was given a null handle argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_tool_call_arguments",
+                    detail: "was given a null handle argument",
+                }
+            ))
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_arguments_status_to_result_maps_null_out_string_arg() {
+        let outcome = unsafe {
             parsed_chat_tool_call_arguments_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NULL_OUT_STRING_ARG, 0, ptr::null_mut(), ptr::null_mut())
         };
-        let Err(ParseChatMessageError::FfiContract(contract_1)) = outcome_1 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NULL_OUT_STRING_ARG must map to a contract error"
-            );
-        };
         assert_eq!(
-            contract_1,
-            crate::FfiContractError {
-                operation: "llama_rs_parsed_chat_tool_call_arguments",
-                detail: "was given a null out_string argument",
-            }
+            outcome.err(),
+            Some(ParseChatMessageError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_parsed_chat_tool_call_arguments",
+                    detail: "was given a null out_string argument",
+                }
+            ))
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn parsed_chat_tool_call_arguments_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             parsed_chat_tool_call_arguments_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_LLAMA_CPP_OUT_OF_MEMORY, 0, ptr::null_mut(), ptr::null_mut())
         };
-        let Err(ParseChatMessageError::LlamaCppOutOfMemory) = outcome_2 else {
-            panic!(
-                "LLAMA_RS_PARSED_CHAT_TOOL_CALL_ARGUMENTS_LLAMA_CPP_OUT_OF_MEMORY must map to LlamaCppOutOfMemory"
-            );
-        };
+        assert_eq!(
+            outcome.err(),
+            Some(ParseChatMessageError::LlamaCppOutOfMemory)
+        );
     }
 
     fn tools_parser_creation_error(

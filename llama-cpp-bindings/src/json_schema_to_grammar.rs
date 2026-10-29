@@ -105,10 +105,7 @@ pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, JsonSchemaToG
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::c_char;
-
     use super::json_schema_to_grammar;
-    use super::json_schema_to_grammar_status_to_result;
     use crate::error::JsonSchemaToGrammarError;
 
     #[test]
@@ -170,14 +167,23 @@ mod tests {
             std::mem::discriminant(&representative)
         );
     }
+}
+
+#[cfg(test)]
+mod json_schema_to_grammar_status_to_result_tests {
+    use std::ffi::c_char;
+    use std::ptr;
+
+    use super::json_schema_to_grammar_status_to_result;
+    use crate::error::JsonSchemaToGrammarError;
 
     #[test]
     fn invalid_schema_status_without_a_message_is_a_contract_error() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
             )
         };
 
@@ -196,8 +202,8 @@ mod tests {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
             )
         };
 
@@ -216,8 +222,8 @@ mod tests {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
             )
         };
 
@@ -238,7 +244,7 @@ mod tests {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
                 out,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             )
         };
         let representative =
@@ -262,7 +268,7 @@ mod tests {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
                 out,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             )
         };
 
@@ -274,8 +280,8 @@ mod tests {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
             )
         };
 
@@ -293,7 +299,7 @@ mod tests {
     #[test]
     fn unknown_status_is_preserved() {
         let result = unsafe {
-            json_schema_to_grammar_status_to_result(255, std::ptr::null_mut(), std::ptr::null_mut())
+            json_schema_to_grammar_status_to_result(255, ptr::null_mut(), ptr::null_mut())
         };
 
         assert_eq!(
@@ -304,17 +310,10 @@ mod tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod ffi_contract_status_tests {
-    use super::json_schema_to_grammar_status_to_result;
-    use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
-    use std::ptr;
 
     #[test]
-    fn json_schema_to_grammar_status_to_result_maps_every_contract_status() {
-        let outcome_0 = unsafe {
+    fn json_schema_to_grammar_status_to_result_maps_null_schema_json_arg() {
+        let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG,
                 ptr::null_mut(),
@@ -322,7 +321,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_0.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_json_schema_to_grammar",
@@ -331,7 +330,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_1 = unsafe {
+    }
+
+    #[test]
+    fn json_schema_to_grammar_status_to_result_maps_null_out_grammar_arg() {
+        let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG,
                 ptr::null_mut(),
@@ -339,7 +342,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_1.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_json_schema_to_grammar",
@@ -348,7 +351,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_2 = unsafe {
+    }
+
+    #[test]
+    fn json_schema_to_grammar_status_to_result_maps_null_out_error_arg() {
+        let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG,
                 ptr::null_mut(),
@@ -356,7 +363,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_2.err(),
+            outcome.err(),
             Some(
                 crate::FfiContractError {
                     operation: "llama_rs_json_schema_to_grammar",
@@ -365,7 +372,11 @@ mod ffi_contract_status_tests {
                 .into()
             )
         );
-        let outcome_3 = unsafe {
+    }
+
+    #[test]
+    fn json_schema_to_grammar_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
@@ -373,7 +384,7 @@ mod ffi_contract_status_tests {
             )
         };
         assert_eq!(
-            outcome_3.err(),
+            outcome.err(),
             Some(JsonSchemaToGrammarError::LlamaCppOutOfMemory)
         );
     }
