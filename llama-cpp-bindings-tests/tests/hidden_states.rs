@@ -413,3 +413,28 @@ fn final_hidden_states_of_a_row_follow_the_state_decoded_before_it(
 
     Ok(())
 }
+
+#[llama_test(
+    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 512,
+)]
+fn nextn_embeddings_are_refused_and_stay_disabled_on_a_model_without_nextn_hidden_states(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = final_hidden_state_context(fixture, false)?;
+
+    assert_eq!(
+        context.enable_masked_nextn_embeddings(),
+        Err(EmbeddingsError::NextnEmbeddingsUnsupported)
+    );
+    assert_eq!(
+        context.nextn_embeddings_ith(0),
+        Err(EmbeddingsError::NextnEmbeddingsNotEnabled)
+    );
+
+    Ok(())
+}

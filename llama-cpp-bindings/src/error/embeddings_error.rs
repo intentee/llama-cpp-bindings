@@ -23,6 +23,22 @@ pub enum EmbeddingsError {
     #[error("NextN embeddings weren't enabled on this context")]
     NextnEmbeddingsNotEnabled,
     #[error(
+        "NextN embeddings are unavailable because this model's graph produces no NextN hidden state"
+    )]
+    NextnEmbeddingsUnsupported,
+    #[error("llama.cpp failed to reserve the graph that checks for a NextN hidden state")]
+    NextnProbeGraphReservationFailed,
+    #[error("not enough memory to report why the NextN hidden state check failed")]
+    NextnProbeNotEnoughMemory,
+    #[error("llama.cpp ran out of memory while checking for a NextN hidden state")]
+    NextnProbeLlamaCppOutOfMemory,
+    #[error("llama.cpp failed while checking for a NextN hidden state: {message}")]
+    NextnProbeReported { message: String },
+    #[error(transparent)]
+    FfiContract(#[from] crate::FfiContractError),
+    #[error(transparent)]
+    FfiStatus(#[from] crate::FfiStatusError),
+    #[error(
         "No NextN embedding exists for token {token_index}; it was not marked as an output of the last decoded batch"
     )]
     NextnEmbeddingUnavailable { token_index: i32 },

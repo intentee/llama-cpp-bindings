@@ -1,6 +1,8 @@
+use std::ffi::c_char;
 use std::ffi::c_void;
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroI32;
+use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 use std::sync::Arc;
@@ -33,10 +35,67 @@ const fn check_lora_adapters_result(err_code: i32) -> Result<(), LlamaLoraAdapte
     Ok(())
 }
 
+fn nextn_hidden_state_probe_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_context_nextn_hidden_state_probe_status,
+    produces_nextn_hidden_state: bool,
+    out_error: *mut c_char,
+) -> Result<bool, EmbeddingsError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_OK => {
+            Ok(produces_nextn_hidden_state)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+                detail: "was given a null ctx argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_PRODUCES_NEXTN_HIDDEN_STATE_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+                detail: "was given a null out_produces_nextn_hidden_state argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_FAILED_TO_RESERVE_GRAPH => {
+            Err(EmbeddingsError::NextnProbeGraphReservationFailed)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(EmbeddingsError::NextnProbeNotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(EmbeddingsError::NextnProbeLlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_context_graph_produces_nextn_hidden_state",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(EmbeddingsError::NextnProbeReported { message })
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
 fn new_context_with_model_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_new_context_with_model_status,
     out_ctx: *mut llama_cpp_bindings_sys::llama_context,
-    out_error: *mut std::os::raw::c_char,
+    out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_context>, LlamaContextLoadError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK => NonNull::new(out_ctx)
@@ -98,7 +157,7 @@ fn new_context_with_model_status_to_result(
 fn decode_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_decode_status,
     out_llama_cpp_return_code: i32,
-    out_error: *mut std::os::raw::c_char,
+    out_error: *mut c_char,
 ) -> Result<(), DecodeError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_OK => Ok(()),
@@ -153,7 +212,7 @@ fn decode_status_to_result(
 fn encode_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_encode_status,
     out_llama_cpp_return_code: i32,
-    out_error: *mut std::os::raw::c_char,
+    out_error: *mut c_char,
 ) -> Result<(), EncodeError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_OK => Ok(()),
@@ -316,8 +375,8 @@ impl<'model> LlamaContext<'model> {
         }
         .validate()?;
 
-        let mut out_ctx: *mut llama_cpp_bindings_sys::llama_context = std::ptr::null_mut();
-        let mut out_error: *mut std::os::raw::c_char = std::ptr::null_mut();
+        let mut out_ctx: *mut llama_cpp_bindings_sys::llama_context = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_new_context_with_model(
                 model.model.as_ptr(),
@@ -377,7 +436,7 @@ impl<'model> LlamaContext<'model> {
             llama_cpp_bindings_sys::llama_set_abort_callback(
                 self.context.as_ptr(),
                 None,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             );
         }
     }
@@ -414,7 +473,7 @@ impl<'model> LlamaContext<'model> {
         }
 
         let mut out_llama_cpp_return_code: i32 = 0;
-        let mut out_error: *mut std::os::raw::c_char = std::ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_decode(
                 self.context.as_ptr(),
@@ -443,7 +502,7 @@ impl<'model> LlamaContext<'model> {
         }
 
         let mut out_llama_cpp_return_code: i32 = 0;
-        let mut out_error: *mut std::os::raw::c_char = std::ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_encode(
                 self.context.as_ptr(),
@@ -561,6 +620,8 @@ impl<'model> LlamaContext<'model> {
     ///
     /// - When the context pools its outputs, because llama.cpp only extracts `NextN` embeddings
     ///   with `LLAMA_POOLING_TYPE_NONE`.
+    /// - When the model's graph produces no `NextN` hidden state; `NextN` embeddings stay disabled.
+    /// - When llama.cpp fails while checking the graph; `NextN` embeddings stay disabled.
     pub fn enable_masked_nextn_embeddings(&mut self) -> Result<(), EmbeddingsError> {
         let pooling_type = self.pooling_type();
 
@@ -568,15 +629,45 @@ impl<'model> LlamaContext<'model> {
             return Err(EmbeddingsError::NextnEmbeddingsRequireNonePooling { pooling_type });
         }
 
+        self.set_masked_nextn_embeddings(true);
+
+        let enabled =
+            self.graph_produces_nextn_hidden_state()
+                .and_then(|produces_nextn_hidden_state| {
+                    produces_nextn_hidden_state
+                        .then_some(())
+                        .ok_or(EmbeddingsError::NextnEmbeddingsUnsupported)
+                });
+
+        if enabled.is_err() {
+            self.set_masked_nextn_embeddings(false);
+        }
+
+        enabled
+    }
+
+    fn set_masked_nextn_embeddings(&mut self, enabled: bool) {
         unsafe {
             llama_cpp_bindings_sys::llama_rs_set_embeddings_nextn(
                 self.context.as_ptr(),
-                true,
-                true,
+                enabled,
+                enabled,
             );
         }
+    }
 
-        Ok(())
+    fn graph_produces_nextn_hidden_state(&self) -> Result<bool, EmbeddingsError> {
+        let mut produces_nextn_hidden_state = false;
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_context_graph_produces_nextn_hidden_state(
+                self.context.as_ptr(),
+                &raw mut produces_nextn_hidden_state,
+                &raw mut out_error,
+            )
+        };
+
+        nextn_hidden_state_probe_status_to_result(status, produces_nextn_hidden_state, out_error)
     }
 
     /// # Errors
@@ -711,10 +802,8 @@ impl<'model> LlamaContext<'model> {
             .collect::<Vec<_>>();
         let raw_adapters_ptr = raw_adapters
             .first_mut()
-            .map_or(std::ptr::null_mut(), std::ptr::from_mut);
-        let scales_ptr = scales
-            .first_mut()
-            .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+            .map_or(ptr::null_mut(), ptr::from_mut);
+        let scales_ptr = scales.first_mut().map_or(ptr::null_mut(), ptr::from_mut);
         let err_code = unsafe {
             llama_cpp_bindings_sys::llama_set_adapters_lora(
                 self.context.as_ptr(),
@@ -751,6 +840,165 @@ mod check_lora_adapters_result_tests {
         let result = check_lora_adapters_result(-1);
 
         assert_eq!(result, Err(LlamaLoraAdaptersError::ErrorResult(-1)));
+    }
+}
+
+#[cfg(test)]
+mod nextn_hidden_state_probe_status_to_result_tests {
+    use std::ptr;
+
+    use llama_cpp_ffi_status::read_and_free_cpp_string;
+    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer;
+
+    use super::nextn_hidden_state_probe_status_to_result;
+    use crate::EmbeddingsError;
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_ok_to_whether_the_graph_produces_it() {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_OK,
+                true,
+                ptr::null_mut(),
+            ),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_null_ctx_arg() {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_CTX_ARG,
+                false,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+                detail: "was given a null ctx argument",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_null_out_produces_nextn_hidden_state_arg() {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_PRODUCES_NEXTN_HIDDEN_STATE_ARG,
+                false,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+                detail: "was given a null out_produces_nextn_hidden_state argument",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_null_out_error_arg() {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_ERROR_ARG,
+                false,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_llama_cpp_failed_to_reserve_graph() {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_FAILED_TO_RESERVE_GRAPH,
+                false,
+                ptr::null_mut(),
+            ),
+            Err(EmbeddingsError::NextnProbeGraphReservationFailed)
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_error_string_allocation_failed() {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_ERROR_STRING_ALLOCATION_FAILED,
+                false,
+                ptr::null_mut(),
+            ),
+            Err(EmbeddingsError::NextnProbeNotEnoughMemory)
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_llama_cpp_out_of_memory() {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_OUT_OF_MEMORY,
+                false,
+                ptr::null_mut(),
+            ),
+            Err(EmbeddingsError::NextnProbeLlamaCppOutOfMemory)
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_a_thrown_exception_with_its_message() {
+        let expected_message = unsafe {
+            read_and_free_cpp_string(
+                wrapper_allocated_error_message_pointer(),
+                "llama_rs_context_graph_produces_nextn_hidden_state",
+                "reported a thrown C++ exception without an error message",
+            )
+        };
+
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                false,
+                wrapper_allocated_error_message_pointer(),
+            )
+            .err(),
+            expected_message
+                .ok()
+                .map(|message| EmbeddingsError::NextnProbeReported { message })
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_llama_cpp_threw_cxx_exception_without_a_message()
+     {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                false,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn nextn_hidden_state_probe_status_to_result_maps_an_unknown_status() {
+        assert_eq!(
+            nextn_hidden_state_probe_status_to_result(255, false, ptr::null_mut()),
+            Err(crate::FfiStatusError {
+                operation: "llama_rs_context_graph_produces_nextn_hidden_state",
+                code: 255,
+            }
+            .into())
+        );
     }
 }
 
