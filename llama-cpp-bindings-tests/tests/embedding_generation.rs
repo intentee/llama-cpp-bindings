@@ -1,12 +1,9 @@
-use std::time::Duration;
-
 use anyhow::Context;
 use anyhow::Result;
 use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::params::LlamaPoolingType;
-use llama_cpp_bindings::ggml_time_us;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::ParseSpecialTokens;
@@ -43,8 +40,6 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
     let n_ctx = usize::try_from(ctx.n_ctx())?;
     assert!(tokens.len() <= n_ctx, "prompt exceeds context window size");
 
-    let t_main_start = ggml_time_us();
-
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
@@ -63,15 +58,6 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
         .embeddings_seq_ith(0)
         .with_context(|| "failed to get embeddings")?;
     let normalized = normalize(embedding);
-
-    let t_main_end = ggml_time_us();
-    let duration = Duration::from_micros(u64::try_from(t_main_end - t_main_start)?);
-
-    eprintln!(
-        "created embedding with {} dimensions in {:.2} s",
-        normalized.len(),
-        duration.as_secs_f32()
-    );
 
     assert!(
         !normalized.is_empty(),

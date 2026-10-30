@@ -66,7 +66,9 @@ fn load_fixture_bitmap(mtmd_ctx: &MtmdContext, file_name: &str) -> Result<MtmdBi
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let mtmd_ctx = fixture
         .mtmd_context

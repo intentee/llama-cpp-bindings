@@ -1,6 +1,3 @@
-use std::io::Write;
-use std::time::Duration;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::BareJsonToolCalls;
@@ -8,11 +5,9 @@ use llama_cpp_bindings::ChatAssistantTurn;
 use llama_cpp_bindings::ChatSession;
 use llama_cpp_bindings::ChatSessionOptions;
 use llama_cpp_bindings::ChatToolChoice;
-use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::ggml_time_us;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaChatMessage;
@@ -75,16 +70,6 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
         .context(format!("failed to tokenize {prompt}"))?;
     let prompt_token_count = u64::try_from(tokens_list.len())?;
 
-    let mut decoder = encoding_rs::UTF_8.new_decoder();
-
-    for token in &tokens_list {
-        eprint!(
-            "{}",
-            model.token_to_piece(&SampledToken::Content(*token), &mut decoder, true, None)?
-        );
-    }
-    std::io::stderr().flush()?;
-
     let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens_list, 0, false)?;
 
@@ -101,7 +86,6 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
     let mut sampler =
         LlamaSampler::chain_simple([LlamaSampler::dist(1234)?, LlamaSampler::greedy()?])?;
     let initial_position = batch.n_tokens();
-    let t_main_start = ggml_time_us();
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -111,17 +95,8 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
         max_generated_tokens,
     }
     .run();
-    let t_main_end = ggml_time_us();
-    let duration = Duration::from_micros(u64::try_from(t_main_end - t_main_start)?);
     let total_observed =
         outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable;
-
-    let tokens_per_second = f64::from(u32::try_from(total_observed)?) / duration.as_secs_f64();
-
-    eprintln!(
-        "\ndecoded {total_observed} tokens in {:.2} s, speed {tokens_per_second:.2} t/s",
-        duration.as_secs_f64(),
-    );
 
     assert!(
         !outcome.generated.text().is_empty(),
@@ -251,8 +226,6 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         max_generated_tokens: 512,
     }
     .run();
-
-    println!();
 
     assert!(
         !outcome.generated.text().is_empty(),

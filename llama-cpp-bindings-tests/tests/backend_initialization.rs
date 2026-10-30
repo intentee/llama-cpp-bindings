@@ -10,7 +10,7 @@ use llama_cpp_test_harness::llama_test;
     n_ubatch = 64,
     void_logs = true,
 )]
-fn void_logs_suppresses_output(fixture: &LlamaFixture<'_>) {
+fn a_model_loads_after_llama_cpp_logging_is_silenced(fixture: &LlamaFixture<'_>) {
     assert!(
         fixture.model.n_vocab() > 0,
         "model must load successfully even when void_logs has been called before init"

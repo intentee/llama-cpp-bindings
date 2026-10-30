@@ -11,7 +11,7 @@ use llama_cpp_fault_injection::injected_fault_message;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
-use crate::tokenize_synthetic::tokenize_synthetic;
+use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_prompt_with_synthetic_image;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
@@ -32,7 +32,7 @@ use crate::tokenize_synthetic::tokenize_synthetic;
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello world <__media__>");
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert_eq!(first_chunk.chunk_type()?, MtmdInputChunkType::Text);
     Ok(())
@@ -57,7 +57,7 @@ fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello world <__media__>");
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     let tokens = first_chunk
         .text_tokens_of(first_chunk.chunk_type()?)
@@ -87,7 +87,7 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello world <__media__>");
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert!(first_chunk.n_tokens() > 0);
     Ok(())
@@ -112,7 +112,7 @@ fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello world <__media__>");
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert!(first_chunk.n_positions() > 0);
     Ok(())
@@ -137,7 +137,7 @@ fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let chunks = tokenize_synthetic(fixture, "Hello <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello <__media__>");
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert_eq!(first_chunk.chunk_type()?, MtmdInputChunkType::Text);
     assert!(first_chunk.id().is_none());
@@ -163,7 +163,7 @@ fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn image_chunk_returns_none_for_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let chunks = tokenize_synthetic(fixture, "Hello <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello <__media__>");
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
@@ -196,7 +196,7 @@ fn image_chunk_returns_none_for_text_tokens(fixture: &LlamaFixture<'_>) -> Resul
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn image_chunk_id_returns_some(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let chunks = tokenize_synthetic(fixture, "Hello <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello <__media__>");
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)

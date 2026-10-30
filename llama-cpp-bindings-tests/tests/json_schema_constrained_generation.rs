@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
@@ -190,16 +188,12 @@ fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
 
         let output_string = model.token_to_piece(&token, &mut decoder, true, None)?;
         generated.push_str(&output_string);
-        print!("{output_string}");
-        std::io::stdout().flush()?;
 
         batch.clear();
         batch.add(&token, n_cur, &[0], true)?;
         n_cur += 1;
         ctx.decode(&batch)?;
     }
-
-    println!();
 
     let parsed = serde_json::Deserializer::from_str(&generated)
         .into_iter::<serde_json::Value>()

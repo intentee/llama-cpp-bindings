@@ -26,7 +26,9 @@ use llama_cpp_test_harness::llama_test;
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let mtmd_ctx = fixture
         .mtmd_context
@@ -71,14 +73,6 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
 
     let expected = ChunkTokenBreakdown::from_chunks(&chunks);
 
-    eprintln!(
-        "tokenized into {} chunks, text {} image {} audio {}",
-        chunks.len(),
-        expected.text,
-        expected.image,
-        expected.audio
-    );
-
     assert!(
         expected.image > 0,
         "vision input must produce at least one image chunk"
@@ -100,8 +94,6 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
         )
         .with_context(|| "failed to evaluate chunks")?;
 
-    eprintln!("evaluated chunks, n_past = {n_past}");
-
     {
         let usage = classifier.usage();
         assert_eq!(usage.prompt_tokens, expected.text);
@@ -120,8 +112,6 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
         max_generated_tokens: 512,
     }
     .run();
-
-    eprintln!("generated text: {}", totals.generated.text());
 
     assert!(
         !totals.generated.text().is_empty(),

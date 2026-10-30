@@ -26,7 +26,7 @@ use llama_cpp_fault_injection::ArmedFault;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
-use crate::tokenize_synthetic::tokenize_synthetic;
+use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_prompt_with_synthetic_image;
 
 fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) -> Result<()> {
     let mtmd_ctx = fixture
@@ -150,7 +150,7 @@ fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
-    let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -230,7 +230,7 @@ fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
         (*fixture.context_params).into_llama_context_params(),
     )?;
     let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_synthetic(fixture, "Describe: <__media__>")?,
+        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>"),
         mtmd_ctx,
         llama_ctx.n_ubatch(),
     )?;
@@ -263,7 +263,7 @@ fn eval_single_rejects_a_batch_larger_than_the_context_batch_before_evaluating(
         .expect("mmproj_file declared in attribute");
     let mut llama_ctx = fixture.build_context()?;
     let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_synthetic(fixture, "Describe: <__media__>")?,
+        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>"),
         mtmd_ctx,
         llama_ctx.n_ubatch(),
     )?;
@@ -300,7 +300,7 @@ fn eval_chunks_rejects_a_sequence_the_context_does_not_have_instead_of_aborting(
         .mtmd_context
         .expect("mmproj_file declared in attribute");
     let mut llama_ctx = fixture.build_context()?;
-    let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
     let n_seq_max = llama_ctx.n_seq_max();
     let missing_sequence = i32::try_from(n_seq_max)?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
@@ -348,7 +348,7 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
     )?;
     let fitted_micro_batch_tokens = llama_ctx.n_ubatch();
     let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_synthetic(fixture, "Describe: <__media__>")?,
+        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>"),
         mtmd_ctx,
         fitted_micro_batch_tokens,
     )?;
@@ -397,7 +397,7 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
-    let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,

@@ -1,12 +1,9 @@
-use std::time::Duration;
-
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
 use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::ggml_time_us;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::ParseSpecialTokens;
@@ -75,7 +72,6 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
-    let t_main_start = ggml_time_us();
 
     for (sequence_index, tokens) in tokens_lines_list.iter().enumerate() {
         classifier.feed_prompt_sequence_to_batch(
@@ -108,16 +104,6 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
         embeddings.push(normalize(raw_embedding));
     }
 
-    let t_main_end = ggml_time_us();
-    let duration = Duration::from_micros(u64::try_from(t_main_end - t_main_start)?);
-
-    let tokens_per_second = f64::from(u32::try_from(total_tokens)?) / duration.as_secs_f64();
-
-    eprintln!(
-        "created embeddings for {total_tokens} tokens in {:.2} s, speed {tokens_per_second:.2} t/s",
-        duration.as_secs_f64(),
-    );
-
     assert_eq!(
         embeddings.len(),
         document_count,
@@ -132,7 +118,6 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
     }
 
     let similarity = cosine_similarity(&embeddings[0], &embeddings[1]);
-    eprintln!("cosine similarity between document embeddings: {similarity:.4}");
 
     assert!(
         similarity.is_finite(),
