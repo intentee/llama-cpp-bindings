@@ -1,5 +1,5 @@
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdInputChunkType;
 use llama_cpp_bindings::mtmd::MtmdInputText;
@@ -40,7 +40,7 @@ fn encode_chunk_succeeds_for_image_chunk(fixture: &LlamaFixture<'_>) -> Result<(
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
+            .context(format!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
             let result = mtmd_ctx.encode_chunk(&chunk);
             assert!(result.is_ok());

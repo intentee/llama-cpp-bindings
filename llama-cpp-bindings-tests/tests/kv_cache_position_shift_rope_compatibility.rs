@@ -1,7 +1,7 @@
 use std::num::NonZeroU8;
 
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::error::KvCacheSeqAddError;
 use llama_cpp_bindings::error::KvCacheSeqDivError;
 use llama_cpp_bindings_tests::prime_kv_cache::prime_kv_cache;
@@ -60,7 +60,7 @@ fn kv_cache_seq_div_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) ->
 
     prime_kv_cache(fixture, &mut context)?;
 
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     let result = context.kv_cache_seq_div(0, Some(0), None, divisor);
 
     assert_eq!(
@@ -104,7 +104,7 @@ fn kv_cache_seq_div_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> R
 
     prime_kv_cache(fixture, &mut context)?;
 
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     let result = context.kv_cache_seq_div(0, Some(0), None, divisor);
 
     assert!(result.is_ok());

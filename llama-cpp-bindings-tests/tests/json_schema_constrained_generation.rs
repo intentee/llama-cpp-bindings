@@ -1,7 +1,7 @@
 use std::io::Write;
 
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::context::LlamaContext;
@@ -204,7 +204,7 @@ fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
     let parsed = serde_json::Deserializer::from_str(&generated)
         .into_iter::<serde_json::Value>()
         .next()
-        .ok_or_else(|| anyhow!("model produced no JSON value"))??;
+        .context("model produced no JSON value")??;
 
     assert!(parsed.get("city").is_some());
     assert!(parsed.get("temperature").is_some());

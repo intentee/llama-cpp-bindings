@@ -1,5 +1,5 @@
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdInputChunkType;
 use llama_cpp_bindings::mtmd::MtmdInputChunksError;
@@ -33,9 +33,7 @@ use crate::tokenize_synthetic::tokenize_synthetic;
 )]
 fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
-    let first_chunk = chunks
-        .get(0)
-        .ok_or_else(|| anyhow!("missing first chunk"))?;
+    let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert_eq!(first_chunk.chunk_type()?, MtmdInputChunkType::Text);
     Ok(())
 }
@@ -60,12 +58,10 @@ fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
-    let first_chunk = chunks
-        .get(0)
-        .ok_or_else(|| anyhow!("missing first chunk"))?;
+    let first_chunk = chunks.get(0).context("missing first chunk")?;
     let tokens = first_chunk
         .text_tokens_of(first_chunk.chunk_type()?)
-        .ok_or_else(|| anyhow!("the first chunk of a text prompt must carry tokens"))?;
+        .context("the first chunk of a text prompt must carry tokens")?;
 
     assert_ne!(tokens, Vec::<LlamaToken>::new());
 
@@ -92,9 +88,7 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
-    let first_chunk = chunks
-        .get(0)
-        .ok_or_else(|| anyhow!("missing first chunk"))?;
+    let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert!(first_chunk.n_tokens() > 0);
     Ok(())
 }
@@ -119,9 +113,7 @@ fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello world <__media__>")?;
-    let first_chunk = chunks
-        .get(0)
-        .ok_or_else(|| anyhow!("missing first chunk"))?;
+    let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert!(first_chunk.n_positions() > 0);
     Ok(())
 }
@@ -146,9 +138,7 @@ fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_synthetic(fixture, "Hello <__media__>")?;
-    let first_chunk = chunks
-        .get(0)
-        .ok_or_else(|| anyhow!("missing first chunk"))?;
+    let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert_eq!(first_chunk.chunk_type()?, MtmdInputChunkType::Text);
     assert!(first_chunk.id().is_none());
     Ok(())
@@ -177,7 +167,7 @@ fn image_chunk_returns_none_for_text_tokens(fixture: &LlamaFixture<'_>) -> Resul
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
+            .context(format!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type()? == MtmdInputChunkType::Image {
             assert_eq!(chunk.text_tokens_of(MtmdInputChunkType::Image), None);
 
@@ -210,7 +200,7 @@ fn image_chunk_id_returns_some(fixture: &LlamaFixture<'_>) -> Result<()> {
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
+            .context(format!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
             assert!(chunk.id().is_some());
             return Ok(());

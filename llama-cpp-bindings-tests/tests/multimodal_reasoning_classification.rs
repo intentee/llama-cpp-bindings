@@ -1,5 +1,5 @@
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ChatAssistantTurn;
@@ -52,7 +52,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
+        .context("image path is not valid UTF-8")?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let session = media_question_chat_session(model, PROMPT_QUESTION)?;
@@ -144,7 +144,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
+        .context("image path is not valid UTF-8")?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -263,7 +263,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
+        .context("image path is not valid UTF-8")?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let session = media_question_chat_session(model, PROMPT_QUESTION)?;
@@ -355,7 +355,7 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
+        .context("image path is not valid UTF-8")?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let session = media_question_chat_session(model, PROMPT_QUESTION)?;

@@ -1,5 +1,5 @@
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::TokenUsage;
@@ -28,7 +28,7 @@ fn build_multimodal_chunks_and_eval_into_usage(
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
+        .context("image path is not valid UTF-8")?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -194,7 +194,7 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let text_chunk = (0..fitted_chunks.len())
         .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Text)
-        .ok_or_else(|| anyhow!("text-only tokenization should produce at least one text chunk"))?;
+        .context("text-only tokenization should produce at least one text chunk")?;
 
     let n_tokens = u64::try_from(text_chunk.chunk().n_tokens())?;
 
@@ -243,7 +243,7 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
+        .context("image path is not valid UTF-8")?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
     let marker = mtmd_default_marker()?;
@@ -266,7 +266,7 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
     let image_chunk = (0..fitted_chunks.len())
         .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Image)
-        .ok_or_else(|| anyhow!("multimodal tokenization should produce an image chunk"))?;
+        .context("multimodal tokenization should produce an image chunk")?;
 
     let n_tokens = u64::try_from(image_chunk.chunk().n_tokens())?;
     if n_tokens == 0 {

@@ -1,7 +1,7 @@
 use std::num::NonZeroU8;
 
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::error::ClearKvCacheSeqError;
 use llama_cpp_bindings::error::CopyKvCacheSeqError;
 use llama_cpp_bindings::error::KvCacheSeqAddError;
@@ -326,7 +326,7 @@ fn kv_cache_seq_add_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
 fn kv_cache_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     let result = context.kv_cache_seq_div(0, Some(u32::MAX), None, divisor);
 
     assert_eq!(
@@ -374,7 +374,7 @@ fn kv_cache_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
 fn kv_cache_seq_div_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     let result = context.kv_cache_seq_div(0, Some(0), Some(u32::MAX), divisor);
 
     assert_eq!(

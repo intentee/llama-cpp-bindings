@@ -3,7 +3,6 @@ use std::num::NonZeroU32;
 use std::pin::pin;
 
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::max_devices;
 use llama_cpp_bindings::model::params::LlamaModelParams;
@@ -62,7 +61,7 @@ fn fit_params_succeeds_with_test_model(fixture: &LlamaFixture<'_>) -> Result<()>
         llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
     );
 
-    let fit = result.map_err(|fit_error| anyhow!("fit_params failed: {fit_error:?}"))?;
+    let fit = result?;
     assert!(fit.n_ctx > 0);
 
     Ok(())
@@ -105,7 +104,7 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
         llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
     );
 
-    let fit = result.map_err(|fit_error| anyhow!("fit_params failed: {fit_error:?}"))?;
+    let fit = result?;
     assert!(fit.n_ctx > 0);
     assert_ne!(
         extra_context_params.n_ctx(),

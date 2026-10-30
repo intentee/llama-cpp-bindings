@@ -1,7 +1,7 @@
 use std::num::NonZeroU8;
 
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::ClearKvCacheSeqError;
 use llama_cpp_bindings::CopyKvCacheSeqError;
 use llama_cpp_bindings::KvCacheSeqAddError;
@@ -67,7 +67,7 @@ fn kv_cache_operations_respect_an_embedding_context_without_memory(
         context.kv_cache_seq_add(0, None, None, 1),
         Err(KvCacheSeqAddError::MemoryHandleUnavailable)
     );
-    let divisor = NonZeroU8::new(2).ok_or_else(|| anyhow!("2 is non-zero"))?;
+    let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     assert_eq!(
         context.kv_cache_seq_div(0, None, None, divisor),
         Err(KvCacheSeqDivError::MemoryHandleUnavailable)

@@ -72,7 +72,7 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let tokens_list = model
         .str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)
-        .with_context(|| format!("failed to tokenize {prompt}"))?;
+        .context(format!("failed to tokenize {prompt}"))?;
     let prompt_token_count = u64::try_from(tokens_list.len())?;
 
     let mut decoder = encoding_rs::UTF_8.new_decoder();

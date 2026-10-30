@@ -2,7 +2,6 @@ use std::ffi::CStr;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::GrammarError;
 use llama_cpp_bindings::SampleError;
 use llama_cpp_bindings::SamplerAcceptError;
@@ -470,7 +469,7 @@ fn reset_rolls_back_accepted_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
             .str_to_token("yes", AddBos::Never, ParseSpecialTokens::Always)?;
     let first_allowed_token = *yes_tokens
         .first()
-        .ok_or_else(|| anyhow!("the tokenizer must produce a token for \"yes\""))?;
+        .context("the tokenizer must produce a token for \"yes\"")?;
 
     sampler
         .accept(first_allowed_token)

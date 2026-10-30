@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
@@ -33,7 +33,7 @@ fn tokens_of_text_chunks(chunks: &MtmdInputChunks) -> Result<Vec<LlamaToken>> {
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
+            .context(format!("missing chunk at index {chunk_index}"))?;
 
         if let Some(chunk_tokens) = chunk.text_tokens_of(chunk.chunk_type()?) {
             tokens.extend_from_slice(chunk_tokens);
@@ -74,7 +74,7 @@ fn only_bitmap_parts_become_image_chunks(fixture: &LlamaFixture<'_>) -> Result<(
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
+            .context(format!("missing chunk at index {chunk_index}"))?;
 
         if chunk.chunk_type()? == MtmdInputChunkType::Image {
             image_chunks += 1;

@@ -1,5 +1,5 @@
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdCapability;
@@ -41,7 +41,7 @@ fn decode_use_non_causal_returns_bool_for_image_chunk(fixture: &LlamaFixture<'_>
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
-            .ok_or_else(|| anyhow!("missing chunk at index {chunk_index}"))?;
+            .context(format!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
             let value = mtmd_ctx.decode_use_non_causal(&chunk);
             let printed = format!("{value:?}");

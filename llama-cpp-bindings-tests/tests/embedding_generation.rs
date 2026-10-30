@@ -37,7 +37,7 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
     let prompt = "Hello my name is";
     let tokens = model
         .str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)
-        .with_context(|| format!("failed to tokenize {prompt}"))?;
+        .context(format!("failed to tokenize {prompt}"))?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
     let n_ctx = usize::try_from(ctx.n_ctx())?;

@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::GbnfValidationError;
@@ -96,10 +96,10 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
     let first_char = piece
         .chars()
         .next()
-        .ok_or_else(|| anyhow!("piece should have at least one character"))?
+        .context("piece should have at least one character")?
         .to_lowercase()
         .next()
-        .ok_or_else(|| anyhow!("lowercase iterator should yield a character"))?;
+        .context("lowercase iterator should yield a character")?;
 
     assert!(
         first_char == 'y' || first_char == 'n',

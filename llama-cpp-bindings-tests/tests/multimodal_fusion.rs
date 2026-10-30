@@ -52,9 +52,9 @@ fn load_fixture_bitmap(mtmd_ctx: &MtmdContext, file_name: &str) -> Result<MtmdBi
     let path = fixtures_dir().join(file_name);
     let path_str = path
         .to_str()
-        .with_context(|| format!("{file_name} path is not valid UTF-8"))?;
+        .context(format!("{file_name} path is not valid UTF-8"))?;
     MtmdBitmap::from_file(mtmd_ctx, path_str)
-        .with_context(|| format!("failed to load {file_name} from file"))
+        .context(format!("failed to load {file_name} from file"))
 }
 
 #[llama_test(

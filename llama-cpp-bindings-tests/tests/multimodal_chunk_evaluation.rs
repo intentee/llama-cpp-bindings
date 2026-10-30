@@ -1,6 +1,5 @@
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::FfiContractError;
@@ -455,7 +454,7 @@ fn eval_chunks_succeeds_for_a_standard_image(fixture: &LlamaFixture<'_>) -> Resu
     let image_path = fixtures.join("llamas.jpg");
     let image_path_str = image_path
         .to_str()
-        .ok_or_else(|| anyhow!("image path is not valid UTF-8"))?;
+        .context("image path is not valid UTF-8")?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
     let input_text = MtmdInputText {
         text: "What is in this image? <__media__>".to_string(),
@@ -545,7 +544,7 @@ fn eval_chunks_supports_extreme_dimensions(fixture: &LlamaFixture<'_>) -> Result
 
     for (width, height) in extreme_dimensions {
         eval_synthetic_bitmap(fixture, width, height)
-            .with_context(|| format!("dimension {width}x{height} should succeed"))?;
+            .context(format!("dimension {width}x{height} should succeed"))?;
     }
 
     Ok(())
