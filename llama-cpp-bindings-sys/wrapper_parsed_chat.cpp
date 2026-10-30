@@ -6,7 +6,7 @@
 #include <memory>
 
 extern "C" auto llama_rs_parsed_chat_free(llama_rs_parsed_chat_handle handle) -> void {
-    const std::unique_ptr<llama_rs_parsed_chat> reclaimed(handle);
+    std::unique_ptr<llama_rs_parsed_chat>(handle).reset();
 }
 
 extern "C" auto llama_rs_parsed_chat_content(llama_rs_parsed_chat_handle handle, size_t * out_length)

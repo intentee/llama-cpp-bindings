@@ -65,7 +65,7 @@ extern "C" auto llama_rs_chat_templates_init(
 }
 
 extern "C" auto llama_rs_chat_templates_free(llama_rs_chat_templates_handle templates) -> void {
-    const std::unique_ptr<llama_rs_chat_templates> reclaimed(templates);
+    std::unique_ptr<llama_rs_chat_templates>(templates).reset();
 }
 
 extern "C" auto llama_rs_chat_templates_supports_tool_calls(llama_rs_chat_templates_handle templates) -> bool {

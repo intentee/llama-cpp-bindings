@@ -242,7 +242,7 @@ extern "C" auto llama_rs_chat_session_create(
 }
 
 extern "C" auto llama_rs_chat_session_free(llama_rs_chat_session_handle session) -> void {
-    const std::unique_ptr<llama_rs_chat_session> reclaimed(session);
+    std::unique_ptr<llama_rs_chat_session>(session).reset();
 }
 
 extern "C" auto llama_rs_chat_session_prompt_part_count(llama_rs_chat_session_handle session) -> size_t {
@@ -498,7 +498,7 @@ extern "C" auto llama_rs_chat_spans_end(llama_rs_chat_spans_handle spans, size_t
 }
 
 extern "C" auto llama_rs_chat_spans_free(llama_rs_chat_spans_handle spans) -> void {
-    const std::unique_ptr<llama_rs_chat_spans> reclaimed(spans);
+    std::unique_ptr<llama_rs_chat_spans>(spans).reset();
 }
 
 extern "C" auto llama_rs_regex_escape(
