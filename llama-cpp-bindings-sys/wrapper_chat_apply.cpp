@@ -74,7 +74,7 @@ extern "C" auto llama_rs_apply_chat_template(
         inputs.add_generation_prompt = add_generation_prompt != 0;
         inputs.enable_thinking       = enable_thinking != 0;
 
-        std::string const rendered = common_chat_template_direct_apply(tmpl, inputs);
+        std::string const rendered = common_chat_template_direct_apply(tmpl, inputs).str();
         if (rendered.empty()) {
             return LLAMA_RS_APPLY_CHAT_TEMPLATE_TEMPLATE_APPLICATION_FAILED;
         }

@@ -217,6 +217,19 @@ impl LlamaContextParams {
         KvCacheType::from(self.context_params.type_v)
     }
 
+    /// Bytes of device memory caching the experts kept in host memory, split among the devices
+    /// like the layers; `0` disables the cache.
+    #[must_use]
+    pub const fn with_moe_cache_size(mut self, moe_cache_size: usize) -> Self {
+        self.context_params.moe_cache_size = moe_cache_size;
+        self
+    }
+
+    #[must_use]
+    pub const fn moe_cache_size(&self) -> usize {
+        self.context_params.moe_cache_size
+    }
+
     #[must_use]
     pub fn with_attention_type(mut self, attention_type: LlamaAttentionType) -> Self {
         self.context_params.attention_type = i32::from(attention_type);
@@ -516,6 +529,13 @@ mod tests {
         let params = super::LlamaContextParams::default().with_type_v(KvCacheType::Q4_1);
 
         assert_eq!(params.type_v(), KvCacheType::Q4_1);
+    }
+
+    #[test]
+    fn with_moe_cache_size_sets_value() {
+        let params = super::LlamaContextParams::default().with_moe_cache_size(1 << 30);
+
+        assert_eq!(params.moe_cache_size(), 1 << 30);
     }
 
     #[test]

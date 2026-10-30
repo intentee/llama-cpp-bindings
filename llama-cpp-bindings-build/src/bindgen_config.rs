@@ -11,6 +11,8 @@ use crate::target_os::TargetOs;
 const DEPRECATED_FUNCTIONS: &[&str] = &[
     "ggml_add1",
     "ggml_add1_inplace",
+    "ggml_flash_attn_ext_set_prec",
+    "ggml_mul_mat_set_prec",
     "ggml_rope_custom",
     "ggml_rope_custom_inplace",
     "ggml_type_sizef",
@@ -52,6 +54,8 @@ const DEPRECATED_FUNCTIONS: &[&str] = &[
     "llama_token_sep",
     "llama_vocab_cls",
     "mtmd_encode",
+    "mtmd_helper_model_can_chat",
+    "mtmd_helper_support_video",
     "mtmd_image_tokens_get_nx",
     "mtmd_image_tokens_get_ny",
 ];
@@ -182,9 +186,11 @@ fn create_base_builder(llama_src: &Path, callbacks: BindingCallbacks) -> bindgen
         .allowlist_function("llama_.*")
         .allowlist_type("llama_.*")
         .allowlist_var("LLAMA_TOKEN_NULL")
+        .allowlist_var("LLAMA_DRY_MAX_SEQ_BREAKERS")
         .allowlist_function("mtmd_.*")
         .allowlist_type("mtmd_.*")
         .blocklist_function("ggml_fopen")
+        .blocklist_function("llama_adapter_lora_init_from_file_ptr")
         .blocklist_function("gguf_init_from_file_ptr")
         .blocklist_function("gguf_write_to_file_ptr")
         .blocklist_function("llama_model_load_from_file_ptr")

@@ -11,6 +11,8 @@ pub enum JsonSchemaToGrammarError {
     SchemaContainsNulByte(#[from] NulError),
     #[error("JSON schema is invalid: {message}")]
     InvalidSchema { message: String },
+    #[error("JSON schema is not valid JSON: {message}")]
+    InvalidJson { message: String },
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]

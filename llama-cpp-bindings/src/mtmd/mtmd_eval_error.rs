@@ -1,3 +1,4 @@
+use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use crate::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 
@@ -11,6 +12,8 @@ pub enum MtmdEvalError {
     BatchSizeExceedsContextLimit { requested: i32, context_max: u32 },
     #[error("batch size {requested} must be positive")]
     NonPositiveBatchSize { requested: i32 },
+    #[error(transparent)]
+    SequenceIdOutOfRange(#[from] SequenceIdOutOfRange),
     #[error(
         "a chunk decoded non-causally has {} tokens but a single decode fits {}",
         .0.chunk_tokens,

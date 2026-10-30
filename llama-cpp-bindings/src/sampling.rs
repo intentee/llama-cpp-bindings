@@ -7,6 +7,7 @@ use llama_cpp_error_recorder::ErrorScope;
 use llama_cpp_error_recorder::RecordedError;
 
 use crate::context::LlamaContext;
+use crate::dry_sequence_breakers::dry_sequence_breakers;
 use crate::model::LlamaModel;
 use crate::sanitized_grammar::SanitizedGrammar;
 use crate::token::LlamaToken;
@@ -412,9 +413,12 @@ impl LlamaSampler {
 
     /// # Errors
     ///
-    /// Returns [`SampleError`] if the C++ sampler throws an exception, the index is invalid, or the
-    /// grammar sampler callback recorded a failure during sampling.
+    /// Returns [`SampleError::Logits`] when the context holds no logits for `idx`, or another
+    /// [`SampleError`] if the C++ sampler throws an exception or the grammar sampler callback
+    /// recorded a failure during sampling.
     pub fn sample(&mut self, ctx: &LlamaContext, idx: i32) -> Result<LlamaToken, SampleError> {
+        ctx.get_logits_ith(idx)?;
+
         let mut token: i32 = -1;
         let mut error_ptr: *mut c_char = std::ptr::null_mut();
 
@@ -771,7 +775,8 @@ impl LlamaSampler {
     }
 
     /// # Errors
-    /// Returns an error if any string in `seq_breakers` contains null bytes.
+    /// Returns the [`SamplingError`] describing a sequence breaker llama.cpp would skip, truncate,
+    /// or ignore, or the error of initializing the sampler.
     pub fn dry(
         model: &LlamaModel,
         multiplier: f32,
@@ -779,13 +784,8 @@ impl LlamaSampler {
         allowed_length: i32,
         penalty_last_n: i32,
         seq_breakers: impl IntoIterator<Item = impl AsRef<[u8]>>,
-    ) -> Result<Self, GrammarError> {
-        let seq_breakers: Vec<CString> = seq_breakers
-            .into_iter()
-            .map(|seq_breaker| {
-                CString::new(seq_breaker.as_ref()).map_err(GrammarError::SequenceBreakerContainsNul)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+    ) -> Result<Self, SamplingError> {
+        let seq_breakers = dry_sequence_breakers(seq_breakers)?;
         let mut seq_breaker_pointers: Vec<*const c_char> = seq_breakers
             .iter()
             .map(|seq_breaker| seq_breaker.as_ptr())
@@ -804,7 +804,6 @@ impl LlamaSampler {
                 out_error,
             )
         })
-        .map_err(Into::into)
     }
 
     /// # Errors

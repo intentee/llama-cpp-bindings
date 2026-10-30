@@ -16,8 +16,10 @@ pub enum GbnfValidationError {
     EmptyRuleSet,
     #[error("grammar does not define the root symbol {root:?}")]
     RootSymbolMissing { root: String },
-    #[error("grammar is left-recursive and cannot be compiled by llama.cpp")]
-    LeftRecursion,
+    #[error(
+        "grammar is left-recursive or chains rules deeper than llama.cpp's recursion limit, so llama.cpp cannot compile it"
+    )]
+    UnsupportedGrammar,
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]

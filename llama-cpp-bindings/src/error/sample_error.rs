@@ -1,3 +1,4 @@
+use crate::error::logits_error::LogitsError;
 use crate::error::sampler_apply_error::SamplerApplyError;
 use crate::error::token_to_string_error::TokenToStringError;
 
@@ -7,6 +8,8 @@ pub enum SampleError {
     FfiStatus(#[from] crate::FfiStatusError),
     #[error(transparent)]
     FfiContract(#[from] crate::FfiContractError),
+    #[error("the logits to sample from are unavailable: {0}")]
+    Logits(#[from] LogitsError),
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]

@@ -416,6 +416,13 @@ impl LlamaModelParams {
         let max_devices = unsafe { llama_cpp_bindings_sys::llama_max_devices() };
         let max_buft = unsafe { llama_cpp_bindings_sys::llama_max_tensor_buft_overrides() };
 
+        if margins.len() != max_devices {
+            return Err(FitError::MarginsDeviceCountMismatch {
+                expected: max_devices,
+                actual: margins.len(),
+            });
+        }
+
         self.tensor_split.clear();
         self.tensor_split.resize(max_devices, 0.0);
 
@@ -898,6 +905,33 @@ mod tests {
         assert!(
             matches!(result, Err(FitError::Aborted | FitError::Reported { .. })),
             "expected Aborted or Reported, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn fit_params_refuses_margins_not_sized_to_the_device_count() {
+        use crate::context::params::LlamaContextParams;
+        use crate::error::FitError;
+
+        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut context_params = LlamaContextParams::default();
+        let mut margins = vec![0usize; crate::max_devices() + 1];
+
+        let result = params.as_mut().fit_params(
+            c"/nonexistent/path/to/model.gguf",
+            &mut context_params,
+            &mut margins,
+            512,
+            None,
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+        );
+
+        assert_eq!(
+            result.err(),
+            Some(FitError::MarginsDeviceCountMismatch {
+                expected: crate::max_devices(),
+                actual: crate::max_devices() + 1,
+            })
         );
     }
 

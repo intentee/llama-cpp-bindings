@@ -1,3 +1,5 @@
+use std::ffi::NulError;
+
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SamplingError {
     #[error(transparent)]
@@ -17,4 +19,24 @@ pub enum SamplingError {
     },
     #[error("{sampler} sampler could not be initialized")]
     SamplerUnavailable { sampler: &'static str },
+    #[error("DRY sequence breaker {index} is empty")]
+    DrySequenceBreakerEmpty { index: usize },
+    #[error(
+        "DRY sequence breaker {index} is {length} bytes long, more than the {max_length} bytes llama.cpp uses"
+    )]
+    DrySequenceBreakerTooLong {
+        index: usize,
+        length: usize,
+        max_length: usize,
+    },
+    #[error("DRY sequence breaker {index} contains an interior NUL byte")]
+    DrySequenceBreakerContainsNul {
+        index: usize,
+        #[source]
+        source: NulError,
+    },
+    #[error(
+        "{distinct} distinct DRY sequence breakers were given, more than the {max} llama.cpp uses"
+    )]
+    TooManyDistinctDrySequenceBreakers { distinct: usize, max: usize },
 }

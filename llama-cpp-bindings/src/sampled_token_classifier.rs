@@ -23,8 +23,7 @@ use crate::mtmd::FittedMtmdInputChunks;
 use crate::mtmd::MtmdContext;
 use crate::mtmd::MtmdInputChunkType;
 use crate::mtmd::MtmdInputChunks;
-use crate::mtmd::micro_batch_tokens;
-use crate::mtmd::positive_batch_tokens::positive_batch_tokens;
+use crate::mtmd::mtmd_eval_limits::MtmdEvalLimits;
 use crate::sampled_token::SampledToken;
 use crate::sampling::LlamaSampler;
 use crate::streaming_json_probe::StreamingJsonProbe;
@@ -463,22 +462,25 @@ impl<'model> SampledTokenClassifier<'model> {
     /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
     ///
     /// # Errors
-    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when `params.n_batch` is not positive, a
-    /// chunk cannot be decoded or reports a type unknown to this binding (all before any chunk is
-    /// evaluated), or when evaluating a chunk fails, or
+    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when `params.n_batch` or `params.seq_id`
+    /// does not fit the context, a chunk cannot be decoded or reports a type unknown to this
+    /// binding (all before any chunk is evaluated), or when evaluating a chunk fails, or
     /// [`EvalMultimodalChunksError::ChunkOutOfBounds`] when a valid index returns
     /// `None` from `chunks.get`.
     pub fn eval_multimodal_chunks(
         &mut self,
         chunks: &MtmdInputChunks,
         mtmd_ctx: &MtmdContext,
-        llama_ctx: &LlamaContext,
+        llama_ctx: &mut LlamaContext,
         params: EvalMultimodalChunksParams,
     ) -> Result<llama_pos, EvalMultimodalChunksError> {
+        let limits = MtmdEvalLimits::of(llama_ctx);
         let fitted_chunks = FittedMtmdInputChunks::fit(
             chunks,
             mtmd_ctx,
-            micro_batch_tokens(llama_ctx, positive_batch_tokens(params.n_batch)?),
+            limits
+                .context
+                .micro_batch_tokens(limits.batch_tokens(params.n_batch, params.seq_id)?),
         )?;
         let chunk_count = fitted_chunks.len();
         let mut next_position = params.start_position;

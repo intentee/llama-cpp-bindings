@@ -9,10 +9,6 @@
 #include "llama.cpp/src/llama-model.h"
 #include "wrapper_report_current_exception.h"
 
-extern "C" auto llama_rs_context_decodes_batches_in_one_micro_batch(const struct llama_context * ctx) -> bool {
-    return llama_get_memory(ctx) == nullptr || !ctx->get_cparams().causal_attn;
-}
-
 extern "C" auto llama_rs_context_embeddings_enabled(const struct llama_context * ctx) -> bool {
     return ctx->get_cparams().embeddings;
 }

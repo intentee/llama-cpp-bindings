@@ -384,13 +384,11 @@ fn rope_type_returns_none_for_qwen_default_models(fixture: &LlamaFixture<'_>) ->
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn vocab_type_returns_a_known_variant(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn default_models_use_a_byte_pair_encoding_vocabulary(fixture: &LlamaFixture<'_>) -> Result<()> {
     use llama_cpp_bindings::model::vocab_type::VocabType;
-    let vocab = fixture.model.vocab_type()?;
-    assert!(
-        matches!(vocab, VocabType::BPE | VocabType::SPM),
-        "vocab_type must be a known variant; got {vocab:?}"
-    );
+
+    assert_eq!(fixture.model.vocab_type()?, VocabType::Bpe);
+
     Ok(())
 }
 

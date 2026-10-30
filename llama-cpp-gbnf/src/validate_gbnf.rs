@@ -6,11 +6,11 @@ use llama_cpp_ffi_status::FfiStatusError;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_EMPTY_RULE_SET;
-use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_OK;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ROOT_SYMBOL_MISSING;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
+use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
 use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
 use llama_cpp_bindings_sys::llama_rs_validate_gbnf;
 use llama_cpp_bindings_sys::llama_vocab;
@@ -31,7 +31,9 @@ fn validation_status_to_result(
                 root: root.to_owned(),
             })
         }
-        LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION => Err(GbnfValidationError::LeftRecursion),
+        LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR => {
+            Err(GbnfValidationError::UnsupportedGrammar)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG => {
             Err(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -104,6 +106,7 @@ pub fn validate_gbnf(
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
+    use std::fmt::Write;
 
     use llama_cpp_ffi_status::FfiContractError;
     use llama_cpp_ffi_status::FfiStatusError;
@@ -151,7 +154,21 @@ mod tests {
     fn left_recursive_grammar_is_rejected() {
         assert_eq!(
             validate_gbnf(None, r#"root ::= root "x""#, "root"),
-            Err(GbnfValidationError::LeftRecursion)
+            Err(GbnfValidationError::UnsupportedGrammar)
+        );
+    }
+
+    #[test]
+    fn grammar_chaining_rules_past_the_recursion_limit_is_rejected() {
+        let mut grammar = String::from("root ::= rule0\n");
+        for rule_index in 0..300 {
+            writeln!(grammar, "rule{rule_index} ::= rule{}", rule_index + 1).unwrap();
+        }
+        grammar.push_str("rule300 ::= \"x\"\n");
+
+        assert_eq!(
+            validate_gbnf(None, &grammar, "root"),
+            Err(GbnfValidationError::UnsupportedGrammar)
         );
     }
 

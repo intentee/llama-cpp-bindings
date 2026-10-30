@@ -419,13 +419,7 @@ impl LlamaModel {
         &self,
         token: LlamaToken,
     ) -> Result<LlamaToken, TokenOutsideVocabulary> {
-        let n_vocab = self.n_vocab();
-
-        if (0..n_vocab).contains(&token.0) {
-            Ok(token)
-        } else {
-            Err(TokenOutsideVocabulary { token, n_vocab })
-        }
+        TokenOutsideVocabulary::check(token, self.n_vocab())
     }
 
     #[must_use]

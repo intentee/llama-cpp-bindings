@@ -4,11 +4,13 @@ use std::path::PathBuf;
 use std::ptr;
 use std::ptr::NonNull;
 
+use enumflags2::BitFlags;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::model::LlamaModel;
 
 use super::mtmd_bitmap::MtmdBitmap;
+use super::mtmd_capability::MtmdCapability;
 use super::mtmd_context_params::MtmdContextParams;
 use super::mtmd_encode_error::MtmdEncodeError;
 use super::mtmd_ffi_input_part::MtmdFfiInputPart;
@@ -18,6 +20,37 @@ use super::mtmd_input_chunks::MtmdInputChunks;
 use super::mtmd_input_part::MtmdInputPart;
 use super::mtmd_input_text::MtmdInputText;
 use super::mtmd_tokenize_error::MtmdTokenizeError;
+
+fn capability_flags(
+    llama_cpp_bindings_sys::mtmd_helper_cap {
+        chat,
+        vision,
+        audio,
+        video,
+        audio_stream,
+        text_gen,
+        audio_gen,
+        audio_gen_spk_ref,
+    }: llama_cpp_bindings_sys::mtmd_helper_cap,
+) -> BitFlags<MtmdCapability> {
+    [
+        (chat, MtmdCapability::Chat),
+        (vision, MtmdCapability::Vision),
+        (audio, MtmdCapability::Audio),
+        (video, MtmdCapability::Video),
+        (audio_stream, MtmdCapability::AudioStream),
+        (text_gen, MtmdCapability::TextGeneration),
+        (audio_gen, MtmdCapability::AudioGeneration),
+        (
+            audio_gen_spk_ref,
+            MtmdCapability::AudioGenerationSpeakerReference,
+        ),
+    ]
+    .into_iter()
+    .filter(|(is_capable, _capability)| *is_capable)
+    .map(|(_is_capable, capability)| capability)
+    .collect()
+}
 
 fn map_tokenize_status(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_tokenize_status,
@@ -319,13 +352,13 @@ impl MtmdContext {
     }
 
     #[must_use]
-    pub fn support_vision(&self) -> bool {
-        unsafe { llama_cpp_bindings_sys::mtmd_support_vision(self.context.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn support_audio(&self) -> bool {
-        unsafe { llama_cpp_bindings_sys::mtmd_support_audio(self.context.as_ptr()) }
+    pub fn capabilities(&self, model: &LlamaModel) -> BitFlags<MtmdCapability> {
+        capability_flags(unsafe {
+            llama_cpp_bindings_sys::mtmd_helper_get_capabilities(
+                model.model.as_ptr(),
+                self.context.as_ptr(),
+            )
+        })
     }
 
     #[must_use]
@@ -1099,5 +1132,63 @@ mod map_init_from_file_status_tests {
             "",
         );
         assert_eq!(outcome.err(), Some(MtmdInitError::LlamaCppOutOfMemory));
+    }
+}
+
+#[cfg(test)]
+mod capability_flags_tests {
+    use enumflags2::BitFlags;
+
+    use super::capability_flags;
+    use crate::mtmd::mtmd_capability::MtmdCapability;
+
+    const NO_CAPABILITIES: llama_cpp_bindings_sys::mtmd_helper_cap =
+        llama_cpp_bindings_sys::mtmd_helper_cap {
+            chat: false,
+            vision: false,
+            audio: false,
+            video: false,
+            audio_stream: false,
+            text_gen: false,
+            audio_gen: false,
+            audio_gen_spk_ref: false,
+        };
+
+    #[test]
+    fn a_model_without_capabilities_has_no_flags() {
+        assert_eq!(capability_flags(NO_CAPABILITIES), BitFlags::empty());
+    }
+
+    #[test]
+    fn every_capability_of_llama_cpp_maps_to_its_own_flag() {
+        let all_capabilities = llama_cpp_bindings_sys::mtmd_helper_cap {
+            chat: true,
+            vision: true,
+            audio: true,
+            video: true,
+            audio_stream: true,
+            text_gen: true,
+            audio_gen: true,
+            audio_gen_spk_ref: true,
+        };
+
+        assert_eq!(
+            capability_flags(all_capabilities),
+            BitFlags::<MtmdCapability>::all()
+        );
+    }
+
+    #[test]
+    fn a_text_to_speech_model_generates_audio_but_cannot_chat() {
+        let text_to_speech = llama_cpp_bindings_sys::mtmd_helper_cap {
+            audio_gen: true,
+            audio_gen_spk_ref: true,
+            ..NO_CAPABILITIES
+        };
+
+        assert_eq!(
+            capability_flags(text_to_speech),
+            MtmdCapability::AudioGeneration | MtmdCapability::AudioGenerationSpeakerReference
+        );
     }
 }

@@ -1,4 +1,5 @@
 pub const WRAPPER_SOURCES: &[&str] = &[
+    "wrapper_batch.cpp",
     "wrapper_chat_apply.cpp",
     "wrapper_chat_parse.cpp",
     "wrapper_common.cpp",

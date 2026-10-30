@@ -15,6 +15,7 @@ use llama_cpp_bindings::KvCacheSeqAddError;
 use llama_cpp_bindings::KvCacheSeqDivError;
 use llama_cpp_bindings::KvCacheSeqPosMaxError;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::params::LlamaPoolingType;
 use llama_cpp_bindings::ggml_time_us;
 use llama_cpp_bindings::gguf_context::GgufContext;
@@ -25,7 +26,6 @@ use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::prime_kv_cache::prime_kv_cache;
-use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 use toktrie::INVALID_TOKEN;
@@ -80,14 +80,14 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
     let t_main_start = ggml_time_us();
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(ctx.n_ctx())?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     assert_eq!(classifier.pending_prompt_tokens(), prompt_token_count);
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
     ctx.clear_kv_cache();
-    ctx.decode(&mut batch)
+    ctx.decode(&batch)
         .with_context(|| "llama_decode() failed")?;
 
     let promoted = classifier.commit_prompt_tokens();
@@ -181,10 +181,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
     }
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let mut batch = LlamaBatch::new(
-        BatchCapacity::try_from(2048)?,
-        i32::try_from(document_count)?,
-    );
+    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
     let t_main_start = ggml_time_us();
 
     for (sequence_index, tokens) in tokens_lines_list.iter().enumerate() {
@@ -203,7 +200,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
     ctx.clear_kv_cache();
-    ctx.decode(&mut batch)
+    ctx.decode(&batch)
         .with_context(|| "llama_decode() failed")?;
 
     let promoted = classifier.commit_prompt_tokens();
@@ -274,10 +271,10 @@ fn decode_with_embeddings_enabled(fixture: &LlamaFixture<'_>) -> Result<()> {
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
-    let result = context.decode(&mut batch);
+    let result = context.decode(&batch);
 
     assert!(result.is_ok());
 
@@ -302,9 +299,9 @@ fn embeddings_seq_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Re
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let embeddings = context.embeddings_seq_ith(0)?;
 
@@ -338,7 +335,7 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
         "gamma waits",
         "delta jumps",
     ];
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(64)?, 4);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     for (sequence_index, text) in inputs.iter().enumerate() {
         let tokens =
@@ -350,7 +347,7 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
         batch.add_sequence(&tokens, sequence_id, true)?;
     }
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let n_embd = usize::try_from(fixture.model.n_embd())?;
     let mut collected: Vec<Vec<f32>> = Vec::with_capacity(inputs.len());
@@ -411,7 +408,7 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
     ];
 
     let n_embd = usize::try_from(fixture.model.n_embd())?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(64)?, 4);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let mut collected: Vec<Vec<f32>> = Vec::new();
 
     for iteration_inputs in iterations {
@@ -426,7 +423,7 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
         }
 
         context.clear_kv_cache();
-        context.decode(&mut batch)?;
+        context.decode(&batch)?;
 
         for sequence_index in 0..iteration_inputs.len() {
             let sequence_id = i32::try_from(sequence_index)?;
@@ -483,9 +480,9 @@ fn embeddings_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Result
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(tokens.len() - 1)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let embeddings = context.embeddings_ith(last_index)?;
 
@@ -540,10 +537,10 @@ fn encode_succeeds_with_encoder_model(fixture: &LlamaFixture<'_>) -> Result<()> 
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
-    let result = context.encode(&mut batch);
+    let result = context.encode(&batch);
 
     assert!(result.is_ok());
 
@@ -784,12 +781,12 @@ fn decoding_more_tokens_than_the_micro_batch_on_an_encoder_returns_an_error(
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 
     assert_eq!(
-        context.decode(&mut batch),
+        context.decode(&batch),
         Err(DecodeError::BatchExceedsMicroBatch {
             n_tokens,
             n_ubatch: context.n_ubatch(),
@@ -817,12 +814,12 @@ fn encoding_more_tokens_than_the_micro_batch_returns_an_error(
         AddBos::Never,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 
     assert_eq!(
-        context.encode(&mut batch),
+        context.encode(&batch),
         Err(EncodeError::BatchExceedsMicroBatch {
             n_tokens,
             n_ubatch: context.n_ubatch(),

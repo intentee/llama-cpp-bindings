@@ -76,7 +76,7 @@ fn configure_base_defines(config: &mut Config) {
     config.define("LLAMA_BUILD_COMMON", "ON");
     config.define("LLAMA_BUILD_MTMD", "ON");
     config.define("MTMD_VIDEO", "OFF");
-    config.define("LLAMA_CURL", "OFF");
+    config.define("LLAMA_OPENSSL", "OFF");
 }
 
 fn configure_cpu_features(

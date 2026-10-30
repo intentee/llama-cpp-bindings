@@ -14,6 +14,7 @@ use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::ToolCallArgsShape;
 use llama_cpp_bindings::ToolCallArguments;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaChatMessage;
@@ -22,7 +23,6 @@ use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoopOutcome;
-use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 use serde_json::Value;
@@ -80,16 +80,16 @@ fn deepseek_r1_8b_classifier_does_not_emit_reasoning_for_thinking_disabled_promp
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -193,16 +193,16 @@ fn deepseek_r1_8b_classifier_emits_reasoning_for_thinking_enabled_prompt(
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -650,16 +650,16 @@ fn gemma4_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -754,16 +754,16 @@ fn gemma4_classifier_emits_reasoning_for_thinking_prompt(fixture: &LlamaFixture<
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -963,16 +963,16 @@ What is 2 + 2?
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -1046,16 +1046,16 @@ What is 2 + 2?
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -1227,16 +1227,16 @@ fn mistral3_classifier_does_not_emit_reasoning_for_thinking_disabled_prompt(
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -1307,16 +1307,16 @@ to the user.[/THINK]Here, provide a self-contained response.[/SYSTEM_PROMPT]\
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -1441,10 +1441,10 @@ fn qwen35_chat_inference_emits_reasoning_when_template_auto_opens(
     let tokens = model.str_to_token(&prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -1595,16 +1595,16 @@ What is 2 + 2?<|im_end|>
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -1678,16 +1678,16 @@ What is 2 + 2?<|im_end|>
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -2072,10 +2072,10 @@ fn qwen36_chat_inference_emits_reasoning_when_template_auto_opens(
     let tokens = model.str_to_token(&prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -2145,16 +2145,16 @@ What is 2 + 2?<|im_end|>
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -2228,16 +2228,16 @@ What is 2 + 2?<|im_end|>
     )?;
     let prompt_token_count = u64::try_from(prompt_tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
-    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-
     let mut context = LlamaContext::from_model(
         model,
         backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    context.decode(&mut batch)?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
+
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);

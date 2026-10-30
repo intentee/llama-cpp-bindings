@@ -23,8 +23,6 @@ pub enum GrammarError {
     RootContainsNul(#[source] NulError),
     #[error("a lazy-grammar trigger pattern contains an interior NUL byte")]
     TriggerPatternContainsNul(#[source] NulError),
-    #[error("a DRY sequence breaker contains an interior NUL byte")]
-    SequenceBreakerContainsNul(#[source] NulError),
     #[error("the llguidance parser factory could not be created: {message}")]
     LlguidanceFactoryUnavailable { message: String },
     #[error("the llguidance grammar could not be parsed: {message}")]

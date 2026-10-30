@@ -11,9 +11,13 @@ use std::sync::atomic::Ordering;
 
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
+use crate::context::context_limits::ContextLimits;
+use crate::context::decoded_output_rows::DecodedOutputRows;
+use crate::context::decoded_outputs::DecodedOutputs;
 use crate::context::params::LlamaContextParams;
 use crate::context::params::LlamaPoolingType;
 use crate::context::sequence_output_capacity::SequenceOutputCapacity;
+use crate::error::batch_transfer_error::BatchTransferError;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_batch::LlamaBatch;
 use crate::model::LlamaModel;
@@ -154,6 +158,137 @@ fn new_context_with_model_status_to_result(
     }
 }
 
+fn batch_ext_init_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_batch_ext_init_status,
+    out_batch: *mut llama_cpp_bindings_sys::llama_batch_ext,
+    out_error: *mut c_char,
+) -> Result<NonNull<llama_cpp_bindings_sys::llama_batch_ext>, LlamaContextLoadError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_OK => {
+            NonNull::new(out_batch).ok_or_else(|| {
+                crate::FfiContractError {
+                    operation: "llama_rs_batch_ext_init",
+                    detail: "success status contained a null batch",
+                }
+                .into()
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(LlamaContextLoadError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(LlamaContextLoadError::LlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_batch_ext_init",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(LlamaContextLoadError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_batch_ext_init",
+                detail: "was given a null ctx argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_BATCH_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_batch_ext_init",
+                detail: "was given a null out_batch argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_batch_ext_init",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_batch_ext_init",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
+fn batch_ext_add_entry_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_batch_ext_add_entry_status,
+    out_error: *mut c_char,
+) -> Result<(), BatchTransferError> {
+    let refused_validated_entry = |detail: &'static str| -> Result<(), BatchTransferError> {
+        Err(crate::FfiContractError {
+            operation: "llama_rs_batch_ext_add_entry",
+            detail,
+        }
+        .into())
+    };
+
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_OK => Ok(()),
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(BatchTransferError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(BatchTransferError::LlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_batch_ext_add_entry",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(BatchTransferError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_BATCH_FULL => refused_validated_entry(
+            "refused an entry of a batch validated against its limits as full",
+        ),
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_TOKEN => {
+            refused_validated_entry("refused a token validated against the vocabulary")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_SEQUENCE_ID => {
+            refused_validated_entry("refused a sequence id validated against the context")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_RETURNED_UNKNOWN_CODE => {
+            refused_validated_entry("refused an entry with an undocumented code")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_POSITION_REJECTED => {
+            refused_validated_entry("refused the position of an entry it had just added")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_OUTPUT_REJECTED => {
+            refused_validated_entry("refused the output flag of an entry it had just added")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_EMPTY_SEQ_IDS => {
+            refused_validated_entry("was given an entry without sequence ids")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_BATCH_ARG => {
+            refused_validated_entry("was given a null batch argument")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_SEQ_IDS_ARG => {
+            refused_validated_entry("was given a null seq_ids argument")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG => {
+            refused_validated_entry("was given a null out_llama_cpp_return_code argument")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_OUT_ERROR_ARG => {
+            refused_validated_entry("was given a null out_error argument")
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_batch_ext_add_entry",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
 fn decode_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_decode_status,
     out_llama_cpp_return_code: i32,
@@ -192,6 +327,11 @@ fn decode_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_CTX_ARG => Err(crate::FfiContractError {
             operation: "llama_rs_decode",
             detail: "was given a null ctx argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_BATCH_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_decode",
+            detail: "was given a null batch argument",
         }
         .into()),
         llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG => {
@@ -252,6 +392,11 @@ fn encode_status_to_result(
             detail: "was given a null ctx argument",
         }
         .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_BATCH_ARG => Err(crate::FfiContractError {
+            operation: "llama_rs_encode",
+            detail: "was given a null batch argument",
+        }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_MODEL => Err(crate::FfiContractError {
             operation: "llama_rs_encode",
             detail: "was given a null model argument",
@@ -265,35 +410,18 @@ fn encode_status_to_result(
     }
 }
 
-fn token_index_within_context(token_index: i32, context_size: u32) -> Result<(), LogitsError> {
-    if token_index >= 0 {
-        let token_index_u32 =
-            u32::try_from(token_index).map_err(LogitsError::TokenIndexOverflow)?;
-
-        if context_size <= token_index_u32 {
-            return Err(LogitsError::TokenIndexExceedsContext {
-                token_index: token_index_u32,
-                context_size,
-            });
-        }
-    }
-
-    Ok(())
-}
-
-unsafe fn logits_slice_from_raw_parts<'logits>(
-    data: *const f32,
+unsafe fn logits_slice<'logits>(
+    logits: NonNull<f32>,
     n_vocab: i32,
 ) -> Result<&'logits [f32], LogitsError> {
-    if data.is_null() {
-        return Err(LogitsError::NullLogits);
-    }
-
     let len = usize::try_from(n_vocab).map_err(LogitsError::VocabSizeOverflow)?;
 
-    Ok(unsafe { slice::from_raw_parts(data, len) })
+    Ok(unsafe { slice::from_raw_parts(logits.as_ptr(), len) })
 }
 
+pub mod context_limits;
+pub mod decoded_output_rows;
+pub mod decoded_outputs;
 pub mod kv_cache;
 pub mod kv_cache_type;
 pub mod llama_attention_type;
@@ -320,7 +448,8 @@ pub struct LlamaContext<'model> {
     pub context: NonNull<llama_cpp_bindings_sys::llama_context>,
     pub model: &'model LlamaModel,
     abort_flag: Option<Arc<AtomicBool>>,
-    initialized_logits: Vec<i32>,
+    decoded_outputs: DecodedOutputs,
+    batch_ext: NonNull<llama_cpp_bindings_sys::llama_batch_ext>,
 }
 
 impl Debug for LlamaContext<'_> {
@@ -332,17 +461,38 @@ impl Debug for LlamaContext<'_> {
 }
 
 impl<'model> LlamaContext<'model> {
-    #[must_use]
-    pub const fn new(
-        llama_model: &'model LlamaModel,
-        llama_context: NonNull<llama_cpp_bindings_sys::llama_context>,
-    ) -> Self {
-        Self {
-            context: llama_context,
-            model: llama_model,
+    fn with_batch(
+        model: &'model LlamaModel,
+        context: NonNull<llama_cpp_bindings_sys::llama_context>,
+    ) -> Result<Self, LlamaContextLoadError> {
+        let mut out_batch: *mut llama_cpp_bindings_sys::llama_batch_ext = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_batch_ext_init(
+                context.as_ptr(),
+                &raw mut out_batch,
+                &raw mut out_error,
+            )
+        };
+        let batch_ext = batch_ext_init_status_to_result(status, out_batch, out_error).inspect_err(
+            |_batch_init_failure| unsafe {
+                llama_cpp_bindings_sys::llama_free(context.as_ptr());
+            },
+        )?;
+        let pooling_type = LlamaPoolingType::from(unsafe {
+            llama_cpp_bindings_sys::llama_pooling_type(context.as_ptr())
+        });
+
+        Ok(Self {
+            context,
+            model,
             abort_flag: None,
-            initialized_logits: Vec::new(),
-        }
+            decoded_outputs: DecodedOutputs {
+                rows: DecodedOutputRows::BatchIndices(Vec::new()),
+                pooling_type,
+            },
+            batch_ext,
+        })
     }
 
     /// # Errors
@@ -387,7 +537,7 @@ impl<'model> LlamaContext<'model> {
         };
         let context = new_context_with_model_status_to_result(status, out_ctx, out_error)?;
 
-        Ok(Self::new(model, context))
+        Self::with_batch(model, context)
     }
 
     #[must_use]
@@ -398,6 +548,20 @@ impl<'model> LlamaContext<'model> {
     #[must_use]
     pub fn n_ubatch(&self) -> u32 {
         unsafe { llama_cpp_bindings_sys::llama_n_ubatch(self.context.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn n_seq_max(&self) -> u32 {
+        unsafe { llama_cpp_bindings_sys::llama_n_seq_max(self.context.as_ptr()) }
+    }
+
+    fn decodes_batches_in_one_micro_batch(&self) -> bool {
+        let keeps_no_memory =
+            unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) }.is_null();
+        let attends_causally =
+            unsafe { llama_cpp_bindings_sys::llama_get_causal_attn(self.context.as_ptr()) };
+
+        keeps_no_memory || !attends_causally
     }
 
     fn exceeds_micro_batch(&self, batch: &LlamaBatch) -> bool {
@@ -451,41 +615,77 @@ impl<'model> LlamaContext<'model> {
         unsafe { llama_cpp_bindings_sys::llama_detach_threadpool(self.context.as_ptr()) }
     }
 
-    pub fn mark_logits_initialized(&mut self, token_index: i32) {
-        self.initialized_logits = vec![token_index];
+    /// Records which rows the last decode wrote, for a decode llama.cpp ran on this context
+    /// without one of this context's batches, such as the mtmd helper decoding media chunks.
+    pub fn record_decoded_rows(&mut self, rows: DecodedOutputRows) {
+        self.decoded_outputs = DecodedOutputs {
+            rows,
+            pooling_type: self.pooling_type(),
+        };
+    }
+
+    fn transfer_batch(&self, batch: &LlamaBatch) -> Result<(), BatchTransferError> {
+        let context_limits = ContextLimits::of(self);
+
+        if batch.limits() != context_limits {
+            return Err(BatchTransferError::LimitsMismatch {
+                batch: batch.limits(),
+                context: context_limits,
+            });
+        }
+
+        unsafe { llama_cpp_bindings_sys::llama_batch_ext_clear(self.batch_ext.as_ptr()) };
+
+        for entry in batch.entries() {
+            let mut out_llama_cpp_return_code: i32 = 0;
+            let mut out_error: *mut c_char = ptr::null_mut();
+            let status = unsafe {
+                llama_cpp_bindings_sys::llama_rs_batch_ext_add_entry(
+                    self.batch_ext.as_ptr(),
+                    entry.token.0,
+                    entry.pos,
+                    entry.seq_ids.as_ptr(),
+                    entry.seq_ids.len(),
+                    entry.output,
+                    &raw mut out_llama_cpp_return_code,
+                    &raw mut out_error,
+                )
+            };
+
+            batch_ext_add_entry_status_to_result(status, out_error)?;
+        }
+
+        Ok(())
     }
 
     /// # Errors
     ///
     /// - `DecodeError` if the decoding failed.
-    pub fn decode(&mut self, batch: &mut LlamaBatch) -> Result<(), DecodeError> {
-        let decodes_batches_in_one_micro_batch = unsafe {
-            llama_cpp_bindings_sys::llama_rs_context_decodes_batches_in_one_micro_batch(
-                self.context.as_ptr(),
-            )
-        };
-
-        if decodes_batches_in_one_micro_batch && self.exceeds_micro_batch(batch) {
+    pub fn decode(&mut self, batch: &LlamaBatch) -> Result<(), DecodeError> {
+        if self.decodes_batches_in_one_micro_batch() && self.exceeds_micro_batch(batch) {
             return Err(DecodeError::BatchExceedsMicroBatch {
                 n_tokens: batch.n_tokens(),
                 n_ubatch: self.n_ubatch(),
             });
         }
 
+        self.transfer_batch(batch)?;
+
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_decode(
                 self.context.as_ptr(),
-                batch.llama_batch,
+                self.batch_ext.as_ptr(),
                 &raw mut out_llama_cpp_return_code,
                 &raw mut out_error,
             )
         };
         decode_status_to_result(status, out_llama_cpp_return_code, out_error)?;
 
-        self.initialized_logits
-            .clone_from(&batch.initialized_logits);
+        self.record_decoded_rows(DecodedOutputRows::BatchIndices(
+            batch.output_token_indices().to_vec(),
+        ));
 
         Ok(())
     }
@@ -493,7 +693,7 @@ impl<'model> LlamaContext<'model> {
     /// # Errors
     ///
     /// - `EncodeError` if the encoding failed.
-    pub fn encode(&mut self, batch: &mut LlamaBatch) -> Result<(), EncodeError> {
+    pub fn encode(&mut self, batch: &LlamaBatch) -> Result<(), EncodeError> {
         if self.exceeds_micro_batch(batch) {
             return Err(EncodeError::BatchExceedsMicroBatch {
                 n_tokens: batch.n_tokens(),
@@ -501,20 +701,23 @@ impl<'model> LlamaContext<'model> {
             });
         }
 
+        self.transfer_batch(batch)?;
+
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_encode(
                 self.context.as_ptr(),
-                batch.llama_batch,
+                self.batch_ext.as_ptr(),
                 &raw mut out_llama_cpp_return_code,
                 &raw mut out_error,
             )
         };
         encode_status_to_result(status, out_llama_cpp_return_code, out_error)?;
 
-        self.initialized_logits
-            .clone_from(&batch.initialized_logits);
+        self.record_decoded_rows(DecodedOutputRows::BatchIndices(
+            batch.output_token_indices().to_vec(),
+        ));
 
         Ok(())
     }
@@ -718,12 +921,17 @@ impl<'model> LlamaContext<'model> {
         Ok(LlamaTokenDataArray::from_iter(self.candidates()?, false))
     }
 
-    /// # Errors
-    /// Returns `LogitsError` if the logits pointer is null or `n_vocab` overflows.
-    pub fn get_logits(&self) -> Result<&[f32], LogitsError> {
-        let data = unsafe { llama_cpp_bindings_sys::llama_get_logits(self.context.as_ptr()) };
+    fn produced_logits(&self) -> Result<NonNull<f32>, LogitsError> {
+        NonNull::new(unsafe { llama_cpp_bindings_sys::llama_get_logits(self.context.as_ptr()) })
+            .ok_or_else(|| self.decoded_outputs.missing_logits_error())
+    }
 
-        unsafe { logits_slice_from_raw_parts(data, self.model.n_vocab()) }
+    /// # Errors
+    /// Returns `LogitsError` if the last decode produced no logits or `n_vocab` overflows.
+    pub fn get_logits(&self) -> Result<&[f32], LogitsError> {
+        let logits = self.produced_logits()?;
+
+        unsafe { logits_slice(logits, self.model.n_vocab()) }
     }
 
     /// # Errors
@@ -768,20 +976,22 @@ impl<'model> LlamaContext<'model> {
         Ok(())
     }
 
+    /// Accepts the batch index of an output token, or a negative index counting back from the
+    /// last output.
+    ///
     /// # Errors
-    /// Returns `LogitsError` if the token is not initialized, out of range, or `n_vocab` overflows.
+    /// Returns `LogitsError` if the token is not an output of the last decode, out of range, the
+    /// last decode produced no logits, or `n_vocab` overflows.
     pub fn get_logits_ith(&self, token_index: i32) -> Result<&[f32], LogitsError> {
-        if !self.initialized_logits.contains(&token_index) {
-            return Err(LogitsError::TokenNotInitialized(token_index));
-        }
+        self.decoded_outputs.ensure_output(token_index)?;
+        self.produced_logits()?;
 
-        token_index_within_context(token_index, self.n_ctx())?;
-
-        let data = unsafe {
+        let row = NonNull::new(unsafe {
             llama_cpp_bindings_sys::llama_get_logits_ith(self.context.as_ptr(), token_index)
-        };
+        })
+        .ok_or(LogitsError::NullLogits)?;
 
-        unsafe { logits_slice_from_raw_parts(data, self.model.n_vocab()) }
+        unsafe { logits_slice(row, self.model.n_vocab()) }
     }
 
     pub fn reset_timings(&mut self) {
@@ -789,8 +999,9 @@ impl<'model> LlamaContext<'model> {
     }
 
     pub fn timings(&mut self) -> LlamaTimings {
-        let timings = unsafe { llama_cpp_bindings_sys::llama_perf_context(self.context.as_ptr()) };
-        LlamaTimings { timings }
+        LlamaTimings::from(unsafe {
+            llama_cpp_bindings_sys::llama_perf_context(self.context.as_ptr())
+        })
     }
 
     /// # Errors
@@ -829,7 +1040,10 @@ impl<'model> LlamaContext<'model> {
 
 impl Drop for LlamaContext<'_> {
     fn drop(&mut self) {
-        unsafe { llama_cpp_bindings_sys::llama_free(self.context.as_ptr()) }
+        unsafe {
+            llama_cpp_bindings_sys::llama_batch_ext_free(self.batch_ext.as_ptr());
+            llama_cpp_bindings_sys::llama_free(self.context.as_ptr());
+        }
     }
 }
 
@@ -1468,52 +1682,16 @@ mod encode_status_to_result_tests {
 }
 
 #[cfg(test)]
-mod token_index_within_context_tests {
-    use super::token_index_within_context;
+mod logits_slice_tests {
+    use std::ptr::NonNull;
+
+    use super::logits_slice;
     use crate::LogitsError;
-
-    #[test]
-    fn token_index_beyond_context_size_maps_exceeds_context() {
-        let result = token_index_within_context(5, 4);
-
-        assert_eq!(
-            result,
-            Err(LogitsError::TokenIndexExceedsContext {
-                token_index: 5,
-                context_size: 4,
-            })
-        );
-    }
-
-    #[test]
-    fn token_index_within_context_size_is_ok() {
-        assert!(token_index_within_context(2, 4).is_ok());
-    }
-
-    #[test]
-    fn token_index_negative_skips_context_check() {
-        assert!(token_index_within_context(-1, 4).is_ok());
-    }
-}
-
-#[cfg(test)]
-mod logits_slice_from_raw_parts_tests {
-    use std::ptr;
-
-    use super::logits_slice_from_raw_parts;
-    use crate::LogitsError;
-
-    #[test]
-    fn logits_slice_from_null_data_maps_null_logits() {
-        let result = unsafe { logits_slice_from_raw_parts(ptr::null(), 4) };
-
-        assert_eq!(result, Err(LogitsError::NullLogits));
-    }
 
     #[test]
     fn logits_slice_from_negative_vocab_maps_vocab_size_overflow() {
         let logit_value = 0.0_f32;
-        let result = unsafe { logits_slice_from_raw_parts(&raw const logit_value, -1) };
+        let result = unsafe { logits_slice(NonNull::from(&logit_value), -1) };
 
         let conversion_error = usize::try_from(-1_i32).unwrap_err();
 

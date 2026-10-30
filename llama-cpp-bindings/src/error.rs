@@ -1,4 +1,5 @@
 pub mod apply_chat_template_error;
+pub mod batch_transfer_error;
 pub mod bracketed_args_failure;
 pub mod chat_template_error;
 pub mod clear_kv_cache_seq_error;
@@ -32,6 +33,7 @@ pub mod sample_error;
 pub mod sampler_accept_error;
 pub mod sampler_apply_error;
 pub mod sampling_error;
+pub mod sequence_id_out_of_range;
 pub mod string_to_token_error;
 pub mod token_attr_error;
 pub mod token_outside_vocabulary;

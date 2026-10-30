@@ -1,6 +1,8 @@
 use std::num::NonZeroI32;
 use std::os::raw::c_int;
 
+use crate::error::batch_transfer_error::BatchTransferError;
+
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum DecodeError {
     #[error(transparent)]
@@ -25,6 +27,8 @@ pub enum DecodeError {
     LlamaCppOutOfMemory,
     #[error("decode batch of {n_tokens} tokens must fit a single micro batch of {n_ubatch} tokens")]
     BatchExceedsMicroBatch { n_tokens: i32, n_ubatch: u32 },
+    #[error("the batch could not be handed to llama.cpp: {0}")]
+    BatchTransfer(#[from] BatchTransferError),
     #[error("{message}")]
     Reported { message: String },
 }

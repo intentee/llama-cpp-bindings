@@ -8,6 +8,8 @@ pub enum FitError {
     NoFittingMemoryLayout,
     #[error("parameter fitting aborted")]
     Aborted,
+    #[error("{actual} memory margins were given, one per device needs exactly {expected}")]
+    MarginsDeviceCountMismatch { expected: usize, actual: usize },
     #[error("parameter fitting returned an unknown status code: {code}")]
     UnknownStatus { code: i32 },
     #[error("not enough memory")]

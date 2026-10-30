@@ -45,7 +45,7 @@ auto parse_with_tools_parser(
         parser_params.format = COMMON_CHAT_FORMAT_PEG_NATIVE;
 
         common_chat_msg parsed =
-            common_chat_peg_parse(chat_parser, input, is_partial != 0, parser_params);
+            common_chat_peg_parse(chat_parser, common_chat_input(std::string(input)), is_partial != 0, parser_params);
 
         auto handle = std::make_unique<llama_rs_parsed_chat>();
         handle->message = std::move(parsed);

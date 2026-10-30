@@ -24,12 +24,12 @@ typedef enum llama_rs_json_schema_to_grammar_status {
     LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA,
+    LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON,
     LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_json_schema_to_grammar_status;
 
 llama_rs_json_schema_to_grammar_status llama_rs_json_schema_to_grammar(
     const char * schema_json,
-    bool force_gbnf,
     char ** out_grammar,
     char ** out_error);
 
@@ -129,6 +129,7 @@ llama_rs_memory_seq_pos_max_status llama_rs_memory_seq_pos_max(
 typedef enum llama_rs_encode_status {
     LLAMA_RS_ENCODE_OK = 0,
     LLAMA_RS_ENCODE_NULL_CTX_ARG,
+    LLAMA_RS_ENCODE_NULL_BATCH_ARG,
     LLAMA_RS_ENCODE_NULL_MODEL,
     LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER,
     LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
@@ -141,7 +142,7 @@ typedef enum llama_rs_encode_status {
 
 llama_rs_encode_status llama_rs_encode(
     struct llama_context * ctx,
-    struct llama_batch batch,
+    struct llama_batch_ext * batch,
     int32_t * out_llama_cpp_return_code,
     char ** out_error);
 
@@ -220,6 +221,7 @@ llama_rs_new_context_with_model_status llama_rs_new_context_with_model(
 typedef enum llama_rs_decode_status {
     LLAMA_RS_DECODE_OK = 0,
     LLAMA_RS_DECODE_NULL_CTX_ARG,
+    LLAMA_RS_DECODE_NULL_BATCH_ARG,
     LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG,
     LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
     LLAMA_RS_DECODE_OUT_OF_MEMORY,
@@ -231,7 +233,7 @@ typedef enum llama_rs_decode_status {
 
 llama_rs_decode_status llama_rs_decode(
     struct llama_context * ctx,
-    struct llama_batch batch,
+    struct llama_batch_ext * batch,
     int32_t * out_llama_cpp_return_code,
     char ** out_error);
 

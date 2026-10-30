@@ -3,10 +3,12 @@ use anyhow::Result;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaChatMessage;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
+use llama_cpp_bindings::mtmd::MtmdCapability;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
@@ -14,7 +16,6 @@ use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
-use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -57,13 +58,12 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
         .mtmd_context
         .expect("mmproj_file declared in attribute");
 
-    assert!(
-        mtmd_ctx.support_vision(),
-        "mmproj must support vision input for a combined image and audio test"
-    );
-    assert!(
-        mtmd_ctx.support_audio(),
-        "mmproj must support audio input for a combined image and audio test"
+    assert_eq!(
+        mtmd_ctx.capabilities(model),
+        MtmdCapability::Chat
+            | MtmdCapability::Vision
+            | MtmdCapability::Audio
+            | MtmdCapability::TextGeneration
     );
 
     let image_bitmap = load_fixture_bitmap(mtmd_ctx, "llamas.jpg")?;
@@ -116,7 +116,7 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
         .eval_multimodal_chunks(
             &chunks,
             mtmd_ctx,
-            &context,
+            &mut context,
             EvalMultimodalChunksParams {
                 start_position: 0,
                 seq_id: 0,
@@ -134,7 +134,7 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
     }
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,

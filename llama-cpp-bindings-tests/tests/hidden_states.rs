@@ -2,12 +2,12 @@ use anyhow::Result;
 use llama_cpp_bindings::EmbeddingsError;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::params::LlamaPoolingType;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::token::LlamaToken;
-use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -40,7 +40,7 @@ fn hidden_state_context<'fixture>(
 }
 
 fn add_tokens(
-    batch: &mut LlamaBatch<'_>,
+    batch: &mut LlamaBatch,
     tokens: &[LlamaToken],
     first_position: i32,
     sequence_id: i32,
@@ -66,12 +66,12 @@ fn hidden_state_after(
     branch: &[LlamaToken],
 ) -> Result<Vec<f32>> {
     let mut context = hidden_state_context(fixture)?;
-    let mut state_batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut state_batch = LlamaBatch::new(ContextLimits::of(&context));
 
     add_tokens(&mut state_batch, state, 0, 0, false)?;
-    context.decode(&mut state_batch)?;
+    context.decode(&state_batch)?;
 
-    let mut branch_batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut branch_batch = LlamaBatch::new(ContextLimits::of(&context));
 
     add_tokens(
         &mut branch_batch,
@@ -80,7 +80,7 @@ fn hidden_state_after(
         0,
         true,
     )?;
-    context.decode(&mut branch_batch)?;
+    context.decode(&branch_batch)?;
 
     Ok(context
         .nextn_embeddings_ith(branch_batch.n_tokens() - 1)?
@@ -107,16 +107,16 @@ fn masked_nextn_embeddings_equal_the_final_hidden_states(fixture: &LlamaFixture<
             .with_embeddings(true)
             .with_pooling_type(LlamaPoolingType::None),
     )?;
-    let mut embedding_batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut embedding_batch = LlamaBatch::new(ContextLimits::of(&embedding_context));
 
     embedding_batch.add_sequence(&tokens, 0, true)?;
-    embedding_context.decode(&mut embedding_batch)?;
+    embedding_context.decode(&embedding_batch)?;
 
     let mut nextn_context = hidden_state_context(fixture)?;
-    let mut nextn_batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut nextn_batch = LlamaBatch::new(ContextLimits::of(&nextn_context));
 
     nextn_batch.add_sequence(&tokens, 0, true)?;
-    nextn_context.decode(&mut nextn_batch)?;
+    nextn_context.decode(&nextn_batch)?;
 
     assert_eq!(
         nextn_context.nextn_embeddings_ith(last_index)?,
@@ -137,10 +137,10 @@ fn masked_nextn_embeddings_equal_the_final_hidden_states(fixture: &LlamaFixture<
 fn masked_nextn_embeddings_exist_only_for_output_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let tokens = tokenize(fixture, STATE)?;
     let mut context = hidden_state_context(fixture)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     add_tokens(&mut batch, &tokens, 0, 0, true)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     assert_eq!(
         context.nextn_embeddings_ith(0),
@@ -214,13 +214,13 @@ fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
     let branch_position = i32::try_from(state.len())?;
 
     let mut context = hidden_state_context(fixture)?;
-    let mut state_batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut state_batch = LlamaBatch::new(ContextLimits::of(&context));
 
     add_tokens(&mut state_batch, &state, 0, 0, false)?;
-    context.decode(&mut state_batch)?;
+    context.decode(&state_batch)?;
     context.copy_kv_cache_seq(0, 1, None, None)?;
 
-    let mut first_branch_batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut first_branch_batch = LlamaBatch::new(ContextLimits::of(&context));
 
     add_tokens(
         &mut first_branch_batch,
@@ -229,7 +229,7 @@ fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
         1,
         true,
     )?;
-    context.decode(&mut first_branch_batch)?;
+    context.decode(&first_branch_batch)?;
 
     let first_branch_hidden_state = context
         .nextn_embeddings_ith(first_branch_batch.n_tokens() - 1)?
@@ -237,7 +237,7 @@ fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
 
     context.clear_kv_cache_seq(Some(1), None, None)?;
 
-    let mut second_branch_batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut second_branch_batch = LlamaBatch::new(ContextLimits::of(&context));
 
     add_tokens(
         &mut second_branch_batch,
@@ -246,7 +246,7 @@ fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
         0,
         true,
     )?;
-    context.decode(&mut second_branch_batch)?;
+    context.decode(&second_branch_batch)?;
 
     assert_eq!(
         first_branch_hidden_state,
@@ -292,10 +292,10 @@ fn decode_tokens(
     first_position: i32,
     output_on_last_token: bool,
 ) -> Result<i32> {
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(context));
 
     add_tokens(&mut batch, tokens, first_position, 0, output_on_last_token)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     Ok(batch.n_tokens() - 1)
 }

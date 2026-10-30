@@ -21,8 +21,6 @@ typedef enum llama_rs_context_nextn_hidden_state_probe_status {
     LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_context_nextn_hidden_state_probe_status;
 
-bool llama_rs_context_decodes_batches_in_one_micro_batch(const struct llama_context * ctx);
-
 bool llama_rs_context_embeddings_enabled(const struct llama_context * ctx);
 
 bool llama_rs_context_embeddings_nextn_enabled(const struct llama_context * ctx);

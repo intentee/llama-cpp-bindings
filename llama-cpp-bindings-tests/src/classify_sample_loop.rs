@@ -8,11 +8,11 @@ use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 
-pub struct ClassifySampleLoop<'borrow, 'model, 'tokens> {
+pub struct ClassifySampleLoop<'borrow, 'model> {
     pub classifier: &'borrow mut SampledTokenClassifier<'model>,
     pub sampler: &'borrow mut LlamaSampler,
     pub context: &'borrow mut LlamaContext<'model>,
-    pub batch: &'borrow mut LlamaBatch<'tokens>,
+    pub batch: &'borrow mut LlamaBatch,
     pub initial_position: i32,
     pub max_generated_tokens: i32,
 }
@@ -59,7 +59,7 @@ impl ClassifySampleLoopOutcome {
     }
 }
 
-impl ClassifySampleLoop<'_, '_, '_> {
+impl ClassifySampleLoop<'_, '_> {
     /// # Errors
     /// Forwards [`SampledTokenClassifier::sample`] / [`LlamaContext::decode`] /
     /// [`LlamaBatch::add`] errors verbatim. Stops on the end of generation, on

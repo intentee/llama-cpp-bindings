@@ -40,7 +40,7 @@ extern "C" auto llama_rs_validate_gbnf(
             vocab, grammar_str, grammar_root, false, nullptr, 0, nullptr, 0);
 
         if (grammar == nullptr) {
-            return LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION;
+            return LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
         }
 
         llama_grammar_free_impl(grammar);

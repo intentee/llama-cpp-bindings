@@ -16,7 +16,6 @@
 
 extern "C" auto llama_rs_json_schema_to_grammar(
     const char * schema_json,
-    bool force_gbnf,
     char ** out_grammar,
     char ** out_error) -> llama_rs_json_schema_to_grammar_status {
     if (out_grammar != nullptr) {
@@ -37,12 +36,18 @@ extern "C" auto llama_rs_json_schema_to_grammar(
 
     try {
         const auto schema = common_json::parse(schema_json);
-        const auto grammar = json_schema_to_grammar(schema, force_gbnf);
+        const auto grammar = json_schema_to_grammar(schema);
         *out_grammar = llama_rs_dup_string(grammar);
         if (*out_grammar == nullptr) {
             return LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED;
         }
         return LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK;
+    } catch (const common_json_error & err) {
+        return llama_rs_report_exception_message(
+            out_error,
+            err.what(),
+            LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON,
+            LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED);
     } catch (const std::invalid_argument & err) {
         return llama_rs_report_exception_message(
             out_error,
@@ -195,7 +200,7 @@ extern "C" auto llama_rs_memory_seq_pos_max(
 
 extern "C" auto llama_rs_encode(
     struct llama_context * ctx,
-    struct llama_batch batch,
+    struct llama_batch_ext * batch,
     int32_t * out_llama_cpp_return_code,
     char ** out_error) -> llama_rs_encode_status {
     if (out_error != nullptr) {
@@ -207,6 +212,9 @@ extern "C" auto llama_rs_encode(
     if (ctx == nullptr) {
         return LLAMA_RS_ENCODE_NULL_CTX_ARG;
     }
+    if (batch == nullptr) {
+        return LLAMA_RS_ENCODE_NULL_BATCH_ARG;
+    }
     try {
         const auto * model = llama_get_model(ctx);
         if (model == nullptr) {
@@ -215,7 +223,7 @@ extern "C" auto llama_rs_encode(
         if (!llama_model_has_encoder(model)) {
             return LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER;
         }
-        int32_t const result = llama_encode(ctx, batch);
+        int32_t const result = llama_process(ctx, LLAMA_PROCESS_TYPE_ENCODE, batch);
         if (result != 0) {
             if (out_llama_cpp_return_code != nullptr) {
                 *out_llama_cpp_return_code = result;
@@ -442,7 +450,7 @@ extern "C" auto llama_rs_new_context_with_model(
 
 extern "C" auto llama_rs_decode(
     struct llama_context * ctx,
-    struct llama_batch batch,
+    struct llama_batch_ext * batch,
     int32_t * out_llama_cpp_return_code,
     char ** out_error) -> llama_rs_decode_status {
     if (out_error != nullptr) {
@@ -454,11 +462,14 @@ extern "C" auto llama_rs_decode(
     if (ctx == nullptr) {
         return LLAMA_RS_DECODE_NULL_CTX_ARG;
     }
+    if (batch == nullptr) {
+        return LLAMA_RS_DECODE_NULL_BATCH_ARG;
+    }
     if (out_error == nullptr) {
         return LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG;
     }
     try {
-        int32_t const result = llama_decode(ctx, batch);
+        int32_t const result = llama_process(ctx, LLAMA_PROCESS_TYPE_DECODE, batch);
         if (result != 0) {
             if (out_llama_cpp_return_code != nullptr) {
                 *out_llama_cpp_return_code = result;

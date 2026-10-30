@@ -3,15 +3,16 @@ use anyhow::Result;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaChatMessage;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
+use llama_cpp_bindings::mtmd::MtmdCapability;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
-use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -32,7 +33,7 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
     .with_context(|| "unable to create llama context")?;
 
     assert!(
-        mtmd_ctx.support_audio(),
+        mtmd_ctx.capabilities(model).contains(MtmdCapability::Audio),
         "mmproj must support audio input for an audio transcription test"
     );
 
@@ -71,7 +72,7 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
         .eval_multimodal_chunks(
             &chunks,
             mtmd_ctx,
-            &context,
+            &mut context,
             EvalMultimodalChunksParams {
                 start_position: 0,
                 seq_id: 0,
@@ -99,7 +100,7 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
     }
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -170,7 +171,9 @@ fn audio_mmproj_reports_audio_support(fixture: &LlamaFixture<'_>) -> Result<()> 
         .expect("mmproj_file declared in attribute");
 
     assert!(
-        mtmd_ctx.support_audio(),
+        mtmd_ctx
+            .capabilities(fixture.model)
+            .contains(MtmdCapability::Audio),
         "an audio mmproj must report audio support"
     );
     assert!(

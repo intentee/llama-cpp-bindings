@@ -24,7 +24,6 @@ namespace {
 
 auto find_reasoning_markers(
     const common_chat_template & tmpl,
-    const char * tmpl_src,
     std::string * out_start,
     std::vector<std::string> * out_ends) -> bool {
     autoparser::generation_params probe_params;
@@ -37,8 +36,7 @@ auto find_reasoning_markers(
         common_json{ { "role", "user" }, { "content", "ping" } },
     });
 
-    const std::string tmpl_src_str = tmpl_src;
-    if (auto specialized = common_chat_try_specialized_template(tmpl, tmpl_src_str, probe_params)) {
+    if (auto specialized = common_chat_try_specialized_template(tmpl, probe_params)) {
         if (specialized->supports_thinking
             && !specialized->thinking_start_tag.empty()
             && !specialized->thinking_end_tags.empty()) {
@@ -100,7 +98,7 @@ extern "C" auto llama_rs_detect_reasoning_markers(
         common_chat_template const tmpl(tmpl_src, bos_token, eos_token);
 
         auto detected = std::make_unique<llama_rs_reasoning_markers>();
-        if (!find_reasoning_markers(tmpl, tmpl_src, &detected->open, &detected->closes)) {
+        if (!find_reasoning_markers(tmpl, &detected->open, &detected->closes)) {
             return LLAMA_RS_DETECT_REASONING_MARKERS_OK;
         }
 

@@ -3,6 +3,7 @@
     reason = "harness trial functions must return Result to satisfy LlamaTestFn registration"
 )]
 mod backend_initialization;
+mod batch_context_limits;
 mod chat_protocol;
 mod context_after_decoding_text;
 mod context_state;
@@ -11,6 +12,7 @@ mod embedding_models;
 mod embedding_row_width;
 mod generation_control;
 mod hidden_states;
+mod logits_availability;
 mod model_derived_data_caching;
 mod model_introspection;
 mod model_loading_errors;

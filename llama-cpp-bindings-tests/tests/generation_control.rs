@@ -1,4 +1,5 @@
 use std::ffi::CStr;
+use std::ffi::CString;
 use std::io::Write;
 use std::time::Duration;
 
@@ -12,7 +13,9 @@ use llama_cpp_bindings::GenerationProgress;
 use llama_cpp_bindings::GrammarError;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::SamplerAcceptError;
+use llama_cpp_bindings::SamplingError;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::ggml_time_us;
 use llama_cpp_bindings::json_schema_to_grammar;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -24,7 +27,6 @@ use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
-use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -69,11 +71,11 @@ fn sample_returns_result_and_succeeds_with_valid_index(fixture: &LlamaFixture<'_
     )?;
 
     let tokens = model.str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     batch.add_sequence(&tokens, 0, false)?;
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let mut sampler =
         LlamaSampler::chain_simple([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
@@ -126,11 +128,11 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
 
     let prompt = "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     batch.add_sequence(&tokens, 0, false)?;
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let mut sampler = LlamaSampler::chain_simple([
         LlamaSampler::grammar(model, r"root ::= [Yy] [Ee] [Ss] | [Nn] [Oo]", "root")?,
@@ -220,11 +222,11 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
 
     let prompt = "<|im_start|>user\nWhat is 2+2? Respond with a JSON object.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     batch.add_sequence(&tokens, 0, false)?;
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let grammar_str = json_schema_to_grammar(
         r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#,
@@ -313,12 +315,12 @@ fn sample_with_grammar_produces_constrained_output_in_loop(
 
     let prompt = "<|im_start|>user\nIs the sky blue? yes or no<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
     classifier.commit_prompt_tokens();
 
     let mut sampler = LlamaSampler::chain_simple([
@@ -404,11 +406,11 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
     let prompt =
         "<|im_start|>user\nSay hello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     batch.add_sequence(&tokens, 0, false)?;
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let mut sampler =
         LlamaSampler::chain_simple([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
@@ -431,7 +433,7 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
         batch.clear();
         batch.add(&raw_as_sampled, position, &[0], true)?;
 
-        context.decode(&mut batch)?;
+        context.decode(&batch)?;
     }
 
     classifier.finish(&mut outcomes);
@@ -479,7 +481,13 @@ fn dry_sampler_with_null_byte_in_seq_breakers_returns_error(
     let breakers: Vec<&[u8]> = vec![b"hello\0world"];
     let result = LlamaSampler::dry(fixture.model, 1.5, 2.0, 128, 2, breakers);
 
-    assert!(result.is_err());
+    assert_eq!(
+        result.err(),
+        Some(SamplingError::DrySequenceBreakerContainsNul {
+            index: 0,
+            source: CString::new(&b"hello\0world"[..]).unwrap_err(),
+        })
+    );
 
     Ok(())
 }
@@ -554,7 +562,7 @@ fn grammar_lazy_with_null_byte_in_pattern_returns_error(fixture: &LlamaFixture<'
     assert_eq!(
         result.err(),
         Some(GrammarError::TriggerPatternContainsNul(
-            std::ffi::CString::new("hel\0lo").expect_err("the pattern carries a nul byte")
+            CString::new("hel\0lo").expect_err("the pattern carries a nul byte")
         ))
     );
 
@@ -613,8 +621,7 @@ fn grammar_lazy_with_null_byte_in_grammar_returns_error(fixture: &LlamaFixture<'
     assert_eq!(
         result.err(),
         Some(GrammarError::GrammarContainsNul(
-            std::ffi::CString::new("root ::= \"hel\0lo\"")
-                .expect_err("the grammar carries a nul byte")
+            CString::new("root ::= \"hel\0lo\"").expect_err("the grammar carries a nul byte")
         ))
     );
 
@@ -799,9 +806,9 @@ fn apply_runs_sampler_over_token_data_array(fixture: &LlamaFixture<'_>) -> Resul
     let tokens = fixture
         .model
         .str_to_token("Hi", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let mut data_array = context.token_data_array_ith(batch.n_tokens() - 1)?;
     let sampler = LlamaSampler::greedy()?;
@@ -827,9 +834,9 @@ fn sample_returns_token_after_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
     let tokens = fixture
         .model
         .str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
     let mut sampler =
         LlamaSampler::chain_simple([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
     let result = sampler.sample(&context, batch.n_tokens() - 1);
@@ -900,13 +907,13 @@ fn raw_prompt_completion_with_timing(fixture: &LlamaFixture<'_>) -> Result<()> {
     }
     std::io::stderr().flush()?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens_list, 0, false)?;
 
     assert_eq!(classifier.pending_prompt_tokens(), prompt_token_count);
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
-    ctx.decode(&mut batch)
+    ctx.decode(&batch)
         .with_context(|| "llama_decode() failed")?;
 
     let promoted = classifier.commit_prompt_tokens();
@@ -1034,13 +1041,13 @@ fn chat_inference_produces_coherent_output(fixture: &LlamaFixture<'_>) -> Result
     let tokens = model.str_to_token(&prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     assert_eq!(classifier.pending_prompt_tokens(), prompt_token_count);
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let promoted = classifier.commit_prompt_tokens();
     assert_eq!(promoted, prompt_token_count);
@@ -1151,7 +1158,7 @@ fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let tokens_list = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
     let last_index = i32::try_from(tokens_list.len())? - 1;
 
     for (index, token) in (0_i32..).zip(&tokens_list) {
@@ -1163,7 +1170,7 @@ fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
         )?;
     }
 
-    ctx.decode(&mut batch)?;
+    ctx.decode(&batch)?;
 
     let schema = r#"{
   "type": "object",
@@ -1196,7 +1203,7 @@ fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
         batch.clear();
         batch.add(&token, n_cur, &[0], true)?;
         n_cur += 1;
-        ctx.decode(&mut batch)?;
+        ctx.decode(&batch)?;
     }
 
     println!();
@@ -1585,9 +1592,9 @@ fn samples_token_constrained_by_grammar(fixture: &LlamaFixture<'_>) -> Result<()
 
     let prompt = "Answer yes or no:";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let llg_sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
     let mut chain = LlamaSampler::chain_simple([llg_sampler, LlamaSampler::greedy()?])?;
@@ -1771,9 +1778,9 @@ fn llguidance_chain_samples_a_valid_token(fixture: &LlamaFixture<'_>) -> Result<
     )?;
 
     let tokens = model.str_to_token("Answer:", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let llg_sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
     let mut chain = LlamaSampler::chain_simple([llg_sampler, LlamaSampler::greedy()?])?;
@@ -2071,7 +2078,12 @@ fn ingest_unmatched_prompt_tokens_does_not_record_usage(fixture: &LlamaFixture<'
 fn feed_prompt_to_batch_increments_pending_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(8)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits {
+        n_batch: 8,
+        n_ubatch: 8,
+        n_seq_max: 1,
+        n_vocab: model.n_vocab(),
+    });
 
     classifier.feed_prompt_to_batch(
         &mut batch,
@@ -2129,7 +2141,12 @@ fn feed_prompt_to_batch_increments_pending_prompt_tokens(fixture: &LlamaFixture<
 fn feed_prompt_sequence_to_batch_stages_all_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(8)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits {
+        n_batch: 8,
+        n_ubatch: 8,
+        n_seq_max: 1,
+        n_vocab: model.n_vocab(),
+    });
 
     let tokens = vec![
         model.token_bos().context("model declares a BOS token")?,
@@ -2181,7 +2198,12 @@ fn commit_prompt_tokens_promotes_pending_count_to_usage_and_clears(
 ) -> Result<()> {
     let model = fixture.model;
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(8)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits {
+        n_batch: 8,
+        n_ubatch: 8,
+        n_seq_max: 1,
+        n_vocab: model.n_vocab(),
+    });
 
     classifier.feed_prompt_to_batch(
         &mut batch,
@@ -2244,7 +2266,12 @@ fn discard_pending_prompt_tokens_clears_count_without_recording_usage(
 ) -> Result<()> {
     let model = fixture.model;
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(8)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits {
+        n_batch: 8,
+        n_ubatch: 8,
+        n_seq_max: 1,
+        n_vocab: model.n_vocab(),
+    });
 
     classifier.feed_prompt_to_batch(
         &mut batch,
@@ -2346,10 +2373,10 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
         AddBos::Never,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(128)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     batch.add_sequence(&prompt_tokens, 0, false)?;
-    context.decode(&mut batch)?;
+    context.decode(&batch)?;
 
     let mut sampler = LlamaSampler::chain_simple([
         LlamaSampler::grammar(model, r#"root ::= <think> "x""#, "root")?,

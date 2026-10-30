@@ -1,154 +1,105 @@
-use std::marker::PhantomData;
-
-use llama_cpp_bindings_sys::{
-    llama_batch, llama_batch_free, llama_batch_init, llama_pos, llama_seq_id,
-};
-
-use llama_cpp_bindings_types::BatchCapacity;
+use llama_cpp_bindings_sys::{llama_pos, llama_seq_id};
 
 use crate::batch_add_error::BatchAddError;
+use crate::context::context_limits::ContextLimits;
+use crate::llama_batch_entry::LlamaBatchEntry;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
 
-fn checked_n_tokens_plus_one_as_usize(n_tokens: i32) -> Result<usize, BatchAddError> {
-    let incremented = n_tokens
-        .checked_add(1)
-        .ok_or(BatchAddError::TokenCountOverflow { n_tokens })?;
-
-    checked_i32_as_usize(incremented, "the incremented token count")
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LlamaBatch {
+    limits: ContextLimits,
+    entries: Vec<LlamaBatchEntry>,
+    output_token_indices: Vec<i32>,
+    n_tokens: i32,
 }
 
-fn checked_i32_as_usize(
-    value: i32,
-    value_description: &'static str,
-) -> Result<usize, BatchAddError> {
-    usize::try_from(value).map_err(|source| BatchAddError::IntegerOverflow {
-        value_description,
-        target_type: "usize",
-        source,
-    })
-}
+impl LlamaBatch {
+    #[must_use]
+    pub const fn new(limits: ContextLimits) -> Self {
+        Self {
+            limits,
+            entries: Vec::new(),
+            output_token_indices: Vec::new(),
+            n_tokens: 0,
+        }
+    }
 
-fn checked_usize_as_llama_seq_id(
-    value: usize,
-    value_description: &'static str,
-) -> Result<llama_seq_id, BatchAddError> {
-    llama_seq_id::try_from(value).map_err(|source| BatchAddError::IntegerOverflow {
-        value_description,
-        target_type: "llama_seq_id",
-        source,
-    })
-}
-
-fn checked_usize_as_i32(
-    value: usize,
-    value_description: &'static str,
-) -> Result<i32, BatchAddError> {
-    i32::try_from(value).map_err(|source| BatchAddError::IntegerOverflow {
-        value_description,
-        target_type: "i32",
-        source,
-    })
-}
-
-fn checked_usize_as_llama_pos(
-    value: usize,
-    value_description: &'static str,
-) -> Result<llama_pos, BatchAddError> {
-    llama_pos::try_from(value).map_err(|source| BatchAddError::IntegerOverflow {
-        value_description,
-        target_type: "llama_pos",
-        source,
-    })
-}
-
-#[derive(Debug)]
-pub struct LlamaBatch<'tokens> {
-    allocated: usize,
-    pub initialized_logits: Vec<i32>,
-    pub llama_batch: llama_batch,
-    n_seq_max: i32,
-    phantom: PhantomData<&'tokens [LlamaToken]>,
-}
-
-impl<'tokens> LlamaBatch<'tokens> {
     pub fn clear(&mut self) {
-        self.llama_batch.n_tokens = 0;
-        self.initialized_logits.clear();
+        self.entries.clear();
+        self.output_token_indices.clear();
+        self.n_tokens = 0;
     }
 
     /// # Errors
     ///
-    /// Returns an error if there is insufficient space in the buffer, if the token belongs to more
-    /// sequences than the batch was created for, or if integer conversions fail.
+    /// Returns [`BatchAddError`] when the batch already holds as many tokens as one decode of the
+    /// context takes, the token is outside the vocabulary, `seq_ids` is empty or names a sequence
+    /// the context does not have, or the token count would overflow.
     pub fn add(
         &mut self,
         sampled_token: &SampledToken,
         pos: llama_pos,
-        seq_ids: &[i32],
+        seq_ids: &[llama_seq_id],
         logits: bool,
     ) -> Result<(), BatchAddError> {
-        let (SampledToken::Content(LlamaToken(id))
-        | SampledToken::Reasoning(LlamaToken(id))
-        | SampledToken::ToolCall(LlamaToken(id))
-        | SampledToken::Undeterminable(LlamaToken(id))) = *sampled_token;
-        let required = checked_n_tokens_plus_one_as_usize(self.n_tokens())?;
-
-        if self.allocated < required {
-            return Err(BatchAddError::InsufficientSpace(self.allocated));
-        }
-
-        let offset = self.llama_batch.n_tokens;
-        let offset_usize = checked_i32_as_usize(offset, "n_tokens")?;
-        let n_seq_id = checked_usize_as_llama_seq_id(seq_ids.len(), "seq_ids.len()")?;
-
-        if n_seq_id > self.n_seq_max {
-            return Err(BatchAddError::TooManySequenceIds {
-                sequence_ids: n_seq_id,
-                n_seq_max: self.n_seq_max,
+        if self.n_tokens.unsigned_abs() >= self.limits.n_batch {
+            return Err(BatchAddError::BatchFull {
+                n_batch: self.limits.n_batch,
             });
         }
 
-        unsafe {
-            self.llama_batch.token.add(offset_usize).write(id);
-            self.llama_batch.pos.add(offset_usize).write(pos);
-            self.llama_batch.n_seq_id.add(offset_usize).write(n_seq_id);
-            for (seq_index, seq_id) in seq_ids.iter().enumerate() {
-                let tmp = *self.llama_batch.seq_id.add(offset_usize);
-                tmp.add(seq_index).write(*seq_id);
-            }
-            self.llama_batch
-                .logits
-                .add(offset_usize)
-                .write(i8::from(logits));
+        let token = self
+            .limits
+            .ensure_token_in_vocabulary(sampled_token.token())?;
+
+        if seq_ids.is_empty() {
+            return Err(BatchAddError::NoSequenceIds);
         }
+
+        for seq_id in seq_ids {
+            self.limits.ensure_sequence_id(*seq_id)?;
+        }
+
+        let token_index = self.n_tokens;
+        self.n_tokens = token_index
+            .checked_add(1)
+            .ok_or(BatchAddError::TokenCountOverflow {
+                n_tokens: token_index,
+            })?;
 
         if logits {
-            self.initialized_logits.push(offset);
+            self.output_token_indices.push(token_index);
         }
 
-        self.llama_batch.n_tokens += 1;
+        self.entries.push(LlamaBatchEntry {
+            token,
+            pos,
+            seq_ids: seq_ids.to_vec(),
+            output: logits,
+        });
 
         Ok(())
     }
 
+    /// Adds `tokens` at positions counting from zero in `seq_id`, with logits for the last one,
+    /// or for every one when `logits_all` is set.
+    ///
     /// # Errors
     ///
-    /// Returns an error if there is insufficient space in the buffer or if integer conversions fail.
+    /// Returns the [`BatchAddError`] of the first token [`Self::add`] refuses.
     pub fn add_sequence(
         &mut self,
         tokens: &[LlamaToken],
-        seq_id: i32,
+        seq_id: llama_seq_id,
         logits_all: bool,
     ) -> Result<(), BatchAddError> {
-        let last_index = checked_usize_as_llama_pos(tokens.len().saturating_sub(1), "n_tokens")?;
-
-        for (position, token) in (0..).zip(tokens.iter()) {
+        for ((token_index, token), pos) in tokens.iter().enumerate().zip(0..) {
             self.add(
                 &SampledToken::Content(*token),
-                position,
+                pos,
                 &[seq_id],
-                logits_all || position == last_index,
+                logits_all || token_index + 1 == tokens.len(),
             )?;
         }
 
@@ -156,462 +107,178 @@ impl<'tokens> LlamaBatch<'tokens> {
     }
 
     #[must_use]
-    pub fn new(capacity: BatchCapacity, n_seq_max: i32) -> Self {
-        let batch = unsafe { llama_batch_init(capacity.tokens_i32(), 0, n_seq_max) };
-
-        LlamaBatch {
-            allocated: capacity.tokens_usize(),
-            initialized_logits: vec![],
-            llama_batch: batch,
-            n_seq_max,
-            phantom: PhantomData,
-        }
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error if the provided token buffer is empty or if integer conversions fail.
-    pub fn get_one(tokens: &'tokens [LlamaToken]) -> Result<Self, BatchAddError> {
-        if tokens.is_empty() {
-            return Err(BatchAddError::EmptyBuffer);
-        }
-
-        let token_count = checked_usize_as_i32(tokens.len(), "token count")?;
-
-        let batch = unsafe {
-            let ptr = tokens.as_ptr().cast::<i32>().cast_mut();
-            llama_cpp_bindings_sys::llama_batch_get_one(ptr, token_count)
-        };
-
-        let last_token_index = checked_usize_as_i32(tokens.len() - 1, "last token index")?;
-
-        Ok(Self {
-            allocated: 0,
-            initialized_logits: vec![last_token_index],
-            llama_batch: batch,
-            n_seq_max: 0,
-            phantom: PhantomData,
-        })
+    pub const fn limits(&self) -> ContextLimits {
+        self.limits
     }
 
     #[must_use]
     pub const fn n_tokens(&self) -> i32 {
-        self.llama_batch.n_tokens
+        self.n_tokens
     }
-}
 
-impl Drop for LlamaBatch<'_> {
-    fn drop(&mut self) {
-        unsafe {
-            if self.allocated > 0 {
-                llama_batch_free(self.llama_batch);
-            }
-        }
+    #[must_use]
+    pub fn entries(&self) -> &[LlamaBatchEntry] {
+        &self.entries
+    }
+
+    #[must_use]
+    pub fn output_token_indices(&self) -> &[i32] {
+        &self.output_token_indices
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::BatchCapacity;
-
+    use crate::batch_add_error::BatchAddError;
+    use crate::context::context_limits::ContextLimits;
+    use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
+    use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
+    use crate::llama_batch_entry::LlamaBatchEntry;
     use crate::sampled_token::SampledToken;
     use crate::token::LlamaToken;
 
-    use super::{
-        BatchAddError, LlamaBatch, checked_i32_as_usize, checked_n_tokens_plus_one_as_usize,
-        checked_usize_as_i32, checked_usize_as_llama_pos, checked_usize_as_llama_seq_id,
+    use super::LlamaBatch;
+
+    const LIMITS: ContextLimits = ContextLimits {
+        n_batch: 4,
+        n_ubatch: 4,
+        n_seq_max: 2,
+        n_vocab: 100,
     };
 
-    #[test]
-    fn new_creates_empty_batch() {
-        let batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-
-        assert_eq!(batch.n_tokens(), 0);
-        assert_eq!(batch.initialized_logits, Vec::<i32>::new());
+    fn content(token_id: i32) -> SampledToken {
+        SampledToken::Content(LlamaToken::new(token_id))
     }
 
     #[test]
-    fn clear_resets_batch() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-        batch
-            .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)
-            .unwrap();
-        assert_eq!(batch.n_tokens(), 1);
+    fn added_tokens_are_kept_in_order_with_their_outputs() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        batch.add(&content(1), 0, &[0], false).unwrap();
+        batch.add(&content(2), 1, &[0, 1], true).unwrap();
+
+        assert_eq!(
+            batch.entries(),
+            [
+                LlamaBatchEntry {
+                    token: LlamaToken::new(1),
+                    pos: 0,
+                    seq_ids: vec![0],
+                    output: false,
+                },
+                LlamaBatchEntry {
+                    token: LlamaToken::new(2),
+                    pos: 1,
+                    seq_ids: vec![0, 1],
+                    output: true,
+                },
+            ]
+        );
+        assert_eq!(batch.output_token_indices(), [1]);
+        assert_eq!(batch.n_tokens(), 2);
+    }
+
+    #[test]
+    fn clearing_forgets_every_token_and_output() {
+        let mut batch = LlamaBatch::new(LIMITS);
+        batch.add(&content(1), 0, &[0], true).unwrap();
 
         batch.clear();
 
-        assert_eq!(batch.n_tokens(), 0);
-        assert_eq!(batch.initialized_logits, Vec::<i32>::new());
+        assert_eq!(batch, LlamaBatch::new(LIMITS));
     }
 
     #[test]
-    fn add_increments_token_count() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-
+    fn a_batch_holding_one_decode_of_tokens_refuses_another() {
+        let mut batch = LlamaBatch::new(LIMITS);
         batch
-            .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
+            .add_sequence(&[1, 2, 3, 4].map(LlamaToken::new), 0, false)
             .unwrap();
-        assert_eq!(batch.n_tokens(), 1);
-
-        batch
-            .add(&SampledToken::Content(LlamaToken::new(2)), 1, &[0], false)
-            .unwrap();
-        assert_eq!(batch.n_tokens(), 2);
-    }
-
-    #[test]
-    fn add_tracks_logits() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-
-        batch
-            .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
-            .unwrap();
-        assert_eq!(batch.initialized_logits, Vec::<i32>::new());
-
-        batch
-            .add(&SampledToken::Content(LlamaToken::new(2)), 1, &[0], true)
-            .unwrap();
-        assert_eq!(batch.initialized_logits, vec![1]);
-    }
-
-    #[test]
-    fn add_returns_insufficient_space_when_full() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(1).unwrap(), 1);
-        batch
-            .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
-            .unwrap();
-
-        let result = batch.add(&SampledToken::Content(LlamaToken::new(2)), 1, &[0], false);
-
-        assert_eq!(result, Err(BatchAddError::InsufficientSpace(1)));
-    }
-
-    #[test]
-    fn add_refuses_more_sequence_ids_than_the_batch_holds_per_token() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-
-        let result = batch.add(
-            &SampledToken::Content(LlamaToken::new(1)),
-            0,
-            &[0, 1],
-            false,
-        );
 
         assert_eq!(
-            result,
-            Err(BatchAddError::TooManySequenceIds {
-                sequence_ids: 2,
-                n_seq_max: 1,
-            })
+            batch.add(&content(5), 4, &[0], false),
+            Err(BatchAddError::BatchFull { n_batch: 4 })
         );
-        assert_eq!(batch.n_tokens(), 0);
     }
 
     #[test]
-    fn add_accepts_reasoning_sampled_token_variant() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(4).unwrap(), 1);
+    fn a_token_outside_the_vocabulary_is_refused() {
+        let mut batch = LlamaBatch::new(LIMITS);
 
-        batch
-            .add(&SampledToken::Reasoning(LlamaToken::new(11)), 0, &[0], true)
-            .unwrap();
-
-        assert_eq!(batch.n_tokens(), 1);
-    }
-
-    #[test]
-    fn add_accepts_tool_call_sampled_token_variant() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(4).unwrap(), 1);
-
-        batch
-            .add(&SampledToken::ToolCall(LlamaToken::new(22)), 0, &[0], true)
-            .unwrap();
-
-        assert_eq!(batch.n_tokens(), 1);
-    }
-
-    #[test]
-    fn add_accepts_undeterminable_sampled_token_variant() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(4).unwrap(), 1);
-
-        batch
-            .add(
-                &SampledToken::Undeterminable(LlamaToken::new(33)),
-                0,
-                &[0],
-                false,
-            )
-            .unwrap();
-
-        assert_eq!(batch.n_tokens(), 1);
-    }
-
-    #[test]
-    fn add_sequence_adds_all_tokens() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-        let tokens = vec![
-            LlamaToken::new(10),
-            LlamaToken::new(20),
-            LlamaToken::new(30),
-        ];
-
-        batch.add_sequence(&tokens, 0, false).unwrap();
-
-        assert_eq!(batch.n_tokens(), 3);
-    }
-
-    #[test]
-    fn add_sequence_sets_logits_on_last_token() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-        let tokens = vec![
-            LlamaToken::new(10),
-            LlamaToken::new(20),
-            LlamaToken::new(30),
-        ];
-
-        batch.add_sequence(&tokens, 0, false).unwrap();
-
-        assert_eq!(batch.initialized_logits, vec![2]);
-    }
-
-    #[test]
-    fn add_sequence_insufficient_space() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(2).unwrap(), 1);
-        let tokens = vec![
-            LlamaToken::new(10),
-            LlamaToken::new(20),
-            LlamaToken::new(30),
-        ];
-
-        let result = batch.add_sequence(&tokens, 0, false);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn add_sequence_fails_mid_loop_when_batch_fills() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(2).unwrap(), 1);
-        batch
-            .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false)
-            .unwrap();
-
-        let tokens = vec![LlamaToken::new(10), LlamaToken::new(20)];
-        let result = batch.add_sequence(&tokens, 0, false);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn get_one_with_valid_tokens() {
-        let tokens = vec![LlamaToken::new(1), LlamaToken::new(2)];
-        let batch = LlamaBatch::get_one(&tokens).expect("test: get_one should succeed");
-
-        assert_eq!(batch.n_tokens(), 2);
-        assert_eq!(batch.initialized_logits, vec![1]);
-    }
-
-    #[test]
-    fn get_one_empty_slice_returns_error() {
-        let tokens: Vec<LlamaToken> = vec![];
-        let result = LlamaBatch::get_one(&tokens);
-
-        assert_eq!(result.unwrap_err(), BatchAddError::EmptyBuffer);
-    }
-
-    #[test]
-    fn get_one_single_token() {
-        let tokens = vec![LlamaToken::new(42)];
-        let batch = LlamaBatch::get_one(&tokens).expect("test: get_one should succeed");
-
-        assert_eq!(batch.n_tokens(), 1);
-        assert_eq!(batch.initialized_logits, vec![0]);
-    }
-
-    #[test]
-    fn add_with_logits_false_retains_only_previous_logits() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-
-        batch
-            .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)
-            .unwrap();
-        assert_eq!(batch.initialized_logits, vec![0]);
-
-        batch
-            .add(&SampledToken::Content(LlamaToken::new(2)), 0, &[0], false)
-            .unwrap();
-        assert_eq!(batch.initialized_logits, vec![0]);
-    }
-
-    #[test]
-    fn add_sequence_with_logits_all_marks_every_token() -> Result<(), BatchAddError> {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-        let tokens = vec![
-            LlamaToken::new(10),
-            LlamaToken::new(20),
-            LlamaToken::new(30),
-        ];
-
-        batch.add_sequence(&tokens, 0, true)?;
-
-        assert_eq!(batch.n_tokens(), 3);
-        assert_eq!(batch.initialized_logits, vec![0, 1, 2]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn add_with_multiple_seq_ids() -> Result<(), BatchAddError> {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 4);
-
-        batch.add(
-            &SampledToken::Content(LlamaToken::new(1)),
-            0,
-            &[0, 1, 2],
-            true,
-        )?;
-
-        assert_eq!(batch.n_tokens(), 1);
-        assert_eq!(batch.initialized_logits, vec![0]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn drop_does_not_free_get_one_batch() {
-        let tokens = vec![LlamaToken::new(1), LlamaToken::new(2)];
-        let batch = LlamaBatch::get_one(&tokens).expect("test: get_one should succeed");
-
-        assert_eq!(batch.allocated, 0);
-        drop(batch);
-    }
-
-    #[test]
-    fn checked_n_tokens_plus_one_as_usize_succeeds_for_zero() {
-        let result = checked_n_tokens_plus_one_as_usize(0);
-
-        assert_eq!(result, Ok(1));
-    }
-
-    #[test]
-    fn checked_n_tokens_plus_one_as_usize_fails_for_negative() {
         assert_eq!(
-            checked_n_tokens_plus_one_as_usize(-2),
-            Err(BatchAddError::IntegerOverflow {
-                value_description: "the incremented token count",
-                target_type: "usize",
-                source: usize::try_from(-1_i32).expect_err("the conversion must fail"),
+            batch.add(&content(100), 0, &[0], false),
+            Err(BatchAddError::TokenOutsideVocabulary(
+                TokenOutsideVocabulary {
+                    token: LlamaToken::new(100),
+                    n_vocab: 100,
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn a_token_without_sequences_is_refused() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        assert_eq!(
+            batch.add(&content(1), 0, &[], false),
+            Err(BatchAddError::NoSequenceIds)
+        );
+    }
+
+    #[test]
+    fn a_token_in_a_sequence_the_context_lacks_is_refused_and_not_added() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        assert_eq!(
+            batch.add(&content(1), 0, &[0, 2], false),
+            Err(BatchAddError::SequenceIdOutOfRange(SequenceIdOutOfRange {
+                seq_id: 2,
+                n_seq_max: 2,
+            }))
+        );
+        assert_eq!(batch, LlamaBatch::new(LIMITS));
+    }
+
+    #[test]
+    fn a_sequence_requests_logits_for_its_last_token_only() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        batch
+            .add_sequence(&[10, 20, 30].map(LlamaToken::new), 1, false)
+            .unwrap();
+
+        assert_eq!(batch.output_token_indices(), [2]);
+        assert_eq!(
+            batch.entries().last(),
+            Some(&LlamaBatchEntry {
+                token: LlamaToken::new(30),
+                pos: 2,
+                seq_ids: vec![1],
+                output: true,
             })
         );
     }
 
     #[test]
-    fn checked_n_tokens_plus_one_as_usize_fails_for_i32_max() {
-        assert_eq!(
-            checked_n_tokens_plus_one_as_usize(i32::MAX),
-            Err(BatchAddError::TokenCountOverflow { n_tokens: i32::MAX })
-        );
+    fn a_sequence_with_logits_for_all_requests_every_token() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        batch
+            .add_sequence(&[10, 20, 30].map(LlamaToken::new), 0, true)
+            .unwrap();
+
+        assert_eq!(batch.output_token_indices(), [0, 1, 2]);
     }
 
     #[test]
-    fn checked_i32_as_usize_succeeds_for_zero() {
-        let result = checked_i32_as_usize(0, "test_value");
-
-        assert_eq!(result, Ok(0));
-    }
-
-    #[test]
-    fn checked_i32_as_usize_fails_for_negative() {
-        assert_eq!(
-            checked_i32_as_usize(i32::MIN, "test_value"),
-            Err(BatchAddError::IntegerOverflow {
-                value_description: "test_value",
-                target_type: "usize",
-                source: usize::try_from(i32::MIN).expect_err("the conversion must fail"),
-            })
-        );
-    }
-
-    #[test]
-    fn checked_usize_as_llama_seq_id_succeeds_for_zero() {
-        let result = checked_usize_as_llama_seq_id(0, "test_value");
-
-        assert_eq!(result, Ok(0));
-    }
-
-    #[test]
-    fn checked_usize_as_llama_seq_id_fails_for_overflow() {
-        assert_eq!(
-            checked_usize_as_llama_seq_id(usize::MAX, "test_value"),
-            Err(BatchAddError::IntegerOverflow {
-                value_description: "test_value",
-                target_type: "llama_seq_id",
-                source: super::llama_seq_id::try_from(usize::MAX)
-                    .expect_err("the conversion must fail"),
-            })
-        );
-    }
-
-    #[test]
-    fn checked_usize_as_i32_succeeds_for_zero() {
-        let result = checked_usize_as_i32(0, "test_value");
-
-        assert_eq!(result, Ok(0));
-    }
-
-    #[test]
-    fn checked_usize_as_i32_fails_for_overflow() {
-        assert_eq!(
-            checked_usize_as_i32(usize::MAX, "test_value"),
-            Err(BatchAddError::IntegerOverflow {
-                value_description: "test_value",
-                target_type: "i32",
-                source: i32::try_from(usize::MAX).expect_err("the conversion must fail"),
-            })
-        );
-    }
-
-    #[test]
-    fn checked_usize_as_llama_pos_succeeds_for_zero() {
-        let result = checked_usize_as_llama_pos(0, "test_value");
-
-        assert_eq!(result, Ok(0));
-    }
-
-    #[test]
-    fn checked_usize_as_llama_pos_fails_for_overflow() {
-        assert_eq!(
-            checked_usize_as_llama_pos(usize::MAX, "test_value"),
-            Err(BatchAddError::IntegerOverflow {
-                value_description: "test_value",
-                target_type: "llama_pos",
-                source: super::llama_pos::try_from(usize::MAX)
-                    .expect_err("the conversion must fail"),
-            })
-        );
-    }
-
-    #[test]
-    fn add_fails_when_required_token_count_overflows_i32() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-        batch.llama_batch.n_tokens = i32::MAX;
+    fn a_sequence_longer_than_one_decode_stops_at_the_first_refused_token() {
+        let mut batch = LlamaBatch::new(LIMITS);
 
         assert_eq!(
-            batch.add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false),
-            Err(BatchAddError::TokenCountOverflow { n_tokens: i32::MAX })
+            batch.add_sequence(&[1, 2, 3, 4, 5].map(LlamaToken::new), 0, false),
+            Err(BatchAddError::BatchFull { n_batch: 4 })
         );
-    }
-
-    #[test]
-    fn add_fails_when_existing_offset_is_negative() {
-        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
-        batch.llama_batch.n_tokens = -1;
-
-        assert_eq!(
-            batch.add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], false),
-            Err(BatchAddError::IntegerOverflow {
-                value_description: "n_tokens",
-                target_type: "usize",
-                source: usize::try_from(-1_i32).expect_err("the conversion must fail"),
-            })
-        );
+        assert_eq!(batch.n_tokens(), 4);
     }
 }

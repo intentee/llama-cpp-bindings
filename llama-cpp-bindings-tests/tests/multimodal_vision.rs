@@ -6,11 +6,14 @@ use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
+use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::FittedMtmdInputChunk;
 use llama_cpp_bindings::mtmd::FittedMtmdInputChunks;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
+use llama_cpp_bindings::mtmd::MtmdCapability;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
 use llama_cpp_bindings::mtmd::MtmdEvalError;
@@ -25,7 +28,6 @@ use llama_cpp_bindings_tests::build_user_prompt_with_media_marker::build_user_pr
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
-use llama_cpp_bindings_types::BatchCapacity;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -463,11 +465,16 @@ fn image_chunk_id_returns_some(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn init_and_supports_vision(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn qwen_mmproj_reports_vision_only_chat_capabilities(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
-    assert!(mtmd_ctx.support_vision());
+
+    assert_eq!(
+        mtmd_ctx.capabilities(fixture.model),
+        MtmdCapability::Chat | MtmdCapability::Vision | MtmdCapability::TextGeneration
+    );
+
     Ok(())
 }
 
@@ -544,35 +551,6 @@ fn decode_use_mrope_is_true_for_qwen_vision(fixture: &LlamaFixture<'_>) -> Resul
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn support_audio_is_false_for_vision_only_mmproj(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    assert!(
-        !mtmd_ctx.support_audio(),
-        "Qwen 3.5 / 3.6 mmproj is vision-only; support_audio must return false"
-    );
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-    mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
-)]
 fn get_audio_sample_rate_is_none_for_vision_only_mmproj(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
@@ -608,13 +586,13 @@ fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) ->
         );
     }
 
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
-    chunks.eval_chunks(mtmd_ctx, &llama_ctx, 0, 0, n_batch, false)?;
+    chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false)?;
     Ok(())
 }
 
@@ -642,7 +620,7 @@ fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
@@ -651,7 +629,7 @@ fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
     let chunks = MtmdInputChunks::new()?;
     let huge_batch = i32::try_from(llama_ctx.n_batch() + 1)?;
 
-    let result = chunks.eval_chunks(mtmd_ctx, &llama_ctx, 0, 0, huge_batch, false);
+    let result = chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, huge_batch, false);
 
     assert_eq!(
         result,
@@ -687,14 +665,14 @@ fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
         .mtmd_context
         .expect("mmproj_file declared in attribute");
     let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
     assert_eq!(
-        chunks.eval_chunks(mtmd_ctx, &llama_ctx, 0, 0, 0, true),
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true),
         Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
     );
     assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
@@ -760,7 +738,7 @@ fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
@@ -774,8 +752,79 @@ fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
         FittedMtmdInputChunk::at(&fitted_chunks, 0).context("tokenization produced no chunks")?;
 
     assert_eq!(
-        first_chunk.eval_single(mtmd_ctx, &llama_ctx, 0, 0, 0, true),
+        first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true),
         Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
+    );
+    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn eval_single_rejects_a_batch_larger_than_the_context_batch_before_evaluating(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let mut llama_ctx = fixture.build_context()?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(
+        tokenize_synthetic(fixture, "Describe: <__media__>")?,
+        mtmd_ctx,
+        llama_ctx.n_ubatch(),
+    )?;
+    let first_chunk =
+        FittedMtmdInputChunk::at(&fitted_chunks, 0).context("tokenization produced no chunks")?;
+    let context_max = llama_ctx.n_batch();
+    let oversized_batch = i32::try_from(context_max + 1)?;
+
+    assert_eq!(
+        first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, oversized_batch, true),
+        Err(MtmdEvalError::BatchSizeExceedsContextLimit {
+            requested: oversized_batch,
+            context_max,
+        })
+    );
+    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn eval_chunks_rejects_a_sequence_the_context_does_not_have_instead_of_aborting(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let mut llama_ctx = fixture.build_context()?;
+    let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
+    let n_seq_max = llama_ctx.n_seq_max();
+    let missing_sequence = i32::try_from(n_seq_max)?;
+    let n_batch = i32::try_from(llama_ctx.n_batch())?;
+
+    assert_eq!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, missing_sequence, n_batch, true),
+        Err(MtmdEvalError::SequenceIdOutOfRange(SequenceIdOutOfRange {
+            seq_id: missing_sequence,
+            n_seq_max,
+        }))
     );
     assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
 
@@ -806,7 +855,7 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
@@ -824,7 +873,7 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
     assert_eq!(
         first_chunk.eval_single(
             mtmd_ctx,
-            &llama_ctx,
+            &mut llama_ctx,
             0,
             0,
             i32::try_from(smaller_micro_batch_tokens)?,
@@ -863,7 +912,7 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
         .mtmd_context
         .expect("mmproj_file declared in attribute");
     let chunks = tokenize_synthetic(fixture, "Describe: <__media__>")?;
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
@@ -876,7 +925,7 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
         classifier.eval_multimodal_chunks(
             &chunks,
             mtmd_ctx,
-            &llama_ctx,
+            &mut llama_ctx,
             EvalMultimodalChunksParams {
                 start_position: 0,
                 seq_id: 0,
@@ -938,13 +987,13 @@ fn eval_chunks_with_standard_image(fixture: &LlamaFixture<'_>) -> Result<()> {
         required_n_ctx,
     );
 
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
-    let result = chunks.eval_chunks(mtmd_ctx, &llama_ctx, 0, 0, n_batch, false);
+    let result = chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false);
 
     assert!(result.is_ok());
 
@@ -1144,7 +1193,9 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
     .with_context(|| "unable to create llama context")?;
 
     assert!(
-        mtmd_ctx.support_vision(),
+        mtmd_ctx
+            .capabilities(model)
+            .contains(MtmdCapability::Vision),
         "model should support vision input"
     );
 
@@ -1193,7 +1244,7 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
         .eval_multimodal_chunks(
             &chunks,
             mtmd_ctx,
-            &ctx,
+            &mut ctx,
             EvalMultimodalChunksParams {
                 start_position: 0,
                 seq_id: 0,
@@ -1213,7 +1264,7 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
     }
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
     let totals = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -1274,13 +1325,13 @@ fn build_multimodal_chunks_and_eval_into_usage(
     let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
 
     let context_params = (*fixture.context_params).into_llama_context_params();
-    let context = LlamaContext::from_model(model, fixture.backend, context_params)?;
+    let mut context = LlamaContext::from_model(model, fixture.backend, context_params)?;
 
     let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
     classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
-        &context,
+        &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
             seq_id: 0,
@@ -1629,7 +1680,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
-        &context,
+        &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
             seq_id: 0,
@@ -1647,7 +1698,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -1732,7 +1783,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
-        &context,
+        &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
             seq_id: 0,
@@ -1742,7 +1793,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     )?;
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -1828,7 +1879,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
-        &context,
+        &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
             seq_id: 0,
@@ -1846,7 +1897,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -1923,7 +1974,7 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
-        &context,
+        &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
             seq_id: 0,
@@ -1941,7 +1992,7 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(2048)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -2005,25 +2056,21 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
         .expect("mmproj_file declared in attribute");
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let image_tokens = ChunkTokenBreakdown::from_chunks(&chunks)?.image;
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
+    let n_batch = i32::try_from(llama_ctx.n_batch())?;
+    let micro_batch_tokens = llama_ctx.n_ubatch();
+
     assert_eq!(
-        chunks.eval_chunks(
-            mtmd_ctx,
-            &llama_ctx,
-            0,
-            0,
-            i32::try_from(llama_ctx.n_batch())?,
-            true
-        ),
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true),
         Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
             NonCausalChunkMicroBatchMismatch {
                 chunk_tokens: usize::try_from(image_tokens)?,
-                micro_batch_tokens: llama_ctx.n_ubatch(),
+                micro_batch_tokens,
             }
         ))
     );
@@ -2087,7 +2134,7 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
         .mtmd_context
         .expect("mmproj_file declared in attribute");
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
-    let llama_ctx = LlamaContext::from_model(
+    let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
@@ -2096,14 +2143,15 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
         .model
         .sampled_token_classifier(BareJsonToolCalls::Ignore)?;
 
+    let n_batch = i32::try_from(llama_ctx.n_batch())?;
     let evaluation = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
-        &llama_ctx,
+        &mut llama_ctx,
         EvalMultimodalChunksParams {
             start_position: 0,
             seq_id: 0,
-            n_batch: i32::try_from(llama_ctx.n_batch())?,
+            n_batch,
             logits_last: true,
         },
     );

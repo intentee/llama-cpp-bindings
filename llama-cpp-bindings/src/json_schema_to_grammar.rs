@@ -43,6 +43,16 @@ unsafe fn json_schema_to_grammar_status_to_result(
             }?;
             Err(JsonSchemaToGrammarError::InvalidSchema { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_json_schema_to_grammar",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(JsonSchemaToGrammarError::InvalidJson { message })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -94,7 +104,6 @@ pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, JsonSchemaToG
     let status = unsafe {
         llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar(
             schema_cstr.as_ptr(),
-            false,
             &raw mut out,
             &raw mut error_ptr,
         )
@@ -141,10 +150,10 @@ mod tests {
     }
 
     #[test]
-    fn invalid_json_returns_reported() {
+    fn invalid_json_returns_invalid_json() {
         let schema = "not valid json at all";
         let err = json_schema_to_grammar(schema).unwrap_err();
-        let representative = JsonSchemaToGrammarError::Reported {
+        let representative = JsonSchemaToGrammarError::InvalidJson {
             message: String::new(),
         };
 
@@ -182,6 +191,26 @@ mod json_schema_to_grammar_status_to_result_tests {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+
+        assert_eq!(
+            result,
+            Err(crate::FfiContractError {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn invalid_json_status_without_a_message_is_a_contract_error() {
+        let result = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
