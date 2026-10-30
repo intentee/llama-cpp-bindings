@@ -578,7 +578,6 @@ impl<'model> LlamaContext<'model> {
         unsafe { llama_cpp_bindings_sys::llama_n_ctx_seq(self.context.as_ptr()) }
     }
 
-    #[expect(unsafe_code, reason = "required for FFI abort callback registration")]
     pub fn set_abort_flag(&mut self, flag: Arc<AtomicBool>) {
         let raw_ptr = Arc::as_ptr(&flag) as *mut c_void;
         self.abort_flag = Some(flag);
@@ -592,7 +591,6 @@ impl<'model> LlamaContext<'model> {
         }
     }
 
-    #[expect(unsafe_code, reason = "required for FFI abort callback deregistration")]
     pub fn clear_abort_callback(&mut self) {
         self.abort_flag = None;
 
@@ -605,12 +603,10 @@ impl<'model> LlamaContext<'model> {
         }
     }
 
-    #[expect(unsafe_code, reason = "required for FFI synchronization call")]
     pub fn synchronize(&self) {
         unsafe { llama_cpp_bindings_sys::llama_synchronize(self.context.as_ptr()) }
     }
 
-    #[expect(unsafe_code, reason = "required for FFI threadpool detachment")]
     pub fn detach_threadpool(&self) {
         unsafe { llama_cpp_bindings_sys::llama_detach_threadpool(self.context.as_ptr()) }
     }

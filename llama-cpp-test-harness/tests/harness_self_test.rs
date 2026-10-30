@@ -1,7 +1,3 @@
-#![expect(
-    clippy::unnecessary_wraps,
-    reason = "harness trial functions must return Result to satisfy LlamaTestFn registration"
-)]
 use std::process::ExitCode;
 
 use anyhow::Result;
@@ -20,10 +16,10 @@ use llama_cpp_test_harness::run_to_conclusions;
     n_ubatch = 64,
     void_logs = true,
 )]
-fn phase_a_first_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn phase_a_first_passing_trial(fixture: &LlamaFixture<'_>) {
     let formatted = format!("{:?}", fixture.model);
     assert!(formatted.contains("LlamaModel"));
-    no_op(fixture)
+    no_op(fixture);
 }
 
 #[llama_test(
@@ -34,9 +30,8 @@ fn phase_a_first_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 128,
     n_ubatch = 64
 )]
-fn phase_a_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn phase_a_second_passing_trial(fixture: &LlamaFixture<'_>) {
     assert_eq!(fixture.context_params.n_ctx, 512);
-    Ok(())
 }
 
 #[llama_test(
@@ -59,9 +54,8 @@ fn phase_a_intentionally_failing_trial(_fixture: &LlamaFixture<'_>) -> Result<()
     n_batch = 128,
     n_ubatch = 64
 )]
-fn phase_b_first_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn phase_b_first_passing_trial(fixture: &LlamaFixture<'_>) {
     assert!(fixture.mtmd_context.is_none());
-    Ok(())
 }
 
 #[llama_test(
@@ -72,9 +66,8 @@ fn phase_b_first_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 128,
     n_ubatch = 64
 )]
-fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let _markers = fixture.model.tool_call_markers();
-    Ok(())
+fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) {
+    assert_eq!(fixture.context_params.n_ubatch, 64);
 }
 
 #[llama_test(
@@ -119,9 +112,8 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 1,
     n_ubatch = 1
 )]
-fn shared_setup_failure_and_phase_a_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn shared_setup_failure_and_phase_a_trial(fixture: &LlamaFixture<'_>) {
     assert!(fixture.model_path.exists());
-    Ok(())
 }
 
 #[llama_test(
@@ -133,12 +125,11 @@ fn shared_setup_failure_and_phase_a_trial(fixture: &LlamaFixture<'_>) -> Result<
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf")
 )]
-fn phase_d_mmproj_trial(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn phase_d_mmproj_trial(fixture: &LlamaFixture<'_>) {
     assert!(
         fixture.mtmd_context.is_some(),
         "mmproj_file declared, but fixture.mtmd_context is None",
     );
-    Ok(())
 }
 
 const EXPECTED_PHASES: usize = 7;

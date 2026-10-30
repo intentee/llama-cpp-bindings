@@ -17,7 +17,7 @@ use llama_cpp_test_harness::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn load_model_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn load_model_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>) {
     let model_params = LlamaModelParams::default();
     let result =
         LlamaModel::load_from_file(fixture.backend, "/nonexistent/model.gguf", &model_params);
@@ -26,7 +26,6 @@ fn load_model_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>) -> Res
         result.unwrap_err(),
         LlamaModelLoadError::FileNotFound(path) if path == Path::new("/nonexistent/model.gguf"),
     ));
-    Ok(())
 }
 
 #[llama_test(
@@ -62,9 +61,7 @@ fn load_model_with_invalid_file_content_returns_unloadable_or_reported(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn load_model_with_non_utf8_path_returns_path_to_str_error(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
+fn load_model_with_non_utf8_path_returns_path_to_str_error(fixture: &LlamaFixture<'_>) {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
 
@@ -77,7 +74,6 @@ fn load_model_with_non_utf8_path_returns_path_to_str_error(
         result.unwrap_err(),
         LlamaModelLoadError::PathToStrError(path) if path == non_utf8_path.to_path_buf()
     ));
-    Ok(())
 }
 
 #[llama_test(
@@ -88,7 +84,7 @@ fn load_model_with_non_utf8_path_returns_path_to_str_error(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn lora_adapter_init_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn lora_adapter_init_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>) {
     let result = fixture
         .model
         .lora_adapter_init("/nonexistent/path/lora.gguf");
@@ -96,7 +92,6 @@ fn lora_adapter_init_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>)
         result.unwrap_err(),
         LlamaLoraAdapterInitError::FileNotFound(PathBuf::from("/nonexistent/path/lora.gguf"))
     );
-    Ok(())
 }
 
 #[llama_test(
@@ -128,7 +123,7 @@ fn lora_adapter_init_with_invalid_gguf_returns_unloadable(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn lora_adapter_init_with_non_utf8_path_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn lora_adapter_init_with_non_utf8_path_returns_error(fixture: &LlamaFixture<'_>) {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
 
@@ -139,5 +134,4 @@ fn lora_adapter_init_with_non_utf8_path_returns_error(fixture: &LlamaFixture<'_>
         result.unwrap_err(),
         LlamaLoraAdapterInitError::PathToStrError(non_utf8_path.to_path_buf())
     );
-    Ok(())
 }

@@ -60,6 +60,8 @@ const DEPRECATED_FUNCTIONS: &[&str] = &[
     "mtmd_image_tokens_get_ny",
 ];
 
+const COMPARED_STRUCTS: &[&str] = &["llama_logit_bias", "llama_token_data"];
+
 struct PrivatizedField {
     type_name: &'static str,
     field_name: &'static str,
@@ -123,6 +125,14 @@ impl bindgen::callbacks::ParseCallbacks for BindingCallbacks {
         println!("cargo:rerun-if-env-changed={key}");
     }
 
+    fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
+        if COMPARED_STRUCTS.contains(&info.name) {
+            vec!["PartialEq".to_owned()]
+        } else {
+            Vec::new()
+        }
+    }
+
     fn field_visibility(
         &self,
         info: bindgen::callbacks::FieldInfo<'_>,
@@ -177,7 +187,7 @@ fn create_base_builder(llama_src: &Path, callbacks: BindingCallbacks) -> bindgen
         .clang_arg(format!("-I{}", llama_src.join("include").display()))
         .clang_arg(format!("-I{}", llama_src.join("ggml/include").display()))
         .parse_callbacks(Box::new(callbacks))
-        .derive_partialeq(true)
+        .generate_comments(false)
         .allowlist_function("ggml_.*")
         .allowlist_type("ggml_.*")
         .allowlist_var("GGML_MAX_DIMS")

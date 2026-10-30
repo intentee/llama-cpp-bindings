@@ -7,12 +7,6 @@ pub use crate::context::llama_pooling_type::LlamaPoolingType;
 pub use crate::context::rope_scaling_type::RopeScalingType;
 
 #[derive(Debug, Clone, Copy)]
-#[expect(
-    missing_docs,
-    reason = "field meanings mirror llama.cpp's `llama_context_params` C struct; restating each \
-              one inline would risk drift from the upstream spec — the doc-comment on the struct \
-              points at the canonical reference"
-)]
 pub struct LlamaContextParams {
     pub context_params: llama_cpp_bindings_sys::llama_context_params,
 }
@@ -519,16 +513,16 @@ mod tests {
 
     #[test]
     fn with_type_k_sets_value() {
-        let params = super::LlamaContextParams::default().with_type_k(KvCacheType::Q4_0);
+        let params = super::LlamaContextParams::default().with_type_k(KvCacheType::Q40);
 
-        assert_eq!(params.type_k(), KvCacheType::Q4_0);
+        assert_eq!(params.type_k(), KvCacheType::Q40);
     }
 
     #[test]
     fn with_type_v_sets_value() {
-        let params = super::LlamaContextParams::default().with_type_v(KvCacheType::Q4_1);
+        let params = super::LlamaContextParams::default().with_type_v(KvCacheType::Q41);
 
-        assert_eq!(params.type_v(), KvCacheType::Q4_1);
+        assert_eq!(params.type_v(), KvCacheType::Q41);
     }
 
     #[test]

@@ -161,7 +161,7 @@ fn parse_special_applies_to_each_text_part_on_its_own(fixture: &LlamaFixture<'_>
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn a_text_part_containing_a_nul_byte_is_rejected(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_text_part_containing_a_nul_byte_is_rejected(fixture: &LlamaFixture<'_>) {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
@@ -175,6 +175,4 @@ fn a_text_part_containing_a_nul_byte_is_rejected(fixture: &LlamaFixture<'_>) -> 
             .err()
             .map(MtmdTokenizeError::CStringError)
     );
-
-    Ok(())
 }

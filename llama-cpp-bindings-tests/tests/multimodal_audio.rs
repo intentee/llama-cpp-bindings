@@ -1,6 +1,10 @@
 use anyhow::Context;
 use anyhow::Result;
 use llama_cpp_bindings::BareJsonToolCalls;
+use llama_cpp_bindings::ChatAssistantTurn;
+use llama_cpp_bindings::ChatSession;
+use llama_cpp_bindings::ChatSessionOptions;
+use llama_cpp_bindings::ChatToolChoice;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -10,6 +14,7 @@ use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdCapability;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
@@ -38,14 +43,24 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
     );
 
     let marker = mtmd_default_marker()?;
-    let template = model.chat_template(None)?;
     let messages = [
         LlamaChatMessage::new("system".to_string(), TRANSCRIBE_SYSTEM_PROMPT.to_string())?,
         LlamaChatMessage::new("user".to_string(), marker.to_owned())?,
     ];
+    let session = ChatSession::new(
+        model,
+        &messages,
+        "[]",
+        &ChatSessionOptions {
+            assistant_turn: ChatAssistantTurn::New,
+            enable_thinking: true,
+            parallel_tool_calls: false,
+            tool_choice: ChatToolChoice::Auto,
+        },
+    )?;
     let input_text = MtmdInputText {
-        text: model.apply_chat_template(&template, &messages, true, true)?,
-        add_special: false,
+        text: session.prompt()?,
+        add_special: true,
         parse_special: true,
     };
 
@@ -67,7 +82,8 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
         "tokenization should produce at least one chunk"
     );
 
-    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let mut classifier =
+        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
@@ -111,7 +127,7 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
     }
     .run()?;
 
-    Ok(outcome.generated_raw.to_lowercase())
+    Ok(outcome.generated.text().to_lowercase())
 }
 
 fn assert_audio_transcription_contains(
@@ -165,7 +181,7 @@ fn audio_reaches_the_model_and_produces_a_response(fixture: &LlamaFixture<'_>) -
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn audio_mmproj_reports_audio_support(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn audio_mmproj_reports_audio_support(fixture: &LlamaFixture<'_>) {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
@@ -180,8 +196,6 @@ fn audio_mmproj_reports_audio_support(fixture: &LlamaFixture<'_>) -> Result<()> 
         mtmd_ctx.get_audio_sample_rate().is_some(),
         "an audio-capable mmproj must report a required sample rate"
     );
-
-    Ok(())
 }
 
 #[llama_test(

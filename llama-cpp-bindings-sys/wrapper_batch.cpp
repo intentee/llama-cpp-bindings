@@ -1,6 +1,11 @@
 #include "wrapper_batch.h"
 #include "wrapper_report_current_exception.h"
 
+#include "llama.cpp/include/llama.h"
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <gsl/span>
 
 extern "C" auto llama_rs_batch_ext_init(
@@ -86,10 +91,14 @@ extern "C" auto llama_rs_batch_ext_add_entry(
             }
         }
 
-        for (const llama_seq_id seq_id : seq_id_span.subspan(1)) {
-            if (!llama_batch_ext_add_seq(batch, index, seq_id)) {
-                return LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_SEQUENCE_ID;
-            }
+        const gsl::span<const llama_seq_id> additional_seq_ids = seq_id_span.subspan(1);
+        const bool every_seq_id_added = std::all_of(
+            additional_seq_ids.begin(), additional_seq_ids.end(), [&](const llama_seq_id seq_id) -> bool {
+                return llama_batch_ext_add_seq(batch, index, seq_id);
+            });
+
+        if (!every_seq_id_added) {
+            return LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_SEQUENCE_ID;
         }
 
         if (!llama_batch_ext_set_pos(batch, index, &pos)) {

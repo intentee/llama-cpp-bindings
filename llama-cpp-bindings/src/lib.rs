@@ -3,17 +3,33 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod bare_json_tool_call_probe;
 pub mod bare_json_tool_calls;
 pub mod batch_add_error;
+pub mod chat_assistant_prefill;
+pub mod chat_assistant_turn;
+pub mod chat_classification;
+pub mod chat_grammar_trigger;
 pub mod chat_message_parse_outcome;
-pub mod chat_message_parser;
+pub mod chat_output;
+pub mod chat_output_completeness;
+pub mod chat_output_token;
+pub mod chat_piece_role;
+pub mod chat_prompt_part;
+pub mod chat_session;
+pub mod chat_session_options;
+pub mod chat_span;
+pub mod chat_span_kind;
+pub mod chat_spans;
 pub mod chat_template_tool_calls;
+pub mod chat_templates;
+pub mod chat_tool_choice;
 pub mod classified_sample;
 pub mod context;
+pub mod cpp_text_view;
 pub mod dry_sequence_breakers;
 pub mod error;
 pub mod eval_multimodal_chunks_params;
-pub mod extract_tool_call_markers_from_haystack;
 pub mod generation_progress;
 pub mod ggml_time_us;
 pub mod gguf_context;
@@ -44,16 +60,15 @@ pub mod load_backends_error;
 pub mod load_backends_from_path;
 pub mod log_options;
 pub mod log_record;
-pub mod marker_role;
-pub mod marker_role_candidate;
 pub mod mask_outcome;
 pub mod max_devices;
 pub mod mlock_supported;
 pub mod mmap_supported;
 pub mod model;
 pub mod mtmd;
+pub mod parsed_chat;
 pub mod raw_chat_message;
-pub mod resolved_tool_call_markers;
+pub mod result_after_release;
 pub mod sampled_token;
 pub mod sampled_token_classifier;
 pub mod sampled_token_section;
@@ -61,29 +76,35 @@ pub mod sampling;
 pub mod sanitized_grammar;
 pub mod send_logs_to_log;
 pub mod streaming_json_probe;
-pub mod streaming_marker;
-pub mod streaming_markers;
-pub mod synthetic_tool_call_renders;
 pub mod timing;
 pub mod token;
 pub mod token_piece;
 pub mod tool_call_format;
-pub mod tool_call_marker_pair;
 
 pub use error::{
-    ApplyChatTemplateError, ChatTemplateError, ClearKvCacheSeqError, CopyKvCacheSeqError,
-    DecodeError, EmbeddingsError, EncodeError, EvalMultimodalChunksError, FfiContractError,
-    FfiStatusError, GrammarError, JsonSchemaToGrammarError, KvCacheSeqAddError, KvCacheSeqDivError,
-    KvCacheSeqPosMaxError, LlamaContextLoadError, LlamaCppError, LlamaLoraAdapterInitError,
-    LlamaLoraAdaptersError, LlamaModelLoadError, LogitsError, MarkerDetectionError, MetaValError,
-    ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError, Result, SampleError,
-    SamplerAcceptError, SamplingError, StringToTokenError, TokenAttrError, TokenOutsideVocabulary,
-    TokenSamplingError, TokenToStringError,
+    ChatSessionError, ChatTemplateError, ChatTemplatesError, ClearKvCacheSeqError,
+    CopyKvCacheSeqError, DecodeError, EmbeddingsError, EncodeError, EvalMultimodalChunksError,
+    FfiContractError, FfiStatusError, GrammarError, IngestError, JsonSchemaToGrammarError,
+    KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError, LlamaContextLoadError,
+    LlamaCppError, LlamaLoraAdapterInitError, LlamaLoraAdaptersError, LlamaModelLoadError,
+    LogitsError, MetaValError, ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError,
+    Result, SampleError, SamplerAcceptError, SamplingError, StringToTokenError, TokenAttrError,
+    TokenOutsideVocabulary, TokenSamplingError, TokenToStringError,
 };
 
 pub use bare_json_tool_calls::BareJsonToolCalls;
+pub use chat_assistant_prefill::ChatAssistantPrefill;
+pub use chat_assistant_turn::ChatAssistantTurn;
+pub use chat_classification::ChatClassification;
+pub use chat_grammar_trigger::ChatGrammarTrigger;
 pub use chat_message_parse_outcome::ChatMessageParseOutcome;
-pub use chat_message_parser::ChatMessageParser;
+pub use chat_output::ChatOutput;
+pub use chat_output_completeness::ChatOutputCompleteness;
+pub use chat_prompt_part::ChatPromptPart;
+pub use chat_session::ChatSession;
+pub use chat_session_options::ChatSessionOptions;
+pub use chat_templates::ChatTemplates;
+pub use chat_tool_choice::ChatToolChoice;
 pub use classified_sample::ClassifiedSample;
 pub use eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 pub use generation_progress::GenerationProgress;
@@ -91,19 +112,14 @@ pub use llama_backend_device::LlamaBackendDevice;
 pub use llama_backend_device_type::LlamaBackendDeviceType;
 pub use llama_cpp_bindings_types::{
     BracketedJsonShape, KeyValueXmlTagsShape, PairedQuoteShape, ParsedChatMessage, ParsedToolCall,
-    ParsedToolCallId, ReasoningMarkers, TokenUsage, TokenUsageError, ToolCallArgsShape,
-    ToolCallArguments, ToolCallMarkers, ToolCallValueQuote, XmlTagsShape,
+    ParsedToolCallId, TokenUsage, TokenUsageError, ToolCallArgsShape, ToolCallArguments,
+    ToolCallMarkers, ToolCallValueQuote, XmlTagsShape,
 };
 pub use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
-pub use marker_role::MarkerRole;
-pub use marker_role_candidate::MarkerRoleCandidate;
 pub use raw_chat_message::RawChatMessage;
 pub use sampled_token::SampledToken;
 pub use sampled_token_classifier::SampledTokenClassifier;
 pub use sampled_token_section::SampledTokenSection;
-pub use streaming_marker::StreamingMarker;
-pub use streaming_markers::StreamingMarkers;
-pub use synthetic_tool_call_renders::SyntheticToolCallRenders;
 pub use token_piece::TokenPiece;
 
 pub use ggml_time_us::ggml_time_us;

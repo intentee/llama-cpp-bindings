@@ -502,6 +502,7 @@ mod tests {
     use super::LLAMA_CPP_MAX_DEVICES;
     use super::LlamaModelParams;
     use super::fit_params_status_to_result;
+    use crate::LlamaCppError;
     use crate::error::fit_error::FitError;
     use crate::model::llama_lazy_mode::LlamaLazyMode;
     use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
@@ -714,16 +715,6 @@ mod tests {
     }
 
     #[test]
-    fn with_devices_invalid_index_returns_error() {
-        let result = LlamaModelParams::default().with_devices(&[999_999]);
-
-        assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&crate::LlamaCppError::BackendDeviceNotFound(0)),
-        );
-    }
-
-    #[test]
     fn add_cpu_buft_override_succeeds() {
         let mut params = std::pin::pin!(LlamaModelParams::default());
         let result = params.as_mut().add_cpu_buft_override(c"test_pattern");
@@ -782,12 +773,11 @@ mod tests {
         let too_many: Vec<usize> = (0..17).collect();
         let result = LlamaModelParams::default().with_devices(&too_many);
 
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Max devices exceeded")
-        );
+        let Err(LlamaCppError::MaxDevicesExceeded(max_devices)) = result else {
+            panic!("17 devices must exceed the device limit");
+        };
+
+        assert_eq!(max_devices, crate::max_devices().min(LLAMA_CPP_MAX_DEVICES));
     }
 
     #[test]
@@ -809,7 +799,11 @@ mod tests {
         let invalid_index = usize::MAX;
         let result = LlamaModelParams::default().with_devices(&[invalid_index]);
 
-        assert!(result.unwrap_err().to_string().contains("Backend device"));
+        let Err(LlamaCppError::BackendDeviceNotFound(device)) = result else {
+            panic!("an out-of-range device index must not be found");
+        };
+
+        assert_eq!(device, invalid_index);
     }
 
     #[test]

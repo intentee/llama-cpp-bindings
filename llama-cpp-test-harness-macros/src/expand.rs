@@ -1,10 +1,10 @@
-use proc_macro2::Ident;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Item;
 use syn::ItemFn;
 use syn::ReturnType;
+use syn::Signature;
 use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::parse2;
@@ -31,12 +31,6 @@ fn validate_signature(item_fn: &ItemFn) -> syn::Result<()> {
         return Err(syn::Error::new_spanned(
             &item_fn.sig.inputs,
             "llama_test functions must take exactly one argument: `&LlamaFixture<'_>`",
-        ));
-    }
-    if matches!(item_fn.sig.output, ReturnType::Default) {
-        return Err(syn::Error::new_spanned(
-            &item_fn.sig,
-            "llama_test functions must return `anyhow::Result<()>`",
         ));
     }
     if item_fn.sig.asyncness.is_some() {
@@ -105,7 +99,21 @@ fn build_mmproj_source_literal(source: Option<&ParsedSource>) -> TokenStream {
     }
 }
 
-fn build_registration(args: &ParsedArgs, fn_name: &Ident) -> TokenStream {
+fn build_test_fn_literal(signature: &Signature) -> TokenStream {
+    let fn_name = &signature.ident;
+
+    match signature.output {
+        ReturnType::Default => {
+            quote! { ::llama_cpp_test_harness::LlamaTestFn::Infallible(#fn_name) }
+        }
+        ReturnType::Type(..) => {
+            quote! { ::llama_cpp_test_harness::LlamaTestFn::Fallible(#fn_name) }
+        }
+    }
+}
+
+fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
+    let fn_name = &signature.ident;
     let trial_name = format!(
         "{fn_name}[{suffix}]",
         suffix = args.model_source.display_suffix()
@@ -120,6 +128,7 @@ fn build_registration(args: &ParsedArgs, fn_name: &Ident) -> TokenStream {
     let embeddings_flag = args.context_params.embeddings;
     let sequence_max = args.context_params.n_seq_max;
     let void_logs_flag = args.void_logs;
+    let test_fn = build_test_fn_literal(signature);
     let threads_batch = args.context_params.n_threads_batch.map_or_else(
         || quote! { ::core::option::Option::None },
         |value| quote! { ::core::option::Option::Some(#value) },
@@ -146,7 +155,7 @@ fn build_registration(args: &ParsedArgs, fn_name: &Ident) -> TokenStream {
                     embeddings: #embeddings_flag,
                 },
                 void_logs: #void_logs_flag,
-                func: #fn_name,
+                func: #test_fn,
             }
         }
     }
@@ -158,8 +167,7 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     let (item_fn, pass_through) = split_fn_and_pass_through(items)?;
     validate_signature(&item_fn)?;
 
-    let fn_name = &item_fn.sig.ident;
-    let new_submission = build_registration(&args, fn_name);
+    let new_submission = build_registration(&args, &item_fn.sig);
 
     Ok(quote! {
         #item_fn
@@ -172,8 +180,16 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
 mod tests {
     use proc_macro2::TokenStream;
     use quote::quote;
+    use syn::Item;
+    use syn::ItemFn;
+    use syn::parse2;
 
+    use super::StackedItems;
+    use super::build_mmproj_source_literal;
+    use super::build_model_source_literal;
+    use super::build_test_fn_literal;
     use super::expand;
+    use crate::parsed_source::ParsedSource;
 
     fn well_formed_attribute() -> TokenStream {
         quote! {
@@ -192,245 +208,238 @@ mod tests {
         }
     }
 
+    fn expansion_error(attribute: TokenStream, item: TokenStream) -> String {
+        expand(attribute, item)
+            .expect_err("the input must be refused")
+            .to_string()
+    }
+
+    fn test_fn_literal_of(item: TokenStream) -> String {
+        let item_fn: ItemFn = parse2(item).expect("the item must be a function");
+
+        build_test_fn_literal(&item_fn.sig).to_string()
+    }
+
     #[test]
-    fn well_formed_input_expands_to_function_plus_submission() {
+    fn expansion_keeps_the_function_and_submits_its_registration() {
         let expanded = expand(well_formed_attribute(), well_formed_function())
-            .expect("well-formed input must expand")
-            .to_string();
-
-        assert!(
-            expanded.contains("fn my_test"),
-            "expansion missing the original fn: {expanded}"
-        );
-        assert!(
-            expanded.contains("LlamaTestRegistration"),
-            "expansion missing LlamaTestRegistration: {expanded}",
-        );
-        assert!(
-            expanded.contains("\"my_test[bar.gguf]\""),
-            "expansion missing the trial-name literal with file suffix: {expanded}",
-        );
-        assert!(
-            expanded.contains("GgufSource :: HuggingFace"),
-            "expansion missing GgufSource::HuggingFace variant: {expanded}",
-        );
-        assert!(
-            expanded.contains("func : my_test"),
-            "expansion missing func wire-up: {expanded}",
-        );
-    }
-
-    #[test]
-    fn expansion_with_local_path_model_source_emits_local_variant() {
-        let attribute = quote! {
-            model_source = LocalPath("/abs/local.gguf"),
-            n_gpu_layers = 0,
-            load_mode = Mmap,
-            n_ctx = 1,
-            n_batch = 1,
-            n_ubatch = 1
-        };
-        let expanded = expand(attribute, well_formed_function())
-            .expect("LocalPath must expand")
-            .to_string();
-
-        assert!(
-            expanded.contains("GgufSource :: LocalPath"),
-            "expansion missing GgufSource::LocalPath variant: {expanded}",
-        );
-        assert!(
-            expanded.contains("\"my_test[local.gguf]\""),
-            "trial name must use the path's filename component: {expanded}",
-        );
-    }
-
-    #[test]
-    fn expansion_with_mmproj_source_emits_some_variant() {
-        let attribute = quote! {
-            model_source = HuggingFace("r", "f"),
-            n_gpu_layers = 0,
-            load_mode = Mmap,
-            n_ctx = 1,
-            n_batch = 1,
-            n_ubatch = 1,
-            mmproj_source = HuggingFace("r", "mmproj.gguf")
-        };
-        let expanded = expand(attribute, well_formed_function())
-            .expect("mmproj_source must expand")
-            .to_string();
-
-        assert!(
-            expanded.contains("GgufSource :: HuggingFace"),
-            "expansion missing GgufSource::HuggingFace: {expanded}",
-        );
-        assert!(
-            expanded.contains("Some"),
-            "expansion missing Option::Some wrap: {expanded}",
-        );
-    }
-
-    #[test]
-    fn expansion_with_local_path_mmproj_emits_local_variant() {
-        let attribute = quote! {
-            model_source = HuggingFace("r", "f"),
-            n_gpu_layers = 0,
-            load_mode = Mmap,
-            n_ctx = 1,
-            n_batch = 1,
-            n_ubatch = 1,
-            mmproj_source = LocalPath("/abs/mmproj.gguf")
-        };
-        let expanded = expand(attribute, well_formed_function())
-            .expect("LocalPath mmproj must expand")
-            .to_string();
-
-        assert!(
-            expanded.contains("GgufSource :: LocalPath"),
-            "expansion missing GgufSource::LocalPath: {expanded}",
-        );
-    }
-
-    #[test]
-    fn expansion_without_mmproj_emits_none_variant() {
-        let expanded = expand(well_formed_attribute(), well_formed_function())
-            .expect("no-mmproj must expand")
-            .to_string();
-
-        assert!(
-            expanded.contains("None"),
-            "expansion missing Option::None for absent mmproj: {expanded}"
-        );
-    }
-
-    #[test]
-    fn malformed_attribute_propagates_parser_error() {
-        let attribute = quote! { totally_wrong = "x" };
-        let error = expand(attribute, well_formed_function())
-            .expect_err("malformed must fail")
-            .to_string();
-
-        assert!(error.contains("unknown field"), "got: {error}");
-    }
-
-    #[test]
-    fn function_with_too_many_arguments_is_rejected() {
-        let item = quote! {
-            fn my_test(a: &LlamaFixture<'_>, b: i32) -> anyhow::Result<()> { Ok(()) }
-        };
-        let error = expand(well_formed_attribute(), item)
-            .expect_err("two-arg must fail")
-            .to_string();
-
-        assert!(error.contains("exactly one argument"), "got: {error}");
-    }
-
-    #[test]
-    fn function_with_zero_arguments_is_rejected() {
-        let item = quote! { fn my_test() -> anyhow::Result<()> { Ok(()) } };
-        let error = expand(well_formed_attribute(), item)
-            .expect_err("zero-arg must fail")
-            .to_string();
-
-        assert!(error.contains("exactly one argument"), "got: {error}");
-    }
-
-    #[test]
-    fn impl_block_input_is_rejected_at_parse_time() {
-        let item = quote! {
-            impl S {
-                fn my_test(&self) -> anyhow::Result<()> { Ok(()) }
+            .expect("well-formed input must expand");
+        let expected = quote! {
+            fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
+            ::llama_cpp_test_harness::inventory::submit! {
+                ::llama_cpp_test_harness::LlamaTestRegistration {
+                    name: "my_test[bar.gguf]",
+                    key: ::llama_cpp_test_harness::LoadKey {
+                        model_source: ::llama_cpp_test_harness::GgufSource::HuggingFace {
+                            repo: "foo",
+                            file: "bar.gguf",
+                        },
+                        mmproj_source: ::core::option::Option::None,
+                        model_load_params: ::llama_cpp_test_harness::ModelLoadParams {
+                            n_gpu_layers: 0i32,
+                            load_mode: ::llama_cpp_test_harness::LlamaLoadMode::Mmap,
+                        },
+                    },
+                    context_params: ::llama_cpp_test_harness::ContextParams {
+                        n_ctx: 1u32,
+                        n_batch: 1u32,
+                        n_ubatch: 1u32,
+                        n_seq_max: 1u32,
+                        n_threads_batch: ::core::option::Option::None,
+                        embeddings: false,
+                    },
+                    void_logs: false,
+                    func: ::llama_cpp_test_harness::LlamaTestFn::Fallible(my_test),
+                }
             }
         };
-        let result = expand(well_formed_attribute(), item);
 
-        assert!(result.is_err(), "impl block must fail");
+        assert_eq!(expanded.to_string(), expected.to_string());
     }
 
     #[test]
-    fn function_without_return_type_is_rejected() {
-        let item = quote! { fn my_test(fixture: &LlamaFixture<'_>) { } };
-        let error = expand(well_formed_attribute(), item)
-            .expect_err("missing return type must fail")
-            .to_string();
-
-        assert!(error.contains("anyhow::Result"), "got: {error}");
-    }
-
-    #[test]
-    fn async_function_is_rejected() {
-        let item = quote! {
-            async fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
-        };
-        let error = expand(well_formed_attribute(), item)
-            .expect_err("async must fail")
-            .to_string();
-
-        assert!(error.contains("synchronous"), "got: {error}");
-    }
-
-    #[test]
-    fn generic_function_is_rejected() {
-        let item = quote! {
-            fn my_test<T>(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
-        };
-        let error = expand(well_formed_attribute(), item)
-            .expect_err("generic must fail")
-            .to_string();
-
-        assert!(error.contains("generic"), "got: {error}");
-    }
-
-    #[test]
-    fn malformed_item_token_stream_is_rejected() {
-        let item = quote! { this is not a function };
-        let result = expand(well_formed_attribute(), item);
-
-        assert!(result.is_err(), "non-fn item must fail");
-    }
-
-    #[test]
-    fn stacked_invocation_preserves_prior_submission() {
-        let prior_layer_output = expand(well_formed_attribute(), well_formed_function())
-            .expect("first layer must expand");
-
-        let second_attribute = quote! {
-            model_source = HuggingFace("second", "second.gguf"),
-            n_gpu_layers = 1,
-            load_mode = None,
-            n_ctx = 2,
-            n_batch = 2,
-            n_ubatch = 2
-        };
-
-        let second_layer_output = expand(second_attribute, prior_layer_output)
-            .expect("stacked second invocation must expand")
-            .to_string();
-
-        assert!(
-            second_layer_output.contains("\"my_test[bar.gguf]\""),
-            "stacked output missing first trial name: {second_layer_output}",
-        );
-        assert!(
-            second_layer_output.contains("\"my_test[second.gguf]\""),
-            "stacked output missing second trial name: {second_layer_output}",
-        );
-        let occurrences = second_layer_output.matches("LlamaTestRegistration").count();
-        assert!(
-            occurrences >= 2,
-            "stacked output should contain two LlamaTestRegistration submissions, found {occurrences}: {second_layer_output}",
+    fn a_function_returning_a_result_registers_as_fallible() {
+        assert_eq!(
+            test_fn_literal_of(well_formed_function()),
+            quote! { ::llama_cpp_test_harness::LlamaTestFn::Fallible(my_test) }.to_string()
         );
     }
 
     #[test]
-    fn two_fn_definitions_in_input_are_rejected() {
-        let item = quote! {
-            fn first(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
-            fn second(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
-        };
-        let error = expand(well_formed_attribute(), item)
-            .expect_err("two fns must fail")
-            .to_string();
+    fn a_function_without_a_return_type_registers_as_infallible() {
+        assert_eq!(
+            test_fn_literal_of(quote! { fn my_test(fixture: &LlamaFixture<'_>) {} }),
+            quote! { ::llama_cpp_test_harness::LlamaTestFn::Infallible(my_test) }.to_string()
+        );
+    }
 
-        assert!(error.contains("exactly one fn"), "got: {error}");
+    #[test]
+    fn a_local_path_model_source_emits_the_local_path_variant() {
+        assert_eq!(
+            build_model_source_literal(&ParsedSource::LocalPath("/abs/local.gguf".to_owned()))
+                .to_string(),
+            quote! { ::llama_cpp_test_harness::GgufSource::LocalPath("/abs/local.gguf") }
+                .to_string()
+        );
+    }
+
+    #[test]
+    fn a_huggingface_mmproj_source_is_wrapped_in_some() {
+        assert_eq!(
+            build_mmproj_source_literal(Some(&ParsedSource::HuggingFace {
+                repo: "r".to_owned(),
+                file: "mmproj.gguf".to_owned(),
+            }))
+            .to_string(),
+            quote! {
+                ::core::option::Option::Some(::llama_cpp_test_harness::GgufSource::HuggingFace {
+                    repo: "r",
+                    file: "mmproj.gguf",
+                })
+            }
+            .to_string()
+        );
+    }
+
+    #[test]
+    fn a_local_path_mmproj_source_is_wrapped_in_some() {
+        assert_eq!(
+            build_mmproj_source_literal(Some(&ParsedSource::LocalPath(
+                "/abs/mmproj.gguf".to_owned()
+            )))
+            .to_string(),
+            quote! {
+                ::core::option::Option::Some(::llama_cpp_test_harness::GgufSource::LocalPath(
+                    "/abs/mmproj.gguf"
+                ))
+            }
+            .to_string()
+        );
+    }
+
+    #[test]
+    fn a_malformed_attribute_propagates_the_parser_error() {
+        assert_eq!(
+            expansion_error(quote! { totally_wrong = "x" }, well_formed_function()),
+            "unknown field `totally_wrong`; expected one of: model_source, n_gpu_layers, load_mode, \
+             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch, \
+             void_logs"
+        );
+    }
+
+    #[test]
+    fn a_function_with_two_arguments_is_refused() {
+        assert_eq!(
+            expansion_error(
+                well_formed_attribute(),
+                quote! { fn my_test(a: &LlamaFixture<'_>, b: i32) -> anyhow::Result<()> { Ok(()) } },
+            ),
+            "llama_test functions must take exactly one argument: `&LlamaFixture<'_>`"
+        );
+    }
+
+    #[test]
+    fn a_function_without_arguments_is_refused() {
+        assert_eq!(
+            expansion_error(
+                well_formed_attribute(),
+                quote! { fn my_test() -> anyhow::Result<()> { Ok(()) } },
+            ),
+            "llama_test functions must take exactly one argument: `&LlamaFixture<'_>`"
+        );
+    }
+
+    #[test]
+    fn an_async_function_is_refused() {
+        assert_eq!(
+            expansion_error(
+                well_formed_attribute(),
+                quote! {
+                    async fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
+                },
+            ),
+            "llama_test functions must be synchronous"
+        );
+    }
+
+    #[test]
+    fn a_generic_function_is_refused() {
+        assert_eq!(
+            expansion_error(
+                well_formed_attribute(),
+                quote! {
+                    fn my_test<T>(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
+                },
+            ),
+            "llama_test functions must not be generic"
+        );
+    }
+
+    #[test]
+    fn an_impl_block_is_refused() {
+        assert_eq!(
+            expansion_error(
+                well_formed_attribute(),
+                quote! {
+                    impl S {
+                        fn my_test(&self) -> anyhow::Result<()> { Ok(()) }
+                    }
+                },
+            ),
+            "llama_test expects an fn definition"
+        );
+    }
+
+    #[test]
+    fn tokens_that_are_not_an_item_are_refused() {
+        assert_eq!(
+            expansion_error(well_formed_attribute(), quote! { this is not a function }),
+            "expected `!`"
+        );
+    }
+
+    #[test]
+    fn two_function_definitions_are_refused() {
+        assert_eq!(
+            expansion_error(
+                well_formed_attribute(),
+                quote! {
+                    fn first(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
+                    fn second(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
+                },
+            ),
+            "llama_test expects exactly one fn definition"
+        );
+    }
+
+    #[test]
+    fn a_stacked_invocation_keeps_the_registration_of_the_previous_layer() {
+        let first_layer = expand(well_formed_attribute(), well_formed_function())
+            .expect("the first layer must expand");
+        let second_layer = expand(
+            quote! {
+                model_source = HuggingFace("second", "second.gguf"),
+                n_gpu_layers = 1,
+                load_mode = None,
+                n_ctx = 2,
+                n_batch = 2,
+                n_ubatch = 2
+            },
+            first_layer,
+        )
+        .expect("the stacked layer must expand");
+        let StackedItems { items } = parse2(second_layer).expect("the expansion must be items");
+
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| match item {
+                    Item::Fn(_) => "fn",
+                    Item::Macro(_) => "registration",
+                    _ => "other",
+                })
+                .collect::<Vec<&str>>(),
+            ["fn", "registration", "registration"]
+        );
     }
 }

@@ -1,6 +1,6 @@
+use crate::error::ingest_error::IngestError;
 use crate::error::logits_error::LogitsError;
 use crate::error::sampler_apply_error::SamplerApplyError;
-use crate::error::token_to_string_error::TokenToStringError;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum SampleError {
@@ -16,8 +16,8 @@ pub enum SampleError {
     LlamaCppOutOfMemory,
     #[error("applying the sampler to the token data array failed: {0}")]
     SamplerApply(#[from] SamplerApplyError),
-    #[error("token detokenization failed during classification: {0}")]
-    Detokenize(#[from] TokenToStringError),
+    #[error("classifying the sampled token failed: {0}")]
+    Ingest(#[from] IngestError),
     #[error("the grammar sampler callback failed during sampling: {message}")]
     GrammarCallbackFailed { message: String },
     #[error("{message}")]

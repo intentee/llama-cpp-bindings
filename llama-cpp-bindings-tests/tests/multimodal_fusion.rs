@@ -1,6 +1,10 @@
 use anyhow::Context;
 use anyhow::Result;
 use llama_cpp_bindings::BareJsonToolCalls;
+use llama_cpp_bindings::ChatAssistantTurn;
+use llama_cpp_bindings::ChatSession;
+use llama_cpp_bindings::ChatSessionOptions;
+use llama_cpp_bindings::ChatToolChoice;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -12,6 +16,7 @@ use llama_cpp_bindings::mtmd::MtmdCapability;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
@@ -25,13 +30,22 @@ const MAX_GENERATED_TOKENS: i32 = 512;
 const DESCRIBE_INSTRUCTION: &str =
     "Describe the animal shown in the image, then write the exact words spoken in the audio.";
 
-fn build_describe_image_and_audio_prompt(model: &LlamaModel) -> Result<String> {
+fn describe_image_and_audio_chat_session(model: &LlamaModel) -> Result<ChatSession<'_>> {
     let marker = mtmd_default_marker()?;
-    let template = model.chat_template(None)?;
     let user_content = format!("Image: {marker}\nAudio: {marker}\n{DESCRIBE_INSTRUCTION}");
     let messages = [LlamaChatMessage::new("user".to_string(), user_content)?];
 
-    Ok(model.apply_chat_template(&template, &messages, true, false)?)
+    Ok(ChatSession::new(
+        model,
+        &messages,
+        "[]",
+        &ChatSessionOptions {
+            assistant_turn: ChatAssistantTurn::New,
+            enable_thinking: false,
+            parallel_tool_calls: false,
+            tool_choice: ChatToolChoice::Auto,
+        },
+    )?)
 }
 
 fn load_fixture_bitmap(mtmd_ctx: &MtmdContext, file_name: &str) -> Result<MtmdBitmap> {
@@ -75,9 +89,10 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
         "orange_cat.wav must decode as audio"
     );
 
+    let session = describe_image_and_audio_chat_session(model)?;
     let input_text = MtmdInputText {
-        text: build_describe_image_and_audio_prompt(model)?,
-        add_special: false,
+        text: session.prompt()?,
+        add_special: true,
         parse_special: true,
     };
 
@@ -111,7 +126,8 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
     .with_context(|| "unable to create llama context")?;
 
     let n_batch = i32::try_from(context.n_batch())?;
-    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let mut classifier =
+        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
@@ -145,7 +161,7 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
     }
     .run()?;
 
-    let description = outcome.generated_raw.to_lowercase();
+    let description = outcome.generated.text().to_lowercase();
     assert!(
         !description.is_empty(),
         "model should generate a description from combined image and audio input"
