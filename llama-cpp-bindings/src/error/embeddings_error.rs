@@ -12,6 +12,12 @@ pub enum EmbeddingsError {
         "No sequence embedding exists for sequence {sequence_index}; it was not part of the last decoded batch"
     )]
     SequenceEmbeddingUnavailable { sequence_index: i32 },
+    #[error(
+        "Token embeddings need a context with LLAMA_POOLING_TYPE_NONE, but it pools with {pooling_type:?}"
+    )]
+    TokenEmbeddingsRequireNonePooling {
+        pooling_type: crate::context::params::LlamaPoolingType,
+    },
     #[error("Invalid embedding dimension: {0}")]
     InvalidEmbeddingDimension(#[source] std::num::TryFromIntError),
     #[error(

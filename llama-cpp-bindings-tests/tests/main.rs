@@ -4,7 +4,9 @@
 )]
 mod backend_initialization;
 mod chat_protocol;
+mod context_after_decoding_text;
 mod context_state;
+mod embedding_availability;
 mod embedding_models;
 mod embedding_row_width;
 mod generation_control;
@@ -16,7 +18,6 @@ mod multimodal_audio;
 mod multimodal_fusion;
 mod multimodal_prompt_parts_tokenization;
 mod multimodal_vision;
-mod sequence_embedding_availability;
 mod structured_chat_output;
 
 llama_cpp_test_harness::llama_tests_main!();
