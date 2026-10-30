@@ -41,6 +41,13 @@ pub enum BuildError {
     },
     #[error("Android NDK Clang version directory was not found at {path}")]
     AndroidNdkClangVersionDirectoryMissing { path: PathBuf },
+    #[error(
+        "Android NDK Clang directory {path} holds more than one version directory: {candidates:?}"
+    )]
+    AndroidNdkClangVersionDirectoryAmbiguous {
+        path: PathBuf,
+        candidates: Vec<PathBuf>,
+    },
     #[error("Android NDK Clang built-in include directory was not found at {path}")]
     AndroidNdkClangBuiltinIncludesMissing { path: PathBuf },
     #[error("bindgen failed: {0}")]

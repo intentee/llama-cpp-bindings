@@ -55,9 +55,11 @@ fn detect_api_level(environment: &BuildEnvironment) -> Result<String, BuildError
     }
 }
 
+/// The NDK toolchain keeps the built-in headers of its clang in the single version directory
+/// under `lib/clang`.
 fn find_clang_builtin_includes(toolchain_path: &str) -> Result<String, BuildError> {
     let clang_lib_path = PathBuf::from(toolchain_path).join("lib/clang");
-    let version_dir = fs::read_dir(&clang_lib_path)
+    let mut version_dirs = fs::read_dir(&clang_lib_path)
         .and_then(Iterator::collect::<Result<Vec<DirEntry>, io::Error>>)
         .map_err(|source| BuildError::AndroidNdkClangDirectoryUnreadable {
             path: clang_lib_path.clone(),
@@ -65,18 +67,23 @@ fn find_clang_builtin_includes(toolchain_path: &str) -> Result<String, BuildErro
         })?
         .into_iter()
         .map(|entry| entry.path())
-        .find(|path| {
-            path.is_dir()
-                && path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| {
-                        name.starts_with(|character: char| character.is_ascii_digit())
-                    })
-        })
-        .ok_or_else(|| BuildError::AndroidNdkClangVersionDirectoryMissing {
-            path: clang_lib_path.clone(),
-        })?;
+        .filter(|path| path.is_dir())
+        .collect::<Vec<PathBuf>>();
+
+    version_dirs.sort();
+
+    let [version_dir] = <[PathBuf; 1]>::try_from(version_dirs).map_err(|candidates| {
+        if candidates.is_empty() {
+            BuildError::AndroidNdkClangVersionDirectoryMissing {
+                path: clang_lib_path.clone(),
+            }
+        } else {
+            BuildError::AndroidNdkClangVersionDirectoryAmbiguous {
+                path: clang_lib_path.clone(),
+                candidates,
+            }
+        }
+    })?;
     let include_path = version_dir.join("include");
 
     if !include_path.is_dir() {
@@ -381,7 +388,7 @@ pub mod tests {
     #[test]
     fn clang_builtin_include_resolution_requires_a_version_directory() {
         let toolchain = temporary_directory("clang-without-version");
-        std::fs::create_dir_all(toolchain.join("lib/clang/not-a-version")).unwrap();
+        std::fs::create_dir_all(toolchain.join("lib/clang")).unwrap();
         std::fs::write(toolchain.join("lib/clang/21"), "").unwrap();
 
         assert_eq!(
@@ -391,6 +398,28 @@ pub mod tests {
             Some(format!(
                 "Android NDK Clang version directory was not found at {}",
                 toolchain.join("lib/clang").display()
+            ))
+        );
+        std::fs::remove_dir_all(toolchain).unwrap();
+    }
+
+    #[test]
+    fn clang_builtin_include_resolution_refuses_to_choose_between_version_directories() {
+        let toolchain = temporary_directory("clang-with-two-versions");
+        std::fs::create_dir_all(toolchain.join("lib/clang/18/include")).unwrap();
+        std::fs::create_dir_all(toolchain.join("lib/clang/17/include")).unwrap();
+
+        assert_eq!(
+            find_clang_builtin_includes(toolchain.to_str().unwrap())
+                .err()
+                .map(|error| error.to_string()),
+            Some(format!(
+                "Android NDK Clang directory {} holds more than one version directory: {:?}",
+                toolchain.join("lib/clang").display(),
+                [
+                    toolchain.join("lib/clang/17"),
+                    toolchain.join("lib/clang/18")
+                ]
             ))
         );
         std::fs::remove_dir_all(toolchain).unwrap();
