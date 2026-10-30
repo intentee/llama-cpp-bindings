@@ -8,9 +8,9 @@
 #include <stdexcept>
 #include <string>
 
-#include "llama.cpp/common/json-schema-to-grammar.h"
-#include "llama.cpp/common/json.h"
-#include "llama.cpp/include/llama.h"
+#include <common/json-schema-to-grammar.h>
+#include <common/json.h>
+#include <llama.h>
 #include "wrapper_report_current_exception.h"
 #include "wrapper_utils.h"
 

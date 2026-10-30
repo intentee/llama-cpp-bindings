@@ -1,8 +1,8 @@
 #pragma once
 
-#include "llama.cpp/include/llama.h"
-#include "llama.cpp/tools/mtmd/mtmd.h"
-#include "llama.cpp/tools/mtmd/mtmd-helper.h"
+#include <llama.h>
+#include <tools/mtmd/mtmd.h>
+#include <tools/mtmd/mtmd-helper.h>
 
 #include <stddef.h>
 #include <stdint.h>

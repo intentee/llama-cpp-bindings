@@ -1,7 +1,7 @@
 #include "wrapper_gbnf.h"
 #include "wrapper_report_current_exception.h"
 
-#include "llama.cpp/src/llama-grammar.h"
+#include <src/llama-grammar.h>
 
 
 extern "C" auto llama_rs_validate_gbnf(

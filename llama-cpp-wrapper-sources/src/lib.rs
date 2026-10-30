@@ -11,6 +11,7 @@
 pub mod compile_command;
 pub mod compile_commands_file;
 pub mod cpp_standard;
+pub mod vendored_include_dirs;
 pub mod wrapper_headers;
 pub mod wrapper_include_dirs;
 pub mod wrapper_source_paths;

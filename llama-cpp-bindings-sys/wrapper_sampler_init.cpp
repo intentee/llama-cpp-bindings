@@ -1,6 +1,6 @@
 #include "wrapper_sampler_init.h"
 
-#include "llama.cpp/include/llama.h"
+#include <llama.h>
 #include "wrapper_report_current_exception.h"
 
 #include <cstddef>

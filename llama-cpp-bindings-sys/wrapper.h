@@ -1,5 +1,5 @@
-#include "llama.cpp/include/llama.h"
-#include "llama.cpp/ggml/include/gguf.h"
+#include <llama.h>
+#include <gguf.h>
 #include "wrapper_batch.h"
 #include "wrapper_chat_session.h"
 #include "wrapper_chat_templates.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "llama.cpp/common/chat.h"
+#include <common/chat.h>
 
 struct llama_rs_chat_templates {
     common_chat_templates_ptr templates;

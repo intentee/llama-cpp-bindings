@@ -1,7 +1,7 @@
 #include "wrapper_batch.h"
 #include "wrapper_report_current_exception.h"
 
-#include "llama.cpp/include/llama.h"
+#include <llama.h>
 
 #include <algorithm>
 #include <cstddef>

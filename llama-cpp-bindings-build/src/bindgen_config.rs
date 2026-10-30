@@ -184,6 +184,7 @@ pub fn generate_bindings(
 fn create_base_builder(llama_src: &Path, callbacks: BindingCallbacks) -> bindgen::Builder {
     let mut builder = bindgen::Builder::default()
         .header("wrapper.h")
+        .clang_arg(format!("-I{}", llama_src.display()))
         .clang_arg(format!("-I{}", llama_src.join("include").display()))
         .clang_arg(format!("-I{}", llama_src.join("ggml/include").display()))
         .parse_callbacks(Box::new(callbacks))

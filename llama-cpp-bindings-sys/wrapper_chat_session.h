@@ -1,6 +1,6 @@
 #pragma once
 
-#include "llama.cpp/include/llama.h"
+#include <llama.h>
 #include "wrapper_parsed_chat.h"
 #include "wrapper_chat_templates.h"
 

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use crate::compile_command::CompileCommand;
 use crate::cpp_standard::CPP_STANDARD;
+use crate::vendored_include_dirs::VENDORED_INCLUDE_DIRS;
 use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
 use crate::wrapper_source_paths::wrapper_source_paths;
 use crate::wrapper_sources_error::WrapperSourcesError;
@@ -29,6 +30,13 @@ impl CompileCommandsFile {
 
                 for include_dir in WRAPPER_INCLUDE_DIRS {
                     arguments.push(format!("-I{}", absolute_path(&self.sys_dir, include_dir)));
+                }
+
+                for include_dir in VENDORED_INCLUDE_DIRS {
+                    arguments.push(format!(
+                        "-isystem{}",
+                        absolute_path(&self.sys_dir, include_dir)
+                    ));
                 }
 
                 arguments.push("-c".to_owned());
@@ -69,6 +77,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::CompileCommandsFile;
+    use crate::vendored_include_dirs::VENDORED_INCLUDE_DIRS;
     use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
     use crate::wrapper_source_paths::wrapper_source_paths;
     use crate::wrapper_sources_error::WrapperSourcesError;
@@ -112,6 +121,34 @@ mod tests {
                 .map(|include_dir| {
                     format!(
                         "-I{}",
+                        Path::new("/repo/llama-cpp-bindings-sys")
+                            .join(include_dir)
+                            .display()
+                    )
+                })
+                .collect::<Vec<String>>()
+        );
+    }
+
+    #[test]
+    fn every_vendored_include_dir_is_a_system_include_resolved_against_the_sys_dir() {
+        let commands = database_for("/unused").commands();
+
+        assert_eq!(
+            commands
+                .first()
+                .map(|command| command
+                    .arguments
+                    .iter()
+                    .filter(|argument| argument.starts_with("-isystem"))
+                    .cloned()
+                    .collect::<Vec<String>>())
+                .unwrap_or_default(),
+            VENDORED_INCLUDE_DIRS
+                .iter()
+                .map(|include_dir| {
+                    format!(
+                        "-isystem{}",
                         Path::new("/repo/llama-cpp-bindings-sys")
                             .join(include_dir)
                             .display()

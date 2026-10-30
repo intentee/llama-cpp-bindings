@@ -2,12 +2,12 @@
 #include "wrapper_chat_templates_handle.h"
 #include "wrapper_report_current_exception.h"
 
-#include "llama.cpp/common/chat.h"
-#include "llama.cpp/common/jinja/caps.h"
-#include "llama.cpp/common/jinja/lexer.h"
-#include "llama.cpp/common/jinja/parser.h"
-#include "llama.cpp/common/jinja/runtime.h"
-#include "llama.cpp/include/llama.h"
+#include <common/chat.h>
+#include <common/jinja/caps.h>
+#include <common/jinja/lexer.h>
+#include <common/jinja/parser.h>
+#include <common/jinja/runtime.h>
+#include <llama.h>
 
 #include <memory>
 #include <string>

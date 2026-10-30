@@ -6,12 +6,12 @@
 #include "wrapper_report_current_exception.h"
 #include "wrapper_utils.h"
 
-#include "llama.cpp/common/chat-peg-parser.h"
-#include "llama.cpp/common/chat.h"
-#include "llama.cpp/common/common.h"
-#include "llama.cpp/common/json.h"
-#include "llama.cpp/common/peg-parser.h"
-#include "llama.cpp/include/llama.h"
+#include <common/chat-peg-parser.h>
+#include <common/chat.h>
+#include <common/common.h>
+#include <common/json.h>
+#include <common/peg-parser.h>
+#include <llama.h>
 
 #include <cstddef>
 #include <exception>
