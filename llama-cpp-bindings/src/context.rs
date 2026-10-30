@@ -598,11 +598,19 @@ impl<'model> LlamaContext<'model> {
     /// # Errors
     ///
     /// - When embeddings are not enabled on this context.
+    /// - When the context pools its outputs, because llama.cpp then writes only sequence
+    ///   embeddings and never the token rows.
     /// - When the given token didn't have logits enabled when it was passed.
     /// - If the given token index exceeds the max token id.
     pub fn embeddings_ith(&self, token_index: i32) -> Result<&[f32], EmbeddingsError> {
         if !self.embeddings_enabled() {
             return Err(EmbeddingsError::NotEnabled);
+        }
+
+        let pooling_type = self.pooling_type();
+
+        if pooling_type != LlamaPoolingType::None {
+            return Err(EmbeddingsError::TokenEmbeddingsRequireNonePooling { pooling_type });
         }
 
         let embedding = unsafe {

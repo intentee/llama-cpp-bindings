@@ -15,6 +15,7 @@ use llama_cpp_bindings::KvCacheSeqAddError;
 use llama_cpp_bindings::KvCacheSeqDivError;
 use llama_cpp_bindings::KvCacheSeqPosMaxError;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::params::LlamaPoolingType;
 use llama_cpp_bindings::ggml_time_us;
 use llama_cpp_bindings::gguf_context::GgufContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -474,7 +475,9 @@ fn embeddings_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Result
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*fixture.context_params)
+            .into_llama_context_params()
+            .with_pooling_type(LlamaPoolingType::None),
     )?;
     let tokens = fixture
         .model
@@ -506,7 +509,9 @@ fn embeddings_ith_returns_null_embedding_error_for_non_embedding_token(
     let context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*fixture.context_params)
+            .into_llama_context_params()
+            .with_pooling_type(LlamaPoolingType::None),
     )?;
 
     assert_eq!(
