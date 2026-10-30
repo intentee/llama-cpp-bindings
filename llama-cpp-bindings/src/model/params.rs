@@ -670,24 +670,36 @@ mod tests {
         assert!(!params.no_alloc());
     }
 
+    fn debug_output_of_default_params_with(lazy_mode: LlamaLazyMode) -> String {
+        format!(
+            "LlamaModelParams {{ n_gpu_layers: -1, main_gpu: 0, vocab_only: false, \
+             lazy_mode: Ok({lazy_mode:?}), load_mode: Ok(Auto), load_mtp: false, \
+             split_mode: Ok(Layer), devices: [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, \
+             0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0], \
+             kv_overrides: \"vec of kv_overrides\", .. }}"
+        )
+    }
+
     #[test]
     fn debug_format_contains_field_names() {
         let params = LlamaModelParams::default();
         let debug_output = format!("{params:?}");
 
-        assert!(debug_output.contains("n_gpu_layers"));
-        assert!(debug_output.contains("main_gpu"));
-        assert!(debug_output.contains("vocab_only"));
-        assert!(debug_output.contains("load_mode"));
-        assert!(debug_output.contains("split_mode"));
+        assert_eq!(
+            debug_output,
+            debug_output_of_default_params_with(LlamaLazyMode::Auto)
+        );
     }
 
     #[test]
     fn debug_format_includes_lazy_mode() {
-        let debug_output = format!("{:?}", LlamaModelParams::default());
+        let params = LlamaModelParams::default().with_lazy_mode(LlamaLazyMode::On);
+        let debug_output = format!("{params:?}");
 
-        assert!(debug_output.contains("lazy_mode"));
-        assert!(debug_output.contains("Auto"));
+        assert_eq!(
+            debug_output,
+            debug_output_of_default_params_with(LlamaLazyMode::On)
+        );
     }
 
     #[test]

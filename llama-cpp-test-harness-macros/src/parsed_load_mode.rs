@@ -77,8 +77,9 @@ mod tests {
             .expect_err("unknown mode must fail")
             .to_string();
 
-        for valid in ["Auto", "None", "Mmap", "Mlock", "MmapMlock", "DirectIo"] {
-            assert!(message.contains(valid), "missing {valid} in {message}");
-        }
+        assert_eq!(
+            message,
+            "expected one of: Auto, None, Mmap, Mlock, MmapMlock, DirectIo"
+        );
     }
 }

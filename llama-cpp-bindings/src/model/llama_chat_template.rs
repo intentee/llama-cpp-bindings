@@ -59,7 +59,7 @@ mod tests {
         let template = LlamaChatTemplate::new("chatml").unwrap();
         let debug_output = format!("{template:?}");
 
-        assert!(debug_output.contains("chatml"));
+        assert_eq!(debug_output, "\"chatml\"");
     }
 
     #[test]

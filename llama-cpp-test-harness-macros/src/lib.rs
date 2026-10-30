@@ -32,6 +32,7 @@ mod tests {
     use quote::quote;
 
     use super::dispatch;
+    use crate::expand::expand;
 
     #[test]
     fn dispatch_on_invalid_attribute_emits_compile_error_tokens() {
@@ -39,11 +40,13 @@ mod tests {
         let item = quote! {
             fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
         };
-        let emitted = dispatch(attribute, item).to_string();
+        let message = "unknown field `totally_wrong`; expected one of: model_source, \
+                       n_gpu_layers, load_mode, n_ctx, n_batch, n_ubatch, mmproj_source, \
+                       embeddings, n_seq_max, n_threads_batch, void_logs";
 
-        assert!(
-            emitted.contains("compile_error"),
-            "expected compile_error! tokens in emitted output: {emitted}",
+        assert_eq!(
+            dispatch(attribute, item).to_string(),
+            quote! { ::core::compile_error! { #message } }.to_string()
         );
     }
 
@@ -60,15 +63,8 @@ mod tests {
         let item = quote! {
             fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
         };
-        let emitted = dispatch(attribute, item).to_string();
+        let expanded = expand(attribute.clone(), item.clone()).expect("valid input must expand");
 
-        assert!(
-            emitted.contains("inventory"),
-            "expected inventory::submit in emitted output: {emitted}",
-        );
-        assert!(
-            !emitted.contains("compile_error"),
-            "valid input should not emit compile_error: {emitted}",
-        );
+        assert_eq!(dispatch(attribute, item).to_string(), expanded.to_string());
     }
 }

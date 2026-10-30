@@ -180,7 +180,7 @@ mod tests {
     };
     use crate::log_options::LogOptions;
 
-    #[derive(Clone, Debug)]
+    #[derive(Debug)]
     struct CapturedRecord {
         level: Level,
         target: String,
@@ -224,7 +224,7 @@ mod tests {
         });
     }
 
-    fn records_for(target: &str) -> Vec<CapturedRecord> {
+    fn records_for(target: &str) -> Vec<LogRecord> {
         let guard = TEST_LOGGER
             .records
             .lock()
@@ -232,7 +232,10 @@ mod tests {
         guard
             .iter()
             .filter(|record| record.target == target)
-            .cloned()
+            .map(|record| LogRecord {
+                level: record.level,
+                text: record.message.clone(),
+            })
             .collect()
     }
 
@@ -308,7 +311,7 @@ mod tests {
             &source,
         );
 
-        assert!(records_for(target).is_empty());
+        assert_eq!(records_for(target), Vec::<LogRecord>::new());
     }
 
     #[test]
@@ -326,9 +329,13 @@ mod tests {
             &source,
         );
 
-        assert!(records_for(target).iter().any(|record| {
-            record.level == Level::Debug && record.message.contains("info-line")
-        }));
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Debug,
+                text: "info-line".to_owned(),
+            }]
+        );
     }
 
     #[test]
@@ -346,10 +353,12 @@ mod tests {
             &source,
         );
 
-        assert!(
-            records_for(target).iter().any(|record| {
-                record.level == Level::Warn && record.message.contains("warn-line")
-            })
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Warn,
+                text: "warn-line".to_owned(),
+            }]
         );
     }
 
@@ -361,11 +370,13 @@ mod tests {
         let source = LogSource::new(target, LogOptions::default());
         invoke_callback(9999, c"weird\n", &source);
 
-        assert!(records_for(target).iter().any(|record| {
-            record.level == Level::Warn
-                && record.message.contains("[unknown level 9999]")
-                && record.message.contains("weird")
-        }));
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Warn,
+                text: "[unknown level 9999] weird".to_owned(),
+            }]
+        );
     }
 
     #[test]
@@ -380,9 +391,19 @@ mod tests {
             &source,
         );
 
-        assert!(records_for(target).iter().any(|record| {
-            record.level == Level::Warn && record.message.contains("OrphanCont")
-        }));
+        assert_eq!(
+            records_for(target),
+            [
+                LogRecord {
+                    level: Level::Info,
+                    text: "ghost".to_owned(),
+                },
+                LogRecord {
+                    level: Level::Warn,
+                    text: "llama.cpp log decoder anomaly: OrphanCont".to_owned(),
+                },
+            ]
+        );
     }
 
     #[test]
@@ -410,7 +431,7 @@ mod tests {
         let source = LogSource::new(target, LogOptions::default());
         dispatch_output(&source, DecodeOutput::None);
 
-        assert!(records_for(target).is_empty());
+        assert_eq!(records_for(target), Vec::<LogRecord>::new());
     }
 
     #[test]
@@ -433,16 +454,18 @@ mod tests {
             },
         );
 
-        let records = records_for(target);
-        assert!(
-            records
-                .iter()
-                .any(|record| record.message.contains("earlier-line"))
-        );
-        assert!(
-            records
-                .iter()
-                .any(|record| record.message.contains("current-line"))
+        assert_eq!(
+            records_for(target),
+            [
+                LogRecord {
+                    level: Level::Info,
+                    text: "earlier-line".to_owned(),
+                },
+                LogRecord {
+                    level: Level::Warn,
+                    text: "current-line".to_owned(),
+                },
+            ]
         );
     }
 
@@ -473,9 +496,13 @@ mod tests {
             );
         }
 
-        assert!(records_for(target).iter().any(|record| {
-            record.level == Level::Warn && record.message.contains("NULL text pointer")
-        }));
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Warn,
+                text: "received NULL text pointer from llama.cpp log callback".to_owned(),
+            }]
+        );
     }
 
     #[test]
@@ -504,10 +531,12 @@ mod tests {
             &source,
         );
 
-        assert!(
-            records_for(target)
-                .iter()
-                .any(|record| record.message.contains("after-poison"))
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Info,
+                text: "after-poison".to_owned(),
+            }]
         );
     }
 }

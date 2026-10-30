@@ -57,8 +57,12 @@ mod tests {
         };
 
         assert_eq!(
-            message.map(|text| text.contains("parse error")),
-            Ok(true),
+            message,
+            Ok(
+                "[json.exception.parse_error.101] parse error at line 1, column 2: syntax error \
+                while parsing value - invalid literal; last read: 'no'"
+                    .to_owned()
+            ),
             "the llama.cpp json parser reports its failure through the error slot"
         );
     }

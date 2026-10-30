@@ -357,7 +357,7 @@ fn grammar_callback_error_to_accept_result(
 
 impl Debug for LlamaSampler {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LlamaSamplerChain").finish()
+        f.debug_struct("LlamaSampler").finish_non_exhaustive()
     }
 }
 
@@ -1215,7 +1215,7 @@ mod tests {
     fn debug_formatting() {
         let sampler = greedy_sampler();
         let debug_output = format!("{sampler:?}");
-        assert!(debug_output.contains("LlamaSampler"));
+        assert_eq!(debug_output, "LlamaSampler { .. }");
     }
 }
 

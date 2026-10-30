@@ -79,18 +79,39 @@ fn configure_base_defines(config: &mut Config) {
     config.define("LLAMA_OPENSSL", "OFF");
 }
 
+fn codegen_options(encoded_rustflags: &str) -> Vec<&str> {
+    let mut options = Vec::new();
+    let mut flags = encoded_rustflags.split('\x1f');
+
+    while let Some(flag) = flags.next() {
+        if flag == "-C" || flag == "--codegen" {
+            options.extend(flags.next());
+        } else if let Some(option) = flag
+            .strip_prefix("--codegen=")
+            .or_else(|| flag.strip_prefix("-C"))
+        {
+            options.push(option);
+        }
+    }
+
+    options
+}
+
+fn target_cpu_of(encoded_rustflags: &str) -> Option<String> {
+    codegen_options(encoded_rustflags)
+        .into_iter()
+        .rev()
+        .find_map(|option| option.strip_prefix("target-cpu="))
+        .map(ToOwned::to_owned)
+}
+
 fn configure_cpu_features(
     config: &mut Config,
     cargo_cfg_target_arch: &str,
     target_os: TargetOs,
 ) -> Result<(), BuildError> {
-    let target_cpu = optional_env("CARGO_ENCODED_RUSTFLAGS")?.and_then(|rustflags| {
-        rustflags
-            .split('\x1f')
-            .find(|flag| flag.contains("target-cpu="))
-            .and_then(|flag| flag.split("target-cpu=").nth(1))
-            .map(ToString::to_string)
-    });
+    let target_cpu =
+        optional_env("CARGO_ENCODED_RUSTFLAGS")?.and_then(|rustflags| target_cpu_of(&rustflags));
 
     if target_cpu.as_deref() == Some("native") {
         debug_log!("Detected target-cpu=native, compiling with GGML_NATIVE");
@@ -293,5 +314,55 @@ mod cpu_feature_mapping_tests {
     fn unsupported_rust_cpu_feature_does_not_enable_a_ggml_switch() {
         assert_eq!(map_cpu_feature_to_ggml("aes"), None);
         assert_eq!(map_cpu_feature_to_ggml(""), None);
+    }
+}
+
+#[cfg(test)]
+mod target_cpu_of_tests {
+    use super::target_cpu_of;
+
+    #[test]
+    fn an_attached_codegen_target_cpu_is_found() {
+        assert_eq!(
+            target_cpu_of("-Ctarget-cpu=native"),
+            Some("native".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_codegen_target_cpu_given_as_the_next_flag_is_found() {
+        assert_eq!(
+            [
+                target_cpu_of("-C\x1ftarget-cpu=znver4"),
+                target_cpu_of("--codegen\x1ftarget-cpu=znver4"),
+                target_cpu_of("--codegen=target-cpu=znver4"),
+            ],
+            [
+                Some("znver4".to_owned()),
+                Some("znver4".to_owned()),
+                Some("znver4".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_last_target_cpu_wins_as_it_does_for_rustc() {
+        assert_eq!(
+            target_cpu_of("-Ctarget-cpu=haswell\x1f-Ctarget-cpu=znver4"),
+            Some("znver4".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_target_cpu_inside_another_codegen_option_is_not_the_target_cpu() {
+        assert_eq!(target_cpu_of("-Clink-arg=-Wl,target-cpu=znver4"), None);
+    }
+
+    #[test]
+    fn rustflags_without_a_target_cpu_name_no_target_cpu() {
+        assert_eq!(
+            target_cpu_of("-Copt-level=3\x1f--cfg\x1ffeature=\"x\""),
+            None
+        );
     }
 }
