@@ -67,6 +67,7 @@ pub struct LlamaBatch<'tokens> {
     allocated: usize,
     pub initialized_logits: Vec<i32>,
     pub llama_batch: llama_batch,
+    n_seq_max: i32,
     phantom: PhantomData<&'tokens [LlamaToken]>,
 }
 
@@ -78,7 +79,8 @@ impl<'tokens> LlamaBatch<'tokens> {
 
     /// # Errors
     ///
-    /// Returns an error if there is insufficient space in the buffer or if integer conversions fail.
+    /// Returns an error if there is insufficient space in the buffer, if the token belongs to more
+    /// sequences than the batch was created for, or if integer conversions fail.
     pub fn add(
         &mut self,
         sampled_token: &SampledToken,
@@ -99,6 +101,13 @@ impl<'tokens> LlamaBatch<'tokens> {
         let offset = self.llama_batch.n_tokens;
         let offset_usize = checked_i32_as_usize(offset, "n_tokens")?;
         let n_seq_id = checked_usize_as_llama_seq_id(seq_ids.len(), "seq_ids.len()")?;
+
+        if n_seq_id > self.n_seq_max {
+            return Err(BatchAddError::TooManySequenceIds {
+                sequence_ids: n_seq_id,
+                n_seq_max: self.n_seq_max,
+            });
+        }
 
         unsafe {
             self.llama_batch.token.add(offset_usize).write(id);
@@ -154,6 +163,7 @@ impl<'tokens> LlamaBatch<'tokens> {
             allocated: capacity.tokens_usize(),
             initialized_logits: vec![],
             llama_batch: batch,
+            n_seq_max,
             phantom: PhantomData,
         }
     }
@@ -179,6 +189,7 @@ impl<'tokens> LlamaBatch<'tokens> {
             allocated: 0,
             initialized_logits: vec![last_token_index],
             llama_batch: batch,
+            n_seq_max: 0,
             phantom: PhantomData,
         })
     }
@@ -273,6 +284,27 @@ mod tests {
         let result = batch.add(&SampledToken::Content(LlamaToken::new(2)), 1, &[0], false);
 
         assert_eq!(result, Err(BatchAddError::InsufficientSpace(1)));
+    }
+
+    #[test]
+    fn add_refuses_more_sequence_ids_than_the_batch_holds_per_token() {
+        let mut batch = LlamaBatch::new(BatchCapacity::try_from(16).unwrap(), 1);
+
+        let result = batch.add(
+            &SampledToken::Content(LlamaToken::new(1)),
+            0,
+            &[0, 1],
+            false,
+        );
+
+        assert_eq!(
+            result,
+            Err(BatchAddError::TooManySequenceIds {
+                sequence_ids: 2,
+                n_seq_max: 1,
+            })
+        );
+        assert_eq!(batch.n_tokens(), 0);
     }
 
     #[test]
