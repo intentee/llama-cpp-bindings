@@ -439,6 +439,11 @@ mod tests {
     }
 
     #[test]
+    fn a_key_with_an_invalid_escape_is_failed() {
+        assert_eq!(probe(r#"{"\q":"bar"}"#), JsonProbeOutcome::Failed);
+    }
+
+    #[test]
     fn complete_object_with_non_string_name_is_failed() {
         assert_eq!(
             probe(r#"{"name":123,"arguments":{}}"#),

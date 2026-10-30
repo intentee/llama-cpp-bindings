@@ -149,7 +149,7 @@ pub struct MtmdBitmap {
     pub bitmap: NonNull<llama_cpp_bindings_sys::mtmd_bitmap>,
 }
 
-const RGB_BYTES_PER_PIXEL: usize = 3;
+const RGB_BYTES_PER_PIXEL: u64 = 3;
 
 unsafe impl Send for MtmdBitmap {}
 unsafe impl Sync for MtmdBitmap {}
@@ -167,10 +167,9 @@ impl MtmdBitmap {
             return Err(MtmdBitmapError::ImageDimensionsTooSmall(nx, ny));
         }
 
-        let expected_len = usize::try_from(nx)
-            .ok()
-            .and_then(|width| width.checked_mul(usize::try_from(ny).ok()?))
-            .and_then(|pixels| pixels.checked_mul(RGB_BYTES_PER_PIXEL))
+        let expected_len = (u64::from(nx) * u64::from(ny))
+            .checked_mul(RGB_BYTES_PER_PIXEL)
+            .and_then(|bytes| usize::try_from(bytes).ok())
             .ok_or(MtmdBitmapError::ImageDimensionsOverflow { nx, ny })?;
 
         if data.len() != expected_len {

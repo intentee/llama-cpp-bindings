@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -133,5 +134,47 @@ fn lora_adapter_init_with_non_utf8_path_returns_error(fixture: &LlamaFixture<'_>
     assert_eq!(
         result.unwrap_err(),
         LlamaLoraAdapterInitError::PathToStrError(non_utf8_path.to_path_buf())
+    );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn load_model_with_a_nul_byte_in_the_path_returns_error(fixture: &LlamaFixture<'_>) {
+    assert_eq!(
+        LlamaModel::load_from_file(
+            fixture.backend,
+            "/models/model\0.gguf",
+            &LlamaModelParams::default()
+        )
+        .err(),
+        CString::new("/models/model\0.gguf")
+            .err()
+            .map(LlamaModelLoadError::NullError)
+    );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn lora_adapter_init_with_a_nul_byte_in_the_path_returns_error(fixture: &LlamaFixture<'_>) {
+    assert_eq!(
+        fixture
+            .model
+            .lora_adapter_init("/adapters/adapter\0.gguf")
+            .err(),
+        CString::new("/adapters/adapter\0.gguf")
+            .err()
+            .map(LlamaLoraAdapterInitError::NullError)
     );
 }

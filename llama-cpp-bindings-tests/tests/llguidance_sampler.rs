@@ -3,9 +3,11 @@ use std::ffi::CStr;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+use llama_cpp_bindings::SampleError;
 use llama_cpp_bindings::SamplerAcceptError;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
+use llama_cpp_bindings::error::GrammarRuntimeError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::llguidance_sampler::create_llg_sampler;
 use llama_cpp_bindings::model::AddBos;
@@ -18,6 +20,13 @@ use llama_cpp_test_harness::llama_test;
 const JSON_SCHEMA: &str =
     r#"{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}"#;
 const REGEX_GRAMMAR: &str = r"yes|no";
+
+fn out_of_vocabulary_failure() -> String {
+    GrammarRuntimeError::InternalParserError {
+        message: "token id 2147483646 out of range".to_owned(),
+    }
+    .to_string()
+}
 const LARK_GRAMMAR: &str = r#"start: "yes" | "no""#;
 
 #[llama_test(
@@ -488,13 +497,12 @@ fn accept_maps_an_out_of_vocabulary_token_to_grammar_callback_failure(
 ) -> Result<()> {
     let mut sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
 
-    let huge_token = LlamaToken(i32::MAX - 1);
-    let result = sampler.accept(huge_token);
-
-    let Err(SamplerAcceptError::GrammarCallbackFailed { message }) = result else {
-        panic!("expected a grammar callback failure, got {result:?}");
-    };
-    assert!(message.contains("token id 2147483646 out of range"));
+    assert_eq!(
+        sampler.accept(LlamaToken(i32::MAX - 1)),
+        Err(SamplerAcceptError::GrammarCallbackFailed {
+            message: out_of_vocabulary_failure(),
+        })
+    );
 
     Ok(())
 }
@@ -594,6 +602,49 @@ fn llguidance_chain_samples_a_valid_token(fixture: &LlamaFixture<'_>) -> Result<
     let token = chain.sample(&context, batch.n_tokens() - 1)?;
 
     assert!(token.0 >= 0);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let mut context = fixture.build_context()?;
+    let tokens = model.str_to_token(
+        "Answer yes or no:",
+        AddBos::Always,
+        ParseSpecialTokens::Always,
+    )?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    batch.add_sequence(&tokens, 0, false)?;
+    context.decode(&batch)?;
+
+    let mut chain = LlamaSampler::chain_simple([
+        create_llg_sampler(model, "regex", REGEX_GRAMMAR)?,
+        LlamaSampler::greedy()?,
+    ])?;
+
+    assert_eq!(
+        chain.accept(LlamaToken(i32::MAX - 1)),
+        Err(SamplerAcceptError::GrammarCallbackFailed {
+            message: out_of_vocabulary_failure(),
+        })
+    );
+    assert_eq!(
+        chain.sample(&context, batch.n_tokens() - 1),
+        Err(SampleError::GrammarCallbackFailed {
+            message: out_of_vocabulary_failure(),
+        })
+    );
 
     Ok(())
 }

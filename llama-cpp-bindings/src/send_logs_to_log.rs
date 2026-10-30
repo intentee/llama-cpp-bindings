@@ -218,9 +218,8 @@ mod tests {
 
     fn ensure_test_logger_installed() {
         INSTALL.call_once(|| {
-            if log::set_logger(&TEST_LOGGER).is_ok() {
-                log::set_max_level(log::LevelFilter::Trace);
-            }
+            log::set_logger(&TEST_LOGGER).unwrap();
+            log::set_max_level(log::LevelFilter::Trace);
         });
     }
 

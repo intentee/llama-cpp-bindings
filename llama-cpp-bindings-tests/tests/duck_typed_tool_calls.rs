@@ -83,3 +83,33 @@ fn deepseek_r1_8b_duck_types_qwen_xml(fixture: &LlamaFixture<'_>) -> Result<()> 
         "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n</function>\n</tool_call>",
     )
 }
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn deepseek_r1_8b_duck_types_qwen_json_inside_tool_call(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_duck_types_paris_weather_call(
+        fixture,
+        "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"location\": \"Paris\"}}\n</tool_call>",
+    )
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn deepseek_r1_8b_duck_types_a_bare_json_tool_call(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_duck_types_paris_weather_call(
+        fixture,
+        "{\"name\": \"get_weather\", \"arguments\": {\"location\": \"Paris\"}}",
+    )
+}

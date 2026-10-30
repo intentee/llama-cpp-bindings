@@ -301,27 +301,17 @@ impl LlamaModelParams {
 
     #[must_use]
     pub fn devices(&self) -> Vec<usize> {
-        let mut backend_devices = Vec::new();
-        for device_index in 0..unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
-            let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
-            backend_devices.push(dev);
-        }
-        let mut devices = Vec::new();
-        for &dev in self.devices.iter() {
-            if dev.is_null() {
-                break;
-            }
-            let matched_index = backend_devices
-                .iter()
-                .enumerate()
-                .find(|&(_i, &d)| d == dev)
-                .map(|(index, _)| index);
+        let device_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
 
-            if let Some(index) = matched_index {
-                devices.push(index);
-            }
-        }
-        devices
+        self.devices
+            .iter()
+            .take_while(|device| !device.is_null())
+            .filter_map(|device| {
+                (0..device_count).position(|device_index| {
+                    *device == unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) }
+                })
+            })
+            .collect()
     }
 
     #[must_use]
@@ -913,10 +903,7 @@ mod tests {
             llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
         );
 
-        assert!(
-            matches!(result, Err(FitError::Aborted | FitError::Reported { .. })),
-            "expected Aborted or Reported, got {result:?}"
-        );
+        assert_eq!(result.err(), Some(FitError::Aborted));
     }
 
     #[test]

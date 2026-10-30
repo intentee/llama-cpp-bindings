@@ -151,6 +151,22 @@ mod tests {
     }
 
     #[test]
+    fn a_batch_whose_token_count_reached_its_type_limit_refuses_another_token() {
+        let mut batch = LlamaBatch {
+            n_tokens: i32::MAX,
+            ..LlamaBatch::new(ContextLimits {
+                n_batch: u32::MAX,
+                ..LIMITS
+            })
+        };
+
+        assert_eq!(
+            batch.add(&content(1), 0, &[0], false),
+            Err(BatchAddError::TokenCountOverflow { n_tokens: i32::MAX })
+        );
+    }
+
+    #[test]
     fn added_tokens_are_kept_in_order_with_their_outputs() {
         let mut batch = LlamaBatch::new(LIMITS);
 

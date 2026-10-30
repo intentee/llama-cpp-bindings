@@ -2017,6 +2017,25 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
     }
 
     #[test]
+    fn an_invalid_trigger_pattern_without_a_message_is_a_contract_error() {
+        assert_eq!(
+            sampler_init_grammar_lazy_patterns_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_INVALID_TRIGGER_PATTERN,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+            .err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_sampler_init_grammar_lazy_patterns",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
     fn lazy_grammar_null_output_argument_status_is_a_contract_error() {
         let status = llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_SAMPLER_ARG;
         let result = sampler_init_grammar_lazy_patterns_status_to_result(

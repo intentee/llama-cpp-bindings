@@ -87,10 +87,7 @@ unsafe extern "C" fn llg_clone(
 }
 
 unsafe extern "C" fn llg_free(smpl: *mut llama_cpp_bindings_sys::llama_sampler) {
-    let ctx_ptr = unsafe { (*smpl).ctx.cast::<LlgContext>() };
-    if !ctx_ptr.is_null() {
-        drop(unsafe { Box::from_raw(ctx_ptr) });
-    }
+    drop(unsafe { Box::from_raw((*smpl).ctx.cast::<LlgContext>()) });
 }
 
 static mut LLG_SAMPLER_I: llama_cpp_bindings_sys::llama_sampler_i =
@@ -169,7 +166,6 @@ pub fn create_llg_sampler(
 mod tests {
     use std::sync::Arc;
 
-    use anyhow::Result;
     use toktrie::ApproximateTokEnv;
     use toktrie::INVALID_TOKEN;
     use toktrie::TokRxInfo;
@@ -217,21 +213,18 @@ mod tests {
     }
 
     #[test]
-    fn apply_leaves_candidates_untouched_once_the_grammar_is_complete() -> Result<()> {
-        let mut sampler = letter_a_sampler()?;
+    fn apply_leaves_candidates_untouched_once_the_grammar_is_complete() {
+        let mut sampler = letter_a_sampler().unwrap();
         let mut candidates = letter_candidates();
-        sampler.accept(LETTER_A)?;
 
-        sampler.apply(&mut candidates)?;
-
+        assert_eq!(sampler.accept(LETTER_A), Ok(()));
+        assert_eq!(sampler.apply(&mut candidates), Ok(()));
         assert_eq!(candidates, letter_candidates());
-
-        Ok(())
     }
 
     #[test]
-    fn apply_reports_a_grammar_in_an_error_state_as_a_callback_failure() -> Result<()> {
-        let mut sampler = letter_a_sampler()?;
+    fn apply_reports_a_grammar_in_an_error_state_as_a_callback_failure() {
+        let mut sampler = letter_a_sampler().unwrap();
 
         assert_eq!(
             sampler.accept(OUT_OF_VOCABULARY),
@@ -245,15 +238,38 @@ mod tests {
                 message: out_of_vocabulary_failure(),
             })
         );
-
-        Ok(())
     }
 
     #[test]
-    fn reset_reports_a_grammar_in_an_error_state_as_a_callback_failure() -> Result<()> {
-        let mut sampler = letter_a_sampler()?;
-        sampler.accept(LETTER_A)?;
+    fn accepting_many_tokens_stops_at_the_first_one_the_grammar_rejects() {
+        let mut sampler = letter_a_sampler().unwrap();
 
+        assert_eq!(
+            sampler.accept_many([OUT_OF_VOCABULARY, LETTER_A]),
+            Err(SamplerAcceptError::GrammarCallbackFailed {
+                message: out_of_vocabulary_failure(),
+            })
+        );
+    }
+
+    #[test]
+    fn a_sampler_with_a_rejected_token_is_not_built() {
+        assert_eq!(
+            letter_a_sampler()
+                .unwrap()
+                .with_tokens([OUT_OF_VOCABULARY])
+                .err(),
+            Some(SamplerAcceptError::GrammarCallbackFailed {
+                message: out_of_vocabulary_failure(),
+            })
+        );
+    }
+
+    #[test]
+    fn reset_reports_a_grammar_in_an_error_state_as_a_callback_failure() {
+        let mut sampler = letter_a_sampler().unwrap();
+
+        assert_eq!(sampler.accept(LETTER_A), Ok(()));
         assert_eq!(
             sampler.accept(OUT_OF_VOCABULARY),
             Err(SamplerAcceptError::GrammarCallbackFailed {
@@ -266,7 +282,5 @@ mod tests {
                 message: out_of_vocabulary_failure(),
             })
         );
-
-        Ok(())
     }
 }

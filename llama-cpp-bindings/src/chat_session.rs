@@ -760,6 +760,7 @@ impl Drop for ChatSession<'_> {
 #[cfg(test)]
 mod tests {
     use std::ffi::CStr;
+    use std::ffi::CString;
     use std::ptr;
 
     use serde_json::json;
@@ -873,17 +874,25 @@ mod tests {
 
     #[test]
     fn creating_a_session_reports_a_refusal_without_a_message_as_a_contract_violation() {
+        let refusals = [
+            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_NOT_JSON,
+            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_INVALID,
+            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_NOT_JSON,
+            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_INVALID,
+            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TEMPLATE_CANNOT_SERVE_REQUEST,
+            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+        ];
+
         assert_eq!(
-            chat_session_create_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_INVALID,
-                ptr::null_mut(),
-                ptr::null_mut()
-            )
-            .err(),
-            Some(ChatSessionError::FfiContract(crate::FfiContractError {
-                operation: "llama_rs_chat_session_create",
-                detail: "reported a failure without an error message"
-            }))
+            refusals.map(|status| {
+                chat_session_create_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
+            }),
+            refusals.map(|_status| {
+                Some(ChatSessionError::FfiContract(crate::FfiContractError {
+                    operation: "llama_rs_chat_session_create",
+                    detail: "reported a failure without an error message",
+                }))
+            })
         );
     }
 
@@ -1122,6 +1131,27 @@ mod tests {
     }
 
     #[test]
+    fn a_message_whose_role_or_content_is_not_utf8_is_refused() {
+        let not_utf8 = CString::new([0xff]).unwrap();
+        let utf8_error = not_utf8.to_str().err();
+        let messages = [
+            LlamaChatMessage {
+                role: not_utf8.clone(),
+                content: c"hi".to_owned(),
+            },
+            LlamaChatMessage {
+                role: c"user".to_owned(),
+                content: not_utf8,
+            },
+        ];
+
+        assert_eq!(
+            messages.map(|message| messages_json(&[message], &ChatAssistantTurn::New).err()),
+            [utf8_error, utf8_error].map(|error| error.map(ChatSessionError::MessageNotUtf8))
+        );
+    }
+
+    #[test]
     fn continuing_reasoning_appends_an_assistant_message_with_that_reasoning() {
         assert_eq!(
             parsed_messages(
@@ -1156,6 +1186,14 @@ mod tests {
         assert_eq!(
             [
                 chat_session_parse_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_PARSE_OUTPUT_DOES_NOT_MATCH_FORMAT,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    &output,
+                    ChatOutputCompleteness::Finished,
+                )
+                .err(),
+                chat_session_parse_status_to_result(
                     llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
                     ptr::null_mut(),
                     ptr::null_mut(),
@@ -1172,6 +1210,10 @@ mod tests {
                 .err(),
             ],
             [
+                Some(ParseChatMessageError::FfiContract(crate::FfiContractError {
+                    operation: "llama_rs_chat_session_parse",
+                    detail: "reported a failure without an error message",
+                })),
                 Some(ParseChatMessageError::FfiContract(crate::FfiContractError {
                     operation: "llama_rs_chat_session_parse",
                     detail: "reported a failure without an error message",

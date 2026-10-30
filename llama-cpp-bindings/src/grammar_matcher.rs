@@ -131,12 +131,54 @@ impl GrammarMatcher {
 
 #[cfg(test)]
 mod tests {
+    use llguidance::ParserFactory;
+    use llguidance::TokenParser;
     use llguidance::api::StopReason;
+    use llguidance::api::TopLevelGrammar;
+    use toktrie::ApproximateTokEnv;
 
+    use super::GrammarMatcher;
     use super::catch_step_panic;
     use super::panic_payload_message;
     use super::stop_reason_to_result;
     use crate::error::grammar_runtime_error::GrammarRuntimeError;
+
+    fn letters_a_then_b_parser() -> TokenParser {
+        ParserFactory::new_simple(&ApproximateTokEnv::single_byte_env())
+            .unwrap()
+            .create_parser(TopLevelGrammar::from_regex("ab"))
+            .unwrap()
+    }
+
+    #[test]
+    fn a_started_parser_keeps_the_tokens_it_consumed() {
+        let mut parser = letters_a_then_b_parser();
+
+        parser.start_without_prompt();
+        parser.consume_token(u32::from(b'a')).unwrap();
+
+        assert_eq!(
+            GrammarMatcher::new(parser).consume_token(u32::from(b'b')),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn a_panicking_parser_step_is_reported_with_its_operation() {
+        let mut matcher = GrammarMatcher::new(letters_a_then_b_parser());
+
+        assert_eq!(
+            matcher
+                .run("compute_mask", |_parser| -> Result<(), String> {
+                    panic!("parser exploded")
+                })
+                .err(),
+            Some(GrammarRuntimeError::Panicked {
+                operation: "compute_mask",
+                message: "parser exploded".to_owned(),
+            })
+        );
+    }
 
     #[test]
     fn a_static_str_panic_payload_is_preserved() {

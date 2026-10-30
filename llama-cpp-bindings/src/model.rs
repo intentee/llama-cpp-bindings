@@ -58,6 +58,8 @@ pub use vocab_type_from_int_error::VocabTypeFromIntError;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 use params::LlamaModelParams;
 
+const PIECE_PROBE_SIZE: usize = 32;
+
 fn validate_string_length_for_tokenizer(length: usize) -> Result<c_int, StringToTokenError> {
     Ok(c_int::try_from(length)?)
 }
@@ -330,14 +332,7 @@ impl LlamaModel {
         | SampledToken::Reasoning(inner)
         | SampledToken::ToolCall(inner)
         | SampledToken::Undeterminable(inner)) = *token;
-        let bytes = match self.token_to_piece_bytes(inner, 8, special, lstrip) {
-            Err(TokenToStringError::InsufficientBufferSpace(required_size)) => {
-                let buffer_size: usize = (-required_size).try_into()?;
-
-                self.token_to_piece_bytes(inner, buffer_size, special, lstrip)
-            }
-            other => other,
-        }?;
+        let bytes = self.token_to_piece_bytes_fitted(inner, special, lstrip)?;
 
         let mut output_piece = String::with_capacity(bytes.len());
         let (_result, _decoded_size, _had_replacements) =
@@ -360,8 +355,8 @@ impl LlamaModel {
         lstrip: Option<NonZeroU16>,
     ) -> Result<Vec<u8>, TokenToStringError> {
         let token = self.require_vocabulary_token(token)?;
+        let buffer_len = c_int::try_from(buffer_size)?;
         let mut buffer: Vec<u8> = vec![0u8; buffer_size];
-        let buffer_len = c_int::try_from(buffer.len())?;
         let lstrip = lstrip.map_or(0, |strip_count| i32::from(strip_count.get()));
         let size = unsafe {
             llama_cpp_bindings_sys::llama_token_to_piece(
@@ -380,11 +375,28 @@ impl LlamaModel {
                 Err(TokenToStringError::InsufficientBufferSpace(error_code))
             }
             size => {
-                let written = usize::try_from(size)?;
-                buffer.truncate(written);
+                buffer.truncate(size.unsigned_abs() as usize);
 
                 Ok(buffer)
             }
+        }
+    }
+
+    fn token_to_piece_bytes_fitted(
+        &self,
+        token: LlamaToken,
+        special: bool,
+        lstrip: Option<NonZeroU16>,
+    ) -> Result<Vec<u8>, TokenToStringError> {
+        match self.token_to_piece_bytes(token, PIECE_PROBE_SIZE, special, lstrip) {
+            Err(TokenToStringError::InsufficientBufferSpace(required_size)) => self
+                .token_to_piece_bytes(
+                    token,
+                    required_size.unsigned_abs() as usize,
+                    special,
+                    lstrip,
+                ),
+            probe_result => probe_result,
         }
     }
 
@@ -561,12 +573,11 @@ impl LlamaModel {
         let path_str = path
             .to_str()
             .ok_or_else(|| LlamaModelLoadError::PathToStrError(path.to_path_buf()))?;
+        let cstr = CString::new(path_str)?;
 
         if !path.exists() {
             return Err(LlamaModelLoadError::FileNotFound(path.to_path_buf()));
         }
-
-        let cstr = CString::new(path_str)?;
         let mut out_model: *mut llama_cpp_bindings_sys::llama_model = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -592,12 +603,11 @@ impl LlamaModel {
         let path_str = path
             .to_str()
             .ok_or_else(|| LlamaLoraAdapterInitError::PathToStrError(path.to_path_buf()))?;
+        let cstr = CString::new(path_str)?;
 
         if !path.exists() {
             return Err(LlamaLoraAdapterInitError::FileNotFound(path.to_path_buf()));
         }
-
-        let cstr = CString::new(path_str)?;
         initialize_lora_adapter(|| unsafe {
             llama_cpp_bindings_sys::llama_adapter_lora_init(self.model.as_ptr(), cstr.as_ptr())
         })
@@ -635,19 +645,14 @@ impl LlamaModel {
     }
 }
 
-const TOK_ENV_PIECE_PROBE_SIZE: usize = 32;
-
 fn token_piece_bytes_for_tok_env(
     model: &LlamaModel,
     token: LlamaToken,
     special: bool,
 ) -> Result<Vec<u8>, TokenToStringError> {
-    match model.token_to_piece_bytes(token, TOK_ENV_PIECE_PROBE_SIZE, special, None) {
+    match model.token_to_piece_bytes_fitted(token, special, None) {
         Err(TokenToStringError::UnknownTokenType) => Ok(Vec::new()),
-        Err(TokenToStringError::InsufficientBufferSpace(required)) => {
-            model.token_to_piece_bytes(token, required.unsigned_abs() as usize, special, None)
-        }
-        probe_result => probe_result,
+        piece_result => piece_result,
     }
 }
 
@@ -801,8 +806,8 @@ fn tokenize_into_buffer(
         c_int,
     ) -> Result<c_int, StringToTokenError>,
 ) -> Result<Vec<LlamaToken>, StringToTokenError> {
+    let buffer_capacity = checked_token_buffer_capacity(estimated_capacity)?;
     let mut buffer: Vec<LlamaToken> = Vec::with_capacity(estimated_capacity);
-    let buffer_capacity = checked_token_buffer_capacity(buffer.capacity())?;
 
     let size = invoke(
         buffer
@@ -812,12 +817,14 @@ fn tokenize_into_buffer(
     )?;
 
     let size = if size.is_negative() {
-        buffer.reserve_exact(checked_token_count(-size)?);
+        let required_size = size.wrapping_neg();
+
+        buffer.reserve_exact(checked_token_count(required_size)?);
         invoke(
             buffer
                 .as_mut_ptr()
                 .cast::<llama_cpp_bindings_sys::llama_token>(),
-            -size,
+            required_size,
         )?
     } else {
         size
@@ -969,6 +976,26 @@ mod tokenize_into_buffer_tests {
 
         assert_eq!(result, Err(crate::StringToTokenError::NotEnoughMemory));
         assert_eq!(call_count.get(), 2);
+    }
+
+    #[test]
+    fn tokenize_into_buffer_refuses_a_capacity_beyond_a_c_int_before_allocating() {
+        assert_eq!(
+            tokenize_into_buffer(usize::MAX, |_tokens, _n_tokens_max| Ok(0)),
+            Err(crate::StringToTokenError::CIntConversionError(
+                i32::try_from(usize::MAX).unwrap_err()
+            ))
+        );
+    }
+
+    #[test]
+    fn tokenize_into_buffer_refuses_a_required_size_it_cannot_negate() {
+        assert_eq!(
+            tokenize_into_buffer(8, |_tokens, _n_tokens_max| Ok(i32::MIN)),
+            Err(crate::StringToTokenError::CIntConversionError(
+                usize::try_from(i32::MIN).unwrap_err()
+            ))
+        );
     }
 
     #[test]

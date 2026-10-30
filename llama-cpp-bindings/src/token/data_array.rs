@@ -222,6 +222,7 @@ impl LlamaTokenDataArray {
 mod tests {
     use super::LlamaTokenDataArray;
     use crate::error::SamplerApplyError;
+    use crate::error::TokenSamplingError;
     use crate::token::LlamaToken;
     use crate::token::data::LlamaTokenData;
 
@@ -249,6 +250,93 @@ mod tests {
         assert_eq!(
             array.apply_sampler(&excluding_sampler),
             Err(SamplerApplyError::EveryCandidateExcluded)
+        );
+    }
+
+    fn excluded_candidates() -> LlamaTokenDataArray {
+        LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LlamaToken::new(0), f32::NEG_INFINITY, 0.0),
+                LlamaTokenData::new(LlamaToken::new(1), f32::NEG_INFINITY, 0.0),
+            ],
+            false,
+        )
+    }
+
+    unsafe extern "C" fn claim_more_candidates_than_exist(
+        _sampler: *mut llama_cpp_bindings_sys::llama_sampler,
+        candidates: *mut llama_cpp_bindings_sys::llama_token_data_array,
+    ) {
+        unsafe { (*candidates).size = usize::MAX };
+    }
+
+    static mut OVERREPORTING_SAMPLER: llama_cpp_bindings_sys::llama_sampler_i =
+        llama_cpp_bindings_sys::llama_sampler_i {
+            name: None,
+            accept: None,
+            apply: Some(claim_more_candidates_than_exist),
+            reset: None,
+            clone: None,
+            free: None,
+            backend_init: None,
+            backend_accept: None,
+            backend_apply: None,
+            backend_set_input: None,
+            backend_reset: None,
+            copy_state: None,
+        };
+
+    #[test]
+    fn a_sampler_claiming_more_candidates_than_exist_is_a_contract_violation() {
+        use crate::sampling::LlamaSampler;
+
+        let overreporting_sampler =
+            LlamaSampler::initialize("overreporting", |out_sampler, out_error| unsafe {
+                llama_cpp_bindings_sys::llama_rs_sampler_init(
+                    &raw mut OVERREPORTING_SAMPLER,
+                    std::ptr::null_mut(),
+                    out_sampler,
+                    out_error,
+                )
+            })
+            .unwrap();
+
+        assert_eq!(
+            excluded_candidates().apply_sampler(&overreporting_sampler),
+            Err(SamplerApplyError::FfiContract(crate::FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the llama.cpp sampler grew the token data array beyond its capacity",
+            }))
+        );
+    }
+
+    #[test]
+    fn building_candidates_with_a_sampler_that_excludes_all_of_them_fails() {
+        use crate::sampling::LlamaSampler;
+
+        assert_eq!(
+            excluded_candidates()
+                .with_sampler(&mut LlamaSampler::greedy().unwrap())
+                .err(),
+            Some(SamplerApplyError::EveryCandidateExcluded)
+        );
+    }
+
+    #[test]
+    fn sampling_candidates_that_are_all_excluded_selects_no_token() {
+        assert_eq!(
+            [
+                excluded_candidates().sample_token(7),
+                excluded_candidates().sample_token_greedy(),
+            ],
+            [
+                Err(TokenSamplingError::SamplerApply(
+                    SamplerApplyError::EveryCandidateExcluded
+                )),
+                Err(TokenSamplingError::SamplerApply(
+                    SamplerApplyError::EveryCandidateExcluded
+                )),
+            ]
         );
     }
 

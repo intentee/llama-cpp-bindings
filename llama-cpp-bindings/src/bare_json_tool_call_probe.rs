@@ -194,6 +194,20 @@ mod tests {
     }
 
     #[test]
+    fn a_content_marker_releases_the_held_object_before_itself() {
+        let mut probe = BareJsonToolCallProbe::default();
+        let marker = IngestOutcome {
+            sampled_token: SampledToken::Content(LlamaToken::new(3)),
+            piece: TokenPiece::Marker("<|im_end|>".to_owned()),
+        };
+
+        assert_eq!(
+            pass_all(&mut probe, vec![content("{\"name\":"), marker.clone()]),
+            [content("{\"name\":"), marker]
+        );
+    }
+
+    #[test]
     fn two_consecutive_tool_call_objects_are_recognized_separately() {
         let mut probe = BareJsonToolCallProbe::default();
 

@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
@@ -289,5 +291,22 @@ fn qwen35_grammar_with_a_syntax_error_reports_it(fixture: &LlamaFixture<'_>) {
         Some(GrammarError::GrammarRejected(
             GbnfValidationError::SyntaxError
         ))
+    );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn a_grammar_with_a_nul_byte_is_refused(fixture: &LlamaFixture<'_>) {
+    assert_eq!(
+        LlamaSampler::grammar(fixture.model, "root ::= \"a\0\"", "root").err(),
+        CString::new("root ::= \"a\0\"")
+            .err()
+            .map(GrammarError::GrammarContainsNul)
     );
 }
