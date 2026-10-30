@@ -80,6 +80,14 @@ const PRIVATIZED_FIELDS: &[PrivatizedField] = &[
     },
 ];
 
+fn derives_for(type_name: &str) -> Vec<String> {
+    if COMPARED_STRUCTS.contains(&type_name) {
+        vec!["PartialEq".to_owned()]
+    } else {
+        Vec::new()
+    }
+}
+
 #[derive(Clone, Debug)]
 struct BindingCallbacks {
     privatized_field_hits: Arc<Vec<AtomicBool>>,
@@ -128,11 +136,7 @@ impl bindgen::callbacks::ParseCallbacks for BindingCallbacks {
     }
 
     fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
-        if COMPARED_STRUCTS.contains(&info.name) {
-            vec!["PartialEq".to_owned()]
-        } else {
-            Vec::new()
-        }
+        derives_for(info.name)
     }
 
     fn field_visibility(
@@ -247,4 +251,21 @@ fn configure_android_bindgen(
         .clang_arg("stdint.h");
 
     builder.clang_arg(format!("--target={target_triple}"))
+}
+
+#[cfg(test)]
+mod derives_for_tests {
+    use super::derives_for;
+
+    #[test]
+    fn only_the_structs_the_bindings_compare_derive_partial_eq() {
+        assert_eq!(
+            ["llama_token_data", "llama_logit_bias", "llama_sampler_i"].map(derives_for),
+            [
+                vec!["PartialEq".to_owned()],
+                vec!["PartialEq".to_owned()],
+                Vec::new()
+            ]
+        );
+    }
 }

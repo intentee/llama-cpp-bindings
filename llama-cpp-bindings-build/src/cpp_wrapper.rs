@@ -1,6 +1,8 @@
+use std::path::Path;
+
 use llama_cpp_wrapper_sources::cpp_standard::CPP_STANDARD;
 use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
-use llama_cpp_wrapper_sources::vendored_include_dirs::VENDORED_INCLUDE_DIRS;
+use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
 use llama_cpp_wrapper_sources::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
 use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
 
@@ -16,8 +18,8 @@ pub fn compile_cpp_wrappers(target_os: TargetOs) -> Result<(), BuildError> {
         build.include(include_dir);
     }
 
-    for include_dir in VENDORED_INCLUDE_DIRS {
-        build.flag(format!("-isystem{include_dir}"));
+    for system_include_flag in system_include_flags(Path::new(".")) {
+        build.flag(system_include_flag);
     }
 
     build.flag_if_supported(format!("-std={CPP_STANDARD}"));
