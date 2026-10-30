@@ -318,7 +318,7 @@ impl MtmdContext {
         params: &MtmdContextParams,
     ) -> Result<Self, MtmdInitError> {
         let path_cstr = CString::new(mmproj_path)?;
-        let ctx_params = llama_cpp_bindings_sys::mtmd_context_params::from(params);
+        let ctx_params = llama_cpp_bindings_sys::mtmd_context_params::try_from(params)?;
 
         let mut out_ctx: *mut llama_cpp_bindings_sys::mtmd_context = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();

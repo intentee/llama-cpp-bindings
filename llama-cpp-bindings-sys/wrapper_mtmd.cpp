@@ -309,3 +309,61 @@ extern "C" auto llama_rs_mtmd_eval_chunk_single(
             LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
+
+extern "C" auto llama_rs_mtmd_get_memory_usage(
+    const char * mmproj_path,
+    struct mtmd_context_params ctx_params,
+    llama_rs_mtmd_device_memory * out_device_memory,
+    size_t device_memory_capacity,
+    size_t * out_device_memory_count,
+    int32_t * out_image_max_tokens,
+    bool * out_use_non_causal,
+    char ** out_error) -> llama_rs_mtmd_get_memory_usage_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    if (mmproj_path == nullptr) {
+        return LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_MMPROJ_PATH_ARG;
+    }
+    if (out_device_memory == nullptr) {
+        return LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_ARG;
+    }
+    if (out_device_memory_count == nullptr) {
+        return LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_COUNT_ARG;
+    }
+    if (out_image_max_tokens == nullptr) {
+        return LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_IMAGE_MAX_TOKENS_ARG;
+    }
+    if (out_use_non_causal == nullptr) {
+        return LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_USE_NON_CAUSAL_ARG;
+    }
+    *out_device_memory_count = 0;
+
+    try {
+        const mtmd_memory_usage usage = mtmd_get_memory_usage(mmproj_path, ctx_params);
+
+        if (usage.backend_mem_usage.size() > device_memory_capacity) {
+            return LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED;
+        }
+
+        const gsl::span<llama_rs_mtmd_device_memory> device_memory(out_device_memory, device_memory_capacity);
+        size_t device_memory_count = 0;
+
+        for (const auto & [device, bytes] : usage.backend_mem_usage) {
+            device_memory[device_memory_count] = llama_rs_mtmd_device_memory{device, bytes};
+            device_memory_count += 1;
+        }
+
+        *out_device_memory_count = device_memory_count;
+        *out_image_max_tokens = usage.image_max_tokens;
+        *out_use_non_causal = usage.use_non_causal;
+
+        return LLAMA_RS_MTMD_GET_MEMORY_USAGE_OK;
+    } catch (...) {
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED);
+    }
+}

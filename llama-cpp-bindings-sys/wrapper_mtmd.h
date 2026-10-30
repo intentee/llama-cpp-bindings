@@ -150,6 +150,34 @@ llama_rs_mtmd_eval_chunk_single_status llama_rs_mtmd_eval_chunk_single(
     int32_t * out_llama_cpp_return_code,
     char ** out_error);
 
+typedef struct llama_rs_mtmd_device_memory {
+    ggml_backend_dev_t device;
+    size_t bytes;
+} llama_rs_mtmd_device_memory;
+
+typedef enum llama_rs_mtmd_get_memory_usage_status {
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_OK = 0,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_MMPROJ_PATH_ARG,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_ARG,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_COUNT_ARG,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_IMAGE_MAX_TOKENS_ARG,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_USE_NON_CAUSAL_ARG,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_mtmd_get_memory_usage_status;
+
+llama_rs_mtmd_get_memory_usage_status llama_rs_mtmd_get_memory_usage(
+    const char * mmproj_path,
+    struct mtmd_context_params ctx_params,
+    llama_rs_mtmd_device_memory * out_device_memory,
+    size_t device_memory_capacity,
+    size_t * out_device_memory_count,
+    int32_t * out_image_max_tokens,
+    bool * out_use_non_causal,
+    char ** out_error);
+
 #ifdef __cplusplus
 }
 #endif
