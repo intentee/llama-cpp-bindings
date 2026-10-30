@@ -65,16 +65,7 @@ llama_rs_chat_session_create_status llama_rs_chat_session_create(
     llama_rs_chat_session_handle * out_session,
     char ** out_error);
 
-typedef enum llama_rs_chat_session_free_status {
-    LLAMA_RS_CHAT_SESSION_FREE_OK = 0,
-    LLAMA_RS_CHAT_SESSION_FREE_ERROR_STRING_ALLOCATION_FAILED,
-    LLAMA_RS_CHAT_SESSION_FREE_LLAMA_CPP_OUT_OF_MEMORY,
-    LLAMA_RS_CHAT_SESSION_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
-} llama_rs_chat_session_free_status;
-
-llama_rs_chat_session_free_status llama_rs_chat_session_free(
-    llama_rs_chat_session_handle session,
-    char ** out_error);
+void llama_rs_chat_session_free(llama_rs_chat_session_handle session);
 
 size_t llama_rs_chat_session_prompt_part_count(llama_rs_chat_session_handle session);
 
@@ -124,13 +115,6 @@ const char * llama_rs_chat_session_thinking_start_tag(llama_rs_chat_session_hand
 size_t llama_rs_chat_session_thinking_end_tag_count(llama_rs_chat_session_handle session);
 
 const char * llama_rs_chat_session_thinking_end_tag(
-    llama_rs_chat_session_handle session,
-    size_t index,
-    size_t * out_length);
-
-size_t llama_rs_chat_session_additional_stop_count(llama_rs_chat_session_handle session);
-
-const char * llama_rs_chat_session_additional_stop(
     llama_rs_chat_session_handle session,
     size_t index,
     size_t * out_length);
@@ -197,16 +181,7 @@ size_t llama_rs_chat_spans_start(llama_rs_chat_spans_handle spans, size_t index)
 
 size_t llama_rs_chat_spans_end(llama_rs_chat_spans_handle spans, size_t index);
 
-typedef enum llama_rs_chat_spans_free_status {
-    LLAMA_RS_CHAT_SPANS_FREE_OK = 0,
-    LLAMA_RS_CHAT_SPANS_FREE_ERROR_STRING_ALLOCATION_FAILED,
-    LLAMA_RS_CHAT_SPANS_FREE_LLAMA_CPP_OUT_OF_MEMORY,
-    LLAMA_RS_CHAT_SPANS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
-} llama_rs_chat_spans_free_status;
-
-llama_rs_chat_spans_free_status llama_rs_chat_spans_free(
-    llama_rs_chat_spans_handle spans,
-    char ** out_error);
+void llama_rs_chat_spans_free(llama_rs_chat_spans_handle spans);
 
 typedef enum llama_rs_regex_escape_status {
     LLAMA_RS_REGEX_ESCAPE_OK = 0,

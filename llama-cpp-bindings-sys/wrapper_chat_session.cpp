@@ -241,23 +241,8 @@ extern "C" auto llama_rs_chat_session_create(
     }
 }
 
-extern "C" auto llama_rs_chat_session_free(
-    llama_rs_chat_session_handle session,
-    char ** out_error) -> llama_rs_chat_session_free_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    try {
-        const std::unique_ptr<llama_rs_chat_session> reclaimed(session);
-
-        return LLAMA_RS_CHAT_SESSION_FREE_OK;
-    } catch (...) {
-        return llama_rs_report_current_exception(
-            out_error,
-            LLAMA_RS_CHAT_SESSION_FREE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_CHAT_SESSION_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
-            LLAMA_RS_CHAT_SESSION_FREE_ERROR_STRING_ALLOCATION_FAILED);
-    }
+extern "C" auto llama_rs_chat_session_free(llama_rs_chat_session_handle session) -> void {
+    const std::unique_ptr<llama_rs_chat_session> reclaimed(session);
 }
 
 extern "C" auto llama_rs_chat_session_prompt_part_count(llama_rs_chat_session_handle session) -> size_t {
@@ -354,17 +339,6 @@ extern "C" auto llama_rs_chat_session_thinking_end_tag(
     size_t index,
     size_t * out_length) -> const char * {
     return llama_rs_string_view(session->session.thinking_end_tags().at(index), out_length);
-}
-
-extern "C" auto llama_rs_chat_session_additional_stop_count(llama_rs_chat_session_handle session) -> size_t {
-    return session->session.additional_stops().size();
-}
-
-extern "C" auto llama_rs_chat_session_additional_stop(
-    llama_rs_chat_session_handle session,
-    size_t index,
-    size_t * out_length) -> const char * {
-    return llama_rs_string_view(session->session.additional_stops().at(index), out_length);
 }
 
 extern "C" auto llama_rs_chat_session_parse(
@@ -523,23 +497,8 @@ extern "C" auto llama_rs_chat_spans_end(llama_rs_chat_spans_handle spans, size_t
     return spans->spans.at(index).end;
 }
 
-extern "C" auto llama_rs_chat_spans_free(
-    llama_rs_chat_spans_handle spans,
-    char ** out_error) -> llama_rs_chat_spans_free_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    try {
-        const std::unique_ptr<llama_rs_chat_spans> reclaimed(spans);
-
-        return LLAMA_RS_CHAT_SPANS_FREE_OK;
-    } catch (...) {
-        return llama_rs_report_current_exception(
-            out_error,
-            LLAMA_RS_CHAT_SPANS_FREE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_CHAT_SPANS_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
-            LLAMA_RS_CHAT_SPANS_FREE_ERROR_STRING_ALLOCATION_FAILED);
-    }
+extern "C" auto llama_rs_chat_spans_free(llama_rs_chat_spans_handle spans) -> void {
+    const std::unique_ptr<llama_rs_chat_spans> reclaimed(spans);
 }
 
 extern "C" auto llama_rs_regex_escape(

@@ -871,6 +871,23 @@ mod map_tokenize_status_tests {
         );
         assert_eq!(outcome.err(), Some(MtmdTokenizeError::LlamaCppOutOfMemory));
     }
+
+    #[test]
+    fn map_tokenize_status_maps_a_thrown_exception_with_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"tokenizer threw".as_ptr()) };
+
+        assert_eq!(
+            map_tokenize_status(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                0,
+                out_error,
+            ),
+            Err(MtmdTokenizeError::Reported {
+                message: "tokenizer threw".to_owned(),
+            })
+        );
+    }
 }
 
 #[cfg(test)]
@@ -990,6 +1007,23 @@ mod map_encode_chunk_status_tests {
             ptr::null_mut(),
         );
         assert_eq!(outcome.err(), Some(MtmdEncodeError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn map_encode_chunk_status_maps_a_thrown_exception_with_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"encoder threw".as_ptr()) };
+
+        assert_eq!(
+            map_encode_chunk_status(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                0,
+                out_error,
+            ),
+            Err(MtmdEncodeError::Reported {
+                message: "encoder threw".to_owned(),
+            })
+        );
     }
 }
 
@@ -1132,6 +1166,25 @@ mod map_init_from_file_status_tests {
             "",
         );
         assert_eq!(outcome.err(), Some(MtmdInitError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn map_init_from_file_status_maps_a_thrown_exception_with_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"projector threw".as_ptr()) };
+
+        assert_eq!(
+            map_init_from_file_status(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+                "mmproj.gguf",
+            )
+            .err(),
+            Some(MtmdInitError::Reported {
+                message: "projector threw".to_owned(),
+            })
+        );
     }
 }
 

@@ -433,13 +433,16 @@ mod tests {
         assert_eq!(
             items
                 .iter()
-                .map(|item| match item {
-                    Item::Fn(_) => "fn",
-                    Item::Macro(_) => "registration",
-                    _ => "other",
-                })
-                .collect::<Vec<&str>>(),
-            ["fn", "registration", "registration"]
+                .map(|item| matches!(item, Item::Fn(_)))
+                .collect::<Vec<bool>>(),
+            [true, false, false]
+        );
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| matches!(item, Item::Macro(_)))
+                .collect::<Vec<bool>>(),
+            [false, true, true]
         );
     }
 }

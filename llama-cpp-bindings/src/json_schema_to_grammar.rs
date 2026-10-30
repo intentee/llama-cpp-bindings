@@ -247,6 +247,27 @@ mod json_schema_to_grammar_status_to_result_tests {
     }
 
     #[test]
+    fn llama_cpp_exception_status_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"conversion threw".as_ptr()) };
+
+        let result = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+            )
+        };
+
+        assert_eq!(
+            result,
+            Err(JsonSchemaToGrammarError::Reported {
+                message: "conversion threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
     fn allocation_failed_status_returns_not_enough_memory() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(

@@ -643,12 +643,11 @@ fn token_piece_bytes_for_tok_env(
     special: bool,
 ) -> Result<Vec<u8>, TokenToStringError> {
     match model.token_to_piece_bytes(token, TOK_ENV_PIECE_PROBE_SIZE, special, None) {
-        Ok(bytes) => Ok(bytes),
         Err(TokenToStringError::UnknownTokenType) => Ok(Vec::new()),
         Err(TokenToStringError::InsufficientBufferSpace(required)) => {
             model.token_to_piece_bytes(token, required.unsigned_abs() as usize, special, None)
         }
-        Err(other) => Err(other),
+        probe_result => probe_result,
     }
 }
 
@@ -1152,6 +1151,27 @@ mod load_model_from_file_status_to_result_tests {
     }
 
     #[test]
+    fn load_model_from_file_cxx_exception_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"model loading threw".as_ptr()) };
+        let result = unsafe {
+            load_model_from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+                Path::new("/some/path"),
+            )
+        };
+
+        assert_eq!(
+            result.err(),
+            Some(LlamaModelLoadError::Reported {
+                message: "model loading threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
     fn load_model_from_file_cxx_exception_without_a_message_is_a_contract_error() {
         let result = unsafe {
             load_model_from_file_status_to_result(
@@ -1306,6 +1326,26 @@ mod tokenize_status_to_result_tests {
         };
 
         assert_eq!(result, Err(StringToTokenError::NotEnoughMemory));
+    }
+
+    #[test]
+    fn tokenize_cxx_exception_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"tokenizer threw".as_ptr()) };
+        let result = unsafe {
+            tokenize_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                0,
+                out_error,
+            )
+        };
+
+        assert_eq!(
+            result,
+            Err(StringToTokenError::Reported {
+                message: "tokenizer threw".to_owned()
+            })
+        );
     }
 
     #[test]

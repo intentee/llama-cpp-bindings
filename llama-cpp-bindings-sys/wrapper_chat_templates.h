@@ -27,16 +27,7 @@ llama_rs_chat_templates_init_status llama_rs_chat_templates_init(
     llama_rs_chat_templates_handle * out_templates,
     char ** out_error);
 
-typedef enum llama_rs_chat_templates_free_status {
-    LLAMA_RS_CHAT_TEMPLATES_FREE_OK = 0,
-    LLAMA_RS_CHAT_TEMPLATES_FREE_ERROR_STRING_ALLOCATION_FAILED,
-    LLAMA_RS_CHAT_TEMPLATES_FREE_LLAMA_CPP_OUT_OF_MEMORY,
-    LLAMA_RS_CHAT_TEMPLATES_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
-} llama_rs_chat_templates_free_status;
-
-llama_rs_chat_templates_free_status llama_rs_chat_templates_free(
-    llama_rs_chat_templates_handle templates,
-    char ** out_error);
+void llama_rs_chat_templates_free(llama_rs_chat_templates_handle templates);
 
 bool llama_rs_chat_templates_supports_tool_calls(llama_rs_chat_templates_handle templates);
 

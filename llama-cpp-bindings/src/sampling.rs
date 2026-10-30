@@ -1288,6 +1288,8 @@ mod check_sampler_accept_status_tests {
     use std::ptr;
 
     use super::check_sampler_accept_status;
+    use crate::FfiContractError;
+    use crate::FfiStatusError;
     use crate::SamplerAcceptError;
 
     #[test]
@@ -1334,7 +1336,7 @@ mod check_sampler_accept_status_tests {
 
         assert_eq!(
             result,
-            Err(SamplerAcceptError::FfiContract(crate::FfiContractError {
+            Err(SamplerAcceptError::FfiContract(FfiContractError {
                 operation: "llama_rs_sampler_accept",
                 detail: "was given a null sampler argument",
             }))
@@ -1350,7 +1352,7 @@ mod check_sampler_accept_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_sampler_accept",
                     detail: "was given a null out_error argument",
                 }
@@ -1367,6 +1369,37 @@ mod check_sampler_accept_status_tests {
         );
         assert_eq!(outcome.err(), Some(SamplerAcceptError::LlamaCppOutOfMemory));
     }
+
+    #[test]
+    fn check_sampler_accept_status_exception_without_a_message_is_a_contract_error() {
+        assert_eq!(
+            check_sampler_accept_status(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+            ),
+            Err(SamplerAcceptError::FfiContract(FfiContractError {
+                operation: "llama_rs_sampler_accept",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
+        );
+    }
+
+    #[test]
+    fn check_sampler_accept_status_maps_an_unknown_status() {
+        assert_eq!(
+            check_sampler_accept_status(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION + 1,
+                ptr::null_mut(),
+            ),
+            Err(SamplerAcceptError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_sampler_accept",
+                code: i64::from(
+                    llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION
+                        + 1
+                ),
+            }))
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1374,6 +1407,7 @@ mod sampler_sample_status_to_result_tests {
     use std::ptr;
 
     use super::sampler_sample_status_to_result;
+    use crate::FfiStatusError;
     use crate::SampleError;
 
     #[test]
@@ -1484,6 +1518,41 @@ mod sampler_sample_status_to_result_tests {
             ptr::null_mut(),
         );
         assert_eq!(outcome.err(), Some(SampleError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn sampler_sample_status_exception_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"sampler threw".as_ptr()) };
+
+        assert_eq!(
+            sampler_sample_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                -1,
+                out_error,
+            ),
+            Err(SampleError::Reported {
+                message: "sampler threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn sampler_sample_status_to_result_maps_an_unknown_status() {
+        assert_eq!(
+            sampler_sample_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION + 1,
+                -1,
+                ptr::null_mut(),
+            ),
+            Err(SampleError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_sampler_sample",
+                code: i64::from(
+                    llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION
+                        + 1
+                ),
+            }))
+        );
     }
 }
 
@@ -1773,6 +1842,7 @@ mod sampler_init_grammar_status_to_result_tests {
     use std::ptr;
 
     use super::sampler_init_grammar_status_to_result;
+    use crate::FfiStatusError;
     use crate::GrammarError;
 
     #[test]
@@ -1858,6 +1928,44 @@ mod sampler_init_grammar_status_to_result_tests {
         );
         assert_eq!(outcome.err(), Some(GrammarError::LlamaCppOutOfMemory));
     }
+
+    #[test]
+    fn sampler_init_grammar_status_exception_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"grammar threw".as_ptr()) };
+
+        assert_eq!(
+            sampler_init_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+            )
+            .err(),
+            Some(GrammarError::Reported {
+                message: "grammar threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn sampler_init_grammar_status_to_result_maps_an_unknown_status() {
+        assert_eq!(
+            sampler_init_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION
+                    + 1,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+            .err(),
+            Some(GrammarError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_sampler_init_grammar",
+                code: i64::from(
+                    llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION
+                        + 1
+                ),
+            }))
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1865,6 +1973,7 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
     use std::ptr;
 
     use super::sampler_init_grammar_lazy_patterns_status_to_result;
+    use crate::FfiStatusError;
     use crate::GrammarError;
 
     #[test]
@@ -1948,5 +2057,43 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
     fn sampler_init_grammar_lazy_patterns_status_to_result_maps_llama_cpp_out_of_memory() {
         let outcome = sampler_init_grammar_lazy_patterns_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_OUT_OF_MEMORY, ptr::null_mut(), ptr::null_mut());
         assert_eq!(outcome.err(), Some(GrammarError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn sampler_init_grammar_lazy_patterns_status_exception_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"lazy grammar threw".as_ptr()) };
+
+        assert_eq!(
+            sampler_init_grammar_lazy_patterns_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+            )
+            .err(),
+            Some(GrammarError::Reported {
+                message: "lazy grammar threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn sampler_init_grammar_lazy_patterns_status_to_result_maps_an_unknown_status() {
+        let unknown_status =
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_THREW_CXX_EXCEPTION
+                + 1;
+
+        assert_eq!(
+            sampler_init_grammar_lazy_patterns_status_to_result(
+                unknown_status,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+            .err(),
+            Some(GrammarError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_sampler_init_grammar_lazy_patterns",
+                code: i64::from(unknown_status),
+            }))
+        );
     }
 }

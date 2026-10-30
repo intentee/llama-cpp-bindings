@@ -77,6 +77,7 @@ mod token_candidates;
 mod tokenization;
 mod tokenize_synthetic;
 mod tool_call_classification;
+mod tool_call_grammar;
 mod tool_call_parsing;
 mod unconstrained_token_sampling;
 mod vocabulary_bounds;

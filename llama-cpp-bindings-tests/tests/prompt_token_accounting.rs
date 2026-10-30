@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::TokenUsageError;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_test_harness::LlamaFixture;
@@ -251,4 +252,26 @@ fn discard_pending_prompt_tokens_clears_count_without_recording_usage(
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
     Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn cached_prompt_tokens_cannot_exceed_the_recorded_prompt(fixture: &LlamaFixture<'_>) {
+    let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
+
+    classifier.record_prompt_tokens(2);
+
+    assert_eq!(
+        classifier.record_cached_prompt_tokens(3),
+        Err(TokenUsageError::CachedExceedsPrompt {
+            cached_after: 3,
+            prompt: 2,
+        })
+    );
 }

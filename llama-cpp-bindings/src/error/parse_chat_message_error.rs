@@ -10,8 +10,6 @@ pub enum ParseChatMessageError {
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]
     LlamaCppOutOfMemory,
-    #[error("the parsed chat destructor threw: {message}")]
-    DestructorFailed { message: String },
     #[error("text llama.cpp parsed out of the answer is not valid UTF-8: {0}")]
     ParsedTextNotUtf8(#[source] Utf8Error),
     #[error("{message}")]

@@ -109,15 +109,11 @@ static mut LLG_SAMPLER_I: llama_cpp_bindings_sys::llama_sampler_i =
         copy_state: None,
     };
 
-/// # Errors
-///
-/// Returns `GrammarError` if the parser factory, grammar, or parser cannot be created.
-pub fn create_llg_sampler(
-    model: &LlamaModel,
+fn create_llg_sampler_from_tok_env(
+    tok_env: Arc<ApproximateTokEnv>,
     grammar_kind: &str,
     grammar_data: &str,
 ) -> Result<LlamaSampler, GrammarError> {
-    let tok_env = model.approximate_tok_env()?;
     let tok_env_dyn: Arc<dyn toktrie::TokenizerEnv + Sync> = tok_env.clone();
 
     let factory = llguidance::ParserFactory::new_simple(&tok_env_dyn).map_err(|factory_error| {
@@ -156,4 +152,121 @@ pub fn create_llg_sampler(
         unsafe { (*sampler.as_ptr()).ctx = Box::into_raw(ctx).cast::<c_void>() };
     })
     .map_err(Into::into)
+}
+
+/// # Errors
+///
+/// Returns `GrammarError` if the parser factory, grammar, or parser cannot be created.
+pub fn create_llg_sampler(
+    model: &LlamaModel,
+    grammar_kind: &str,
+    grammar_data: &str,
+) -> Result<LlamaSampler, GrammarError> {
+    create_llg_sampler_from_tok_env(model.approximate_tok_env()?, grammar_kind, grammar_data)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use anyhow::Result;
+    use toktrie::ApproximateTokEnv;
+    use toktrie::INVALID_TOKEN;
+    use toktrie::TokRxInfo;
+    use toktrie::TokTrie;
+
+    use super::create_llg_sampler_from_tok_env;
+    use crate::GrammarError;
+    use crate::SampleError;
+    use crate::SamplerAcceptError;
+    use crate::error::grammar_runtime_error::GrammarRuntimeError;
+    use crate::sampling::LlamaSampler;
+    use crate::token::LlamaToken;
+    use crate::token::data::LlamaTokenData;
+    use crate::token::data_array::LlamaTokenDataArray;
+
+    const LETTER_A: LlamaToken = LlamaToken::new(0);
+    const LETTER_B: LlamaToken = LlamaToken::new(1);
+    const OUT_OF_VOCABULARY: LlamaToken = LlamaToken::new(2);
+
+    fn letter_a_sampler() -> Result<LlamaSampler, GrammarError> {
+        let vocabulary_without_end_of_generation = TokRxInfo::new(2, INVALID_TOKEN);
+        let letters = TokTrie::from(
+            &vocabulary_without_end_of_generation,
+            &[b"a".to_vec(), b"b".to_vec()],
+        );
+
+        create_llg_sampler_from_tok_env(Arc::new(ApproximateTokEnv::new(letters)), "regex", "a")
+    }
+
+    fn letter_candidates() -> LlamaTokenDataArray {
+        LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LETTER_A, 1.0, 0.0),
+                LlamaTokenData::new(LETTER_B, 2.0, 0.0),
+            ],
+            false,
+        )
+    }
+
+    fn out_of_vocabulary_failure() -> String {
+        GrammarRuntimeError::InternalParserError {
+            message: "token id 2 out of range".to_owned(),
+        }
+        .to_string()
+    }
+
+    #[test]
+    fn apply_leaves_candidates_untouched_once_the_grammar_is_complete() -> Result<()> {
+        let mut sampler = letter_a_sampler()?;
+        let mut candidates = letter_candidates();
+        sampler.accept(LETTER_A)?;
+
+        sampler.apply(&mut candidates)?;
+
+        assert_eq!(candidates, letter_candidates());
+
+        Ok(())
+    }
+
+    #[test]
+    fn apply_reports_a_grammar_in_an_error_state_as_a_callback_failure() -> Result<()> {
+        let mut sampler = letter_a_sampler()?;
+
+        assert_eq!(
+            sampler.accept(OUT_OF_VOCABULARY),
+            Err(SamplerAcceptError::GrammarCallbackFailed {
+                message: out_of_vocabulary_failure(),
+            })
+        );
+        assert_eq!(
+            sampler.apply(&mut letter_candidates()),
+            Err(SampleError::GrammarCallbackFailed {
+                message: out_of_vocabulary_failure(),
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn reset_reports_a_grammar_in_an_error_state_as_a_callback_failure() -> Result<()> {
+        let mut sampler = letter_a_sampler()?;
+        sampler.accept(LETTER_A)?;
+
+        assert_eq!(
+            sampler.accept(OUT_OF_VOCABULARY),
+            Err(SamplerAcceptError::GrammarCallbackFailed {
+                message: out_of_vocabulary_failure(),
+            })
+        );
+        assert_eq!(
+            sampler.reset(),
+            Err(SampleError::GrammarCallbackFailed {
+                message: out_of_vocabulary_failure(),
+            })
+        );
+
+        Ok(())
+    }
 }

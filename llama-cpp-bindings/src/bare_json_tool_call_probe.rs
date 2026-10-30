@@ -41,44 +41,48 @@ impl BareJsonToolCallProbe {
     pub fn pass(&mut self, outcome: IngestOutcome, released: &mut Vec<IngestOutcome>) {
         let is_content = is_visible_content(&outcome);
 
-        match &mut self.state {
-            ProbeState::Holding { .. } if !is_content => {
-                self.release(released);
+        match mem::replace(&mut self.state, ProbeState::Idle) {
+            ProbeState::Holding { held, .. } if !is_content => {
+                released.extend(held);
                 released.push(outcome);
             }
-            ProbeState::Holding { probe, held } => {
+            ProbeState::Holding {
+                mut probe,
+                mut held,
+            } => {
                 let probe_outcome = probe.feed(outcome.piece.raw());
+
                 held.push(outcome);
-                self.settle(probe_outcome, released);
+                self.settle(probe_outcome, probe, held, released);
             }
             ProbeState::Idle if is_content && outcome.piece.raw().trim_start().starts_with('{') => {
                 let mut probe = StreamingJsonProbe::default();
                 let probe_outcome = probe.feed(outcome.piece.raw());
 
-                self.state = ProbeState::Holding {
-                    probe,
-                    held: vec![outcome],
-                };
-                self.settle(probe_outcome, released);
+                self.settle(probe_outcome, probe, vec![outcome], released);
             }
             ProbeState::Idle => released.push(outcome),
         }
     }
 
-    fn settle(&mut self, probe_outcome: JsonProbeOutcome, released: &mut Vec<IngestOutcome>) {
+    fn settle(
+        &mut self,
+        probe_outcome: JsonProbeOutcome,
+        probe: StreamingJsonProbe,
+        held: Vec<IngestOutcome>,
+        released: &mut Vec<IngestOutcome>,
+    ) {
         match probe_outcome {
-            JsonProbeOutcome::StillPossiblyValid => {}
-            JsonProbeOutcome::CompletedValid => self.commit_as_tool_call(released),
-            JsonProbeOutcome::Failed => self.release(released),
-        }
-    }
-
-    fn commit_as_tool_call(&mut self, released: &mut Vec<IngestOutcome>) {
-        if let ProbeState::Holding { held, .. } = mem::replace(&mut self.state, ProbeState::Idle) {
-            released.extend(held.into_iter().map(|outcome| IngestOutcome {
-                sampled_token: SampledToken::ToolCall(outcome.sampled_token.token()),
-                piece: outcome.piece,
-            }));
+            JsonProbeOutcome::StillPossiblyValid => {
+                self.state = ProbeState::Holding { probe, held };
+            }
+            JsonProbeOutcome::CompletedValid => {
+                released.extend(held.into_iter().map(|outcome| IngestOutcome {
+                    sampled_token: SampledToken::ToolCall(outcome.sampled_token.token()),
+                    piece: outcome.piece,
+                }));
+            }
+            JsonProbeOutcome::Failed => released.extend(held),
         }
     }
 
@@ -206,5 +210,14 @@ mod tests {
                 tool_call("{\"name\":\"g\",\"arguments\":{}}"),
             ]
         );
+    }
+
+    #[test]
+    fn releasing_an_idle_probe_releases_nothing() {
+        let mut released = Vec::new();
+
+        BareJsonToolCallProbe::default().release(&mut released);
+
+        assert_eq!(released, []);
     }
 }

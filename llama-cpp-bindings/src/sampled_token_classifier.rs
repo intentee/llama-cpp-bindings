@@ -7,7 +7,6 @@ use llama_cpp_bindings_types::TokenUsageError;
 use crate::bare_json_tool_call_probe::BareJsonToolCallProbe;
 use crate::bare_json_tool_calls::BareJsonToolCalls;
 use crate::batch_add_error::BatchAddError;
-use crate::chat_classification::ChatClassification;
 use crate::chat_output::ChatOutput;
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_piece_role::ChatPieceRole;
@@ -69,27 +68,9 @@ enum TokenAttribution<'session, 'model> {
     ChatSession(ChatSessionAttribution<'session, 'model>),
 }
 
-const fn sampled_token_in(section: SampledTokenSection, token: LlamaToken) -> SampledToken {
-    match section {
-        SampledTokenSection::Reasoning => SampledToken::Reasoning(token),
-        SampledTokenSection::Content => SampledToken::Content(token),
-        SampledTokenSection::ToolCall => SampledToken::ToolCall(token),
-        SampledTokenSection::Pending => SampledToken::Undeterminable(token),
-    }
-}
-
-const fn section_of(sampled_token: SampledToken) -> SampledTokenSection {
-    match sampled_token {
-        SampledToken::Reasoning(_) => SampledTokenSection::Reasoning,
-        SampledToken::Content(_) => SampledTokenSection::Content,
-        SampledToken::ToolCall(_) => SampledTokenSection::ToolCall,
-        SampledToken::Undeterminable(_) => SampledTokenSection::Pending,
-    }
-}
-
 const fn outcome_of(token: LlamaToken, role: ChatPieceRole, piece: String) -> IngestOutcome {
     IngestOutcome {
-        sampled_token: sampled_token_in(role.section(), token),
+        sampled_token: SampledToken::in_section(role.section(), token),
         piece: match role {
             ChatPieceRole::Text(_) => TokenPiece::Visible(piece),
             ChatPieceRole::Marker(_) => TokenPiece::Marker(piece),
@@ -226,17 +207,7 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
             .tokens()
             .get(attribution.attributed_tokens)
         {
-            let role = match (&classification, completeness) {
-                (ChatClassification::Spans(spans), _) => spans.classify_token(&output_token.bytes),
-                (ChatClassification::OutputDoesNotMatchFormat, ChatOutputCompleteness::Partial) => {
-                    None
-                }
-                (
-                    ChatClassification::OutputDoesNotMatchFormat,
-                    ChatOutputCompleteness::Finished,
-                ) => Some(ChatPieceRole::Text(SampledTokenSection::Pending)),
-            };
-            let Some(role) = role else {
+            let Some(role) = classification.classify_token(&output_token.bytes) else {
                 break;
             };
             let piece = attribution.output.text()[output_token.bytes.clone()].to_owned();
@@ -252,7 +223,7 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
         }
 
         for outcome in released {
-            self.section = section_of(outcome.sampled_token);
+            self.section = outcome.sampled_token.section();
             self.record_usage_in(self.section);
             outcomes.push(outcome);
         }

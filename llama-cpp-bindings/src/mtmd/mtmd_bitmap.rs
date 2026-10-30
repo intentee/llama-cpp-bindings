@@ -429,6 +429,7 @@ mod from_file_status_to_result_tests {
     use std::ptr;
 
     use super::from_file_status_to_result;
+    use crate::FfiStatusError;
     use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
 
     #[test]
@@ -581,6 +582,43 @@ mod from_file_status_to_result_tests {
             )
         };
         assert_eq!(outcome.err(), Some(MtmdBitmapError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn from_file_status_llama_cpp_threw_cxx_exception_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"image loader threw".as_ptr()) };
+
+        let result = unsafe {
+            from_file_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+                "/missing/image.png",
+            )
+        };
+
+        assert_eq!(
+            result.err(),
+            Some(MtmdBitmapError::Reported {
+                message: "image loader threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn from_file_unknown_status_is_preserved() {
+        let result = unsafe {
+            from_file_status_to_result(255, ptr::null_mut(), ptr::null_mut(), "/missing/image.png")
+        };
+
+        assert_eq!(
+            result.err(),
+            Some(MtmdBitmapError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_mtmd_bitmap_init_from_file",
+                code: 255,
+            }))
+        );
     }
 }
 

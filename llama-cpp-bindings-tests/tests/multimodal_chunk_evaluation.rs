@@ -19,6 +19,7 @@ use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
+use llama_cpp_bindings_tests::prime_kv_cache_with::prime_kv_cache_with;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
@@ -673,6 +674,59 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
     ));
     assert_eq!(classifier.usage().prompt_tokens, 0);
     assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 256,
+    n_ubatch = 256,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn classifier_reports_an_image_the_context_has_no_room_left_for(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
+    let breakdown = ChunkTokenBreakdown::from_chunks(&chunks)?;
+    let mut llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params).into_llama_context_params(),
+    )?;
+
+    prime_kv_cache_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
+
+    let primed_positions = llama_ctx.kv_cache_seq_pos_max(0)? + 1;
+    let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
+
+    assert!(
+        u64::from(llama_ctx.n_ctx()) - u64::try_from(primed_positions)? < breakdown.image,
+        "the primed context must have less room left than the image needs"
+    );
+    assert!(matches!(
+        classifier.eval_multimodal_chunks(
+            &chunks,
+            mtmd_ctx,
+            &mut llama_ctx,
+            EvalMultimodalChunksParams {
+                start_position: primed_positions,
+                seq_id: 0,
+                n_batch: 256,
+                logits_last: true,
+            },
+        ),
+        Err(EvalMultimodalChunksError::EvalFailed(
+            MtmdEvalError::EvalFailed { code: 1 }
+        ))
+    ));
+    assert_eq!(classifier.usage().input_image_tokens, 0);
 
     Ok(())
 }

@@ -772,12 +772,15 @@ mod tests {
     fn with_devices_too_many_returns_max_exceeded() {
         let too_many: Vec<usize> = (0..17).collect();
         let result = LlamaModelParams::default().with_devices(&too_many);
+        let device_limit = crate::max_devices().min(LLAMA_CPP_MAX_DEVICES);
 
-        let Err(LlamaCppError::MaxDevicesExceeded(max_devices)) = result else {
-            panic!("17 devices must exceed the device limit");
-        };
-
-        assert_eq!(max_devices, crate::max_devices().min(LLAMA_CPP_MAX_DEVICES));
+        assert!(
+            matches!(
+                result,
+                Err(LlamaCppError::MaxDevicesExceeded(max_devices)) if max_devices == device_limit
+            ),
+            "17 devices must exceed the device limit of {device_limit}, got {result:?}"
+        );
     }
 
     #[test]
@@ -799,11 +802,13 @@ mod tests {
         let invalid_index = usize::MAX;
         let result = LlamaModelParams::default().with_devices(&[invalid_index]);
 
-        let Err(LlamaCppError::BackendDeviceNotFound(device)) = result else {
-            panic!("an out-of-range device index must not be found");
-        };
-
-        assert_eq!(device, invalid_index);
+        assert!(
+            matches!(
+                result,
+                Err(LlamaCppError::BackendDeviceNotFound(device)) if device == invalid_index
+            ),
+            "an out-of-range device index must not be found, got {result:?}"
+        );
     }
 
     #[test]
@@ -1078,6 +1083,24 @@ mod fit_params_status_to_result_tests {
         );
 
         assert_eq!(result, Err(FitError::NotEnoughMemory));
+    }
+
+    #[test]
+    fn fit_params_status_cxx_exception_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"fitting threw".as_ptr()) };
+        let result = fit_params_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            0,
+            out_error,
+        );
+
+        assert_eq!(
+            result,
+            Err(FitError::Reported {
+                message: "fitting threw".to_owned()
+            })
+        );
     }
 
     #[test]

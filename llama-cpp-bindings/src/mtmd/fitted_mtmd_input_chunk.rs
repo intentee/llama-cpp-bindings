@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 
 use crate::context::LlamaContext;
 use crate::context::decoded_output_rows::DecodedOutputRows;
-use crate::token::LlamaToken;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use super::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
@@ -115,13 +114,6 @@ impl<'fitted> FittedMtmdInputChunk<'fitted> {
     #[must_use]
     pub const fn chunk_type(&self) -> MtmdInputChunkType {
         self.chunk_type
-    }
-
-    #[must_use]
-    pub fn text_tokens(&self) -> &[LlamaToken] {
-        self.chunk
-            .text_tokens_of(self.chunk_type)
-            .unwrap_or_default()
     }
 
     /// # Errors

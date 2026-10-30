@@ -583,4 +583,20 @@ mod sampler_apply_status_to_result_tests {
         );
         assert_eq!(outcome.err(), Some(SamplerApplyError::LlamaCppOutOfMemory));
     }
+
+    #[test]
+    fn sampler_apply_status_cxx_exception_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"apply threw".as_ptr()) };
+
+        assert_eq!(
+            sampler_apply_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                out_error,
+            ),
+            Err(SamplerApplyError::Reported {
+                message: "apply threw".to_owned(),
+            })
+        );
+    }
 }

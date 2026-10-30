@@ -1,5 +1,7 @@
 use std::ffi::CString;
+use std::ffi::c_char;
 use std::path::Path;
+use std::ptr;
 
 use crate::context::LlamaContext;
 use crate::context::llama_state_seq_flags::LlamaStateSeqFlags;
@@ -14,7 +16,7 @@ use crate::token::LlamaToken;
 fn state_data_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_state_data_status,
     byte_count: usize,
-    out_error: *mut std::ffi::c_char,
+    out_error: *mut c_char,
     operation: &'static str,
 ) -> Result<usize, StateDataError> {
     match status {
@@ -68,6 +70,22 @@ fn state_data_status_to_result(
         }
         .into()),
     }
+}
+
+fn state_data_restore_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_state_data_status,
+    restored_bytes: usize,
+    provided_bytes: usize,
+    out_error: *mut c_char,
+    operation: &'static str,
+) -> Result<usize, StateDataError> {
+    let restored = state_data_status_to_result(status, restored_bytes, out_error, operation)?;
+
+    if restored == 0 && provided_bytes != 0 {
+        return Err(StateDataError::NothingRestored { provided_bytes });
+    }
+
+    Ok(restored)
 }
 
 fn process_session_load_result(
@@ -261,7 +279,7 @@ impl LlamaContext<'_> {
     /// The `dest` buffer must be large enough to hold the complete state data.
     pub unsafe fn copy_state_data(&self, dest: &mut [u8]) -> Result<usize, StateDataError> {
         let mut byte_count = 0usize;
-        let mut out_error: *mut std::ffi::c_char = std::ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_state_get_data(
                 self.context.as_ptr(),
@@ -286,7 +304,7 @@ impl LlamaContext<'_> {
     /// Returns [`StateDataError`] when the llama.cpp deserializer rejects the buffer.
     pub unsafe fn set_state_data(&mut self, src: &[u8]) -> Result<usize, StateDataError> {
         let mut byte_count = 0usize;
-        let mut out_error: *mut std::ffi::c_char = std::ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_state_set_data(
                 self.context.as_ptr(),
@@ -297,16 +315,13 @@ impl LlamaContext<'_> {
             )
         };
 
-        let restored =
-            state_data_status_to_result(status, byte_count, out_error, "llama_rs_state_set_data")?;
-
-        if restored == 0 && !src.is_empty() {
-            return Err(StateDataError::NothingRestored {
-                provided_bytes: src.len(),
-            });
-        }
-
-        Ok(restored)
+        state_data_restore_status_to_result(
+            status,
+            byte_count,
+            src.len(),
+            out_error,
+            "llama_rs_state_set_data",
+        )
     }
 
     #[must_use]
@@ -334,7 +349,7 @@ impl LlamaContext<'_> {
         flags: &LlamaStateSeqFlags,
     ) -> Result<usize, StateDataError> {
         let mut byte_count = 0usize;
-        let mut out_error: *mut std::ffi::c_char = std::ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_state_seq_get_data(
                 self.context.as_ptr(),
@@ -365,7 +380,7 @@ impl LlamaContext<'_> {
         flags: &LlamaStateSeqFlags,
     ) -> Result<usize, StateDataError> {
         let mut byte_count = 0usize;
-        let mut out_error: *mut std::ffi::c_char = std::ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_state_seq_set_data(
                 self.context.as_ptr(),
@@ -378,20 +393,13 @@ impl LlamaContext<'_> {
             )
         };
 
-        let restored = state_data_status_to_result(
+        state_data_restore_status_to_result(
             status,
             byte_count,
+            src.len(),
             out_error,
             "llama_rs_state_seq_set_data",
-        )?;
-
-        if restored == 0 && !src.is_empty() {
-            return Err(StateDataError::NothingRestored {
-                provided_bytes: src.len(),
-            });
-        }
-
-        Ok(restored)
+        )
     }
 }
 
@@ -487,5 +495,136 @@ mod state_data_status_to_result_tests {
             "",
         );
         assert_eq!(outcome.err(), Some(StateDataError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn state_data_status_to_result_maps_each_null_argument_to_a_contract_violation_of_the_operation()
+     {
+        for (status, detail) in [
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG,
+                "was given a null ctx argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG,
+                "was given a null buffer argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_BYTE_COUNT_ARG,
+                "was given a null out_byte_count argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG,
+                "was given a null out_error argument",
+            ),
+        ] {
+            assert_eq!(
+                state_data_status_to_result(status, 0, ptr::null_mut(), "llama_rs_state_get_data"),
+                Err(StateDataError::FfiContract(crate::FfiContractError {
+                    operation: "llama_rs_state_get_data",
+                    detail,
+                }))
+            );
+        }
+    }
+
+    #[test]
+    fn state_data_status_to_result_maps_error_string_allocation_failed() {
+        assert_eq!(
+            state_data_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED,
+                0,
+                ptr::null_mut(),
+                "llama_rs_state_get_data",
+            ),
+            Err(StateDataError::NotEnoughMemory)
+        );
+    }
+
+    #[test]
+    fn state_data_status_to_result_reports_an_exception_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"serializer threw".as_ptr()) };
+
+        assert_eq!(
+            state_data_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                0,
+                out_error,
+                "llama_rs_state_get_data",
+            ),
+            Err(StateDataError::Reported {
+                message: "serializer threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn state_data_status_to_result_maps_an_exception_without_a_message_to_a_contract_violation() {
+        assert_eq!(
+            state_data_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                0,
+                ptr::null_mut(),
+                "llama_rs_state_get_data",
+            ),
+            Err(StateDataError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_state_get_data",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
+        );
+    }
+
+    #[test]
+    fn state_data_status_to_result_preserves_an_unknown_status() {
+        assert_eq!(
+            state_data_status_to_result(255, 0, ptr::null_mut(), "llama_rs_state_get_data"),
+            Err(StateDataError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_state_get_data",
+                code: 255,
+            }))
+        );
+    }
+}
+
+#[cfg(test)]
+mod state_data_restore_status_to_result_tests {
+    use std::ptr;
+
+    use super::state_data_restore_status_to_result;
+    use crate::context::state_data_error::StateDataError;
+
+    #[test]
+    fn restoring_state_data_fails_only_when_a_non_empty_snapshot_restores_nothing() {
+        assert_eq!(
+            [(0, 16), (0, 0), (16, 16)].map(|(restored_bytes, provided_bytes)| {
+                state_data_restore_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_OK,
+                    restored_bytes,
+                    provided_bytes,
+                    ptr::null_mut(),
+                    "llama_rs_state_seq_set_data",
+                )
+            }),
+            [
+                Err(StateDataError::NothingRestored { provided_bytes: 16 }),
+                Ok(0),
+                Ok(16),
+            ]
+        );
+    }
+
+    #[test]
+    fn restoring_state_data_propagates_a_failed_status() {
+        assert_eq!(
+            state_data_restore_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY,
+                0,
+                16,
+                ptr::null_mut(),
+                "llama_rs_state_seq_set_data",
+            ),
+            Err(StateDataError::LlamaCppOutOfMemory)
+        );
     }
 }

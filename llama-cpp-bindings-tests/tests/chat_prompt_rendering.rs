@@ -1,4 +1,9 @@
 use anyhow::Result;
+use llama_cpp_bindings::ChatAssistantTurn;
+use llama_cpp_bindings::ChatSession;
+use llama_cpp_bindings::ChatSessionOptions;
+use llama_cpp_bindings::ChatToolChoice;
+use llama_cpp_bindings::model::LlamaChatMessage;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
@@ -105,5 +110,57 @@ fn chat_session_renders_long_messages_in_full(fixture: &LlamaFixture<'_>) -> Res
         prompt.contains(&long_content),
         "a long user message must be rendered in full by the engine without truncation"
     );
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_generation_prompt_opens_the_assistant_turn_with_thinking(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = user_turn_chat_session(fixture.model, "hello", "[]", true)?;
+
+    assert_eq!(
+        session.generation_prompt()?,
+        "<|im_start|>assistant\n<think>\n"
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_omitted_assistant_turn_renders_only_the_messages(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = ChatSession::new(
+        fixture.model,
+        &[LlamaChatMessage::new(
+            "user".to_owned(),
+            "hello".to_owned(),
+        )?],
+        "[]",
+        &ChatSessionOptions {
+            assistant_turn: ChatAssistantTurn::Omitted,
+            enable_thinking: true,
+            parallel_tool_calls: false,
+            tool_choice: ChatToolChoice::Auto,
+        },
+    )?;
+
+    assert_eq!(session.prompt()?, "<|im_start|>user\nhello<|im_end|>\n");
+
     Ok(())
 }

@@ -208,6 +208,7 @@ pub fn parse(
 mod tests {
     use llama_cpp_bindings_types::PairedQuoteShape;
     use llama_cpp_bindings_types::ParsedToolCall;
+    use llama_cpp_bindings_types::ParsedToolCallId;
     use llama_cpp_bindings_types::ToolCallArgsShape;
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::ToolCallMarkers;
@@ -302,6 +303,24 @@ mod tests {
         assert_eq!(
             parsed[0].arguments,
             ToolCallArguments::ValidJson(json!({"a": 42})),
+        );
+    }
+
+    #[test]
+    fn parses_comma_separated_bare_values() {
+        let parsed = parse(
+            &gemma4_call("a:42,b:true"),
+            &gemma4_markers(),
+            &gemma4_shape(),
+        );
+
+        assert_eq!(
+            parsed,
+            Ok(vec![ParsedToolCall::new(
+                ParsedToolCallId::NotProvidedByModel,
+                "f".to_owned(),
+                ToolCallArguments::ValidJson(json!({"a": 42, "b": true})),
+            )]),
         );
     }
 

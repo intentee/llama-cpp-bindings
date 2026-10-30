@@ -25,6 +25,16 @@ fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
     "the parser panicked with a payload that carries no message".to_owned()
 }
 
+fn catch_step_panic<TValue>(
+    operation: &'static str,
+    step: impl FnOnce() -> TValue,
+) -> Result<TValue, GrammarRuntimeError> {
+    catch_unwind(AssertUnwindSafe(step)).map_err(|panic_payload| GrammarRuntimeError::Panicked {
+        operation,
+        message: panic_payload_message(panic_payload.as_ref()),
+    })
+}
+
 fn stop_reason_to_result(
     stop_reason: StopReason,
     detail: String,
@@ -104,9 +114,9 @@ impl GrammarMatcher {
         operation: &'static str,
         step: impl FnOnce(&mut TokenParser) -> Result<TValue, TError>,
     ) -> Result<StepOutcome<TValue>, GrammarRuntimeError> {
-        match catch_unwind(AssertUnwindSafe(|| step(&mut self.parser))) {
-            Ok(Ok(value)) => Ok(StepOutcome::Produced(value)),
-            Ok(Err(step_error)) => {
+        match catch_step_panic(operation, || step(&mut self.parser))? {
+            Ok(value) => Ok(StepOutcome::Produced(value)),
+            Err(step_error) => {
                 let detail = self
                     .parser
                     .error_message()
@@ -115,10 +125,6 @@ impl GrammarMatcher {
 
                 Ok(StepOutcome::BenignStop)
             }
-            Err(panic_payload) => Err(GrammarRuntimeError::Panicked {
-                operation,
-                message: panic_payload_message(panic_payload.as_ref()),
-            }),
         }
     }
 }
@@ -127,6 +133,7 @@ impl GrammarMatcher {
 mod tests {
     use llguidance::api::StopReason;
 
+    use super::catch_step_panic;
     use super::panic_payload_message;
     use super::stop_reason_to_result;
     use crate::error::grammar_runtime_error::GrammarRuntimeError;
@@ -152,6 +159,17 @@ mod tests {
         assert_eq!(
             panic_payload_message(payload.as_ref()),
             "the parser panicked with a payload that carries no message"
+        );
+    }
+
+    #[test]
+    fn a_panicking_step_is_reported_with_its_operation_and_message() {
+        assert_eq!(
+            catch_step_panic("consume_token", || -> u32 { panic!("parser exploded") }),
+            Err(GrammarRuntimeError::Panicked {
+                operation: "consume_token",
+                message: "parser exploded".to_owned(),
+            })
         );
     }
 

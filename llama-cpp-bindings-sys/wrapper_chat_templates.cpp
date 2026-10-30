@@ -64,23 +64,8 @@ extern "C" auto llama_rs_chat_templates_init(
     }
 }
 
-extern "C" auto llama_rs_chat_templates_free(
-    llama_rs_chat_templates_handle templates,
-    char ** out_error) -> llama_rs_chat_templates_free_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    try {
-        const std::unique_ptr<llama_rs_chat_templates> reclaimed(templates);
-
-        return LLAMA_RS_CHAT_TEMPLATES_FREE_OK;
-    } catch (...) {
-        return llama_rs_report_current_exception(
-            out_error,
-            LLAMA_RS_CHAT_TEMPLATES_FREE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_CHAT_TEMPLATES_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
-            LLAMA_RS_CHAT_TEMPLATES_FREE_ERROR_STRING_ALLOCATION_FAILED);
-    }
+extern "C" auto llama_rs_chat_templates_free(llama_rs_chat_templates_handle templates) -> void {
+    const std::unique_ptr<llama_rs_chat_templates> reclaimed(templates);
 }
 
 extern "C" auto llama_rs_chat_templates_supports_tool_calls(llama_rs_chat_templates_handle templates) -> bool {

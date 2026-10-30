@@ -3,13 +3,17 @@ use anyhow::Result;
 use anyhow::bail;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::GenerationProgress;
+use llama_cpp_bindings::IngestError;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::TokenOutsideVocabulary;
 use llama_cpp_bindings::TokenPiece;
+use llama_cpp_bindings::TokenToStringError;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
+use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
@@ -201,5 +205,41 @@ fn ingest_counts_every_token_through_the_end_of_generation(
     );
 
     assert_eq!(classifier.usage().undeterminable_tokens, 2);
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn ingesting_a_token_outside_the_vocabulary_reports_it_in_every_classifier(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let token = LlamaToken::new(model.n_vocab());
+    let session = user_turn_chat_session(model, "hello", "[]", false)?;
+    let mut outcomes = Vec::new();
+    let expected = Err(IngestError::Detokenize(
+        TokenToStringError::TokenOutsideVocabulary(TokenOutsideVocabulary {
+            token,
+            n_vocab: model.n_vocab(),
+        }),
+    ));
+
+    assert_eq!(
+        SampledTokenClassifier::undeterminable(model).ingest(token, &mut outcomes),
+        expected
+    );
+    assert_eq!(
+        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect)
+            .ingest(token, &mut outcomes),
+        expected
+    );
+    assert_eq!(outcomes, []);
+
     Ok(())
 }

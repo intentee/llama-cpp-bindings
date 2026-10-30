@@ -398,6 +398,22 @@ mod kv_cache_seq_add_status_to_result_tests {
     }
 
     #[test]
+    fn add_llama_cpp_exception_status_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"shift threw".as_ptr()) };
+
+        assert_eq!(
+            kv_cache_seq_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                out_error,
+            ),
+            Err(KvCacheSeqAddError::Reported {
+                message: "shift threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
     fn add_unknown_status_is_preserved() {
         let result = kv_cache_seq_add_status_to_result(255, ptr::null_mut());
 
@@ -407,6 +423,24 @@ mod kv_cache_seq_add_status_to_result_tests {
                 operation: "llama_rs_memory_seq_add",
                 code: 255,
             }))
+        );
+    }
+
+    #[test]
+    fn kv_cache_seq_add_status_to_result_maps_null_ctx_arg() {
+        let outcome = kv_cache_seq_add_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_memory_seq_add",
+                    detail: "was given a null ctx argument",
+                }
+                .into()
+            )
         );
     }
 
@@ -504,6 +538,22 @@ mod kv_cache_seq_div_status_to_result_tests {
     }
 
     #[test]
+    fn div_llama_cpp_exception_status_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"division threw".as_ptr()) };
+
+        assert_eq!(
+            kv_cache_seq_div_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                out_error,
+            ),
+            Err(KvCacheSeqDivError::Reported {
+                message: "division threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
     fn div_unknown_status_is_preserved() {
         let result = kv_cache_seq_div_status_to_result(255, ptr::null_mut());
 
@@ -513,6 +563,24 @@ mod kv_cache_seq_div_status_to_result_tests {
                 operation: "llama_rs_memory_seq_div",
                 code: 255,
             }))
+        );
+    }
+
+    #[test]
+    fn kv_cache_seq_div_status_to_result_maps_null_ctx_arg() {
+        let outcome = kv_cache_seq_div_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_memory_seq_div",
+                    detail: "was given a null ctx argument",
+                }
+                .into()
+            )
         );
     }
 
@@ -671,6 +739,25 @@ mod kv_cache_seq_pos_max_status_to_result_tests {
                 detail: "reported a thrown C++ exception without an error message",
             }
             .into())
+        );
+    }
+
+    #[test]
+    fn seq_pos_max_llama_cpp_exception_status_reports_its_message() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"position lookup threw".as_ptr())
+        };
+
+        assert_eq!(
+            kv_cache_seq_pos_max_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                -1,
+                2,
+                out_error,
+            ),
+            Err(KvCacheSeqPosMaxError::Reported {
+                message: "position lookup threw".to_owned()
+            })
         );
     }
 

@@ -1269,6 +1269,25 @@ mod new_context_with_model_status_to_result_tests {
     }
 
     #[test]
+    fn new_context_cxx_exception_reports_its_message() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"context construction threw".as_ptr())
+        };
+        let result = new_context_with_model_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            ptr::null_mut(),
+            out_error,
+        );
+
+        assert_eq!(
+            result,
+            Err(LlamaContextLoadError::Reported {
+                message: "context construction threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
     fn new_context_cxx_exception_without_a_message_is_a_contract_error() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1371,6 +1390,237 @@ mod new_context_with_model_status_to_result_tests {
 }
 
 #[cfg(test)]
+mod batch_ext_init_status_to_result_tests {
+    use std::ptr;
+
+    use super::batch_ext_init_status_to_result;
+    use crate::LlamaContextLoadError;
+
+    #[test]
+    fn initializing_a_batch_reports_each_null_pointer_as_a_contract_violation() {
+        for (status, detail) in [
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_OK,
+                "success status contained a null batch",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG,
+                "was given a null ctx argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_BATCH_ARG,
+                "was given a null out_batch argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_ERROR_ARG,
+                "was given a null out_error argument",
+            ),
+        ] {
+            assert_eq!(
+                batch_ext_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err(),
+                Some(LlamaContextLoadError::FfiContract(
+                    crate::FfiContractError {
+                        operation: "llama_rs_batch_ext_init",
+                        detail,
+                    }
+                ))
+            );
+        }
+    }
+
+    #[test]
+    fn initializing_a_batch_reports_memory_exhaustion() {
+        assert_eq!(
+            [
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_ERROR_STRING_ALLOCATION_FAILED,
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            ]
+            .map(|status| batch_ext_init_status_to_result(
+                status,
+                ptr::null_mut(),
+                ptr::null_mut()
+            )
+            .err()),
+            [
+                Some(LlamaContextLoadError::NotEnoughMemory),
+                Some(LlamaContextLoadError::LlamaCppOutOfMemory),
+            ]
+        );
+    }
+
+    #[test]
+    fn initializing_a_batch_reports_an_exception_message() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"batch allocation threw".as_ptr())
+        };
+
+        assert_eq!(
+            batch_ext_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+            )
+            .err(),
+            Some(LlamaContextLoadError::Reported {
+                message: "batch allocation threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn initializing_a_batch_reports_an_exception_without_a_message_as_a_contract_violation() {
+        assert_eq!(
+            batch_ext_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+            .err(),
+            Some(LlamaContextLoadError::FfiContract(
+                crate::FfiContractError {
+                    operation: "llama_rs_batch_ext_init",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn initializing_a_batch_preserves_an_unknown_status() {
+        assert_eq!(
+            batch_ext_init_status_to_result(255, ptr::null_mut(), ptr::null_mut()).err(),
+            Some(LlamaContextLoadError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_batch_ext_init",
+                code: 255,
+            }))
+        );
+    }
+}
+
+#[cfg(test)]
+mod batch_ext_add_entry_status_to_result_tests {
+    use std::ptr;
+
+    use super::batch_ext_add_entry_status_to_result;
+    use crate::error::batch_transfer_error::BatchTransferError;
+
+    #[test]
+    fn adding_a_batch_entry_reports_each_refusal_of_a_validated_entry_as_a_contract_violation() {
+        for (status, detail) in [
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_BATCH_FULL,
+                "refused an entry of a batch validated against its limits as full",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_TOKEN,
+                "refused a token validated against the vocabulary",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_SEQUENCE_ID,
+                "refused a sequence id validated against the context",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_RETURNED_UNKNOWN_CODE,
+                "refused an entry with an undocumented code",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_POSITION_REJECTED,
+                "refused the position of an entry it had just added",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_OUTPUT_REJECTED,
+                "refused the output flag of an entry it had just added",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_EMPTY_SEQ_IDS,
+                "was given an entry without sequence ids",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_BATCH_ARG,
+                "was given a null batch argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_SEQ_IDS_ARG,
+                "was given a null seq_ids argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG,
+                "was given a null out_llama_cpp_return_code argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_OUT_ERROR_ARG,
+                "was given a null out_error argument",
+            ),
+        ] {
+            assert_eq!(
+                batch_ext_add_entry_status_to_result(status, ptr::null_mut()),
+                Err(BatchTransferError::FfiContract(crate::FfiContractError {
+                    operation: "llama_rs_batch_ext_add_entry",
+                    detail,
+                }))
+            );
+        }
+    }
+
+    #[test]
+    fn adding_a_batch_entry_reports_memory_exhaustion() {
+        assert_eq!(
+            [
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_ERROR_STRING_ALLOCATION_FAILED,
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_OUT_OF_MEMORY,
+            ]
+            .map(|status| batch_ext_add_entry_status_to_result(status, ptr::null_mut())),
+            [
+                Err(BatchTransferError::NotEnoughMemory),
+                Err(BatchTransferError::LlamaCppOutOfMemory),
+            ]
+        );
+    }
+
+    #[test]
+    fn adding_a_batch_entry_reports_an_exception_message() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::llama_rs_string_dup(c"entry insertion threw".as_ptr())
+        };
+
+        assert_eq!(
+            batch_ext_add_entry_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                out_error,
+            ),
+            Err(BatchTransferError::Reported {
+                message: "entry insertion threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn adding_a_batch_entry_reports_an_exception_without_a_message_as_a_contract_violation() {
+        assert_eq!(
+            batch_ext_add_entry_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+            ),
+            Err(BatchTransferError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_batch_ext_add_entry",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
+        );
+    }
+
+    #[test]
+    fn adding_a_batch_entry_preserves_an_unknown_status() {
+        assert_eq!(
+            batch_ext_add_entry_status_to_result(255, ptr::null_mut()),
+            Err(BatchTransferError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_batch_ext_add_entry",
+                code: 255,
+            }))
+        );
+    }
+}
+
+#[cfg(test)]
 mod decode_status_to_result_tests {
     use std::ptr;
 
@@ -1419,6 +1669,24 @@ mod decode_status_to_result_tests {
         );
 
         assert_eq!(result, Err(DecodeError::NotEnoughMemory));
+    }
+
+    #[test]
+    fn decode_cxx_exception_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"decode threw".as_ptr()) };
+        let result = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            0,
+            out_error,
+        );
+
+        assert_eq!(
+            result,
+            Err(DecodeError::Reported {
+                message: "decode threw".to_owned()
+            })
+        );
     }
 
     #[test]
@@ -1482,6 +1750,25 @@ mod decode_status_to_result_tests {
                 crate::FfiContractError {
                     operation: "llama_rs_decode",
                     detail: "was given a null ctx argument",
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
+    fn decode_status_to_result_maps_null_batch_arg() {
+        let outcome = decode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_DECODE_NULL_BATCH_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_decode",
+                    detail: "was given a null batch argument",
                 }
                 .into()
             )
@@ -1581,6 +1868,24 @@ mod encode_status_to_result_tests {
     }
 
     #[test]
+    fn encode_cxx_exception_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"encode threw".as_ptr()) };
+        let result = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            0,
+            out_error,
+        );
+
+        assert_eq!(
+            result,
+            Err(EncodeError::Reported {
+                message: "encode threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
     fn encode_cxx_exception_without_a_message_is_a_contract_error() {
         let result = encode_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1641,6 +1946,25 @@ mod encode_status_to_result_tests {
                 crate::FfiContractError {
                     operation: "llama_rs_encode",
                     detail: "was given a null ctx argument",
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
+    fn encode_status_to_result_maps_null_batch_arg() {
+        let outcome = encode_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_ENCODE_NULL_BATCH_ARG,
+            0,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_encode",
+                    detail: "was given a null batch argument",
                 }
                 .into()
             )

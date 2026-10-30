@@ -69,36 +69,6 @@ fn chat_templates_init_status_to_result(
     }
 }
 
-fn chat_templates_free_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_chat_templates_free_status,
-    out_error: *mut c_char,
-) -> Result<(), ChatTemplatesError> {
-    match status {
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_FREE_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_FREE_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(ChatTemplatesError::NotEnoughMemory)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_FREE_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(ChatTemplatesError::LlamaCppOutOfMemory)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                read_and_free_cpp_string(
-                    out_error,
-                    "llama_rs_chat_templates_free",
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
-            Err(ChatTemplatesError::Reported { message })
-        }
-        other => Err(crate::FfiStatusError {
-            operation: "llama_rs_chat_templates_free",
-            code: i64::from(other),
-        }
-        .into()),
-    }
-}
-
 /// The chat templates of a model as llama.cpp prepares them once per model: with the model's
 /// BOS and EOS, the template variant for tool calls, and llama.cpp's template fixes applied.
 #[derive(Debug)]
@@ -149,33 +119,17 @@ impl ChatTemplates {
 
 impl Drop for ChatTemplates {
     fn drop(&mut self) {
-        let mut out_error: *mut c_char = ptr::null_mut();
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_chat_templates_free(
-                self.templates.as_ptr(),
-                &raw mut out_error,
-            )
-        };
-
-        if let Err(destructor_failure) = chat_templates_free_status_to_result(status, out_error) {
-            log::error!("{destructor_failure}");
-        }
+        unsafe { llama_cpp_bindings_sys::llama_rs_chat_templates_free(self.templates.as_ptr()) };
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::CStr;
     use std::ffi::c_char;
     use std::ptr;
 
-    use super::chat_templates_free_status_to_result;
     use super::chat_templates_init_status_to_result;
     use crate::error::chat_templates_error::ChatTemplatesError;
-
-    fn cpp_message(message: &CStr) -> *mut c_char {
-        unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(message.as_ptr()) }
-    }
 
     fn init_error(
         status: llama_cpp_bindings_sys::llama_rs_chat_templates_init_status,
@@ -213,7 +167,7 @@ mod tests {
                 ),
                 init_error(
                     llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                    cpp_message(c"the template threw")
+                    unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"the template threw".as_ptr()) }
                 ),
                 init_error(
                     llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_MODEL_ARG,
@@ -249,39 +203,15 @@ mod tests {
     }
 
     #[test]
-    fn releasing_templates_maps_every_status() {
+    fn a_preparation_exception_without_a_message_is_a_contract_violation() {
         assert_eq!(
-            [
-                chat_templates_free_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_FREE_OK,
-                    ptr::null_mut()
-                ),
-                chat_templates_free_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_FREE_ERROR_STRING_ALLOCATION_FAILED,
-                    ptr::null_mut()
-                ),
-                chat_templates_free_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_FREE_LLAMA_CPP_OUT_OF_MEMORY,
-                    ptr::null_mut()
-                ),
-                chat_templates_free_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_FREE_DESTRUCTOR_THREW_CXX_EXCEPTION,
-                    cpp_message(c"the destructor threw")
-                ),
-                chat_templates_free_status_to_result(255, ptr::null_mut()),
-            ],
-            [
-                Ok(()),
-                Err(ChatTemplatesError::NotEnoughMemory),
-                Err(ChatTemplatesError::LlamaCppOutOfMemory),
-                Err(ChatTemplatesError::Reported {
-                    message: "the destructor threw".to_owned()
-                }),
-                Err(ChatTemplatesError::FfiStatus(crate::FfiStatusError {
-                    operation: "llama_rs_chat_templates_free",
-                    code: 255,
-                })),
-            ]
+            init_error(
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut()
+            ),
+            Some(contract(
+                "reported a thrown C++ exception without an error message"
+            ))
         );
     }
 }
