@@ -1194,6 +1194,7 @@ dependencies = [
  "bindgen",
  "cc",
  "cmake",
+ "enumflags2",
  "find_cuda_helper",
  "llama-cpp-wrapper-sources",
  "thiserror",

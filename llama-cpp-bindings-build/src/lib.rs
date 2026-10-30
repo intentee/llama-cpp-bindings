@@ -2,191 +2,129 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
+
+mod android_architecture;
 mod android_ndk;
-mod apple_variant;
-mod bindgen_config;
-mod cmake_config;
-mod cpp_wrapper;
-mod library_linking;
+mod binding_callbacks;
+mod bindings_generation;
+mod build_context;
+pub mod build_environment;
+pub mod build_error;
+pub mod build_feature;
+mod cargo_directive;
+mod cmake_build;
+mod cmake_configuration;
+mod cmake_define;
+mod cpu_tuning;
+mod emit_directives;
+mod enabled_build_features;
+mod host_os;
+mod link_directives;
+mod link_kind;
+mod native_build;
 mod native_library;
-mod rebuild_tracking;
+mod privatized_field;
+mod rebuild_triggers;
 mod target_os;
+mod wrapper_compilation;
 
-use std::env;
-use std::path::{Path, PathBuf};
+use std::io::Write;
 
-use android_ndk::AndroidNdk;
-use target_os::TargetOs;
+use crate::build_context::BuildContext;
+use crate::build_environment::BuildEnvironment;
+use crate::build_error::BuildError;
+use crate::host_os::HostOs;
+use crate::native_build::NativeBuild;
 
-#[derive(Debug, thiserror::Error)]
-pub enum BuildError {
-    #[error("environment variable {name} could not be read: {source}")]
-    Environment {
-        name: &'static str,
-        #[source]
-        source: env::VarError,
-    },
-    #[error("unsupported target operating system: {cargo_cfg_target_os}")]
-    UnsupportedTargetOs { cargo_cfg_target_os: String },
-    #[error(transparent)]
-    AndroidNdk(#[from] android_ndk::AndroidNdkDetectionError),
-    #[error("bindgen failed: {0}")]
-    Bindgen(#[source] bindgen::BindgenError),
-    #[error(
-        "bindgen never saw field {type_name}::{field_name}, so it can no longer be kept private"
-    )]
-    PrivatizedFieldMissing {
-        type_name: &'static str,
-        field_name: &'static str,
-    },
-    #[error("generated bindings could not be written: {0}")]
-    BindingsWrite(#[source] std::io::Error),
-    #[error("native wrapper compilation failed: {0}")]
-    NativeWrapper(#[source] cc::Error),
-    #[error("filesystem operation failed for {path}: {source}")]
-    Filesystem {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("environment path {name} does not name a directory: {path}")]
-    EnvironmentDirectory { name: &'static str, path: PathBuf },
-}
-
-fn required_env(name: &'static str) -> Result<String, BuildError> {
-    env::var(name).map_err(|source| BuildError::Environment { name, source })
-}
-
-fn optional_env(name: &'static str) -> Result<Option<String>, BuildError> {
-    match env::var(name) {
-        Ok(value) => Ok(Some(value)),
-        Err(env::VarError::NotPresent) => Ok(None),
-        Err(source) => Err(BuildError::Environment { name, source }),
-    }
-}
-
-#[macro_export]
-macro_rules! debug_log {
-    ($($arg:tt)*) => {
-        if std::env::var("BUILD_DEBUG").is_ok() {
-            println!("cargo:warning=[DEBUG] {}", format!($($arg)*));
-        }
-    };
-}
-
-#[derive(Debug)]
-pub struct BuildContext {
-    pub out_dir: PathBuf,
-    pub cmake_dir: PathBuf,
-    pub llama_src: PathBuf,
-    pub target_os: TargetOs,
-    pub target_triple: String,
-    pub cargo_cfg_target_arch: String,
-    pub cargo_cfg_target_env: String,
-    pub build_shared_libs: bool,
-    pub profile: String,
-    pub android_ndk: Option<AndroidNdk>,
-}
-
-impl BuildContext {
-    fn detect() -> Result<Self, BuildError> {
-        let target_triple = required_env("TARGET")?;
-        let cargo_cfg_target_os = required_env("CARGO_CFG_TARGET_OS")?;
-        let cargo_cfg_target_env = optional_env("CARGO_CFG_TARGET_ENV")?.unwrap_or_default();
-        let target_os = TargetOs::from_cargo_cfg(&cargo_cfg_target_os).ok_or_else(|| {
-            BuildError::UnsupportedTargetOs {
-                cargo_cfg_target_os: cargo_cfg_target_os.clone(),
-            }
-        })?;
-        let out_dir = PathBuf::from(required_env("OUT_DIR")?);
-        let manifest_dir = required_env("CARGO_MANIFEST_DIR")?;
-        let llama_src = Path::new(&manifest_dir).join("llama.cpp");
-
-        let build_shared_libs = cfg!(feature = "dynamic-link");
-        let profile = native_profile(&required_env("PROFILE")?);
-
-        let cargo_cfg_target_arch = required_env("CARGO_CFG_TARGET_ARCH")?;
-        let android_ndk = if target_os.is_android() {
-            Some(AndroidNdk::detect(&target_triple, &cargo_cfg_target_arch)?)
-        } else {
-            None
-        };
-
-        let cmake_dir = out_dir.join("cmake");
-
-        debug_log!("TARGET: {}", target_triple);
-        debug_log!("CARGO_MANIFEST_DIR: {}", manifest_dir);
-        debug_log!("OUT_DIR: {}", out_dir.display());
-        debug_log!("CMAKE_DIR: {}", cmake_dir.display());
-        debug_log!("BUILD_SHARED: {}", build_shared_libs);
-
-        Ok(Self {
-            out_dir,
-            cmake_dir,
-            llama_src,
-            target_os,
-            target_triple,
-            cargo_cfg_target_arch,
-            cargo_cfg_target_env,
-            build_shared_libs,
-            profile,
-            android_ndk,
-        })
-    }
-}
-
-fn native_profile(cargo_profile: &str) -> String {
-    match cargo_profile {
-        "debug" | "release" => "Release".to_owned(),
-        other => other.to_owned(),
-    }
-}
-
+/// Generates the bindings, compiles the C++ wrappers, and builds llama.cpp for the build script
+/// run `environment` describes, then writes the cargo directives that link them to `output`.
+///
 /// # Errors
 ///
-/// Returns [`BuildError`] when the build environment cannot be read, the target is
-/// unsupported, or any of the native build steps fail.
-pub fn build() -> Result<(), BuildError> {
-    let context = BuildContext::detect()?;
+/// Returns the [`BuildError`] of the first decision or build step that fails; nothing is written
+/// to `output` then.
+pub fn build(environment: &BuildEnvironment, output: &mut impl Write) -> Result<(), BuildError> {
+    let context = BuildContext::from_environment(environment, HostOs::current())?;
 
-    rebuild_tracking::register_rebuild_triggers(&context.llama_src);
-
-    bindgen_config::generate_bindings(
-        &context.llama_src,
-        &context.out_dir,
-        context.target_os,
-        &context.target_triple,
-        context.android_ndk.as_ref(),
-    )?;
-
-    cpp_wrapper::compile_cpp_wrappers(context.target_os)?;
-
-    let build_dir = cmake_config::configure_and_build(&context)?;
-
-    library_linking::link_libraries(
-        &context.cmake_dir,
-        &build_dir,
-        context.target_os,
-        &context.cargo_cfg_target_env,
-        context.build_shared_libs,
-        &context.profile,
-    )?;
-
-    Ok(())
+    NativeBuild::of(&context, environment)?.run(output)
 }
 
 #[cfg(test)]
-mod build_context_value_tests {
-    use super::native_profile;
+mod tests {
+    use std::ffi::OsStr;
 
-    #[test]
-    fn cargo_debug_and_release_profiles_both_use_optimized_native_code() {
-        assert_eq!(native_profile("debug"), "Release");
-        assert_eq!(native_profile("release"), "Release");
+    use enumflags2::BitFlags;
+
+    use super::build;
+    use crate::build_context::tests::cargo_environment;
+    use crate::build_environment::BuildEnvironment;
+    use crate::build_feature::BuildFeature;
+
+    const FIXTURE_CMAKE_PROJECT: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/cmake_project");
+
+    fn failure(environment: &BuildEnvironment) -> [Option<String>; 2] {
+        let mut output = Vec::new();
+
+        [
+            build(environment, &mut output)
+                .err()
+                .map(|error| error.to_string()),
+            String::from_utf8(output).ok(),
+        ]
     }
 
     #[test]
-    fn custom_cargo_profile_name_is_preserved_for_cmake() {
-        assert_eq!(native_profile("RelWithDebInfo"), "RelWithDebInfo");
+    fn a_failure_at_any_stage_is_reported_and_nothing_is_emitted() {
+        let mut without_target = cargo_environment(BitFlags::empty(), &[]);
+
+        without_target.variables.remove(OsStr::new("TARGET"));
+
+        assert_eq!(
+            [
+                failure(&without_target),
+                failure(&cargo_environment(
+                    BitFlags::from(BuildFeature::SystemGgml),
+                    &[]
+                )),
+                failure(&cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])),
+                failure(&cargo_environment(
+                    BitFlags::empty(),
+                    &[("CARGO_MANIFEST_DIR", FIXTURE_CMAKE_PROJECT)]
+                )),
+            ],
+            [
+                [
+                    Some(
+                        "environment variable TARGET could not be read: environment variable not \
+                         found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
+                [
+                    Some(
+                        "environment variable GGML_DIR could not be read: environment variable \
+                         not found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
+                [
+                    Some(
+                        "environment variable ROCM_PATH could not be read: environment variable \
+                         not found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
+                [
+                    Some(format!(
+                        "bindgen failed: header '{FIXTURE_CMAKE_PROJECT}/wrapper.h' does not exist."
+                    )),
+                    Some(String::new())
+                ],
+            ]
+        );
     }
 }

@@ -77,6 +77,7 @@ coverage: node_modules
 	./node_modules/.bin/rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
 		--gated llama-cpp-bindings=100 \
+		--gated llama-cpp-bindings-build=100 \
 		--gated llama-cpp-bindings-tests=100 \
 		--gated llama-cpp-bindings-types=100 \
 		--gated llama-cpp-error-recorder=100 \

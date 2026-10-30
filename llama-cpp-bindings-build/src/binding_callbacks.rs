@@ -1,0 +1,123 @@
+use std::cell::Cell;
+use std::cell::RefCell;
+use std::path::PathBuf;
+use std::rc::Rc;
+
+use bindgen::FieldVisibilityKind;
+use bindgen::callbacks::DeriveInfo;
+use bindgen::callbacks::FieldInfo;
+use bindgen::callbacks::ParseCallbacks;
+
+use crate::build_error::BuildError;
+use crate::cargo_directive::CargoDirective;
+use crate::privatized_field::PrivatizedField;
+
+const COMPARED_STRUCTS: &[&str] = &["llama_logit_bias", "llama_token_data"];
+
+fn derives_for(type_name: &str) -> Vec<String> {
+    if COMPARED_STRUCTS.contains(&type_name) {
+        vec!["PartialEq".to_owned()]
+    } else {
+        Vec::new()
+    }
+}
+
+/// Observes bindgen while it parses: keeps the [`PrivatizedField::ALL`] fields private, derives
+/// `PartialEq` for the structs the bindings compare, and records what the bindings depend on.
+#[derive(Clone, Debug)]
+pub struct BindingCallbacks {
+    privatized_field_hits: Rc<[Cell<bool>]>,
+    rebuild_triggers: Rc<RefCell<Vec<CargoDirective>>>,
+}
+
+impl Default for BindingCallbacks {
+    fn default() -> Self {
+        Self {
+            privatized_field_hits: PrivatizedField::ALL
+                .iter()
+                .map(|_| Cell::new(false))
+                .collect(),
+            rebuild_triggers: Rc::default(),
+        }
+    }
+}
+
+impl BindingCallbacks {
+    /// # Errors
+    ///
+    /// Returns [`BuildError::PrivatizedFieldMissing`] for the first privatized field bindgen
+    /// never saw.
+    pub fn verify_every_privatized_field_was_found(&self) -> Result<(), BuildError> {
+        PrivatizedField::ALL
+            .iter()
+            .zip(self.privatized_field_hits.iter())
+            .find(|(_, was_found)| !was_found.get())
+            .map_or(Ok(()), |(field, _)| {
+                Err(BuildError::PrivatizedFieldMissing {
+                    type_name: field.type_name,
+                    field_name: field.field_name,
+                })
+            })
+    }
+
+    /// The headers and environment variables bindgen read, as cargo rebuild triggers.
+    #[must_use]
+    pub fn take_rebuild_triggers(&self) -> Vec<CargoDirective> {
+        self.rebuild_triggers.take()
+    }
+}
+
+impl ParseCallbacks for BindingCallbacks {
+    fn header_file(&self, filename: &str) {
+        self.rebuild_triggers
+            .borrow_mut()
+            .push(CargoDirective::RerunIfChanged(PathBuf::from(filename)));
+    }
+
+    fn include_file(&self, filename: &str) {
+        self.rebuild_triggers
+            .borrow_mut()
+            .push(CargoDirective::RerunIfChanged(PathBuf::from(filename)));
+    }
+
+    fn read_env_var(&self, key: &str) {
+        self.rebuild_triggers
+            .borrow_mut()
+            .push(CargoDirective::RerunIfEnvChanged(key.to_owned()));
+    }
+
+    fn add_derives(&self, info: &DeriveInfo<'_>) -> Vec<String> {
+        derives_for(info.name)
+    }
+
+    fn field_visibility(&self, info: FieldInfo<'_>) -> Option<FieldVisibilityKind> {
+        PrivatizedField::ALL
+            .iter()
+            .zip(self.privatized_field_hits.iter())
+            .find(|(field, _)| {
+                field.type_name == info.type_name && field.field_name == info.field_name
+            })
+            .map(|(_, was_found)| {
+                was_found.set(true);
+
+                FieldVisibilityKind::Private
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::derives_for;
+
+    #[test]
+    fn only_the_structs_the_bindings_compare_derive_partial_eq() {
+        assert_eq!(
+            ["llama_token_data", "llama_logit_bias", "llama_sampler_i"].map(derives_for),
+            [
+                vec!["PartialEq".to_owned()],
+                vec!["PartialEq".to_owned()],
+                Vec::new()
+            ]
+        );
+    }
+}

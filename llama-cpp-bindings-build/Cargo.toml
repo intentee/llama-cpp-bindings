@@ -10,6 +10,7 @@ repository.workspace = true
 bindgen = { workspace = true }
 cc = { workspace = true }
 cmake = { workspace = true }
+enumflags2 = { workspace = true }
 find_cuda_helper = { workspace = true }
 llama-cpp-wrapper-sources = { workspace = true }
 thiserror = { workspace = true }
