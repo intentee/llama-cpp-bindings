@@ -1171,6 +1171,7 @@ dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
  "llama-cpp-error-recorder",
+ "llama-cpp-fault-injection",
  "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
  "llama-cpp-log-decoder",
@@ -1214,6 +1215,7 @@ dependencies = [
  "llama-cpp-bindings",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
+ "llama-cpp-fault-injection",
  "llama-cpp-test-harness",
  "serde_json",
  "toktrie",
@@ -1233,6 +1235,13 @@ name = "llama-cpp-error-recorder"
 version = "0.26.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "llama-cpp-fault-injection"
+version = "0.26.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
 ]
 
 [[package]]

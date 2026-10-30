@@ -1,4 +1,5 @@
 #include "wrapper_batch.h"
+#include "wrapper_fault_injection.h"
 #include "wrapper_report_current_exception.h"
 
 #include <llama.h>
@@ -29,6 +30,7 @@ extern "C" auto llama_rs_batch_ext_init(
     }
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_BATCH_EXT_INIT_THROWS);
         *out_batch = llama_batch_ext_init(ctx);
 
         return LLAMA_RS_BATCH_EXT_INIT_OK;
@@ -73,6 +75,7 @@ extern "C" auto llama_rs_batch_ext_add_entry(
     }
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_BATCH_EXT_ADD_ENTRY_THROWS);
         const gsl::span<const llama_seq_id> seq_id_span(seq_ids, n_seq_ids);
         const int32_t index = llama_batch_ext_add_token(batch, seq_id_span[0], token);
 

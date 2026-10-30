@@ -1,4 +1,5 @@
 #include "wrapper_common.h"
+#include "wrapper_fault_injection.h"
 
 #include <cstdlib>
 #include <cstdint>
@@ -93,7 +94,10 @@ extern "C" auto llama_rs_sampler_init_grammar(
         return LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_ERROR_ARG;
     }
     try {
-        *out_sampler = llama_sampler_init_grammar(vocab, grammar_str, grammar_root);
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_THROWS);
+        *out_sampler = llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_RETURNS_NULL)
+                           ? nullptr
+                           : llama_sampler_init_grammar(vocab, grammar_str, grammar_root);
         if (*out_sampler == nullptr) {
             return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_RETURNED_NULL;
         }
@@ -130,6 +134,7 @@ extern "C" auto llama_rs_sampler_init_grammar_lazy_patterns(
         return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_ERROR_ARG;
     }
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_THROWS);
         *out_sampler = llama_sampler_init_grammar_lazy_patterns(
             vocab,
             grammar_str,
@@ -367,6 +372,7 @@ extern "C" auto llama_rs_sampler_accept(
         return LLAMA_RS_SAMPLER_ACCEPT_NULL_OUT_ERROR_ARG;
     }
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_ACCEPT_THROWS);
         llama_sampler_accept(sampler, token);
         return LLAMA_RS_SAMPLER_ACCEPT_OK;
     } catch (...) {
@@ -560,4 +566,19 @@ extern "C" auto llama_rs_sampler_apply(
             LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
             LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED);
     }
+}
+
+extern "C" auto llama_rs_token_to_piece(
+    const struct llama_vocab * vocab,
+    llama_token token,
+    char * buf,
+    int32_t length,
+    int32_t lstrip,
+    bool special) -> int32_t {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_TOKEN_TO_PIECE_FAILS) ||
+        (special && llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_SPECIAL_TOKEN_TO_PIECE_FAILS))) {
+        return -(length + 1);
+    }
+
+    return llama_token_to_piece(vocab, token, buf, length, lstrip, special);
 }

@@ -3,17 +3,22 @@ use std::ffi::CStr;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+use llama_cpp_bindings::GrammarError;
 use llama_cpp_bindings::SampleError;
 use llama_cpp_bindings::SamplerAcceptError;
+use llama_cpp_bindings::TokenToStringError;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::GrammarRuntimeError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::llguidance_sampler::create_llg_sampler;
 use llama_cpp_bindings::model::AddBos;
+use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::ParseSpecialTokens;
+use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_fault_injection::ArmedFault;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -644,6 +649,61 @@ fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
         Err(SampleError::GrammarCallbackFailed {
             message: out_of_vocabulary_failure(),
         })
+    );
+
+    Ok(())
+}
+
+fn freshly_loaded(fixture: &LlamaFixture<'_>) -> Result<LlamaModel> {
+    Ok(LlamaModel::load_from_file(
+        fixture.backend,
+        fixture.model_path,
+        &LlamaModelParams::default(),
+    )?)
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn creating_a_sampler_reports_a_vocabulary_llama_cpp_cannot_render(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = freshly_loaded(fixture)?;
+    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_TOKEN_TO_PIECE_FAILS);
+
+    assert_eq!(
+        create_llg_sampler(&model, "regex", REGEX_GRAMMAR).err(),
+        Some(GrammarError::TokEnvUnavailable(
+            TokenToStringError::InsufficientBufferSpace(-34)
+        ))
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn the_tokenizer_environment_reports_a_control_token_llama_cpp_cannot_render(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = freshly_loaded(fixture)?;
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SPECIAL_TOKEN_TO_PIECE_FAILS);
+
+    assert_eq!(
+        model.approximate_tok_env().err(),
+        Some(TokenToStringError::InsufficientBufferSpace(-34))
     );
 
     Ok(())

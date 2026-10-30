@@ -11,13 +11,20 @@ use crate::user_turn_chat_session::user_turn_chat_session;
 /// # Errors
 ///
 /// Forwards message construction and chat session errors.
+///
+/// # Panics
+///
+/// Panics when llama.cpp's media marker is not UTF-8.
 pub fn media_question_chat_session<'model>(
     model: &'model LlamaModel,
     question: &str,
 ) -> Result<ChatSession<'model>> {
     user_turn_chat_session(
         model,
-        &format!("{}{question}", mtmd_default_marker()?),
+        &format!(
+            "{}{question}",
+            mtmd_default_marker().expect("llama.cpp's media marker must be UTF-8")
+        ),
         "[]",
         true,
     )

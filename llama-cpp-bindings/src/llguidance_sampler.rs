@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use llama_cpp_error_recorder::RecordedError;
 use llama_cpp_error_recorder::record;
+use llguidance::earley::SlicedBiasComputer;
 use toktrie::ApproximateTokEnv;
+use toktrie::InferenceCapabilities;
 
 use crate::GrammarError;
 use crate::grammar_matcher::GrammarMatcher;
@@ -106,6 +108,22 @@ static mut LLG_SAMPLER_I: llama_cpp_bindings_sys::llama_sampler_i =
         copy_state: None,
     };
 
+const UNCOMPILABLE_BIAS_SLICE: &str = "(";
+
+fn bias_slices() -> Vec<String> {
+    let factory_fault_reached = unsafe {
+        llama_cpp_bindings_sys::llama_rs_fault_point_reached(
+            llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_LLGUIDANCE_FACTORY_FAILS,
+        )
+    };
+
+    if factory_fault_reached {
+        return vec![UNCOMPILABLE_BIAS_SLICE.to_owned()];
+    }
+
+    SlicedBiasComputer::general_slices()
+}
+
 fn create_llg_sampler_from_tok_env(
     tok_env: Arc<ApproximateTokEnv>,
     grammar_kind: &str,
@@ -113,10 +131,13 @@ fn create_llg_sampler_from_tok_env(
 ) -> Result<LlamaSampler, GrammarError> {
     let tok_env_dyn: Arc<dyn toktrie::TokenizerEnv + Sync> = tok_env.clone();
 
-    let factory = llguidance::ParserFactory::new_simple(&tok_env_dyn).map_err(|factory_error| {
-        GrammarError::LlguidanceFactoryUnavailable {
-            message: factory_error.to_string(),
-        }
+    let factory = llguidance::ParserFactory::new(
+        &tok_env_dyn,
+        InferenceCapabilities::default(),
+        &bias_slices(),
+    )
+    .map_err(|factory_error| GrammarError::LlguidanceFactoryUnavailable {
+        message: factory_error.to_string(),
     })?;
 
     let grammar = llguidance::api::TopLevelGrammar::from_tagged_str(grammar_kind, grammar_data)
@@ -171,6 +192,10 @@ mod tests {
     use toktrie::TokRxInfo;
     use toktrie::TokTrie;
 
+    use llama_cpp_fault_injection::ArmedFault;
+    use toktrie::InferenceCapabilities;
+
+    use super::UNCOMPILABLE_BIAS_SLICE;
     use super::create_llg_sampler_from_tok_env;
     use crate::GrammarError;
     use crate::SampleError;
@@ -185,14 +210,17 @@ mod tests {
     const LETTER_B: LlamaToken = LlamaToken::new(1);
     const OUT_OF_VOCABULARY: LlamaToken = LlamaToken::new(2);
 
-    fn letter_a_sampler() -> Result<LlamaSampler, GrammarError> {
+    fn letters() -> Arc<ApproximateTokEnv> {
         let vocabulary_without_end_of_generation = TokRxInfo::new(2, INVALID_TOKEN);
-        let letters = TokTrie::from(
+
+        Arc::new(ApproximateTokEnv::new(TokTrie::from(
             &vocabulary_without_end_of_generation,
             &[b"a".to_vec(), b"b".to_vec()],
-        );
+        )))
+    }
 
-        create_llg_sampler_from_tok_env(Arc::new(ApproximateTokEnv::new(letters)), "regex", "a")
+    fn letter_a_sampler() -> Result<LlamaSampler, GrammarError> {
+        create_llg_sampler_from_tok_env(letters(), "regex", "a")
     }
 
     fn letter_candidates() -> LlamaTokenDataArray {
@@ -282,5 +310,24 @@ mod tests {
                 message: out_of_vocabulary_failure(),
             })
         );
+    }
+
+    #[test]
+    fn creating_a_sampler_reports_a_parser_factory_llguidance_cannot_build() {
+        let letters_env: Arc<dyn toktrie::TokenizerEnv + Sync> = letters();
+        let factory_failure = llguidance::ParserFactory::new(
+            &letters_env,
+            InferenceCapabilities::default(),
+            &[UNCOMPILABLE_BIAS_SLICE.to_owned()],
+        )
+        .err()
+        .map(|factory_error| GrammarError::LlguidanceFactoryUnavailable {
+            message: factory_error.to_string(),
+        });
+        let _fault =
+            ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_LLGUIDANCE_FACTORY_FAILS);
+
+        assert_ne!(factory_failure, None);
+        assert_eq!(letter_a_sampler().err(), factory_failure);
     }
 }

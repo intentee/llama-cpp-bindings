@@ -9,11 +9,7 @@ fn try_parse_one_object(
     input: &str,
     shape: &JsonObjectShape,
 ) -> Result<Option<(ParsedToolCall, usize)>, JsonObjectFailure> {
-    let trimmed_start = input.find('{');
-    let Some(start) = trimmed_start else {
-        return Ok(None);
-    };
-
+    let start = input.find('{').unwrap_or(input.len());
     let mut stream = serde_json::Deserializer::from_str(&input[start..])
         .into_iter::<serde_json::Map<String, serde_json::Value>>();
     let map = match stream.next() {

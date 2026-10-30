@@ -1,4 +1,5 @@
 #include "wrapper_mtmd.h"
+#include "wrapper_fault_injection.h"
 #include <llama.h>
 #include <tools/mtmd/mtmd.h>
 #include <tools/mtmd/mtmd-helper.h>
@@ -202,6 +203,8 @@ extern "C" auto llama_rs_mtmd_tokenize_from_parts(
     }
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_MTMD_TOKENIZE_FROM_PARTS_THROWS);
+
         int32_t const result = mtmd_tokenize_from_parts(ctx, output, parts, num_parts, add_special);
         switch (result) {
             case 0:
@@ -340,6 +343,8 @@ extern "C" auto llama_rs_mtmd_get_memory_usage(
     *out_device_memory_count = 0;
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_MTMD_GET_MEMORY_USAGE_THROWS);
+
         const mtmd_memory_usage usage = mtmd_get_memory_usage(mmproj_path, ctx_params);
 
         if (usage.backend_mem_usage.size() > device_memory_capacity) {
@@ -439,6 +444,8 @@ extern "C" auto llama_rs_mtmd_input_chunks_init(
     *out_chunks = nullptr;
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS);
+
         *out_chunks = mtmd_input_chunks_init();
 
         return LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK;
@@ -477,4 +484,22 @@ extern "C" auto llama_rs_mtmd_input_chunk_copy(
             LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION,
             LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED);
     }
+}
+
+extern "C" auto llama_rs_mtmd_input_chunks_get(const struct mtmd_input_chunks * chunks, size_t index)
+    -> const struct mtmd_input_chunk * {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_GET_RETURNS_NULL)) {
+        return nullptr;
+    }
+
+    return mtmd_input_chunks_get(chunks, index);
+}
+
+extern "C" auto llama_rs_mtmd_input_chunk_get_type(const struct mtmd_input_chunk * chunk)
+    -> mtmd_input_chunk_type {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNK_TYPE_UNKNOWN)) {
+        return MTMD_INPUT_CHUNK_TYPE_COUNT;
+    }
+
+    return mtmd_input_chunk_get_type(chunk);
 }

@@ -41,7 +41,7 @@ fn build_multimodal_chunks_and_eval_into_usage(
     };
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
-    let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
+    let expected = ChunkTokenBreakdown::from_chunks(&chunks);
 
     let context_params = (*fixture.context_params).into_llama_context_params();
     let mut context = LlamaContext::from_model(model, fixture.backend, context_params)?;

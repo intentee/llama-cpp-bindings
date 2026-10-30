@@ -28,6 +28,7 @@ mod tests {
     use std::process::ExitCode;
 
     use libtest_mimic::Conclusion;
+    use llama_cpp_bindings::error::LlamaCppError;
     use llama_cpp_bindings::llama_backend::LlamaBackend;
 
     use crate::harness_run_error::HarnessRunError;
@@ -97,7 +98,12 @@ mod tests {
 
         let outcome = run_to_conclusions();
 
-        assert!(matches!(outcome, Err(HarnessRunError::BackendInit(_))));
+        assert_eq!(
+            outcome.err(),
+            Some(HarnessRunError::BackendInit(
+                LlamaCppError::BackendAlreadyInitialized
+            ))
+        );
     }
 
     #[test]

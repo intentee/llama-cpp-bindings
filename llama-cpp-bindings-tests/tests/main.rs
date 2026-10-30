@@ -4,6 +4,7 @@ mod batch_context_limits;
 mod chat_answer_parsing;
 mod chat_prompt_rendering;
 mod chat_session_input_validation;
+mod chat_session_llama_cpp_failures;
 mod chat_template_lookup;
 mod chat_template_tool_call_support;
 mod completion_usage_accounting;

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use crate::compile_command::CompileCommand;
 use crate::cpp_standard::CPP_STANDARD;
+use crate::fault_injection_define::FAULT_INJECTION_DEFINE;
 use crate::vendored_include_dirs::VENDORED_INCLUDE_DIRS;
 use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
 use crate::wrapper_source_paths::wrapper_source_paths;
@@ -26,7 +27,11 @@ impl CompileCommandsFile {
         wrapper_source_paths(&self.sys_dir)
             .into_iter()
             .map(|file| {
-                let mut arguments = vec![CPP_COMPILER.to_owned(), format!("-std={CPP_STANDARD}")];
+                let mut arguments = vec![
+                    CPP_COMPILER.to_owned(),
+                    format!("-std={CPP_STANDARD}"),
+                    format!("-D{FAULT_INJECTION_DEFINE}"),
+                ];
 
                 for include_dir in WRAPPER_INCLUDE_DIRS {
                     arguments.push(format!("-I{}", absolute_path(&self.sys_dir, include_dir)));
@@ -159,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn the_compiler_and_standard_lead_the_command_line() {
+    fn the_compiler_standard_and_fault_injection_lead_the_command_line() {
         let commands = database_for("/unused").commands();
 
         assert_eq!(
@@ -168,11 +173,15 @@ mod tests {
                 .map(|command| command
                     .arguments
                     .iter()
-                    .take(2)
+                    .take(3)
                     .cloned()
                     .collect::<Vec<String>>())
                 .unwrap_or_default(),
-            vec!["c++".to_owned(), "-std=c++17".to_owned()]
+            vec![
+                "c++".to_owned(),
+                "-std=c++17".to_owned(),
+                "-DLLAMA_RS_FAULT_INJECTION".to_owned()
+            ]
         );
     }
 

@@ -13,6 +13,7 @@ encoding_rs = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
+llama-cpp-fault-injection = { workspace = true }
 llama-cpp-test-harness = { workspace = true }
 serde_json = { workspace = true }
 toktrie = { workspace = true }

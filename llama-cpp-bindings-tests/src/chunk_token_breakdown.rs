@@ -1,5 +1,3 @@
-use anyhow::Context;
-use anyhow::Result;
 use llama_cpp_bindings::mtmd::MtmdInputChunkType;
 use llama_cpp_bindings::mtmd::MtmdInputChunks;
 
@@ -10,27 +8,34 @@ pub struct ChunkTokenBreakdown {
 }
 
 impl ChunkTokenBreakdown {
-    /// # Errors
+    /// # Panics
     ///
-    /// Forwards chunk access and chunk-type classification errors.
-    pub fn from_chunks(chunks: &MtmdInputChunks) -> Result<Self> {
+    /// Panics when a chunk below the chunk count is missing or reports a type unknown to the
+    /// bindings.
+    #[must_use]
+    pub fn from_chunks(chunks: &MtmdInputChunks) -> Self {
         let mut breakdown = Self {
             text: 0,
             image: 0,
             audio: 0,
         };
+
         for index in 0..chunks.len() {
             let chunk = chunks
                 .get(index)
-                .with_context(|| format!("chunk index {index} is missing"))?;
-            let n_tokens = u64::try_from(chunk.n_tokens())?;
-            match chunk.chunk_type()? {
+                .expect("every index below the chunk count must hold a chunk");
+            let n_tokens = u64::try_from(chunk.n_tokens()).expect("a chunk's token count fits u64");
+
+            match chunk
+                .chunk_type()
+                .expect("every chunk must have a known type")
+            {
                 MtmdInputChunkType::Text => breakdown.text += n_tokens,
                 MtmdInputChunkType::Image => breakdown.image += n_tokens,
                 MtmdInputChunkType::Audio => breakdown.audio += n_tokens,
             }
         }
 
-        Ok(breakdown)
+        breakdown
     }
 }

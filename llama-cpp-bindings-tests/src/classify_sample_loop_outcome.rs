@@ -99,11 +99,34 @@ mod tests {
 
     #[test]
     fn counts_the_end_of_generation_in_the_section_it_ended() {
-        let mut outcome = ClassifySampleLoopOutcome::default();
+        let counts = [
+            SampledTokenSection::Content,
+            SampledTokenSection::Reasoning,
+            SampledTokenSection::ToolCall,
+            SampledTokenSection::Pending,
+        ]
+        .map(|section| {
+            let mut outcome = ClassifySampleLoopOutcome::default();
 
-        outcome.record_end_of_generation(SampledTokenSection::Content);
+            outcome.record_end_of_generation(section);
 
-        assert!(outcome.eog_seen);
-        assert_eq!(outcome.observed_content, 1);
+            [
+                u64::from(outcome.eog_seen),
+                outcome.observed_content,
+                outcome.observed_reasoning,
+                outcome.observed_tool_call,
+                outcome.observed_undeterminable,
+            ]
+        });
+
+        assert_eq!(
+            counts,
+            [
+                [1, 1, 0, 0, 0],
+                [1, 0, 1, 0, 0],
+                [1, 0, 0, 1, 0],
+                [1, 0, 0, 0, 1],
+            ]
+        );
     }
 }

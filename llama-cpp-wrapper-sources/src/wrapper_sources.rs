@@ -4,6 +4,7 @@ pub const WRAPPER_SOURCES: &[&str] = &[
     "wrapper_chat_templates.cpp",
     "wrapper_common.cpp",
     "wrapper_context.cpp",
+    "wrapper_fault_injection.cpp",
     "wrapper_fit.cpp",
     "wrapper_gbnf.cpp",
     "wrapper_mtmd.cpp",

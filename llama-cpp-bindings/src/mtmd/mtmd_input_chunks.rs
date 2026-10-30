@@ -111,8 +111,9 @@ impl MtmdInputChunks {
             return None;
         }
 
-        let chunk_ptr =
-            unsafe { llama_cpp_bindings_sys::mtmd_input_chunks_get(self.chunks.as_ptr(), index) };
+        let chunk_ptr = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_get(self.chunks.as_ptr(), index)
+        };
 
         NonNull::new(chunk_ptr.cast_mut()).map(|ptr| MtmdInputChunk {
             chunk: ptr,

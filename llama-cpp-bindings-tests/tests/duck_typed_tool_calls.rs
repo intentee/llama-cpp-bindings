@@ -17,7 +17,7 @@ fn assert_duck_types_paris_weather_call(fixture: &LlamaFixture<'_>, answer: &str
 
     assert!(!session.supports_tool_calls());
     assert_eq!(
-        recognized_answer(&session, answer, ChatOutputCompleteness::Finished)?.tool_calls,
+        recognized_answer(&session, answer, ChatOutputCompleteness::Finished).tool_calls,
         [paris_weather_tool_call()]
     );
 

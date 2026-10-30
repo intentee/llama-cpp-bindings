@@ -120,8 +120,9 @@ impl MtmdInputChunk {
     /// # Errors
     /// Returns an error if the chunk type is unknown.
     pub fn chunk_type(&self) -> Result<MtmdInputChunkType, MtmdInputChunkTypeError> {
-        let chunk_type =
-            unsafe { llama_cpp_bindings_sys::mtmd_input_chunk_get_type(self.chunk.as_ptr()) };
+        let chunk_type = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunk_get_type(self.chunk.as_ptr())
+        };
         MtmdInputChunkType::try_from(chunk_type)
     }
 

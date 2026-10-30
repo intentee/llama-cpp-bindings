@@ -27,17 +27,17 @@ const MAX_REASONING_ANSWER_TOKENS: i32 = 512;
 )]
 fn deepseek_r1_8b_answers_without_reasoning_after_its_reasoning_is_closed(
     fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let session = closed_reasoning_chat_session(fixture.model, ARITHMETIC_QUESTION, "[]")?;
+) {
+    let session = closed_reasoning_chat_session(fixture.model, ARITHMETIC_QUESTION, "[]");
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
-        sampler: &mut penalized_nucleus_sampler(fixture.model)?,
+        sampler: &mut penalized_nucleus_sampler(fixture.model),
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_content_without_reasoning(&session)
+    answer.assert_content_without_reasoning(&session);
 }
 
 #[llama_test(
@@ -55,12 +55,14 @@ fn deepseek_r1_8b_reasoning_streams_match_the_parsed_answer_when_thinking_is_ena
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
-        sampler: &mut penalized_nucleus_sampler(fixture.model)?,
+        sampler: &mut penalized_nucleus_sampler(fixture.model),
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_reasoning_matches_parse(&session)
+    answer.assert_reasoning_matches_parse(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -81,9 +83,11 @@ fn gemma4_answers_without_reasoning_when_thinking_is_disabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_content_without_reasoning(&session)
+    answer.assert_content_without_reasoning(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -119,9 +123,11 @@ fn gemma4_reasoning_streams_match_the_parsed_answer_when_reasoning_is_prefilled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_reasoning_matches_parse(&session)
+    answer.assert_reasoning_matches_parse(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -139,12 +145,14 @@ fn glm47_answers_without_reasoning_when_thinking_is_disabled(
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
-        sampler: &mut penalized_nucleus_sampler(fixture.model)?,
+        sampler: &mut penalized_nucleus_sampler(fixture.model),
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_content_without_reasoning(&session)
+    answer.assert_content_without_reasoning(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -162,12 +170,14 @@ fn glm47_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
-        sampler: &mut penalized_nucleus_sampler(fixture.model)?,
+        sampler: &mut penalized_nucleus_sampler(fixture.model),
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_reasoning_matches_parse(&session)
+    answer.assert_reasoning_matches_parse(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -181,16 +191,18 @@ fn glm47_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
 fn mistral3_answers_without_reasoning_after_its_reasoning_is_closed(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = closed_reasoning_chat_session(fixture.model, SINGLE_WORD_INSTRUCTION, "[]")?;
+    let session = closed_reasoning_chat_session(fixture.model, SINGLE_WORD_INSTRUCTION, "[]");
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_content_without_reasoning(&session)
+    answer.assert_content_without_reasoning(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -211,9 +223,11 @@ fn mistral3_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_reasoning_matches_parse(&session)
+    answer.assert_reasoning_matches_parse(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -231,12 +245,14 @@ fn qwen35_answers_without_reasoning_when_thinking_is_disabled(
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
-        sampler: &mut penalized_nucleus_sampler(fixture.model)?,
+        sampler: &mut penalized_nucleus_sampler(fixture.model),
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_content_without_reasoning(&session)
+    answer.assert_content_without_reasoning(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -254,12 +270,14 @@ fn qwen35_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
-        sampler: &mut penalized_nucleus_sampler(fixture.model)?,
+        sampler: &mut penalized_nucleus_sampler(fixture.model),
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_reasoning_matches_parse(&session)
+    answer.assert_reasoning_matches_parse(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -277,12 +295,14 @@ fn qwen36_answers_without_reasoning_when_thinking_is_disabled(
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
-        sampler: &mut penalized_nucleus_sampler(fixture.model)?,
+        sampler: &mut penalized_nucleus_sampler(fixture.model),
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_content_without_reasoning(&session)
+    answer.assert_content_without_reasoning(&session);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -300,10 +320,12 @@ fn qwen36_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
     let answer = ChatAnswerGeneration {
         fixture,
         session: &session,
-        sampler: &mut penalized_nucleus_sampler(fixture.model)?,
+        sampler: &mut penalized_nucleus_sampler(fixture.model),
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run()?;
+    .run();
 
-    answer.assert_reasoning_matches_parse(&session)
+    answer.assert_reasoning_matches_parse(&session);
+
+    Ok(())
 }

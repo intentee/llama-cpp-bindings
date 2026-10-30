@@ -39,7 +39,7 @@ fn qwen35_classifier_ends_generation_without_emitting_the_end_of_generation_toke
             &mut classifier,
             fixture.model,
             GENERATED_TEXT
-        )?),
+        )),
         GENERATED_TEXT
     );
 
@@ -62,7 +62,7 @@ fn gemma3_releases_a_held_bare_json_prefix_as_content_when_generation_ends(
     let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", false)?;
     let mut classifier =
         SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
-    let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT)?;
+    let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT);
 
     assert!(!session.supports_tool_calls());
     assert_eq!(visible_text(&outcomes), GENERATED_TEXT);
@@ -92,7 +92,7 @@ fn gemma3_attributes_a_bare_json_tool_call_object_to_the_tool_call(
     let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", false)?;
     let mut classifier =
         SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
-    let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT)?;
+    let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT);
 
     assert!(
         outcomes

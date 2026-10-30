@@ -65,8 +65,8 @@ fn validate_string_length_for_tokenizer(length: usize) -> Result<c_int, StringTo
 }
 
 fn cstring_with_validated_len(text: &str) -> Result<TokenizerInput, StringToTokenError> {
+    let length = validate_string_length_for_tokenizer(text.len())?;
     let c_string = CString::new(text)?;
-    let length = validate_string_length_for_tokenizer(c_string.as_bytes().len())?;
 
     Ok(TokenizerInput {
         text: c_string,
@@ -359,7 +359,7 @@ impl LlamaModel {
         let mut buffer: Vec<u8> = vec![0u8; buffer_size];
         let lstrip = lstrip.map_or(0, |strip_count| i32::from(strip_count.get()));
         let size = unsafe {
-            llama_cpp_bindings_sys::llama_token_to_piece(
+            llama_cpp_bindings_sys::llama_rs_token_to_piece(
                 self.vocab_ptr(),
                 token.0,
                 buffer.as_mut_ptr().cast::<c_char>(),
@@ -874,13 +874,32 @@ impl Drop for LlamaModel {
 
 #[cfg(test)]
 mod cstring_with_validated_len_tests {
+    use std::ffi::CString;
+    use std::str;
+
     use super::cstring_with_validated_len;
+    use crate::StringToTokenError;
 
     #[test]
     fn cstring_with_validated_len_null_byte_returns_error() {
-        let result = cstring_with_validated_len("null\0byte");
+        assert_eq!(
+            cstring_with_validated_len("null\0byte").err(),
+            CString::new("null\0byte")
+                .err()
+                .map(StringToTokenError::NulError)
+        );
+    }
 
-        assert!(result.is_err());
+    #[test]
+    fn a_text_longer_than_a_c_int_is_refused_before_it_is_copied() {
+        let too_long = vec![0_u8; usize::try_from(i32::MAX).unwrap() + 1];
+
+        assert_eq!(
+            cstring_with_validated_len(str::from_utf8(&too_long).unwrap()).err(),
+            i32::try_from(too_long.len())
+                .err()
+                .map(StringToTokenError::CIntConversionError)
+        );
     }
 }
 
@@ -890,9 +909,10 @@ mod validate_string_length_for_tokenizer_tests {
 
     #[test]
     fn validate_string_length_overflow_returns_error() {
-        let result = validate_string_length_for_tokenizer(usize::MAX);
-
-        assert!(result.is_err());
+        assert_eq!(
+            validate_string_length_for_tokenizer(usize::MAX),
+            i32::try_from(usize::MAX).map_err(crate::StringToTokenError::CIntConversionError)
+        );
     }
 }
 

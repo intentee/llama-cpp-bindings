@@ -2,6 +2,8 @@ use std::num::NonZeroU32;
 
 use llama_cpp_bindings::LlamaContextLoadError;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_fault_injection::ArmedFault;
+use llama_cpp_fault_injection::injected_fault_message;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -92,6 +94,30 @@ fn new_context_rejects_more_sequences_than_a_causal_context_can_output(fixture: 
         Some(LlamaContextLoadError::SequencesExceedOutputCapacity {
             n_seq_max: 2,
             output_capacity: 1,
+        })
+    );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 2048,
+    n_ubatch = 512,
+)]
+fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(fixture: &LlamaFixture<'_>) {
+    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_INIT_THROWS);
+
+    assert_eq!(
+        LlamaContext::from_model(
+            fixture.model,
+            fixture.backend,
+            (*fixture.context_params).into_llama_context_params(),
+        )
+        .err(),
+        Some(LlamaContextLoadError::Reported {
+            message: injected_fault_message(),
         })
     );
 }

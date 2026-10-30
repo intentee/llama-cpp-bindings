@@ -69,7 +69,7 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
         "tokenization should produce at least one chunk"
     );
 
-    let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
+    let expected = ChunkTokenBreakdown::from_chunks(&chunks);
 
     eprintln!(
         "tokenized into {} chunks, text {} image {} audio {}",
@@ -119,7 +119,7 @@ fn multimodal_vision_inference_produces_output(fixture: &LlamaFixture<'_>) -> Re
         initial_position: n_past,
         max_generated_tokens: 512,
     }
-    .run()?;
+    .run();
 
     eprintln!("generated text: {}", totals.generated.text());
 

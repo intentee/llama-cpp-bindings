@@ -125,7 +125,7 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
         initial_position: n_past,
         max_generated_tokens: 512,
     }
-    .run()?;
+    .run();
 
     Ok(outcome.generated.text().to_lowercase())
 }

@@ -1,25 +1,22 @@
-use anyhow::Result;
-use anyhow::bail;
-use llama_cpp_bindings::ChatMessageParseOutcome;
 use llama_cpp_bindings::ChatOutput;
 use llama_cpp_bindings::ChatOutputCompleteness;
 use llama_cpp_bindings::ChatSession;
 use llama_cpp_bindings::ParsedChatMessage;
 
-/// Parses `answer` with the session's parser, failing when the parser does not recognize it.
+/// Parses `answer` with the session's parser.
 ///
-/// # Errors
+/// # Panics
 ///
-/// Forwards parse errors, and fails when the answer does not match the session's format.
+/// Panics when parsing fails or the parser does not recognize the answer.
+#[must_use]
 pub fn recognized_answer(
     session: &ChatSession<'_>,
     answer: &str,
     completeness: ChatOutputCompleteness,
-) -> Result<ParsedChatMessage> {
-    match session.parse(&ChatOutput::from(answer), completeness)? {
-        ChatMessageParseOutcome::Recognized(parsed) => Ok(parsed),
-        ChatMessageParseOutcome::Unrecognized(raw) => {
-            bail!("the session's parser must recognize {answer:?}; got {raw:?}")
-        }
-    }
+) -> ParsedChatMessage {
+    session
+        .parse(&ChatOutput::from(answer), completeness)
+        .expect("the session's parser must parse the answer")
+        .into_recognized()
+        .expect("the session's parser must recognize the answer")
 }

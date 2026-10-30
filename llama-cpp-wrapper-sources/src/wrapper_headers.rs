@@ -6,6 +6,7 @@ pub const WRAPPER_HEADERS: &[&str] = &[
     "wrapper_chat_templates_handle.h",
     "wrapper_common.h",
     "wrapper_context.h",
+    "wrapper_fault_injection.h",
     "wrapper_fit.h",
     "wrapper_gbnf.h",
     "wrapper_mtmd.h",

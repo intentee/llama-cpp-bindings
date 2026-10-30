@@ -3,6 +3,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
+use llama_cpp_bindings::FfiContractError;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
 use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
@@ -12,6 +13,7 @@ use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdEvalError;
 use llama_cpp_bindings::mtmd::MtmdInputChunkType;
+use llama_cpp_bindings::mtmd::MtmdInputChunkTypeError;
 use llama_cpp_bindings::mtmd::MtmdInputChunks;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::NonCausalChunkMicroBatchMismatch;
@@ -21,6 +23,7 @@ use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
 use llama_cpp_bindings_tests::prime_kv_cache_with::prime_kv_cache_with;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
+use llama_cpp_fault_injection::ArmedFault;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -564,7 +567,7 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
         .mtmd_context
         .expect("mmproj_file declared in attribute");
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
-    let image_tokens = ChunkTokenBreakdown::from_chunks(&chunks)?.image;
+    let image_tokens = ChunkTokenBreakdown::from_chunks(&chunks).image;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -694,7 +697,7 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
         .mtmd_context
         .expect("mmproj_file declared in attribute");
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
-    let breakdown = ChunkTokenBreakdown::from_chunks(&chunks)?;
+    let breakdown = ChunkTokenBreakdown::from_chunks(&chunks);
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -727,6 +730,135 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
         ))
     ));
     assert_eq!(classifier.usage().input_image_tokens, 0);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 256,
+    n_ubatch = 256,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn eval_chunks_reports_an_image_the_context_has_no_room_left_for(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
+    let mut llama_ctx = fixture.build_context()?;
+
+    prime_kv_cache_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
+
+    let primed_positions = llama_ctx.kv_cache_seq_pos_max(0)? + 1;
+
+    assert_eq!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, primed_positions, 0, 256, true),
+        Err(MtmdEvalError::EvalFailed { code: 1 })
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 256,
+    n_ubatch = 256,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn fitting_reports_a_chunk_llama_cpp_does_not_return(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_GET_RETURNS_NULL,
+    );
+
+    assert_eq!(
+        chunks.fit_to_micro_batch(mtmd_ctx, 256),
+        Err(MtmdEvalError::FfiContract(FfiContractError {
+            operation: "mtmd_input_chunks_get",
+            detail: "returned a null chunk within the chunk count",
+        }))
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 256,
+    n_ubatch = 256,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn fitting_reports_a_chunk_type_the_bindings_do_not_recognize(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNK_TYPE_UNKNOWN);
+
+    assert_eq!(
+        chunks.fit_to_micro_batch(mtmd_ctx, 256),
+        Err(MtmdEvalError::UnknownChunkType(MtmdInputChunkTypeError(
+            llama_cpp_bindings_sys::MTMD_INPUT_CHUNK_TYPE_COUNT
+        )))
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 256,
+    n_ubatch = 256,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn classifier_reports_a_fitted_chunk_llama_cpp_no_longer_returns(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
+    let mut llama_ctx = fixture.build_context()?;
+    let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
+    let _fault = ArmedFault::after_passing(
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_GET_RETURNS_NULL,
+        chunks.len(),
+    );
+
+    assert_eq!(
+        classifier.eval_multimodal_chunks(
+            &chunks,
+            mtmd_ctx,
+            &mut llama_ctx,
+            EvalMultimodalChunksParams {
+                start_position: 0,
+                seq_id: 0,
+                n_batch: 256,
+                logits_last: true,
+            },
+        ),
+        Err(EvalMultimodalChunksError::ChunkOutOfBounds(0))
+    );
 
     Ok(())
 }

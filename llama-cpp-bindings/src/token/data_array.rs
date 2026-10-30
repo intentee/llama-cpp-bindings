@@ -220,8 +220,12 @@ impl LlamaTokenDataArray {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_fault_injection::ArmedFault;
+    use llama_cpp_fault_injection::injected_fault_message;
+
     use super::LlamaTokenDataArray;
     use crate::error::SamplerApplyError;
+    use crate::error::SamplingError;
     use crate::error::TokenSamplingError;
     use crate::token::LlamaToken;
     use crate::token::data::LlamaTokenData;
@@ -335,6 +339,42 @@ mod tests {
                 )),
                 Err(TokenSamplingError::SamplerApply(
                     SamplerApplyError::EveryCandidateExcluded
+                )),
+            ]
+        );
+    }
+
+    #[test]
+    fn sampling_reports_a_selecting_sampler_llama_cpp_cannot_build() {
+        let distribution_failure = {
+            let _fault = ArmedFault::at(
+                llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_DIST_THROWS,
+            );
+
+            excluded_candidates().sample_token(7)
+        };
+        let greedy_failure = {
+            let _fault = ArmedFault::at(
+                llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GREEDY_THROWS,
+            );
+
+            excluded_candidates().sample_token_greedy()
+        };
+
+        assert_eq!(
+            [distribution_failure, greedy_failure],
+            [
+                Err(TokenSamplingError::SamplerInitialization(
+                    SamplingError::Reported {
+                        sampler: "distribution",
+                        message: injected_fault_message(),
+                    }
+                )),
+                Err(TokenSamplingError::SamplerInitialization(
+                    SamplingError::Reported {
+                        sampler: "greedy",
+                        message: injected_fault_message(),
+                    }
                 )),
             ]
         );

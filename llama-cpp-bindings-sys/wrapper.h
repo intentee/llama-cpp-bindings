@@ -5,6 +5,7 @@
 #include "wrapper_chat_templates.h"
 #include "wrapper_common.h"
 #include "wrapper_context.h"
+#include "wrapper_fault_injection.h"
 #include "wrapper_fit.h"
 #include "wrapper_gbnf.h"
 #include "wrapper_mtmd.h"

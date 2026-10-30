@@ -10,6 +10,18 @@ pub enum ChatMessageParseOutcome {
 }
 
 impl ChatMessageParseOutcome {
+    /// The recognized message, or the raw answer the parser did not recognize.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`RawChatMessage`] when the answer does not match the template's format.
+    pub fn into_recognized(self) -> Result<ParsedChatMessage, RawChatMessage> {
+        match self {
+            Self::Recognized(message) => Ok(message),
+            Self::Unrecognized(raw) => Err(raw),
+        }
+    }
+
     /// The message this answer becomes when `tool_calls` were recognized after it: a recognized
     /// answer keeps its content and reasoning, an unrecognized one is kept whole as content.
     #[must_use]
@@ -74,6 +86,32 @@ mod tests {
                 String::new(),
                 vec![weather_call()]
             )
+        );
+    }
+
+    #[test]
+    fn a_recognized_answer_is_its_message() {
+        let message = ParsedChatMessage::new("Paris.".to_owned(), String::new(), Vec::new());
+
+        assert_eq!(
+            ChatMessageParseOutcome::Recognized(message.clone()).into_recognized(),
+            Ok(message)
+        );
+    }
+
+    fn odd_answer() -> RawChatMessage {
+        RawChatMessage {
+            text: "<odd>Paris.".to_owned(),
+            completeness: ChatOutputCompleteness::Finished,
+            ffi_error_message: "the format differs".to_owned(),
+        }
+    }
+
+    #[test]
+    fn an_unrecognized_answer_is_its_raw_text() {
+        assert_eq!(
+            ChatMessageParseOutcome::Unrecognized(odd_answer()).into_recognized(),
+            Err(odd_answer())
         );
     }
 }

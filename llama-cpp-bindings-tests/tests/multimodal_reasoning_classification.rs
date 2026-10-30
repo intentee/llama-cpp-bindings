@@ -96,7 +96,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run()?;
+    .run();
 
     let usage = classifier.usage();
 
@@ -206,7 +206,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run()?;
+    .run();
 
     let usage = classifier.usage();
 
@@ -307,7 +307,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run()?;
+    .run();
 
     let usage = classifier.usage();
 
@@ -399,7 +399,7 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run()?;
+    .run();
 
     let usage = classifier.usage();
 

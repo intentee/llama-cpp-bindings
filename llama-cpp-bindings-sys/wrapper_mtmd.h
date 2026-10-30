@@ -235,6 +235,12 @@ llama_rs_mtmd_input_chunk_copy_status llama_rs_mtmd_input_chunk_copy(
     struct mtmd_input_chunk ** out_chunk,
     char ** out_error);
 
+const struct mtmd_input_chunk * llama_rs_mtmd_input_chunks_get(
+    const struct mtmd_input_chunks * chunks,
+    size_t index);
+
+enum mtmd_input_chunk_type llama_rs_mtmd_input_chunk_get_type(const struct mtmd_input_chunk * chunk);
+
 #ifdef __cplusplus
 }
 #endif

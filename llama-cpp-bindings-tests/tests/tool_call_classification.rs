@@ -48,8 +48,8 @@ fn qwen35_reasoning_closed_by_a_tool_call_is_attributed_to_each_section(
     let answer = format!("{REASONING_BEFORE_THE_CALL}{QWEN_XML_PARIS_WEATHER_CALL}");
     let mut classifier =
         SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
-    let outcomes = ingested_generation(&mut classifier, fixture.model, &answer)?;
-    let parsed = recognized_answer(&session, &answer, ChatOutputCompleteness::Finished)?;
+    let outcomes = ingested_generation(&mut classifier, fixture.model, &answer);
+    let parsed = recognized_answer(&session, &answer, ChatOutputCompleteness::Finished);
 
     assert_eq!(
         raw_text_where(&outcomes, |token| matches!(

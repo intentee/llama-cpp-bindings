@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::harness_arguments_error::HarnessArgumentsError;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Eq, Error, PartialEq)]
 pub enum HarnessRunError {
     #[error("failed to parse harness arguments: {0}")]
     ArgumentParsing(#[from] HarnessArgumentsError),

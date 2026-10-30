@@ -1,7 +1,4 @@
-#![cfg_attr(
-    not(test),
-    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
-)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 pub mod chat_answer;
 pub mod chat_answer_generation;
 pub mod chunk_token_breakdown;
@@ -20,3 +17,4 @@ pub mod prime_kv_cache_with;
 pub mod prompt_question;
 pub mod recognized_answer;
 pub mod user_turn_chat_session;
+pub mod weather_chat_session;

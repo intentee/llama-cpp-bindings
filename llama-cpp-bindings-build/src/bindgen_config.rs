@@ -3,6 +3,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
+use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
+
 use crate::BuildError;
 use crate::android_ndk::AndroidNdk;
 use crate::debug_log;
@@ -211,6 +213,10 @@ fn create_base_builder(llama_src: &Path, callbacks: BindingCallbacks) -> bindgen
 
     for function in DEPRECATED_FUNCTIONS {
         builder = builder.blocklist_function(function);
+    }
+
+    if cfg!(feature = "fault-injection") {
+        builder = builder.clang_arg(format!("-D{FAULT_INJECTION_DEFINE}"));
     }
 
     builder

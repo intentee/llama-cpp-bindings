@@ -186,6 +186,9 @@ mod tests {
     use std::num::NonZeroU32;
     use std::ptr;
 
+    use llama_cpp_fault_injection::ArmedFault;
+    use llama_cpp_fault_injection::injected_fault_message;
+
     use super::MtmdMemoryUsage;
     use super::get_memory_usage_status_to_result;
     use crate::mtmd::mtmd_context_params::MtmdContextParams;
@@ -236,6 +239,21 @@ mod tests {
                 .err(),
             Some(MtmdMemoryUsageError::Unloadable {
                 path: c"/nonexistent/mmproj.gguf".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn a_measurement_llama_cpp_fails_is_reported() {
+        let _fault = ArmedFault::at(
+            llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_GET_MEMORY_USAGE_THROWS,
+        );
+
+        assert_eq!(
+            MtmdMemoryUsage::measure(c"/nonexistent/mmproj.gguf", &MtmdContextParams::default())
+                .err(),
+            Some(MtmdMemoryUsageError::Reported {
+                message: injected_fault_message(),
             })
         );
     }

@@ -1,42 +1,18 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::ChatAssistantTurn;
 use llama_cpp_bindings::ChatOutputCompleteness;
 use llama_cpp_bindings::ChatSession;
-use llama_cpp_bindings::ChatSessionOptions;
 use llama_cpp_bindings::ChatToolChoice;
-use llama_cpp_bindings::model::LlamaChatMessage;
-use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::chat_answer_generation::ChatAnswerGeneration;
-use llama_cpp_bindings_tests::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
 use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
+use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
 const MAX_TOOL_CALL_TOKENS: i32 = 128;
-
-fn weather_session_with_tool_choice(
-    model: &LlamaModel,
-    tool_choice: ChatToolChoice,
-) -> Result<ChatSession<'_>> {
-    Ok(ChatSession::new(
-        model,
-        &[LlamaChatMessage::new(
-            "user".to_owned(),
-            "What is the weather in Paris?".to_owned(),
-        )?],
-        GET_WEATHER_TOOLS_JSON,
-        &ChatSessionOptions {
-            assistant_turn: ChatAssistantTurn::New,
-            enable_thinking: false,
-            parallel_tool_calls: false,
-            tool_choice,
-        },
-    )?)
-}
 
 fn generated_tool_call_answer(
     fixture: &LlamaFixture<'_>,
@@ -52,7 +28,7 @@ fn generated_tool_call_answer(
         sampler: &mut sampler,
         max_generated_tokens: MAX_TOOL_CALL_TOKENS,
     }
-    .run()?;
+    .run();
 
     Ok(answer.outcome.generated.text().to_owned())
 }
@@ -82,7 +58,7 @@ fn a_chat_session_without_tools_needs_no_grammar_sampler(fixture: &LlamaFixture<
     n_ubatch = 128,
 )]
 fn a_tool_choice_of_none_needs_no_grammar_sampler(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = weather_session_with_tool_choice(fixture.model, ChatToolChoice::None)?;
+    let session = weather_chat_session(fixture.model, ChatToolChoice::None);
 
     assert!(session.grammar_sampler()?.is_none());
 
@@ -100,12 +76,12 @@ fn a_tool_choice_of_none_needs_no_grammar_sampler(fixture: &LlamaFixture<'_>) ->
 fn qwen36_required_tool_call_grammar_constrains_the_answer_to_a_tool_call(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_session_with_tool_choice(fixture.model, ChatToolChoice::Required)?;
+    let session = weather_chat_session(fixture.model, ChatToolChoice::Required);
     let answer = generated_tool_call_answer(fixture, &session)?;
 
     assert!(!session.grammar_is_lazy());
     assert_eq!(
-        recognized_answer(&session, &answer, ChatOutputCompleteness::Finished)?.tool_calls,
+        recognized_answer(&session, &answer, ChatOutputCompleteness::Finished).tool_calls,
         [paris_weather_tool_call()]
     );
 
@@ -123,12 +99,12 @@ fn qwen36_required_tool_call_grammar_constrains_the_answer_to_a_tool_call(
 fn qwen36_automatic_tool_call_grammar_constrains_the_tool_call_after_its_trigger(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_session_with_tool_choice(fixture.model, ChatToolChoice::Auto)?;
+    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto);
     let answer = generated_tool_call_answer(fixture, &session)?;
 
     assert!(session.grammar_is_lazy());
     assert_eq!(
-        recognized_answer(&session, &answer, ChatOutputCompleteness::Finished)?.tool_calls,
+        recognized_answer(&session, &answer, ChatOutputCompleteness::Finished).tool_calls,
         [paris_weather_tool_call()]
     );
 

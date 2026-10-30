@@ -1,4 +1,5 @@
 use llama_cpp_wrapper_sources::cpp_standard::CPP_STANDARD;
+use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
 use llama_cpp_wrapper_sources::vendored_include_dirs::VENDORED_INCLUDE_DIRS;
 use llama_cpp_wrapper_sources::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
 use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
@@ -20,6 +21,10 @@ pub fn compile_cpp_wrappers(target_os: TargetOs) -> Result<(), BuildError> {
     }
 
     build.flag_if_supported(format!("-std={CPP_STANDARD}"));
+
+    if cfg!(feature = "fault-injection") {
+        build.define(FAULT_INJECTION_DEFINE, None);
+    }
 
     for source in WRAPPER_SOURCES {
         build.file(source);

@@ -110,7 +110,7 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
         initial_position,
         max_generated_tokens,
     }
-    .run()?;
+    .run();
     let t_main_end = ggml_time_us();
     let duration = Duration::from_micros(u64::try_from(t_main_end - t_main_start)?);
     let total_observed =
@@ -250,7 +250,7 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         initial_position,
         max_generated_tokens: 512,
     }
-    .run()?;
+    .run();
 
     println!();
 

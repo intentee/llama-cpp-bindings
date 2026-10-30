@@ -1221,12 +1221,32 @@ mod tests {
 
 #[cfg(test)]
 mod checked_usize_as_i32_sampling_tests {
+
+    use super::LlamaSampler;
     use super::checked_usize_as_i32_sampling;
+    use crate::error::SamplingError;
+    use crate::token::logit_bias::LlamaLogitBias;
 
     #[test]
     fn checked_usize_as_i32_sampling_overflow() {
-        let result = checked_usize_as_i32_sampling(usize::MAX);
-        assert!(result.is_err());
+        assert_eq!(
+            checked_usize_as_i32_sampling(usize::MAX),
+            i32::try_from(usize::MAX).map_err(SamplingError::IntegerOverflow)
+        );
+    }
+
+    #[test]
+    fn a_logit_bias_list_longer_than_a_c_int_is_refused() {
+        let bias_count = usize::try_from(i32::MAX).unwrap() + 1;
+        let zeroed_biases =
+            unsafe { Box::<[LlamaLogitBias]>::new_zeroed_slice(bias_count).assume_init() };
+
+        assert_eq!(
+            LlamaSampler::logit_bias(1, &zeroed_biases).err(),
+            i32::try_from(bias_count)
+                .err()
+                .map(SamplingError::IntegerOverflow)
+        );
     }
 }
 

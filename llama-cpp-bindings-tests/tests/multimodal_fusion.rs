@@ -100,7 +100,7 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
         .tokenize(input_text, &[&image_bitmap, &audio_bitmap])
         .with_context(|| "failed to tokenize combined image and audio input")?;
 
-    let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
+    let expected = ChunkTokenBreakdown::from_chunks(&chunks);
     assert!(
         expected.image > 0,
         "image input must produce at least one image-chunk token"
@@ -159,7 +159,7 @@ fn image_and_audio_together(fixture: &LlamaFixture<'_>) -> Result<()> {
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run()?;
+    .run();
 
     let description = outcome.generated.text().to_lowercase();
     assert!(

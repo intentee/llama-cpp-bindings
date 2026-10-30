@@ -1,4 +1,3 @@
-use anyhow::Result;
 use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ChatSession;
 use llama_cpp_bindings::SampledTokenClassifier;
@@ -19,24 +18,34 @@ pub struct ChatAnswerGeneration<'borrow, 'model> {
 }
 
 impl ChatAnswerGeneration<'_, '_> {
-    /// # Errors
+    /// # Panics
     ///
-    /// Forwards context creation, prompt tokenization, decoding, and sampling errors.
-    pub fn run(self) -> Result<ChatAnswer> {
+    /// Panics when creating the context, tokenizing or decoding the prompt, or generating the
+    /// answer fails.
+    #[must_use]
+    pub fn run(self) -> ChatAnswer {
         let Self {
             fixture,
             session,
             sampler,
             max_generated_tokens,
         } = self;
-        let mut context = fixture.build_context()?;
-        let prompt_tokens = session.tokenize_prompt()?;
+        let mut context = fixture
+            .build_context()
+            .expect("the fixture's context must build");
+        let prompt_tokens = session
+            .tokenize_prompt()
+            .expect("the session's prompt must tokenize");
         let mut classifier =
             SampledTokenClassifier::for_chat_session(session, BareJsonToolCalls::Detect);
         let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
-        classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
-        context.decode(&batch)?;
+        classifier
+            .feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)
+            .expect("the prompt must fit the batch");
+        context
+            .decode(&batch)
+            .expect("decoding the prompt must succeed");
         classifier.commit_prompt_tokens();
 
         let initial_position = batch.n_tokens();
@@ -48,11 +57,11 @@ impl ChatAnswerGeneration<'_, '_> {
             initial_position,
             max_generated_tokens,
         }
-        .run()?;
+        .run();
 
-        Ok(ChatAnswer {
+        ChatAnswer {
             outcome,
             usage: classifier.into_usage(),
-        })
+        }
     }
 }

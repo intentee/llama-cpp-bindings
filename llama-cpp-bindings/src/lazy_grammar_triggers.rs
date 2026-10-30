@@ -129,6 +129,9 @@ impl LazyGrammarTriggers {
 mod tests {
     use std::ptr;
 
+    use llama_cpp_fault_injection::ArmedFault;
+    use llama_cpp_fault_injection::injected_fault_message;
+
     use super::LazyGrammarTriggers;
     use super::anchored_pattern;
     use super::regex_escape_status_to_result;
@@ -252,6 +255,19 @@ mod tests {
                     "^\\s*\\{$".to_owned(),
                 ],
                 tokens: vec![LlamaToken::new(151_657)],
+            })
+        );
+    }
+
+    #[test]
+    fn a_trigger_word_llama_cpp_cannot_escape_is_reported() {
+        let _fault =
+            ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_REGEX_ESCAPE_THROWS);
+
+        assert_eq!(
+            LazyGrammarTriggers::of(vec![ChatGrammarTrigger::Word("<tool_call>".to_owned())]),
+            Err(GrammarError::Reported {
+                message: injected_fault_message(),
             })
         );
     }

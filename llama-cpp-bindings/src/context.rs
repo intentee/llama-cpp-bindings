@@ -983,7 +983,7 @@ impl<'model> LlamaContext<'model> {
         self.produced_logits()?;
 
         let row = NonNull::new(unsafe {
-            llama_cpp_bindings_sys::llama_get_logits_ith(self.context.as_ptr(), token_index)
+            llama_cpp_bindings_sys::llama_rs_get_logits_ith(self.context.as_ptr(), token_index)
         })
         .ok_or(LogitsError::NullLogits)?;
 
@@ -1020,7 +1020,7 @@ impl<'model> LlamaContext<'model> {
             .map_or(ptr::null_mut(), ptr::from_mut);
         let scales_ptr = scales.first_mut().map_or(ptr::null_mut(), ptr::from_mut);
         let err_code = unsafe {
-            llama_cpp_bindings_sys::llama_set_adapters_lora(
+            llama_cpp_bindings_sys::llama_rs_set_adapters_lora(
                 self.context.as_ptr(),
                 raw_adapters_ptr,
                 raw_adapters.len(),

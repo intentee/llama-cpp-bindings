@@ -3,9 +3,13 @@ use anyhow::bail;
 use llama_cpp_bindings::ChatMessageParseOutcome;
 use llama_cpp_bindings::ChatOutput;
 use llama_cpp_bindings::ChatOutputCompleteness;
+use llama_cpp_bindings::ChatToolChoice;
+use llama_cpp_bindings::ParseChatMessageError;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
+use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_bindings_types::ParsedToolCall;
+use llama_cpp_fault_injection::ArmedFault;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -42,7 +46,7 @@ use llama_cpp_test_harness::llama_test;
     n_ubatch = 64,
 )]
 fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let outcome = closed_reasoning_chat_session(fixture.model, "hello", "[]")?.parse(
+    let outcome = closed_reasoning_chat_session(fixture.model, "hello", "[]").parse(
         &ChatOutput::from("hello world"),
         ChatOutputCompleteness::Finished,
     )?;
@@ -196,4 +200,40 @@ fn qwen35_chat_session_parses_every_answer_it_is_given(fixture: &LlamaFixture<'_
     }
 
     Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn every_parsed_field_refuses_text_that_is_not_utf8(fixture: &LlamaFixture<'_>) {
+    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto);
+    let answer = ChatOutput::from(
+        "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n</function>\n</tool_call>",
+    );
+    let not_utf8 = String::from_utf8(vec![0xff])
+        .expect_err("a lone 0xff byte is not UTF-8")
+        .utf8_error();
+    let fault_points = [
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_CONTENT_NOT_UTF8,
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_REASONING_CONTENT_NOT_UTF8,
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_ID_NOT_UTF8,
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_NAME_NOT_UTF8,
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NOT_UTF8,
+    ];
+
+    assert_eq!(
+        fault_points.map(|fault_point| {
+            let _fault = ArmedFault::at(fault_point);
+
+            session
+                .parse(&answer, ChatOutputCompleteness::Finished)
+                .err()
+        }),
+        fault_points.map(|_fault_point| Some(ParseChatMessageError::ParsedTextNotUtf8(not_utf8)))
+    );
 }

@@ -16,6 +16,7 @@ use llama_cpp_bindings::model::ParseSpecialTokens;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
+use llama_cpp_fault_injection::ArmedFault;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -155,7 +156,7 @@ fn sample_with_grammar_produces_constrained_output_in_loop(
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", "[]")?;
+    let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", "[]");
     let tokens = session.tokenize_prompt()?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
@@ -181,7 +182,7 @@ fn sample_with_grammar_produces_constrained_output_in_loop(
         initial_position,
         max_generated_tokens: 10,
     }
-    .run()?;
+    .run();
 
     let lowercase = outcome.generated.text().to_lowercase();
     assert!(
@@ -308,5 +309,24 @@ fn a_grammar_with_a_nul_byte_is_refused(fixture: &LlamaFixture<'_>) {
         CString::new("root ::= \"a\0\"")
             .err()
             .map(GrammarError::GrammarContainsNul)
+    );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn a_valid_grammar_llama_cpp_refuses_to_load_is_reported_malformed(fixture: &LlamaFixture<'_>) {
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_RETURNS_NULL,
+    );
+
+    assert_eq!(
+        LlamaSampler::grammar(fixture.model, "root ::= \"a\"", "root").err(),
+        Some(GrammarError::GrammarMalformed)
     );
 }

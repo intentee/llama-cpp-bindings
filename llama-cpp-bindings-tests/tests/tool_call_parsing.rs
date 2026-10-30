@@ -66,7 +66,7 @@ fn assert_parses_to_paris_weather_call(fixture: &LlamaFixture<'_>, answer: &str)
         GET_WEATHER_TOOLS_JSON,
         false,
     )?;
-    let parsed = recognized_answer(&session, answer, ChatOutputCompleteness::Finished)?;
+    let parsed = recognized_answer(&session, answer, ChatOutputCompleteness::Finished);
 
     assert_eq!(parsed.tool_calls, [paris_weather_tool_call()]);
 
@@ -163,7 +163,7 @@ tuna\n\
 </function>\n\
 </tool_call>",
         ChatOutputCompleteness::Finished,
-    )?;
+    );
 
     assert_eq!(
         parsed.tool_calls,
@@ -202,7 +202,7 @@ fn qwen35_parses_a_tool_call_cut_inside_its_arguments_as_a_named_call(
         &session,
         "<tool_call>\n<function=get_weather>\n<parameter=lo",
         ChatOutputCompleteness::Partial,
-    )?;
+    );
 
     assert_eq!(
         parsed
@@ -246,7 +246,7 @@ fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> 
             QWEN_XML_PARIS_WEATHER_CALL.replace("Paris", "Berlin")
         ),
         ChatOutputCompleteness::Finished,
-    )?;
+    );
 
     assert_eq!(
         parsed.tool_calls,
@@ -292,7 +292,7 @@ fn plain_content_answering_a_tool_request_parses_without_tool_calls(
         &session,
         PLAIN_CONTENT_REFUSAL,
         ChatOutputCompleteness::Finished,
-    )?;
+    );
 
     assert_eq!(parsed.tool_calls, []);
 
@@ -311,7 +311,7 @@ fn deepseek_r1_8b_plain_content_without_tools_parses_without_tool_calls(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = user_turn_chat_session(fixture.model, "Hello!", "[]", false)?;
-    let parsed = recognized_answer(&session, "Hello there.", ChatOutputCompleteness::Finished)?;
+    let parsed = recognized_answer(&session, "Hello there.", ChatOutputCompleteness::Finished);
 
     assert_eq!(parsed.tool_calls, []);
 

@@ -274,6 +274,14 @@ llama_rs_sampler_apply_status llama_rs_sampler_apply(
     struct llama_token_data_array * data_array,
     char ** out_error);
 
+int32_t llama_rs_token_to_piece(
+    const struct llama_vocab * vocab,
+    llama_token token,
+    char * buf,
+    int32_t length,
+    int32_t lstrip,
+    bool special);
+
 #ifdef __cplusplus
 }
 #endif

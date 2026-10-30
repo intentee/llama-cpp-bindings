@@ -1,4 +1,5 @@
 #include "wrapper_chat_session.h"
+#include "wrapper_fault_injection.h"
 #include "wrapper_chat_templates.h"
 #include "wrapper_chat_templates_handle.h"
 #include "wrapper_parsed_chat.h"
@@ -253,7 +254,10 @@ extern "C" auto llama_rs_chat_session_prompt_part_text(
     llama_rs_chat_session_handle session,
     size_t index,
     size_t * out_length) -> const char * {
-    return llama_rs_string_view(session->session.prompt().parts.at(index).text, out_length);
+    return llama_rs_text_view_unless_fault_injected(
+        LLAMA_RS_FAULT_POINT_CHAT_SESSION_PROMPT_PART_TEXT_NOT_UTF8,
+        session->session.prompt().parts.at(index).text,
+        out_length);
 }
 
 extern "C" auto llama_rs_chat_session_prompt_part_is_input(llama_rs_chat_session_handle session, size_t index)
@@ -263,7 +267,8 @@ extern "C" auto llama_rs_chat_session_prompt_part_is_input(llama_rs_chat_session
 
 extern "C" auto llama_rs_chat_session_grammar(llama_rs_chat_session_handle session, size_t * out_length)
     -> const char * {
-    return llama_rs_string_view(session->session.grammar(), out_length);
+    return llama_rs_text_view_unless_fault_injected(
+        LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8, session->session.grammar(), out_length);
 }
 
 extern "C" auto llama_rs_chat_session_grammar_lazy(llama_rs_chat_session_handle session) -> bool {
@@ -276,6 +281,10 @@ extern "C" auto llama_rs_chat_session_grammar_trigger_count(llama_rs_chat_sessio
 
 extern "C" auto llama_rs_chat_session_grammar_trigger_type(llama_rs_chat_session_handle session, size_t index)
     -> llama_rs_chat_grammar_trigger_type {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED)) {
+        return LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED;
+    }
+
     switch (session->sampling.grammar_triggers.at(index).type) {
         case COMMON_GRAMMAR_TRIGGER_TYPE_TOKEN:
             return LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN;
@@ -287,14 +296,17 @@ extern "C" auto llama_rs_chat_session_grammar_trigger_type(llama_rs_chat_session
             return LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL;
     }
 
-    return LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL;
+    return LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED;
 }
 
 extern "C" auto llama_rs_chat_session_grammar_trigger_value(
     llama_rs_chat_session_handle session,
     size_t index,
     size_t * out_length) -> const char * {
-    return llama_rs_string_view(session->sampling.grammar_triggers.at(index).value, out_length);
+    return llama_rs_text_view_unless_fault_injected(
+        LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_VALUE_NOT_UTF8,
+        session->sampling.grammar_triggers.at(index).value,
+        out_length);
 }
 
 extern "C" auto llama_rs_chat_session_grammar_trigger_token(llama_rs_chat_session_handle session, size_t index)
@@ -372,6 +384,8 @@ extern "C" auto llama_rs_chat_session_parse(
     }
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_SESSION_PARSE_THROWS);
+
         common_chat_parser_params parser_params;
         parser_params.format = session->session.format();
         parser_params.generation_prompt = session->generation_prompt;
@@ -432,6 +446,8 @@ extern "C" auto llama_rs_chat_session_classify(
     }
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_SESSION_CLASSIFY_THROWS);
+
         common_chat_input parse_input = chat_input_of(text, text_length, byte_tokens);
         parse_input.prepend(session->generation_prompt);
 
@@ -523,6 +539,8 @@ extern "C" auto llama_rs_regex_escape(
     }
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_REGEX_ESCAPE_THROWS);
+
         *out_string = llama_rs_dup_string(regex_escape(std::string(text, text_length)));
         if (*out_string == nullptr) {
             return LLAMA_RS_REGEX_ESCAPE_ERROR_STRING_ALLOCATION_FAILED;

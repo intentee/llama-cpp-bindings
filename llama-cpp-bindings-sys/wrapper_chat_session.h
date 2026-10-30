@@ -85,6 +85,7 @@ typedef enum llama_rs_chat_grammar_trigger_type {
     LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_WORD,
     LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN,
     LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL,
+    LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED,
 } llama_rs_chat_grammar_trigger_type;
 
 size_t llama_rs_chat_session_grammar_trigger_count(llama_rs_chat_session_handle session);

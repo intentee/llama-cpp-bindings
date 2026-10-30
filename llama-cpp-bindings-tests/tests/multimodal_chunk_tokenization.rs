@@ -2,8 +2,12 @@ use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdInputChunkType;
+use llama_cpp_bindings::mtmd::MtmdInputChunksError;
 use llama_cpp_bindings::mtmd::MtmdInputText;
+use llama_cpp_bindings::mtmd::MtmdTokenizeError;
 use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_fault_injection::ArmedFault;
+use llama_cpp_fault_injection::injected_fault_message;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -314,4 +318,39 @@ fn tokenize_with_null_byte_in_text_returns_error(fixture: &LlamaFixture<'_>) {
     };
     let result = mtmd_ctx.tokenize(input_text, &[]);
     assert!(result.is_err());
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
+fn tokenizing_reports_a_chunk_list_llama_cpp_cannot_allocate(fixture: &LlamaFixture<'_>) {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS);
+
+    assert_eq!(
+        mtmd_ctx
+            .tokenize(
+                MtmdInputText {
+                    text: "Hello".to_owned(),
+                    add_special: true,
+                    parse_special: true,
+                },
+                &[],
+            )
+            .err(),
+        Some(MtmdTokenizeError::InputChunksError(
+            MtmdInputChunksError::Reported {
+                message: injected_fault_message(),
+            }
+        ))
+    );
 }
