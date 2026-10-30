@@ -367,3 +367,114 @@ extern "C" auto llama_rs_mtmd_get_memory_usage(
             LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
+
+extern "C" auto llama_rs_mtmd_bitmap_init(
+    uint32_t width,
+    uint32_t height,
+    const unsigned char * data,
+    struct mtmd_bitmap ** out_bitmap,
+    char ** out_error) -> llama_rs_mtmd_bitmap_init_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    if (out_bitmap == nullptr) {
+        return LLAMA_RS_MTMD_BITMAP_INIT_NULL_OUT_BITMAP_ARG;
+    }
+    *out_bitmap = nullptr;
+    if (data == nullptr) {
+        return LLAMA_RS_MTMD_BITMAP_INIT_NULL_DATA_ARG;
+    }
+
+    try {
+        *out_bitmap = mtmd_bitmap_init(width, height, data);
+
+        return LLAMA_RS_MTMD_BITMAP_INIT_OK;
+    } catch (...) {
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_BITMAP_INIT_ERROR_STRING_ALLOCATION_FAILED);
+    }
+}
+
+extern "C" auto llama_rs_mtmd_bitmap_init_from_audio(
+    size_t n_samples,
+    const float * data,
+    struct mtmd_bitmap ** out_bitmap,
+    char ** out_error) -> llama_rs_mtmd_bitmap_init_from_audio_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    if (out_bitmap == nullptr) {
+        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_NULL_OUT_BITMAP_ARG;
+    }
+    *out_bitmap = nullptr;
+    if (data == nullptr) {
+        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_NULL_DATA_ARG;
+    }
+
+    try {
+        *out_bitmap = mtmd_bitmap_init_from_audio(n_samples, data);
+
+        return LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_OK;
+    } catch (...) {
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_ERROR_STRING_ALLOCATION_FAILED);
+    }
+}
+
+extern "C" auto llama_rs_mtmd_input_chunks_init(
+    struct mtmd_input_chunks ** out_chunks,
+    char ** out_error) -> llama_rs_mtmd_input_chunks_init_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    if (out_chunks == nullptr) {
+        return LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG;
+    }
+    *out_chunks = nullptr;
+
+    try {
+        *out_chunks = mtmd_input_chunks_init();
+
+        return LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK;
+    } catch (...) {
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED);
+    }
+}
+
+extern "C" auto llama_rs_mtmd_input_chunk_copy(
+    const struct mtmd_input_chunk * chunk,
+    struct mtmd_input_chunk ** out_chunk,
+    char ** out_error) -> llama_rs_mtmd_input_chunk_copy_status {
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    if (out_chunk == nullptr) {
+        return LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG;
+    }
+    *out_chunk = nullptr;
+    if (chunk == nullptr) {
+        return LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG;
+    }
+
+    try {
+        *out_chunk = mtmd_input_chunk_copy(chunk);
+
+        return LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK;
+    } catch (...) {
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED);
+    }
+}

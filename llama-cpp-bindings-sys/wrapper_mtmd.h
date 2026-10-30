@@ -178,6 +178,63 @@ llama_rs_mtmd_get_memory_usage_status llama_rs_mtmd_get_memory_usage(
     bool * out_use_non_causal,
     char ** out_error);
 
+typedef enum llama_rs_mtmd_bitmap_init_status {
+    LLAMA_RS_MTMD_BITMAP_INIT_OK = 0,
+    LLAMA_RS_MTMD_BITMAP_INIT_NULL_DATA_ARG,
+    LLAMA_RS_MTMD_BITMAP_INIT_NULL_OUT_BITMAP_ARG,
+    LLAMA_RS_MTMD_BITMAP_INIT_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_mtmd_bitmap_init_status;
+
+llama_rs_mtmd_bitmap_init_status llama_rs_mtmd_bitmap_init(
+    uint32_t width,
+    uint32_t height,
+    const unsigned char * data,
+    struct mtmd_bitmap ** out_bitmap,
+    char ** out_error);
+
+typedef enum llama_rs_mtmd_bitmap_init_from_audio_status {
+    LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_OK = 0,
+    LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_NULL_DATA_ARG,
+    LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_NULL_OUT_BITMAP_ARG,
+    LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_mtmd_bitmap_init_from_audio_status;
+
+llama_rs_mtmd_bitmap_init_from_audio_status llama_rs_mtmd_bitmap_init_from_audio(
+    size_t n_samples,
+    const float * data,
+    struct mtmd_bitmap ** out_bitmap,
+    char ** out_error);
+
+typedef enum llama_rs_mtmd_input_chunks_init_status {
+    LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK = 0,
+    LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG,
+    LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_mtmd_input_chunks_init_status;
+
+llama_rs_mtmd_input_chunks_init_status llama_rs_mtmd_input_chunks_init(
+    struct mtmd_input_chunks ** out_chunks,
+    char ** out_error);
+
+typedef enum llama_rs_mtmd_input_chunk_copy_status {
+    LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK = 0,
+    LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG,
+    LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG,
+    LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_mtmd_input_chunk_copy_status;
+
+llama_rs_mtmd_input_chunk_copy_status llama_rs_mtmd_input_chunk_copy(
+    const struct mtmd_input_chunk * chunk,
+    struct mtmd_input_chunk ** out_chunk,
+    char ** out_error);
+
 #ifdef __cplusplus
 }
 #endif

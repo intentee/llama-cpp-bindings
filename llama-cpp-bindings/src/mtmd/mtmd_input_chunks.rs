@@ -1,4 +1,8 @@
+use std::ffi::c_char;
+use std::ptr;
 use std::ptr::NonNull;
+
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::context::LlamaContext;
 use crate::context::decoded_output_rows::DecodedOutputRows;
@@ -18,6 +22,55 @@ const fn check_eval_result(result: i32) -> Result<(), MtmdEvalError> {
     }
 }
 
+fn input_chunks_init_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_init_status,
+    out_chunks: *mut llama_cpp_bindings_sys::mtmd_input_chunks,
+    out_error: *mut c_char,
+) -> Result<MtmdInputChunks, MtmdInputChunksError> {
+    const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
+
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => NonNull::new(out_chunks)
+            .map(|chunks| MtmdInputChunks { chunks })
+            .ok_or_else(|| {
+                crate::FfiContractError {
+                    operation: OPERATION,
+                    detail: "success status contained null chunks",
+                }
+                .into()
+            }),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG => {
+            Err(crate::FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null out_chunks argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(MtmdInputChunksError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(MtmdInputChunksError::LlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    OPERATION,
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+
+            Err(MtmdInputChunksError::Reported { message })
+        }
+        other => Err(crate::FfiStatusError {
+            operation: OPERATION,
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
 #[derive(Debug)]
 pub struct MtmdInputChunks {
     pub chunks: NonNull<llama_cpp_bindings_sys::mtmd_input_chunks>,
@@ -28,14 +81,18 @@ unsafe impl Send for MtmdInputChunks {}
 impl MtmdInputChunks {
     /// # Errors
     ///
-    /// Returns `MtmdInputChunksError::ChunksCreationFailed` if the underlying llama.cpp function
-    /// returns null.
-    ///
+    /// Returns the [`MtmdInputChunksError`] variant matching the wrapper's status code.
     pub fn new() -> Result<Self, MtmdInputChunksError> {
-        let chunks = unsafe { llama_cpp_bindings_sys::mtmd_input_chunks_init() };
-        let chunks = NonNull::new(chunks).ok_or(MtmdInputChunksError::ChunksCreationFailed)?;
+        let mut out_chunks: *mut llama_cpp_bindings_sys::mtmd_input_chunks = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_init(
+                &raw mut out_chunks,
+                &raw mut out_error,
+            )
+        };
 
-        Ok(Self { chunks })
+        input_chunks_init_status_to_result(status, out_chunks, out_error)
     }
 
     #[must_use]
@@ -190,6 +247,73 @@ mod tests {
         assert_eq!(
             std::mem::discriminant(&err),
             std::mem::discriminant(&representative)
+        );
+    }
+}
+
+#[cfg(test)]
+mod input_chunks_init_status_to_result_tests {
+    use std::ptr;
+
+    use super::input_chunks_init_status_to_result;
+    use crate::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
+
+    const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
+
+    fn contract_violation(detail: &'static str) -> MtmdInputChunksError {
+        crate::FfiContractError {
+            operation: OPERATION,
+            detail,
+        }
+        .into()
+    }
+
+    #[test]
+    fn every_failure_status_maps_to_its_error() {
+        let statuses = [
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            255,
+        ];
+
+        assert_eq!(
+            statuses.map(|status| {
+                input_chunks_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
+            }),
+            [
+                Some(contract_violation("success status contained null chunks")),
+                Some(contract_violation("was given a null out_chunks argument")),
+                Some(MtmdInputChunksError::NotEnoughMemory),
+                Some(MtmdInputChunksError::LlamaCppOutOfMemory),
+                Some(contract_violation(
+                    "reported a thrown C++ exception without an error message"
+                )),
+                Some(MtmdInputChunksError::FfiStatus(crate::FfiStatusError {
+                    operation: OPERATION,
+                    code: 255,
+                })),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_thrown_exception_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"allocation threw".as_ptr()) };
+
+        assert_eq!(
+            input_chunks_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+            )
+            .err(),
+            Some(MtmdInputChunksError::Reported {
+                message: "allocation threw".to_owned(),
+            })
         );
     }
 }

@@ -137,6 +137,114 @@ unsafe fn from_buf_status_to_result(
     }
 }
 
+fn bitmap_init_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_status,
+    out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap,
+    out_error: *mut c_char,
+) -> Result<MtmdBitmap, MtmdBitmapError> {
+    const OPERATION: &str = "llama_rs_mtmd_bitmap_init";
+
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_OK => NonNull::new(out_bitmap)
+            .map(|bitmap| MtmdBitmap { bitmap })
+            .ok_or_else(|| {
+                crate::FfiContractError {
+                    operation: OPERATION,
+                    detail: "success status contained a null bitmap",
+                }
+                .into()
+            }),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_NULL_DATA_ARG => {
+            Err(crate::FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null data argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_NULL_OUT_BITMAP_ARG => {
+            Err(crate::FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null out_bitmap argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(MtmdBitmapError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(MtmdBitmapError::LlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    OPERATION,
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+
+            Err(MtmdBitmapError::Reported { message })
+        }
+        other => Err(crate::FfiStatusError {
+            operation: OPERATION,
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
+fn bitmap_init_from_audio_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_audio_status,
+    out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap,
+    out_error: *mut c_char,
+) -> Result<MtmdBitmap, MtmdBitmapError> {
+    const OPERATION: &str = "llama_rs_mtmd_bitmap_init_from_audio";
+
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_OK => NonNull::new(out_bitmap)
+            .map(|bitmap| MtmdBitmap { bitmap })
+            .ok_or_else(|| {
+                crate::FfiContractError {
+                    operation: OPERATION,
+                    detail: "success status contained a null bitmap",
+                }
+                .into()
+            }),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_NULL_DATA_ARG => Err(crate::FfiContractError {
+            operation: OPERATION,
+            detail: "was given a null data argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_NULL_OUT_BITMAP_ARG => Err(crate::FfiContractError {
+            operation: OPERATION,
+            detail: "was given a null out_bitmap argument",
+        }
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(MtmdBitmapError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(MtmdBitmapError::LlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    OPERATION,
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+
+            Err(MtmdBitmapError::Reported { message })
+        }
+        other => Err(crate::FfiStatusError {
+            operation: OPERATION,
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
 /// Owns the bitmap and frees it on drop, so it cannot be cloned.
 ///
 /// ```compile_fail,E0277
@@ -160,7 +268,7 @@ impl MtmdBitmap {
     /// * `ImageDimensionsTooSmall` - `nx` or `ny` is below the 2x2 minimum
     /// * `ImageDimensionsOverflow` - `nx * ny * 3` does not fit into a buffer length
     /// * `InvalidDataSize` - Data length doesn't match `nx * ny * 3`
-    /// * `BitmapDecodeFailed` - Underlying C function returned null
+    /// * the [`MtmdBitmapError`] variant matching the wrapper's status code
     ///
     pub fn from_image_data(nx: u32, ny: u32, data: &[u8]) -> Result<Self, MtmdBitmapError> {
         if nx < 2 || ny < 2 {
@@ -176,25 +284,37 @@ impl MtmdBitmap {
             return Err(MtmdBitmapError::InvalidDataSize);
         }
 
-        let bitmap = unsafe { llama_cpp_bindings_sys::mtmd_bitmap_init(nx, ny, data.as_ptr()) };
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = std::ptr::null_mut();
+        let mut out_error: *mut c_char = std::ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init(
+                nx,
+                ny,
+                data.as_ptr(),
+                &raw mut out_bitmap,
+                &raw mut out_error,
+            )
+        };
 
-        let bitmap = NonNull::new(bitmap).ok_or(MtmdBitmapError::BitmapDecodeFailed)?;
-
-        Ok(Self { bitmap })
+        bitmap_init_status_to_result(status, out_bitmap, out_error)
     }
 
     /// # Errors
     ///
-    /// * `NullResult` - Underlying C function returned null
-    ///
+    /// Returns the [`MtmdBitmapError`] variant matching the wrapper's status code.
     pub fn from_audio_data(data: &[f32]) -> Result<Self, MtmdBitmapError> {
-        let bitmap = unsafe {
-            llama_cpp_bindings_sys::mtmd_bitmap_init_from_audio(data.len(), data.as_ptr())
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = std::ptr::null_mut();
+        let mut out_error: *mut c_char = std::ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_audio(
+                data.len(),
+                data.as_ptr(),
+                &raw mut out_bitmap,
+                &raw mut out_error,
+            )
         };
 
-        let bitmap = NonNull::new(bitmap).ok_or(MtmdBitmapError::BitmapDecodeFailed)?;
-
-        Ok(Self { bitmap })
+        bitmap_init_from_audio_status_to_result(status, out_bitmap, out_error)
     }
 
     /// # Errors
@@ -811,6 +931,141 @@ mod from_buf_status_to_result_tests {
                 }
                 .into()
             )
+        );
+    }
+}
+
+#[cfg(test)]
+mod bitmap_init_status_to_result_tests {
+    use std::ptr;
+
+    use super::bitmap_init_from_audio_status_to_result;
+    use super::bitmap_init_status_to_result;
+    use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
+
+    fn contract_violation(operation: &'static str, detail: &'static str) -> MtmdBitmapError {
+        crate::FfiContractError { operation, detail }.into()
+    }
+
+    #[test]
+    fn every_image_failure_status_maps_to_its_error() {
+        let statuses = [
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_OK,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_NULL_DATA_ARG,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_NULL_OUT_BITMAP_ARG,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_ERROR_STRING_ALLOCATION_FAILED,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            255,
+        ];
+        let operation = "llama_rs_mtmd_bitmap_init";
+
+        assert_eq!(
+            statuses.map(|status| {
+                bitmap_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
+            }),
+            [
+                Some(contract_violation(
+                    operation,
+                    "success status contained a null bitmap"
+                )),
+                Some(contract_violation(
+                    operation,
+                    "was given a null data argument"
+                )),
+                Some(contract_violation(
+                    operation,
+                    "was given a null out_bitmap argument"
+                )),
+                Some(MtmdBitmapError::NotEnoughMemory),
+                Some(MtmdBitmapError::LlamaCppOutOfMemory),
+                Some(contract_violation(
+                    operation,
+                    "reported a thrown C++ exception without an error message"
+                )),
+                Some(MtmdBitmapError::FfiStatus(crate::FfiStatusError {
+                    operation,
+                    code: 255,
+                })),
+            ]
+        );
+    }
+
+    #[test]
+    fn every_audio_failure_status_maps_to_its_error() {
+        let statuses = [
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_OK,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_NULL_DATA_ARG,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_NULL_OUT_BITMAP_ARG,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_ERROR_STRING_ALLOCATION_FAILED,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            255,
+        ];
+        let operation = "llama_rs_mtmd_bitmap_init_from_audio";
+
+        assert_eq!(
+            statuses.map(|status| {
+                bitmap_init_from_audio_status_to_result(status, ptr::null_mut(), ptr::null_mut())
+                    .err()
+            }),
+            [
+                Some(contract_violation(
+                    operation,
+                    "success status contained a null bitmap"
+                )),
+                Some(contract_violation(
+                    operation,
+                    "was given a null data argument"
+                )),
+                Some(contract_violation(
+                    operation,
+                    "was given a null out_bitmap argument"
+                )),
+                Some(MtmdBitmapError::NotEnoughMemory),
+                Some(MtmdBitmapError::LlamaCppOutOfMemory),
+                Some(contract_violation(
+                    operation,
+                    "reported a thrown C++ exception without an error message"
+                )),
+                Some(MtmdBitmapError::FfiStatus(crate::FfiStatusError {
+                    operation,
+                    code: 255,
+                })),
+            ]
+        );
+    }
+
+    #[test]
+    fn thrown_exceptions_report_their_messages() {
+        let image_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"image threw".as_ptr()) };
+        let audio_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"audio threw".as_ptr()) };
+
+        assert_eq!(
+            [
+                bitmap_init_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    ptr::null_mut(),
+                    image_error,
+                )
+                .err(),
+                bitmap_init_from_audio_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    ptr::null_mut(),
+                    audio_error,
+                )
+                .err(),
+            ],
+            [
+                Some(MtmdBitmapError::Reported {
+                    message: "image threw".to_owned(),
+                }),
+                Some(MtmdBitmapError::Reported {
+                    message: "audio threw".to_owned(),
+                }),
+            ]
         );
     }
 }
