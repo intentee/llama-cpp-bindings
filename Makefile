@@ -76,9 +76,10 @@ coverage: node_modules
 	cargo llvm-cov report
 	./node_modules/.bin/rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
-		--gated llama-cpp-bindings=98 \
+		--gated llama-cpp-bindings=100 \
 		--gated llama-cpp-bindings-types=100 \
 		--gated llama-cpp-error-recorder=100 \
+		--gated llama-cpp-fault-injection=100 \
 		--gated llama-cpp-ffi-status=100 \
 		--gated llama-cpp-gbnf=100 \
 		--gated llama-cpp-log-decoder=100 \
