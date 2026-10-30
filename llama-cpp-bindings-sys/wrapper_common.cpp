@@ -203,54 +203,6 @@ extern "C" auto llama_rs_memory_seq_pos_max(
     }
 }
 
-extern "C" auto llama_rs_encode(
-    struct llama_context * ctx,
-    struct llama_batch_ext * batch,
-    int32_t * out_llama_cpp_return_code,
-    char ** out_error) -> llama_rs_encode_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (out_llama_cpp_return_code != nullptr) {
-        *out_llama_cpp_return_code = 0;
-    }
-    if (ctx == nullptr) {
-        return LLAMA_RS_ENCODE_NULL_CTX_ARG;
-    }
-    if (batch == nullptr) {
-        return LLAMA_RS_ENCODE_NULL_BATCH_ARG;
-    }
-    try {
-        const auto * model = llama_get_model(ctx);
-        if (model == nullptr) {
-            return LLAMA_RS_ENCODE_NULL_MODEL;
-        }
-        if (!llama_model_has_encoder(model)) {
-            return LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER;
-        }
-        int32_t const result = llama_process(ctx, LLAMA_PROCESS_TYPE_ENCODE, batch);
-        if (result != 0) {
-            if (out_llama_cpp_return_code != nullptr) {
-                *out_llama_cpp_return_code = result;
-            }
-            if (result == -2) {
-                return LLAMA_RS_ENCODE_OUT_OF_MEMORY;
-            }
-            if (result == -3) {
-                return LLAMA_RS_ENCODE_COMPUTE_FAILED;
-            }
-            return LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE;
-        }
-        return LLAMA_RS_ENCODE_OK;
-    } catch (...) {
-        return llama_rs_report_current_exception(
-            out_error,
-            LLAMA_RS_ENCODE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            LLAMA_RS_ENCODE_ERROR_STRING_ALLOCATION_FAILED);
-    }
-}
-
 extern "C" auto llama_rs_memory_seq_add(
     const struct llama_context * ctx,
     llama_seq_id seq_id,
@@ -454,47 +406,39 @@ extern "C" auto llama_rs_new_context_with_model(
     }
 }
 
-extern "C" auto llama_rs_decode(
+extern "C" auto llama_rs_process(
     struct llama_context * ctx,
+    enum llama_process_type process_type,
     struct llama_batch_ext * batch,
     int32_t * out_llama_cpp_return_code,
-    char ** out_error) -> llama_rs_decode_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
+    char ** out_error) -> llama_rs_process_status {
+    if (out_error == nullptr) {
+        return LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG;
     }
-    if (out_llama_cpp_return_code != nullptr) {
-        *out_llama_cpp_return_code = 0;
+    *out_error = nullptr;
+    if (out_llama_cpp_return_code == nullptr) {
+        return LLAMA_RS_PROCESS_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG;
     }
+    *out_llama_cpp_return_code = 0;
     if (ctx == nullptr) {
-        return LLAMA_RS_DECODE_NULL_CTX_ARG;
+        return LLAMA_RS_PROCESS_NULL_CTX_ARG;
     }
     if (batch == nullptr) {
-        return LLAMA_RS_DECODE_NULL_BATCH_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG;
+        return LLAMA_RS_PROCESS_NULL_BATCH_ARG;
     }
     try {
-        int32_t const result = llama_process(ctx, LLAMA_PROCESS_TYPE_DECODE, batch);
+        int32_t const result = llama_process(ctx, process_type, batch);
         if (result != 0) {
-            if (out_llama_cpp_return_code != nullptr) {
-                *out_llama_cpp_return_code = result;
-            }
-            if (result == -2) {
-                return LLAMA_RS_DECODE_OUT_OF_MEMORY;
-            }
-            if (result == -3) {
-                return LLAMA_RS_DECODE_COMPUTE_FAILED;
-            }
-            return LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE;
+            *out_llama_cpp_return_code = result;
+            return LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE;
         }
-        return LLAMA_RS_DECODE_OK;
+        return LLAMA_RS_PROCESS_OK;
     } catch (...) {
         return llama_rs_report_current_exception(
             out_error,
-            LLAMA_RS_DECODE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_DECODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            LLAMA_RS_DECODE_ERROR_STRING_ALLOCATION_FAILED);
+            LLAMA_RS_PROCESS_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_PROCESS_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 

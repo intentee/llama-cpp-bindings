@@ -1,4 +1,5 @@
 use anyhow::Result;
+use llama_cpp_bindings::EncodeError;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -29,7 +30,7 @@ fn encode_on_non_encoder_model_returns_error(fixture: &LlamaFixture<'_>) -> Resu
 
     let result = context.encode(&batch);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(EncodeError::ModelHasNoEncoder));
 
     Ok(())
 }
@@ -57,7 +58,7 @@ fn encode_succeeds_with_encoder_model(fixture: &LlamaFixture<'_>) -> Result<()> 
 
     let result = context.encode(&batch);
 
-    assert!(result.is_ok());
+    assert_eq!(result, Ok(()));
 
     Ok(())
 }

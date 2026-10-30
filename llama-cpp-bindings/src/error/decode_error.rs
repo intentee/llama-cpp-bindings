@@ -2,13 +2,12 @@ use std::num::NonZeroI32;
 use std::os::raw::c_int;
 
 use crate::error::batch_transfer_error::BatchTransferError;
+use crate::error::process_failure::ProcessFailure;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum DecodeError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    Process(#[from] ProcessFailure),
     #[error("no KV cache slot was available")]
     NoKvCacheSlot,
     #[error("decode aborted by callback")]
@@ -21,16 +20,10 @@ pub enum DecodeError {
     ComputeFailed,
     #[error("decode returned an unknown status code: {code}")]
     UnknownStatus { code: c_int },
-    #[error("not enough memory")]
-    NotEnoughMemory,
-    #[error("the llama.cpp library ran out of memory")]
-    LlamaCppOutOfMemory,
     #[error("decode batch of {n_tokens} tokens must fit a single micro batch of {n_ubatch} tokens")]
     BatchExceedsMicroBatch { n_tokens: i32, n_ubatch: u32 },
     #[error("the batch could not be handed to llama.cpp: {0}")]
     BatchTransfer(#[from] BatchTransferError),
-    #[error("{message}")]
-    Reported { message: String },
 }
 
 impl From<NonZeroI32> for DecodeError {
@@ -39,6 +32,8 @@ impl From<NonZeroI32> for DecodeError {
             1 => Self::NoKvCacheSlot,
             2 => Self::Aborted,
             -1 => Self::BatchInvalid,
+            -2 => Self::DecodeOutOfMemory,
+            -3 => Self::ComputeFailed,
             error_code => Self::UnknownStatus { code: error_code },
         }
     }
@@ -69,6 +64,14 @@ mod tests {
         let error = DecodeError::from(NonZeroI32::new(-1).expect("-1 is non-zero"));
 
         assert_eq!(error, DecodeError::BatchInvalid);
+    }
+
+    #[test]
+    fn allocation_and_compute_failures_map_from_codes_negative_two_and_three() {
+        assert_eq!(
+            [-2, -3].map(|code| DecodeError::from(NonZeroI32::new(code).expect("non-zero code"))),
+            [DecodeError::DecodeOutOfMemory, DecodeError::ComputeFailed]
+        );
     }
 
     #[test]

@@ -470,6 +470,11 @@ impl LlamaModel {
         unsafe { llama_cpp_bindings_sys::llama_model_is_hybrid(self.model.as_ptr()) }
     }
 
+    #[must_use]
+    pub fn has_encoder(&self) -> bool {
+        unsafe { llama_cpp_bindings_sys::llama_model_has_encoder(self.model.as_ptr()) }
+    }
+
     /// # Errors
     /// Returns an error if the key is not found or the value is not valid UTF-8.
     pub fn meta_val_str(&self, key: &str) -> Result<String, MetaValError> {

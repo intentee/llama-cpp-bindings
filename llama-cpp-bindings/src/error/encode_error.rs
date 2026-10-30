@@ -2,13 +2,12 @@ use std::num::NonZeroI32;
 use std::os::raw::c_int;
 
 use crate::error::batch_transfer_error::BatchTransferError;
+use crate::error::process_failure::ProcessFailure;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum EncodeError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    Process(#[from] ProcessFailure),
     #[error("model has no encoder")]
     ModelHasNoEncoder,
     #[error("no KV cache slot was available")]
@@ -21,16 +20,10 @@ pub enum EncodeError {
     ComputeFailed,
     #[error("encode returned an unknown status code: {code}")]
     UnknownStatus { code: c_int },
-    #[error("not enough memory")]
-    NotEnoughMemory,
-    #[error("the llama.cpp library ran out of memory")]
-    LlamaCppOutOfMemory,
     #[error("encode batch of {n_tokens} tokens must fit a single micro batch of {n_ubatch} tokens")]
     BatchExceedsMicroBatch { n_tokens: i32, n_ubatch: u32 },
     #[error("the batch could not be handed to llama.cpp: {0}")]
     BatchTransfer(#[from] BatchTransferError),
-    #[error("{message}")]
-    Reported { message: String },
 }
 
 impl From<NonZeroI32> for EncodeError {
@@ -38,6 +31,8 @@ impl From<NonZeroI32> for EncodeError {
         match value.get() {
             1 => Self::NoKvCacheSlot,
             -1 => Self::BatchInvalid,
+            -2 => Self::EncodeOutOfMemory,
+            -3 => Self::ComputeFailed,
             error_code => Self::UnknownStatus { code: error_code },
         }
     }
@@ -61,6 +56,14 @@ mod tests {
         let error = EncodeError::from(NonZeroI32::new(-1).expect("-1 is non-zero"));
 
         assert_eq!(error, EncodeError::BatchInvalid);
+    }
+
+    #[test]
+    fn allocation_and_compute_failures_map_from_codes_negative_two_and_three() {
+        assert_eq!(
+            [-2, -3].map(|code| EncodeError::from(NonZeroI32::new(code).expect("non-zero code"))),
+            [EncodeError::EncodeOutOfMemory, EncodeError::ComputeFailed]
+        );
     }
 
     #[test]

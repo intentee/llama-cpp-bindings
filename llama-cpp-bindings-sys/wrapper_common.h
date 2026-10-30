@@ -126,26 +126,6 @@ llama_rs_memory_seq_pos_max_status llama_rs_memory_seq_pos_max(
     llama_pos * out_position,
     char ** out_error);
 
-typedef enum llama_rs_encode_status {
-    LLAMA_RS_ENCODE_OK = 0,
-    LLAMA_RS_ENCODE_NULL_CTX_ARG,
-    LLAMA_RS_ENCODE_NULL_BATCH_ARG,
-    LLAMA_RS_ENCODE_NULL_MODEL,
-    LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER,
-    LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
-    LLAMA_RS_ENCODE_OUT_OF_MEMORY,
-    LLAMA_RS_ENCODE_COMPUTE_FAILED,
-    LLAMA_RS_ENCODE_ERROR_STRING_ALLOCATION_FAILED,
-    LLAMA_RS_ENCODE_LLAMA_CPP_OUT_OF_MEMORY,
-    LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-} llama_rs_encode_status;
-
-llama_rs_encode_status llama_rs_encode(
-    struct llama_context * ctx,
-    struct llama_batch_ext * batch,
-    int32_t * out_llama_cpp_return_code,
-    char ** out_error);
-
 typedef enum llama_rs_memory_seq_add_status {
     LLAMA_RS_MEMORY_SEQ_ADD_OK = 0,
     LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG,
@@ -218,21 +198,21 @@ llama_rs_new_context_with_model_status llama_rs_new_context_with_model(
     struct llama_context ** out_ctx,
     char ** out_error);
 
-typedef enum llama_rs_decode_status {
-    LLAMA_RS_DECODE_OK = 0,
-    LLAMA_RS_DECODE_NULL_CTX_ARG,
-    LLAMA_RS_DECODE_NULL_BATCH_ARG,
-    LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG,
-    LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE,
-    LLAMA_RS_DECODE_OUT_OF_MEMORY,
-    LLAMA_RS_DECODE_COMPUTE_FAILED,
-    LLAMA_RS_DECODE_ERROR_STRING_ALLOCATION_FAILED,
-    LLAMA_RS_DECODE_LLAMA_CPP_OUT_OF_MEMORY,
-    LLAMA_RS_DECODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-} llama_rs_decode_status;
+typedef enum llama_rs_process_status {
+    LLAMA_RS_PROCESS_OK = 0,
+    LLAMA_RS_PROCESS_NULL_CTX_ARG,
+    LLAMA_RS_PROCESS_NULL_BATCH_ARG,
+    LLAMA_RS_PROCESS_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG,
+    LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG,
+    LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE,
+    LLAMA_RS_PROCESS_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_PROCESS_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_process_status;
 
-llama_rs_decode_status llama_rs_decode(
+llama_rs_process_status llama_rs_process(
     struct llama_context * ctx,
+    enum llama_process_type process_type,
     struct llama_batch_ext * batch,
     int32_t * out_llama_cpp_return_code,
     char ** out_error);

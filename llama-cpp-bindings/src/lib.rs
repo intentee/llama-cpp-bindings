@@ -88,8 +88,8 @@ pub use error::{
     KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError, LlamaContextLoadError,
     LlamaCppError, LlamaLoraAdapterInitError, LlamaLoraAdaptersError, LlamaModelLoadError,
     LogitsError, MetaValError, ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError,
-    Result, SampleError, SamplerAcceptError, SamplingError, StringToTokenError, TokenAttrError,
-    TokenOutsideVocabulary, TokenSamplingError, TokenToStringError,
+    ProcessFailure, Result, SampleError, SamplerAcceptError, SamplingError, StringToTokenError,
+    TokenAttrError, TokenOutsideVocabulary, TokenSamplingError, TokenToStringError,
 };
 
 pub use bare_json_tool_calls::BareJsonToolCalls;
