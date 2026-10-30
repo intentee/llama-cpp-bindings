@@ -17,8 +17,8 @@ fn validate(mut arguments: Arguments) -> Result<Arguments, HarnessArgumentsError
 /// Returns [`HarnessArgumentsError::ConflictingTestThreads`] when `--test-threads` is set to
 /// any value other than `1`. The harness orchestrates phase batching itself and cannot share
 /// that responsibility with `libtest_mimic`'s thread pool.
-pub fn parse_harness_arguments() -> Result<Arguments, HarnessArgumentsError> {
-    validate(Arguments::from_args())
+pub fn parse_harness_arguments(arguments: Arguments) -> Result<Arguments, HarnessArgumentsError> {
+    validate(arguments)
 }
 
 #[cfg(test)]

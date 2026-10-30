@@ -7,10 +7,10 @@ use anyhow::Result;
 /// Returns an error if the HF client cannot be built or the file cannot be downloaded
 /// (e.g., the repo or file does not exist, or network access fails).
 pub fn download_model(repo: &str, file: &str) -> Result<PathBuf> {
-    let api = hf_hub::api::sync::ApiBuilder::from_env()
+    Ok(hf_hub::api::sync::ApiBuilder::from_env()
         .with_progress(true)
-        .build()?;
-    Ok(api.model(repo.to_owned()).get(file)?)
+        .build()
+        .and_then(|api| api.model(repo.to_owned()).get(file))?)
 }
 
 #[cfg(test)]

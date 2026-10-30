@@ -1,5 +1,6 @@
 use std::process::ExitCode;
 
+use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
 
 use crate::run_to_conclusions::run_to_conclusions;
@@ -14,7 +15,7 @@ fn aggregate_exit_code(conclusions: &[Conclusion]) -> ExitCode {
 
 #[must_use]
 pub fn run() -> ExitCode {
-    match run_to_conclusions() {
+    match run_to_conclusions(Arguments::from_args()) {
         Ok(conclusions) => aggregate_exit_code(&conclusions),
         Err(error) => {
             eprintln!("llama-cpp-test-harness: {error}");
@@ -27,6 +28,7 @@ pub fn run() -> ExitCode {
 mod tests {
     use std::process::ExitCode;
 
+    use libtest_mimic::Arguments;
     use libtest_mimic::Conclusion;
     use llama_cpp_bindings::error::LlamaCppError;
     use llama_cpp_bindings::llama_backend::LlamaBackend;
@@ -96,7 +98,7 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _hold = LlamaBackend::init().expect("first init must succeed");
 
-        let outcome = run_to_conclusions();
+        let outcome = run_to_conclusions(Arguments::default());
 
         assert_eq!(
             outcome.err(),

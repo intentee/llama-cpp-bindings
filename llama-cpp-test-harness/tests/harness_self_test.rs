@@ -2,6 +2,7 @@ use std::process::ExitCode;
 
 use anyhow::Result;
 use anyhow::bail;
+use libtest_mimic::Arguments;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 use llama_cpp_test_harness::no_op;
@@ -137,7 +138,7 @@ const EXPECTED_PASSED: u64 = 6;
 const EXPECTED_FAILED: u64 = 5;
 
 fn main() -> ExitCode {
-    let conclusions = match run_to_conclusions() {
+    let conclusions = match run_to_conclusions(Arguments::from_args()) {
         Ok(conclusions) => conclusions,
         Err(error) => {
             eprintln!("harness_self_test: unexpected harness setup failure: {error}");
