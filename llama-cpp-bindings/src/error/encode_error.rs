@@ -1,5 +1,5 @@
+use std::ffi::c_int;
 use std::num::NonZeroI32;
-use std::os::raw::c_int;
 
 use crate::error::batch_transfer_error::BatchTransferError;
 use crate::error::process_failure::ProcessFailure;

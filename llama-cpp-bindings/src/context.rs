@@ -383,6 +383,14 @@ where
     }
 }
 
+fn memory_of(
+    context: NonNull<llama_cpp_bindings_sys::llama_context>,
+) -> Option<llama_cpp_bindings_sys::llama_memory_t> {
+    let memory = unsafe { llama_cpp_bindings_sys::llama_get_memory(context.as_ptr()) };
+
+    (!memory.is_null()).then_some(memory)
+}
+
 unsafe fn logits_slice<'logits>(
     logits: NonNull<f32>,
     n_vocab: i32,
@@ -438,8 +446,7 @@ impl<'model> LlamaContext<'model> {
         let pooling_type = LlamaPoolingType::from(unsafe {
             llama_cpp_bindings_sys::llama_pooling_type(context.as_ptr())
         });
-        let keeps_no_memory =
-            unsafe { llama_cpp_bindings_sys::llama_get_memory(context.as_ptr()) }.is_null();
+        let keeps_no_memory = memory_of(context).is_none();
         let attends_causally =
             unsafe { llama_cpp_bindings_sys::llama_get_causal_attn(context.as_ptr()) };
 

@@ -1,5 +1,5 @@
 use std::ffi::CString;
-use std::os::raw::c_int;
+use std::ffi::c_int;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TokenizerInput {

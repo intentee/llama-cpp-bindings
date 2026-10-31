@@ -17,13 +17,13 @@ pub mod vocab_type;
 pub mod vocab_type_from_int_error;
 
 use std::cmp;
+use std::ffi::c_int;
 use std::ffi::{CStr, CString, c_char};
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::num::NonZeroU16;
 use std::num::TryFromIntError;
-use std::os::raw::c_int;
 use std::path::Path;
 use std::ptr;
 use std::ptr::NonNull;

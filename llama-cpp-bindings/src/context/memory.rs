@@ -1,11 +1,12 @@
+use std::ffi::c_char;
 use std::ffi::c_int;
 use std::num::NonZeroU8;
-use std::os::raw::c_char;
 use std::ptr;
 
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::context::LlamaContext;
+use crate::context::memory_of;
 use crate::error::memory_seq_add_error::MemorySeqAddError;
 use crate::error::memory_seq_cp_error::MemorySeqCpError;
 use crate::error::memory_seq_div_error::MemorySeqDivError;
@@ -172,22 +173,15 @@ fn memory_seq_pos_max_status_to_result(
 }
 
 impl LlamaContext<'_> {
-    fn memory_handle(&self) -> Option<llama_cpp_bindings_sys::llama_memory_t> {
-        let mem = unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) };
-
-        if mem.is_null() { None } else { Some(mem) }
-    }
-
     #[must_use]
     pub fn has_memory(&self) -> bool {
-        self.memory_handle().is_some()
+        memory_of(self.context).is_some()
     }
 
     fn required_memory_handle(
         &self,
     ) -> Result<llama_cpp_bindings_sys::llama_memory_t, MemorySeqCpError> {
-        self.memory_handle()
-            .ok_or(MemorySeqCpError::MemoryHandleUnavailable)
+        memory_of(self.context).ok_or(MemorySeqCpError::MemoryHandleUnavailable)
     }
 
     /// # Errors
@@ -230,7 +224,7 @@ impl LlamaContext<'_> {
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
             .map_err(MemorySeqRmError::P1TooLarge)?;
-        let Some(mem) = self.memory_handle() else {
+        let Some(mem) = memory_of(self.context) else {
             return Ok(());
         };
 
@@ -242,7 +236,7 @@ impl LlamaContext<'_> {
     }
 
     pub fn memory_clear(&mut self) {
-        let Some(mem) = self.memory_handle() else {
+        let Some(mem) = memory_of(self.context) else {
             return;
         };
         let clear_data_buffers = true;
@@ -250,7 +244,7 @@ impl LlamaContext<'_> {
     }
 
     pub fn memory_seq_keep(&mut self, seq_id: i32) {
-        let Some(mem) = self.memory_handle() else {
+        let Some(mem) = memory_of(self.context) else {
             return;
         };
         unsafe { llama_cpp_bindings_sys::llama_memory_seq_keep(mem, seq_id) };

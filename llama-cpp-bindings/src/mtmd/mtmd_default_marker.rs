@@ -1,5 +1,5 @@
 use std::ffi::CStr;
-use std::os::raw::c_char;
+use std::ffi::c_char;
 
 use crate::mtmd::mtmd_default_marker_error::MtmdDefaultMarkerError;
 
@@ -21,7 +21,7 @@ pub fn mtmd_default_marker() -> Result<&'static str, MtmdDefaultMarkerError> {
 
 #[cfg(test)]
 mod tests {
-    use std::os::raw::c_char;
+    use std::ffi::c_char;
     use std::str;
 
     use super::marker_bytes_to_str;
