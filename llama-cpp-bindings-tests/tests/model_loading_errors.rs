@@ -3,8 +3,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use llama_cpp_bindings::LlamaLoraAdapterInitError;
-use llama_cpp_bindings::LlamaModelLoadError;
+use llama_cpp_bindings::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
+use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_test_harness::LlamaFixture;

@@ -31,30 +31,28 @@ use toktrie::TokRxInfo;
 use toktrie::TokTrie;
 
 use crate::chat_templates::ChatTemplates;
+use crate::error::chat_template_error::ChatTemplateError;
 use crate::error::chat_templates_error::ChatTemplatesError;
+use crate::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
+use crate::error::llama_model_load_error::LlamaModelLoadError;
+use crate::error::meta_val_error::MetaValError;
+use crate::error::string_to_token_error::StringToTokenError;
+use crate::error::token_attr_error::TokenAttrError;
+use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
+use crate::error::token_to_string_error::TokenToStringError;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::model::tokenizer_input::TokenizerInput;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
-use crate::{
-    ChatTemplateError, LlamaLoraAdapterInitError, LlamaModelLoadError, MetaValError,
-    StringToTokenError, TokenAttrError, TokenOutsideVocabulary, TokenToStringError,
-};
 
-pub use add_bos::AddBos;
-pub use llama_chat_message::LlamaChatMessage;
-pub use llama_chat_template::LlamaChatTemplate;
-pub use llama_lazy_mode::LlamaLazyMode;
-pub use llama_lazy_mode_parse_error::LlamaLazyModeParseError;
-pub use llama_load_mode::LlamaLoadMode;
-pub use llama_load_mode_parse_error::LlamaLoadModeParseError;
-pub use llama_lora_adapter::LlamaLoraAdapter;
-pub use parse_special_tokens::ParseSpecialTokens;
-pub use rope_type::RopeType;
-pub use vocab_type::VocabType;
-pub use vocab_type_from_int_error::VocabTypeFromIntError;
-
+use crate::model::add_bos::AddBos;
+use crate::model::llama_chat_template::LlamaChatTemplate;
+use crate::model::llama_lora_adapter::LlamaLoraAdapter;
+use crate::model::parse_special_tokens::ParseSpecialTokens;
+use crate::model::rope_type::RopeType;
+use crate::model::vocab_type::VocabType;
+use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 use params::LlamaModelParams;
 
@@ -116,7 +114,7 @@ unsafe fn load_model_from_file_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_OK => {
             let model = NonNull::new(out_model).ok_or_else(|| {
-                LlamaModelLoadError::from(crate::FfiContractError {
+                LlamaModelLoadError::from(llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_load_model_from_file",
                     detail: "success status contained a null model",
                 })
@@ -151,27 +149,27 @@ unsafe fn load_model_from_file_status_to_result(
             Err(LlamaModelLoadError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "was given a null path argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "was given a null out_model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_load_model_from_file",
             code: i64::from(other),
         }
@@ -728,7 +726,7 @@ unsafe fn tokenize_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "was given a null vocab argument",
             }
@@ -736,7 +734,7 @@ unsafe fn tokenize_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_TEXT_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "was given a null text argument",
             }
@@ -744,7 +742,7 @@ unsafe fn tokenize_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_RETURNED_COUNT_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "was given a null out_returned_count argument",
             }
@@ -752,7 +750,7 @@ unsafe fn tokenize_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_ERROR_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "was given a null out_error argument",
             }
@@ -760,7 +758,7 @@ unsafe fn tokenize_status_to_result(
         }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(crate::FfiStatusError {
+            Err(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_tokenize",
                 code: i64::from(other),
             }
@@ -883,7 +881,7 @@ mod cstring_with_validated_len_tests {
     use std::str;
 
     use super::cstring_with_validated_len;
-    use crate::StringToTokenError;
+    use crate::error::string_to_token_error::StringToTokenError;
 
     #[test]
     fn cstring_with_validated_len_null_byte_returns_error() {
@@ -916,7 +914,9 @@ mod validate_string_length_for_tokenizer_tests {
     fn validate_string_length_overflow_returns_error() {
         assert_eq!(
             validate_string_length_for_tokenizer(usize::MAX),
-            i32::try_from(usize::MAX).map_err(crate::StringToTokenError::CIntConversionError)
+            i32::try_from(usize::MAX).map_err(
+                crate::error::string_to_token_error::StringToTokenError::CIntConversionError
+            )
         );
     }
 }
@@ -980,10 +980,13 @@ mod tokenize_into_buffer_tests {
     #[test]
     fn tokenize_into_buffer_propagates_invocation_error() {
         let result = tokenize_into_buffer(8, |_tokens, _n_tokens_max| {
-            Err(crate::StringToTokenError::NotEnoughMemory)
+            Err(crate::error::string_to_token_error::StringToTokenError::NotEnoughMemory)
         });
 
-        assert_eq!(result, Err(crate::StringToTokenError::NotEnoughMemory));
+        assert_eq!(
+            result,
+            Err(crate::error::string_to_token_error::StringToTokenError::NotEnoughMemory)
+        );
     }
 
     #[test]
@@ -995,11 +998,14 @@ mod tokenize_into_buffer_tests {
             if count == 0 {
                 Ok(-20)
             } else {
-                Err(crate::StringToTokenError::NotEnoughMemory)
+                Err(crate::error::string_to_token_error::StringToTokenError::NotEnoughMemory)
             }
         });
 
-        assert_eq!(result, Err(crate::StringToTokenError::NotEnoughMemory));
+        assert_eq!(
+            result,
+            Err(crate::error::string_to_token_error::StringToTokenError::NotEnoughMemory)
+        );
         assert_eq!(call_count.get(), 2);
     }
 
@@ -1007,9 +1013,11 @@ mod tokenize_into_buffer_tests {
     fn tokenize_into_buffer_refuses_a_capacity_beyond_a_c_int_before_allocating() {
         assert_eq!(
             tokenize_into_buffer(usize::MAX, |_tokens, _n_tokens_max| Ok(0)),
-            Err(crate::StringToTokenError::CIntConversionError(
-                i32::try_from(usize::MAX).unwrap_err()
-            ))
+            Err(
+                crate::error::string_to_token_error::StringToTokenError::CIntConversionError(
+                    i32::try_from(usize::MAX).unwrap_err()
+                )
+            )
         );
     }
 
@@ -1017,9 +1025,11 @@ mod tokenize_into_buffer_tests {
     fn tokenize_into_buffer_refuses_a_required_size_it_cannot_negate() {
         assert_eq!(
             tokenize_into_buffer(8, |_tokens, _n_tokens_max| Ok(i32::MIN)),
-            Err(crate::StringToTokenError::CIntConversionError(
-                usize::try_from(i32::MIN).unwrap_err()
-            ))
+            Err(
+                crate::error::string_to_token_error::StringToTokenError::CIntConversionError(
+                    usize::try_from(i32::MIN).unwrap_err()
+                )
+            )
         );
     }
 
@@ -1034,7 +1044,9 @@ mod tokenize_into_buffer_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::StringToTokenError::CIntConversionError(usize::try_from(-5i32).unwrap_err())
+            crate::error::string_to_token_error::StringToTokenError::CIntConversionError(
+                usize::try_from(-5i32).unwrap_err()
+            )
         );
     }
 }
@@ -1042,7 +1054,7 @@ mod tokenize_into_buffer_tests {
 #[cfg(test)]
 mod extract_meta_string_tests {
     use super::extract_meta_string;
-    use crate::MetaValError;
+    use crate::error::meta_val_error::MetaValError;
 
     #[test]
     fn returns_error_when_null_terminator_missing() {
@@ -1120,7 +1132,7 @@ mod initialize_lora_adapter_tests {
     use std::ptr;
 
     use super::initialize_lora_adapter;
-    use crate::LlamaLoraAdapterInitError;
+    use crate::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
 
     #[test]
     fn lora_adapter_initialization_maps_a_null_pointer_to_unloadable() {
@@ -1147,7 +1159,7 @@ mod load_model_from_file_status_to_result_tests {
     use std::ptr;
 
     use super::load_model_from_file_status_to_result;
-    use crate::LlamaModelLoadError;
+    use crate::error::llama_model_load_error::LlamaModelLoadError;
 
     #[test]
     fn load_model_success_with_null_model_is_contract_error() {
@@ -1162,7 +1174,7 @@ mod load_model_from_file_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            LlamaModelLoadError::FfiContract(crate::FfiContractError {
+            LlamaModelLoadError::FfiContract(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "success status contained a null model",
             })
@@ -1236,7 +1248,7 @@ mod load_model_from_file_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::FfiContractError {
+            llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1257,7 +1269,7 @@ mod load_model_from_file_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            LlamaModelLoadError::FfiStatus(crate::FfiStatusError {
+            LlamaModelLoadError::FfiStatus(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_load_model_from_file",
                 code: 255,
             })
@@ -1277,7 +1289,7 @@ mod load_model_from_file_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_load_model_from_file",
                     detail: "was given a null path argument",
                 }
@@ -1299,7 +1311,7 @@ mod load_model_from_file_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_load_model_from_file",
                     detail: "was given a null out_model argument",
                 }
@@ -1321,7 +1333,7 @@ mod load_model_from_file_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_load_model_from_file",
                     detail: "was given a null out_error argument",
                 }
@@ -1352,7 +1364,7 @@ mod tokenize_status_to_result_tests {
     use std::ptr;
 
     use super::tokenize_status_to_result;
-    use crate::StringToTokenError;
+    use crate::error::string_to_token_error::StringToTokenError;
 
     #[test]
     fn tokenize_ok_returns_count() {
@@ -1412,7 +1424,7 @@ mod tokenize_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1426,10 +1438,12 @@ mod tokenize_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(StringToTokenError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_tokenize",
-                code: 255,
-            }))
+            Err(StringToTokenError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_tokenize",
+                    code: 255,
+                }
+            ))
         );
     }
 
@@ -1445,7 +1459,7 @@ mod tokenize_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_tokenize",
                     detail: "was given a null vocab argument",
                 }
@@ -1466,7 +1480,7 @@ mod tokenize_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_tokenize",
                     detail: "was given a null text argument",
                 }
@@ -1487,7 +1501,7 @@ mod tokenize_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_tokenize",
                     detail: "was given a null out_returned_count argument",
                 }
@@ -1508,7 +1522,7 @@ mod tokenize_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_tokenize",
                     detail: "was given a null out_error argument",
                 }

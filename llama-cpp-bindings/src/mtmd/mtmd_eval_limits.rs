@@ -53,10 +53,10 @@ impl MtmdEvalLimits {
 mod tests {
     use std::num::NonZeroU32;
 
-    use super::MtmdEvalLimits;
     use crate::context::context_limits::ContextLimits;
     use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
     use crate::mtmd::mtmd_eval_error::MtmdEvalError;
+    use crate::mtmd::mtmd_eval_limits::MtmdEvalLimits;
 
     const LIMITS: MtmdEvalLimits = MtmdEvalLimits {
         context: ContextLimits {

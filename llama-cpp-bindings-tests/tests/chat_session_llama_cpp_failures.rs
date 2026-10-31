@@ -1,18 +1,18 @@
 use std::str::Utf8Error;
 
-use llama_cpp_bindings::ChatOutput;
-use llama_cpp_bindings::ChatOutputCompleteness;
-use llama_cpp_bindings::ChatSessionError;
-use llama_cpp_bindings::ChatTemplatesError;
-use llama_cpp_bindings::ChatToolChoice;
-use llama_cpp_bindings::FfiStatusError;
-use llama_cpp_bindings::GrammarError;
-use llama_cpp_bindings::ParseChatMessageError;
-use llama_cpp_bindings::SamplerAcceptError;
+use llama_cpp_bindings::chat_output::ChatOutput;
+use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
+use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
+use llama_cpp_bindings::error::chat_templates_error::ChatTemplatesError;
+use llama_cpp_bindings::error::grammar_error::GrammarError;
+use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
+use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_fault_injection::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message;
+use llama_cpp_ffi_status::FfiStatusError;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 

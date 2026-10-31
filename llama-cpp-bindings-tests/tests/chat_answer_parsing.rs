@@ -1,10 +1,10 @@
 use anyhow::Result;
 use anyhow::bail;
-use llama_cpp_bindings::ChatMessageParseOutcome;
-use llama_cpp_bindings::ChatOutput;
-use llama_cpp_bindings::ChatOutputCompleteness;
-use llama_cpp_bindings::ChatToolChoice;
-use llama_cpp_bindings::ParseChatMessageError;
+use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
+use llama_cpp_bindings::chat_output::ChatOutput;
+use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
+use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;

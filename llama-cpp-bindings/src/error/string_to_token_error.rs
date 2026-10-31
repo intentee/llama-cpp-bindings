@@ -3,9 +3,9 @@ use std::ffi::NulError;
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StringToTokenError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("{0}")]
     NulError(#[from] NulError),
     #[error("{0}")]

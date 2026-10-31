@@ -5,9 +5,9 @@ use crate::error::sampler_apply_error::SamplerApplyError;
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum SampleError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("the logits to sample from are unavailable: {0}")]
     Logits(#[from] LogitsError),
     #[error("not enough memory")]

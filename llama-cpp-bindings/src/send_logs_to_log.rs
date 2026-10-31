@@ -174,11 +174,15 @@ mod tests {
     use log::{Level, Log, Metadata, Record};
     use serial_test::serial;
 
-    use super::{
-        GGML_SOURCE, LLAMA_SOURCE, LogSource, dispatch_output, ggml_level_to_incoming, logs_to_log,
-        resolve_record, send_logs_to_log,
-    };
+    use super::GGML_SOURCE;
+    use super::LLAMA_SOURCE;
+    use super::LogSource;
+    use super::dispatch_output;
+    use super::ggml_level_to_incoming;
+    use super::logs_to_log;
+    use super::resolve_record;
     use crate::log_options::LogOptions;
+    use crate::send_logs_to_log::send_logs_to_log;
 
     #[derive(Debug)]
     struct CapturedRecord {

@@ -1,9 +1,9 @@
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FitError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("no parameter combination fits available memory")]
     NoFittingMemoryLayout,
     #[error("parameter fitting aborted")]

@@ -37,7 +37,7 @@ impl std::fmt::Debug for LlamaChatTemplate {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaChatTemplate;
+    use crate::model::llama_chat_template::LlamaChatTemplate;
 
     #[test]
     fn valid_template_creation() {

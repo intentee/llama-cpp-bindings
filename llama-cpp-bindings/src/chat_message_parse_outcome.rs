@@ -43,7 +43,7 @@ mod tests {
     use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::json;
 
-    use super::ChatMessageParseOutcome;
+    use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
     use crate::chat_output_completeness::ChatOutputCompleteness;
     use crate::raw_chat_message::RawChatMessage;
 

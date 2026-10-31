@@ -1,6 +1,6 @@
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdInputChunks;
-use llama_cpp_bindings::mtmd::MtmdInputText;
+use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::LlamaFixture;
 
 /// Tokenizes `prompt` with a uniformly grey 64x64 image as its media.

@@ -81,28 +81,28 @@ fn map_tokenize_status(
             Err(MtmdTokenizeError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize",
                 detail: "nonzero bitmap count was observed with a null bitmap array",
             }
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG => Err(crate::FfiContractError {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG => Err(llama_cpp_ffi_status::FfiContractError {
             operation: "llama_rs_mtmd_tokenize",
             detail: "was given a null ctx argument",
         }
         .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG => Err(crate::FfiContractError {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG => Err(llama_cpp_ffi_status::FfiContractError {
             operation: "llama_rs_mtmd_tokenize",
             detail: "was given a null output argument",
         }
         .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG => Err(crate::FfiContractError {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG => Err(llama_cpp_ffi_status::FfiContractError {
             operation: "llama_rs_mtmd_tokenize",
             detail: "was given a null text argument",
         }
         .into()),
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_mtmd_tokenize",
             code: i64::from(other),
         }
@@ -118,7 +118,7 @@ fn map_tokenize_from_parts_status(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize_from_parts",
                 detail: "llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts",
             }
@@ -149,34 +149,34 @@ fn map_tokenize_from_parts_status(
             Err(MtmdTokenizeError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize_from_parts",
                 detail: "was given a null ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize_from_parts",
                 detail: "was given a null output argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize_from_parts",
                 detail: "nonzero part count was observed with a null part array",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize_from_parts",
                 detail: "was given a null element in the parts argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_mtmd_tokenize_from_parts",
             code: i64::from(other),
         }
@@ -213,20 +213,20 @@ fn map_encode_chunk_status(
             Err(MtmdEncodeError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_encode_chunk",
                 detail: "was given a null ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_encode_chunk",
                 detail: "was given a null chunk argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_mtmd_encode_chunk",
             code: i64::from(other),
         }
@@ -243,7 +243,7 @@ fn map_init_from_file_status(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_OK => {
             let context = NonNull::new(out_ctx).ok_or_else(|| {
-                MtmdInitError::from(crate::FfiContractError {
+                MtmdInitError::from(llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_init_from_file",
                     detail: "success status contained a null multimodal context",
                 })
@@ -272,27 +272,27 @@ fn map_init_from_file_status(
             Err(MtmdInitError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_MMPROJ_PATH_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_init_from_file",
                 detail: "was given a null mmproj_path argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_TEXT_MODEL_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_init_from_file",
                 detail: "was given a null text_model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_OUT_CTX_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_init_from_file",
                 detail: "was given a null out_ctx argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_mtmd_init_from_file",
             code: i64::from(other),
         }
@@ -577,7 +577,7 @@ mod map_tokenize_from_parts_status_tests {
             )
             .err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
                     detail: "llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts",
                 }
@@ -596,7 +596,7 @@ mod map_tokenize_from_parts_status_tests {
             )
             .err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
                     detail: "was given a null element in the parts argument",
                 }
@@ -615,7 +615,7 @@ mod map_tokenize_from_parts_status_tests {
             )
             .err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
                     detail: "reported a thrown C++ exception without an error message",
                 }
@@ -634,7 +634,7 @@ mod map_tokenize_from_parts_status_tests {
             )
             .err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
                     detail: "was given a null ctx argument",
                 }
@@ -653,7 +653,7 @@ mod map_tokenize_from_parts_status_tests {
             )
             .err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
                     detail: "was given a null output argument",
                 }
@@ -672,7 +672,7 @@ mod map_tokenize_from_parts_status_tests {
             )
             .err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
                     detail: "nonzero part count was observed with a null part array",
                 }
@@ -681,10 +681,12 @@ mod map_tokenize_from_parts_status_tests {
         );
         assert_eq!(
             map_tokenize_from_parts_status(255, 0, ptr::null_mut()).err(),
-            Some(MtmdTokenizeError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                code: 255,
-            }))
+            Some(MtmdTokenizeError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_mtmd_tokenize_from_parts",
+                    code: 255,
+                }
+            ))
         );
     }
 }
@@ -767,7 +769,7 @@ mod map_tokenize_status_tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_tokenize",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -785,10 +787,12 @@ mod map_tokenize_status_tests {
 
         assert_eq!(
             result,
-            Err(MtmdTokenizeError::FfiContract(crate::FfiContractError {
-                operation: "llama_rs_mtmd_tokenize",
-                detail: "nonzero bitmap count was observed with a null bitmap array",
-            }))
+            Err(MtmdTokenizeError::FfiContract(
+                llama_cpp_ffi_status::FfiContractError {
+                    operation: "llama_rs_mtmd_tokenize",
+                    detail: "nonzero bitmap count was observed with a null bitmap array",
+                }
+            ))
         );
     }
 
@@ -798,10 +802,12 @@ mod map_tokenize_status_tests {
 
         assert_eq!(
             result,
-            Err(MtmdTokenizeError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_mtmd_tokenize",
-                code: 255,
-            }))
+            Err(MtmdTokenizeError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_mtmd_tokenize",
+                    code: 255,
+                }
+            ))
         );
     }
 
@@ -815,7 +821,7 @@ mod map_tokenize_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize",
                     detail: "was given a null ctx argument",
                 }
@@ -834,7 +840,7 @@ mod map_tokenize_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize",
                     detail: "was given a null output argument",
                 }
@@ -853,7 +859,7 @@ mod map_tokenize_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_tokenize",
                     detail: "was given a null text argument",
                 }
@@ -940,7 +946,7 @@ mod map_encode_chunk_status_tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_encode_chunk",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -954,10 +960,12 @@ mod map_encode_chunk_status_tests {
 
         assert_eq!(
             result,
-            Err(MtmdEncodeError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_mtmd_encode_chunk",
-                code: 255,
-            }))
+            Err(MtmdEncodeError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_mtmd_encode_chunk",
+                    code: 255,
+                }
+            ))
         );
     }
 
@@ -971,7 +979,7 @@ mod map_encode_chunk_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_encode_chunk",
                     detail: "was given a null ctx argument",
                 }
@@ -990,7 +998,7 @@ mod map_encode_chunk_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_encode_chunk",
                     detail: "was given a null chunk argument",
                 }
@@ -1045,7 +1053,7 @@ mod map_init_from_file_status_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            MtmdInitError::FfiContract(crate::FfiContractError {
+            MtmdInitError::FfiContract(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_init_from_file",
                 detail: "success status contained a null multimodal context",
             })
@@ -1075,7 +1083,7 @@ mod map_init_from_file_status_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::FfiContractError {
+            llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_mtmd_init_from_file",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1090,7 +1098,7 @@ mod map_init_from_file_status_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            MtmdInitError::FfiStatus(crate::FfiStatusError {
+            MtmdInitError::FfiStatus(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_mtmd_init_from_file",
                 code: 255,
             })
@@ -1108,7 +1116,7 @@ mod map_init_from_file_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_init_from_file",
                     detail: "was given a null mmproj_path argument",
                 }
@@ -1128,7 +1136,7 @@ mod map_init_from_file_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_init_from_file",
                     detail: "was given a null text_model argument",
                 }
@@ -1148,7 +1156,7 @@ mod map_init_from_file_status_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_mtmd_init_from_file",
                     detail: "was given a null out_ctx argument",
                 }

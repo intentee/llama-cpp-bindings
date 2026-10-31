@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use llama_cpp_bindings::ChatTemplateError;
+use llama_cpp_bindings::error::chat_template_error::ChatTemplateError;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 

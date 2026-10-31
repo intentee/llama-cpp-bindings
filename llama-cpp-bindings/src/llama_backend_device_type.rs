@@ -22,7 +22,7 @@ impl LlamaBackendDeviceType {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaBackendDeviceType;
+    use crate::llama_backend_device_type::LlamaBackendDeviceType;
 
     #[test]
     fn device_type_from_raw_all_variants() {

@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use crate::NewLlamaChatMessageError;
+use crate::error::new_llama_chat_message_error::NewLlamaChatMessageError;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LlamaChatMessage {
@@ -21,7 +21,7 @@ impl LlamaChatMessage {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaChatMessage;
+    use crate::model::llama_chat_message::LlamaChatMessage;
 
     #[test]
     fn valid_construction() {

@@ -48,7 +48,7 @@ impl LlamaTokenDataArray {
 impl LlamaTokenDataArray {
     /// # Errors
     ///
-    /// Returns [`crate::FfiContractError`] when the llama.cpp sampler grows the array beyond the
+    /// Returns [`llama_cpp_ffi_status::FfiContractError`] when the llama.cpp sampler grows the array beyond the
     /// capacity this buffer was allocated with, which would make the following `set_len`
     /// undefined behaviour.
     ///
@@ -60,7 +60,7 @@ impl LlamaTokenDataArray {
     pub unsafe fn modify_as_c_llama_token_data_array<TResult>(
         &mut self,
         modify: impl FnOnce(&mut llama_cpp_bindings_sys::llama_token_data_array) -> TResult,
-    ) -> Result<TResult, crate::FfiContractError> {
+    ) -> Result<TResult, llama_cpp_ffi_status::FfiContractError> {
         let size = self.data.len();
         let data = self
             .data
@@ -80,7 +80,7 @@ impl LlamaTokenDataArray {
         let result = modify(&mut c_llama_token_data_array);
 
         if c_llama_token_data_array.size > self.data.capacity() {
-            return Err(crate::FfiContractError {
+            return Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "modify_as_c_llama_token_data_array",
                 detail: "the llama.cpp sampler grew the token data array beyond its capacity",
             });
@@ -226,7 +226,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "modify_as_c_llama_token_data_array",
                 detail: "the llama.cpp sampler grew the token data array beyond its capacity",
             })

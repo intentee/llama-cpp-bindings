@@ -1,6 +1,6 @@
-use llama_cpp_bindings::TokenAttrError;
-use llama_cpp_bindings::TokenOutsideVocabulary;
-use llama_cpp_bindings::TokenToStringError;
+use llama_cpp_bindings::error::token_attr_error::TokenAttrError;
+use llama_cpp_bindings::error::token_outside_vocabulary::TokenOutsideVocabulary;
+use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;

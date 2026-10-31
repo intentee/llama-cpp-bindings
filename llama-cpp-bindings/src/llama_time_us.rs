@@ -5,7 +5,7 @@ pub fn llama_time_us() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::llama_time_us;
+    use crate::llama_time_us::llama_time_us;
 
     #[test]
     fn returns_positive_value() {

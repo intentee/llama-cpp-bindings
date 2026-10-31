@@ -23,7 +23,7 @@ impl RopeType {
 
 #[cfg(test)]
 mod tests {
-    use super::RopeType;
+    use crate::model::rope_type::RopeType;
 
     #[test]
     fn rope_type_none() {

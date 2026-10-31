@@ -7,7 +7,7 @@ use nom::IResult;
 use nom::Parser;
 use nom::bytes::complete::take_until;
 
-use crate::error::KeyValueXmlTagsFailure;
+use crate::error::key_value_xml_tags_failure::KeyValueXmlTagsFailure;
 use crate::tool_call_format::parse_step::ParseStep;
 use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
 
@@ -176,7 +176,7 @@ mod tests {
     use serde_json::json;
 
     use super::parse;
-    use crate::error::KeyValueXmlTagsFailure;
+    use crate::error::key_value_xml_tags_failure::KeyValueXmlTagsFailure;
 
     fn glm47_markers() -> ToolCallMarkers {
         ToolCallMarkers {

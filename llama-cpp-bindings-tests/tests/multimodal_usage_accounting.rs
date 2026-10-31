@@ -1,19 +1,19 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
-use llama_cpp_bindings::EvalMultimodalChunksParams;
-use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::mtmd::FittedMtmdInputChunk;
-use llama_cpp_bindings::mtmd::FittedMtmdInputChunks;
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::MtmdInputText;
-use llama_cpp_bindings::mtmd::mtmd_default_marker;
+use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
+use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
+use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
+use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
+use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
+use llama_cpp_bindings_types::TokenUsage;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 

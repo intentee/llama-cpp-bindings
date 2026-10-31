@@ -3,9 +3,9 @@ use std::num::TryFromIntError;
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MemorySeqDivError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("provided start position is too large for an i32")]
     P0TooLarge(#[source] TryFromIntError),
     #[error("provided end position is too large for an i32")]

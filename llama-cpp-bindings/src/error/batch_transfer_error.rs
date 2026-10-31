@@ -3,9 +3,9 @@ use crate::context::context_limits::ContextLimits;
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum BatchTransferError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("the batch was built for context limits {batch:?}, but the context has {context:?}")]
     LimitsMismatch {
         batch: ContextLimits,

@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::ChatOutputCompleteness;
-use llama_cpp_bindings::ChatSession;
-use llama_cpp_bindings::ChatToolChoice;
+use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_bindings::chat_session::ChatSession;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::chat_answer_generation::ChatAnswerGeneration;
 use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;

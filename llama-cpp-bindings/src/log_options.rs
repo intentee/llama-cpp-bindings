@@ -22,7 +22,7 @@ impl LogOptions {
 
 #[cfg(test)]
 mod tests {
-    use super::LogOptions;
+    use crate::log_options::LogOptions;
 
     #[test]
     fn builder_chain_sets_both_flags() {

@@ -1,10 +1,9 @@
+use crate::context::kv_cache_type::KvCacheType;
+use crate::context::llama_attention_type::LlamaAttentionType;
+use crate::context::llama_pooling_type::LlamaPoolingType;
+use crate::context::rope_scaling_type::RopeScalingType;
 use std::fmt::Debug;
 use std::num::NonZeroU32;
-
-pub use crate::context::kv_cache_type::KvCacheType;
-pub use crate::context::llama_attention_type::LlamaAttentionType;
-pub use crate::context::llama_pooling_type::LlamaPoolingType;
-pub use crate::context::rope_scaling_type::RopeScalingType;
 
 #[derive(Debug, Clone, Copy)]
 pub struct LlamaContextParams {
@@ -333,7 +332,10 @@ impl Default for LlamaContextParams {
 
 #[cfg(test)]
 mod tests {
-    use super::{KvCacheType, LlamaAttentionType, LlamaPoolingType, RopeScalingType};
+    use super::KvCacheType;
+    use super::LlamaAttentionType;
+    use super::LlamaPoolingType;
+    use super::RopeScalingType;
 
     #[test]
     fn default_params_have_expected_values() {

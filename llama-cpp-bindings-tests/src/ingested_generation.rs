@@ -1,9 +1,9 @@
-use llama_cpp_bindings::GenerationProgress;
-use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::ParseSpecialTokens;
+use llama_cpp_bindings::model::add_bos::AddBos;
+use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 
 /// Feeds the tokens of `generated_text` to `classifier` as if the model generated them, then
 /// ends the generation with the model's end-of-sequence token.

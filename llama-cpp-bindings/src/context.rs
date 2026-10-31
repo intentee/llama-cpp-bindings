@@ -14,10 +14,16 @@ use llama_cpp_ffi_status::read_and_free_cpp_string;
 use crate::context::context_limits::ContextLimits;
 use crate::context::decoded_output_rows::DecodedOutputRows;
 use crate::context::decoded_outputs::DecodedOutputs;
+use crate::context::llama_pooling_type::LlamaPoolingType;
 use crate::context::params::LlamaContextParams;
-use crate::context::params::LlamaPoolingType;
 use crate::context::sequence_output_capacity::SequenceOutputCapacity;
 use crate::error::batch_transfer_error::BatchTransferError;
+use crate::error::decode_error::DecodeError;
+use crate::error::embeddings_error::EmbeddingsError;
+use crate::error::encode_error::EncodeError;
+use crate::error::llama_context_load_error::LlamaContextLoadError;
+use crate::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
+use crate::error::logits_error::LogitsError;
 use crate::error::process_failure::ProcessFailure;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_batch::LlamaBatch;
@@ -26,10 +32,6 @@ use crate::model::lora_adapter_scale::LoraAdapterScale;
 use crate::token::LlamaToken;
 use crate::token::data::LlamaTokenData;
 use crate::token::data_array::LlamaTokenDataArray;
-use crate::{
-    DecodeError, EmbeddingsError, EncodeError, LlamaContextLoadError, LlamaLoraAdaptersError,
-    LogitsError,
-};
 
 const fn check_lora_adapters_result(err_code: i32) -> Result<(), LlamaLoraAdaptersError> {
     if err_code != 0 {
@@ -49,21 +51,21 @@ fn nextn_hidden_state_probe_status_to_result(
             Ok(produces_nextn_hidden_state)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_CTX_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_PRODUCES_NEXTN_HIDDEN_STATE_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null out_produces_nextn_hidden_state argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null out_error argument",
             }
@@ -88,7 +90,7 @@ fn nextn_hidden_state_probe_status_to_result(
             }?;
             Err(EmbeddingsError::NextnProbeReported { message })
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_context_graph_produces_nextn_hidden_state",
             code: i64::from(other),
         }
@@ -104,7 +106,7 @@ fn new_context_with_model_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK => NonNull::new(out_ctx)
             .ok_or_else(|| {
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "success status contained a null context",
                 }
@@ -130,27 +132,27 @@ fn new_context_with_model_status_to_result(
             Err(LlamaContextLoadError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null out_ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_new_context_with_model",
             code: i64::from(other),
         }
@@ -166,7 +168,7 @@ fn batch_ext_init_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_OK => {
             NonNull::new(out_batch).ok_or_else(|| {
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_batch_ext_init",
                     detail: "success status contained a null batch",
                 }
@@ -190,27 +192,27 @@ fn batch_ext_init_status_to_result(
             Err(LlamaContextLoadError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_batch_ext_init",
                 detail: "was given a null ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_BATCH_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_batch_ext_init",
                 detail: "was given a null out_batch argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_batch_ext_init",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_batch_ext_init",
             code: i64::from(other),
         }
@@ -223,7 +225,7 @@ fn batch_ext_add_entry_status_to_result(
     out_error: *mut c_char,
 ) -> Result<(), BatchTransferError> {
     let refused_validated_entry = |detail: &'static str| -> Result<(), BatchTransferError> {
-        Err(crate::FfiContractError {
+        Err(llama_cpp_ffi_status::FfiContractError {
             operation: "llama_rs_batch_ext_add_entry",
             detail,
         }
@@ -281,7 +283,7 @@ fn batch_ext_add_entry_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_OUT_ERROR_ARG => {
             refused_validated_entry("was given a null out_error argument")
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_batch_ext_add_entry",
             code: i64::from(other),
         }
@@ -300,7 +302,7 @@ where
     const OPERATION: &str = "llama_rs_process";
 
     let contract_violation = |detail: &'static str| {
-        ProcessFailure::from(crate::FfiContractError {
+        ProcessFailure::from(llama_cpp_ffi_status::FfiContractError {
             operation: OPERATION,
             detail,
         })
@@ -345,7 +347,7 @@ where
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG => {
             Err(contract_violation("was given a null out_error argument").into())
         }
-        other => Err(ProcessFailure::from(crate::FfiStatusError {
+        other => Err(ProcessFailure::from(llama_cpp_ffi_status::FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         })
@@ -955,7 +957,7 @@ impl Drop for LlamaContext<'_> {
 #[cfg(test)]
 mod check_lora_adapters_result_tests {
     use super::check_lora_adapters_result;
-    use crate::LlamaLoraAdaptersError;
+    use crate::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
 
     #[test]
     fn check_lora_adapters_result_ok_for_zero() {
@@ -978,7 +980,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer;
 
     use super::nextn_hidden_state_probe_status_to_result;
-    use crate::EmbeddingsError;
+    use crate::error::embeddings_error::EmbeddingsError;
 
     #[test]
     fn nextn_hidden_state_probe_status_to_result_maps_ok_to_whether_the_graph_produces_it() {
@@ -1000,7 +1002,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
                 false,
                 ptr::null_mut(),
             ),
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null ctx argument",
             }
@@ -1016,7 +1018,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
                 false,
                 ptr::null_mut(),
             ),
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null out_produces_nextn_hidden_state argument",
             }
@@ -1032,7 +1034,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
                 false,
                 ptr::null_mut(),
             ),
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null out_error argument",
             }
@@ -1108,7 +1110,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
                 false,
                 ptr::null_mut(),
             ),
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1120,7 +1122,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     fn nextn_hidden_state_probe_status_to_result_maps_an_unknown_status() {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(255, false, ptr::null_mut()),
-            Err(crate::FfiStatusError {
+            Err(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 code: 255,
             }
@@ -1134,7 +1136,7 @@ mod new_context_with_model_status_to_result_tests {
     use std::ptr;
 
     use super::new_context_with_model_status_to_result;
-    use crate::LlamaContextLoadError;
+    use crate::error::llama_context_load_error::LlamaContextLoadError;
 
     #[test]
     fn new_context_success_with_null_context_is_contract_error() {
@@ -1147,7 +1149,7 @@ mod new_context_with_model_status_to_result_tests {
         assert_eq!(
             result,
             Err(LlamaContextLoadError::FfiContract(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "success status contained a null context",
                 }
@@ -1206,7 +1208,7 @@ mod new_context_with_model_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1220,10 +1222,12 @@ mod new_context_with_model_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(LlamaContextLoadError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_new_context_with_model",
-                code: 255,
-            }))
+            Err(LlamaContextLoadError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_new_context_with_model",
+                    code: 255,
+                }
+            ))
         );
     }
 
@@ -1237,7 +1241,7 @@ mod new_context_with_model_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null model argument",
                 }
@@ -1256,7 +1260,7 @@ mod new_context_with_model_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null out_ctx argument",
                 }
@@ -1275,7 +1279,7 @@ mod new_context_with_model_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null out_error argument",
                 }
@@ -1303,7 +1307,7 @@ mod batch_ext_init_status_to_result_tests {
     use std::ptr;
 
     use super::batch_ext_init_status_to_result;
-    use crate::LlamaContextLoadError;
+    use crate::error::llama_context_load_error::LlamaContextLoadError;
 
     #[test]
     fn initializing_a_batch_reports_each_null_pointer_as_a_contract_violation() {
@@ -1328,7 +1332,7 @@ mod batch_ext_init_status_to_result_tests {
             assert_eq!(
                 batch_ext_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err(),
                 Some(LlamaContextLoadError::FfiContract(
-                    crate::FfiContractError {
+                    llama_cpp_ffi_status::FfiContractError {
                         operation: "llama_rs_batch_ext_init",
                         detail,
                     }
@@ -1386,7 +1390,7 @@ mod batch_ext_init_status_to_result_tests {
             )
             .err(),
             Some(LlamaContextLoadError::FfiContract(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_batch_ext_init",
                     detail: "reported a thrown C++ exception without an error message",
                 }
@@ -1398,10 +1402,12 @@ mod batch_ext_init_status_to_result_tests {
     fn initializing_a_batch_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_init_status_to_result(255, ptr::null_mut(), ptr::null_mut()).err(),
-            Some(LlamaContextLoadError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_batch_ext_init",
-                code: 255,
-            }))
+            Some(LlamaContextLoadError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_batch_ext_init",
+                    code: 255,
+                }
+            ))
         );
     }
 }
@@ -1463,7 +1469,7 @@ mod batch_ext_add_entry_status_to_result_tests {
         ] {
             assert_eq!(
                 batch_ext_add_entry_status_to_result(status, ptr::null_mut()),
-                Err(BatchTransferError::FfiContract(crate::FfiContractError {
+                Err(BatchTransferError::FfiContract(llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_batch_ext_add_entry",
                     detail,
                 }))
@@ -1510,10 +1516,12 @@ mod batch_ext_add_entry_status_to_result_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(BatchTransferError::FfiContract(crate::FfiContractError {
-                operation: "llama_rs_batch_ext_add_entry",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(BatchTransferError::FfiContract(
+                llama_cpp_ffi_status::FfiContractError {
+                    operation: "llama_rs_batch_ext_add_entry",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            ))
         );
     }
 
@@ -1521,10 +1529,12 @@ mod batch_ext_add_entry_status_to_result_tests {
     fn adding_a_batch_entry_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_add_entry_status_to_result(255, ptr::null_mut()),
-            Err(BatchTransferError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_batch_ext_add_entry",
-                code: 255,
-            }))
+            Err(BatchTransferError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_batch_ext_add_entry",
+                    code: 255,
+                }
+            ))
         );
     }
 }
@@ -1534,14 +1544,14 @@ mod process_status_to_result_tests {
     use std::ptr;
 
     use super::process_status_to_result;
-    use crate::DecodeError;
-    use crate::EncodeError;
+    use crate::error::decode_error::DecodeError;
+    use crate::error::encode_error::EncodeError;
     use crate::error::process_failure::ProcessFailure;
 
     const OPERATION: &str = "llama_rs_process";
 
     fn contract_violation(detail: &'static str) -> DecodeError {
-        ProcessFailure::from(crate::FfiContractError {
+        ProcessFailure::from(llama_cpp_ffi_status::FfiContractError {
             operation: OPERATION,
             detail,
         })
@@ -1585,7 +1595,7 @@ mod process_status_to_result_tests {
                     "was given a null out_llama_cpp_return_code argument"
                 )),
                 Err(contract_violation("was given a null out_error argument")),
-                Err(ProcessFailure::from(crate::FfiStatusError {
+                Err(ProcessFailure::from(llama_cpp_ffi_status::FfiStatusError {
                     operation: OPERATION,
                     code: 255,
                 })
@@ -1645,7 +1655,7 @@ mod logits_slice_tests {
     use std::ptr::NonNull;
 
     use super::logits_slice;
-    use crate::LogitsError;
+    use crate::error::logits_error::LogitsError;
 
     #[test]
     fn logits_slice_from_negative_vocab_maps_vocab_size_overflow() {

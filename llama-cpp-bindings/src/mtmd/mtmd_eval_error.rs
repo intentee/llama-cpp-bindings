@@ -5,9 +5,9 @@ use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatch
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdEvalError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("batch size {requested} exceeds context batch size {context_max}")]
     BatchSizeExceedsContextLimit { requested: i32, context_max: u32 },
     #[error("batch size {requested} must be positive")]

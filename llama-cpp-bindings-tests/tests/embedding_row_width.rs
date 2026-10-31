@@ -1,5 +1,5 @@
 use anyhow::Result;
-use llama_cpp_bindings::context::params::LlamaPoolingType;
+use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 

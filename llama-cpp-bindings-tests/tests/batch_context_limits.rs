@@ -1,7 +1,7 @@
 use anyhow::Result;
-use llama_cpp_bindings::DecodeError;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::batch_transfer_error::BatchTransferError;
+use llama_cpp_bindings::error::decode_error::DecodeError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token::LlamaToken;

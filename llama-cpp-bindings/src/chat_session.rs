@@ -20,20 +20,20 @@ use crate::chat_session_options::ChatSessionOptions;
 use crate::chat_span::ChatSpan;
 use crate::chat_span_kind::ChatSpanKind;
 use crate::chat_spans::ChatSpans;
-use crate::chat_template_tool_calls::known_marker_candidates;
+use crate::chat_template_tool_calls::known_marker_candidates::known_marker_candidates;
 use crate::cpp_text_view::cpp_text_view;
 use crate::error::chat_session_error::ChatSessionError;
 use crate::error::parse_chat_message_error::ParseChatMessageError;
 use crate::lazy_grammar_triggers::LazyGrammarTriggers;
-use crate::model::AddBos;
 use crate::model::LlamaModel;
-use crate::model::ParseSpecialTokens;
+use crate::model::add_bos::AddBos;
 use crate::model::llama_chat_message::LlamaChatMessage;
+use crate::model::parse_special_tokens::ParseSpecialTokens;
 use crate::parsed_chat::take_parsed_chat_message;
 use crate::raw_chat_message::RawChatMessage;
 use crate::sampling::LlamaSampler;
 use crate::token::LlamaToken;
-use crate::tool_call_format::ToolCallFormatOutcome;
+use crate::tool_call_format::tool_call_format_outcome::ToolCallFormatOutcome;
 use crate::tool_call_format::try_parse;
 
 const GRAMMAR_ROOT: &str = "root";
@@ -87,8 +87,8 @@ fn session_text(text: *const c_char, length: usize) -> Result<String, ChatSessio
 const fn contract_violation(
     operation: &'static str,
     detail: &'static str,
-) -> crate::FfiContractError {
-    crate::FfiContractError { operation, detail }
+) -> llama_cpp_ffi_status::FfiContractError {
+    llama_cpp_ffi_status::FfiContractError { operation, detail }
 }
 
 fn chat_session_create_status_to_result(
@@ -167,7 +167,7 @@ fn chat_session_create_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_ERROR_ARG => {
             Err(contract_violation(OPERATION, "was given a null out_error argument").into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -231,7 +231,7 @@ fn chat_session_parse_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_PARSE_NULL_OUT_ERROR_ARG => {
             Err(contract_violation(OPERATION, "was given a null out_error argument").into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -256,7 +256,7 @@ fn read_chat_spans(
             })
             .map(|kind| ChatSpan { kind, bytes })
         })
-        .collect::<Result<Vec<ChatSpan>, crate::FfiStatusError>>()
+        .collect::<Result<Vec<ChatSpan>, llama_cpp_ffi_status::FfiStatusError>>()
         .map(|spans_read| ChatSpans {
             parsed_length: unsafe {
                 llama_cpp_bindings_sys::llama_rs_chat_spans_parsed_length(spans.as_ptr())
@@ -321,7 +321,7 @@ fn chat_session_classify_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_OUT_ERROR_ARG => {
             Err(contract_violation(OPERATION, "was given a null out_error argument").into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -435,7 +435,7 @@ impl<'model> ChatSession<'model> {
             .collect()
     }
 
-    /// The rendered prompt as one string, for [`crate::mtmd::MtmdContext::tokenize`], which
+    /// The rendered prompt as one string, for [`crate::mtmd::mtmd_context::MtmdContext::tokenize`], which
     /// finds the media markers in it the way llama-server hands a multimodal prompt to mtmd.
     ///
     /// # Errors
@@ -824,10 +824,12 @@ mod tests {
             assert_eq!(
                 chat_session_create_status_to_result(status, ptr::null_mut(), ptr::null_mut())
                     .err(),
-                Some(ChatSessionError::FfiContract(crate::FfiContractError {
-                    operation: "llama_rs_chat_session_create",
-                    detail
-                }))
+                Some(ChatSessionError::FfiContract(
+                    llama_cpp_ffi_status::FfiContractError {
+                        operation: "llama_rs_chat_session_create",
+                        detail
+                    }
+                ))
             );
         }
     }
@@ -888,10 +890,12 @@ mod tests {
                 chat_session_create_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
             }),
             refusals.map(|_status| {
-                Some(ChatSessionError::FfiContract(crate::FfiContractError {
-                    operation: "llama_rs_chat_session_create",
-                    detail: "reported a failure without an error message",
-                }))
+                Some(ChatSessionError::FfiContract(
+                    llama_cpp_ffi_status::FfiContractError {
+                        operation: "llama_rs_chat_session_create",
+                        detail: "reported a failure without an error message",
+                    },
+                ))
             })
         );
     }
@@ -920,10 +924,12 @@ mod tests {
     fn creating_a_session_preserves_an_unknown_status() {
         assert_eq!(
             chat_session_create_status_to_result(255, ptr::null_mut(), ptr::null_mut()).err(),
-            Some(ChatSessionError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_chat_session_create",
-                code: 255
-            }))
+            Some(ChatSessionError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_chat_session_create",
+                    code: 255
+                }
+            ))
         );
     }
 
@@ -964,7 +970,7 @@ mod tests {
         };
         let contract = |detail| {
             Some(ParseChatMessageError::FfiContract(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_chat_session_parse",
                     detail,
                 },
@@ -1023,7 +1029,7 @@ mod tests {
                 contract("was given a null byte_tokens argument"),
                 contract("was given a null out_handle argument"),
                 contract("was given a null out_error argument"),
-                Some(ParseChatMessageError::FfiStatus(crate::FfiStatusError { operation: "llama_rs_chat_session_parse", code: 255 })),
+                Some(ParseChatMessageError::FfiStatus(llama_cpp_ffi_status::FfiStatusError { operation: "llama_rs_chat_session_parse", code: 255 })),
             ]
         );
     }
@@ -1056,7 +1062,7 @@ mod tests {
         };
         let contract = |detail| {
             Some(ParseChatMessageError::FfiContract(
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_chat_session_classify",
                     detail,
                 },
@@ -1115,7 +1121,7 @@ mod tests {
                 contract("was given a null byte_tokens argument"),
                 contract("was given a null out_spans argument"),
                 contract("was given a null out_error argument"),
-                Some(ParseChatMessageError::FfiStatus(crate::FfiStatusError { operation: "llama_rs_chat_session_classify", code: 255 })),
+                Some(ParseChatMessageError::FfiStatus(llama_cpp_ffi_status::FfiStatusError { operation: "llama_rs_chat_session_classify", code: 255 })),
             ]
         );
     }
@@ -1210,15 +1216,15 @@ mod tests {
                 .err(),
             ],
             [
-                Some(ParseChatMessageError::FfiContract(crate::FfiContractError {
+                Some(ParseChatMessageError::FfiContract(llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_chat_session_parse",
                     detail: "reported a failure without an error message",
                 })),
-                Some(ParseChatMessageError::FfiContract(crate::FfiContractError {
+                Some(ParseChatMessageError::FfiContract(llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_chat_session_parse",
                     detail: "reported a failure without an error message",
                 })),
-                Some(ParseChatMessageError::FfiContract(crate::FfiContractError {
+                Some(ParseChatMessageError::FfiContract(llama_cpp_ffi_status::FfiContractError {
                     operation: "llama_rs_chat_session_classify",
                     detail: "reported a thrown C++ exception without an error message",
                 })),

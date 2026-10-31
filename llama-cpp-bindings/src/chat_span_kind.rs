@@ -24,7 +24,7 @@ impl ChatSpanKind {
 }
 
 impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
-    type Error = crate::FfiStatusError;
+    type Error = llama_cpp_ffi_status::FfiStatusError;
 
     fn try_from(
         kind: llama_cpp_bindings_sys::llama_rs_chat_span_kind,
@@ -39,7 +39,7 @@ impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER => {
                 Ok(Self::ToolCallMarker)
             }
-            other => Err(crate::FfiStatusError {
+            other => Err(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_chat_spans_kind",
                 code: i64::from(other),
             }),
@@ -107,7 +107,7 @@ mod tests {
     fn an_unknown_wrapper_span_kind_is_a_status_error() {
         assert_eq!(
             ChatSpanKind::try_from(99),
-            Err(crate::FfiStatusError {
+            Err(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_chat_spans_kind",
                 code: 99,
             })

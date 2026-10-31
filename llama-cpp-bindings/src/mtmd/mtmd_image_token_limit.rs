@@ -42,7 +42,7 @@ impl MtmdImageTokenLimit {
 mod tests {
     use std::num::NonZeroU32;
 
-    use super::MtmdImageTokenLimit;
+    use crate::mtmd::mtmd_image_token_limit::MtmdImageTokenLimit;
 
     const SIXTY_FOUR: NonZeroU32 = NonZeroU32::new(64).unwrap();
 

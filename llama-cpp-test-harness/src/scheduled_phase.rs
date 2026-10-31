@@ -92,7 +92,7 @@ mod tests {
 
     use libtest_mimic::Arguments;
     use llama_cpp_bindings::llama_backend::LlamaBackend;
-    use llama_cpp_bindings::model::LlamaLoadMode;
+    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 
     use crate::context_params::ContextParams;
     use crate::execution_phase::ExecutionPhase;

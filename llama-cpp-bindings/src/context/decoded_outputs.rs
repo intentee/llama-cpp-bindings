@@ -1,6 +1,6 @@
-use crate::LogitsError;
 use crate::context::decoded_output_rows::DecodedOutputRows;
 use crate::context::llama_pooling_type::LlamaPoolingType;
+use crate::error::logits_error::LogitsError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecodedOutputs {
@@ -53,9 +53,9 @@ impl DecodedOutputs {
 #[cfg(test)]
 mod tests {
     use super::DecodedOutputs;
-    use crate::LogitsError;
     use crate::context::decoded_output_rows::DecodedOutputRows;
     use crate::context::llama_pooling_type::LlamaPoolingType;
+    use crate::error::logits_error::LogitsError;
 
     fn outputs_at(output_token_indices: Vec<i32>) -> DecodedOutputs {
         DecodedOutputs {

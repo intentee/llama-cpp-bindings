@@ -60,7 +60,7 @@ fn get_memory_usage_status_to_result(
 
             Err(MtmdMemoryUsageError::Reported { message })
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -69,7 +69,7 @@ fn get_memory_usage_status_to_result(
 }
 
 const fn contract_violation(detail: &'static str) -> MtmdMemoryUsageError {
-    MtmdMemoryUsageError::FfiContract(crate::FfiContractError {
+    MtmdMemoryUsageError::FfiContract(llama_cpp_ffi_status::FfiContractError {
         operation: OPERATION,
         detail,
     })
@@ -183,11 +183,11 @@ mod tests {
     use llama_cpp_fault_injection::ArmedFault;
     use llama_cpp_fault_injection::injected_fault_message;
 
-    use super::MtmdMemoryUsage;
     use super::get_memory_usage_status_to_result;
     use crate::mtmd::mtmd_context_params::MtmdContextParams;
     use crate::mtmd::mtmd_context_params_error::MtmdContextParamsError;
     use crate::mtmd::mtmd_image_token_limit::MtmdImageTokenLimit;
+    use crate::mtmd::mtmd_memory_usage::MtmdMemoryUsage;
     use crate::mtmd::mtmd_memory_usage_error::MtmdMemoryUsageError;
 
     const MICRO_BATCH_TOKENS: NonZeroU32 = NonZeroU32::new(64).unwrap();
@@ -219,7 +219,7 @@ mod tests {
     }
 
     fn contract_violation(detail: &'static str) -> MtmdMemoryUsageError {
-        crate::FfiContractError {
+        llama_cpp_ffi_status::FfiContractError {
             operation: "llama_rs_mtmd_get_memory_usage",
             detail,
         }
@@ -427,10 +427,12 @@ mod tests {
     fn an_unknown_status_is_preserved() {
         assert_eq!(
             get_memory_usage_status_to_result(255, ptr::null_mut()),
-            Err(MtmdMemoryUsageError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_mtmd_get_memory_usage",
-                code: 255,
-            }))
+            Err(MtmdMemoryUsageError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_mtmd_get_memory_usage",
+                    code: 255,
+                }
+            ))
         );
     }
 }

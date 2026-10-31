@@ -4,9 +4,9 @@ use std::string::FromUtf8Error;
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum JsonSchemaToGrammarError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("schema string contains an interior NUL byte: {0}")]
     SchemaContainsNulByte(#[from] NulError),
     #[error("JSON schema is invalid: {message}")]

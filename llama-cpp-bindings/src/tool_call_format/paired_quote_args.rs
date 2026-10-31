@@ -5,7 +5,7 @@ use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_bindings_types::ToolCallMarkers;
 use llama_cpp_bindings_types::ToolCallValueQuote;
 
-use crate::error::PairedQuoteFailure;
+use crate::error::paired_quote_failure::PairedQuoteFailure;
 use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
 use crate::tool_call_format::parse_step::ParseStep;
 use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
@@ -216,7 +216,7 @@ mod tests {
     use serde_json::json;
 
     use super::parse;
-    use crate::error::PairedQuoteFailure;
+    use crate::error::paired_quote_failure::PairedQuoteFailure;
 
     fn gemma4_markers() -> ToolCallMarkers {
         ToolCallMarkers {

@@ -6,7 +6,7 @@ use nom::IResult;
 use nom::Parser;
 use nom::bytes::complete::take_until;
 
-use crate::error::XmlFunctionTagsFailure;
+use crate::error::xml_function_tags_failure::XmlFunctionTagsFailure;
 use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
 
 const fn shape_is_complete(shape: &XmlTagsShape) -> bool {
@@ -180,7 +180,7 @@ mod tests {
     use serde_json::json;
 
     use super::parse;
-    use crate::error::XmlFunctionTagsFailure;
+    use crate::error::xml_function_tags_failure::XmlFunctionTagsFailure;
 
     fn xml_shape() -> XmlTagsShape {
         XmlTagsShape {

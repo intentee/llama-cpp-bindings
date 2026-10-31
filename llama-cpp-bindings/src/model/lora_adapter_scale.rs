@@ -1,4 +1,4 @@
-use crate::model::LlamaLoraAdapter;
+use crate::model::llama_lora_adapter::LlamaLoraAdapter;
 
 #[derive(Debug)]
 pub struct LoraAdapterScale<'adapter, 'model> {

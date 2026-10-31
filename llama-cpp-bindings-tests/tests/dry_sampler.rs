@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use llama_cpp_bindings::SamplingError;
+use llama_cpp_bindings::error::sampling_error::SamplingError;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;

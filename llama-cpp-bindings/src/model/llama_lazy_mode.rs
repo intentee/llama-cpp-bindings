@@ -35,7 +35,7 @@ impl From<LlamaLazyMode> for llama_cpp_bindings_sys::llama_lazy_mode {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaLazyMode;
+    use crate::model::llama_lazy_mode::LlamaLazyMode;
     use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 
     const LAZY_MODES: &[(LlamaLazyMode, llama_cpp_bindings_sys::llama_lazy_mode)] = &[

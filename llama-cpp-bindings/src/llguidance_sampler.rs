@@ -7,7 +7,7 @@ use llguidance::earley::SlicedBiasComputer;
 use toktrie::ApproximateTokEnv;
 use toktrie::InferenceCapabilities;
 
-use crate::GrammarError;
+use crate::error::grammar_error::GrammarError;
 use crate::grammar_matcher::GrammarMatcher;
 use crate::mask_outcome::MaskOutcome;
 use crate::model::LlamaModel;
@@ -197,10 +197,10 @@ mod tests {
 
     use super::UNCOMPILABLE_BIAS_SLICE;
     use super::create_llg_sampler_from_tok_env;
-    use crate::GrammarError;
-    use crate::SampleError;
-    use crate::SamplerAcceptError;
+    use crate::error::grammar_error::GrammarError;
     use crate::error::grammar_runtime_error::GrammarRuntimeError;
+    use crate::error::sample_error::SampleError;
+    use crate::error::sampler_accept_error::SamplerAcceptError;
     use crate::sampling::LlamaSampler;
     use crate::token::LlamaToken;
     use crate::token::data::LlamaTokenData;

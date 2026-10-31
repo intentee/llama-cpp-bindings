@@ -1,8 +1,8 @@
 use anyhow::Result;
-use llama_cpp_bindings::LogitsError;
-use llama_cpp_bindings::SampleError;
-use llama_cpp_bindings::SampledTokenClassifier;
-use llama_cpp_bindings::context::params::LlamaPoolingType;
+use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
+use llama_cpp_bindings::error::logits_error::LogitsError;
+use llama_cpp_bindings::error::sample_error::SampleError;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 use llama_cpp_test_harness::LlamaFixture;

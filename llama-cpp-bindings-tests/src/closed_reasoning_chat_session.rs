@@ -1,10 +1,10 @@
-use llama_cpp_bindings::ChatAssistantPrefill;
-use llama_cpp_bindings::ChatAssistantTurn;
-use llama_cpp_bindings::ChatSession;
-use llama_cpp_bindings::ChatSessionOptions;
-use llama_cpp_bindings::ChatToolChoice;
-use llama_cpp_bindings::model::LlamaChatMessage;
+use llama_cpp_bindings::chat_assistant_prefill::ChatAssistantPrefill;
+use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_bindings::chat_session::ChatSession;
+use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::model::LlamaModel;
+use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 
 const PREFILLED_REASONING: &str = "\nThe question is simple, so I answer it directly.\n";
 const PREFILLED_CONTENT: &str = "\n\n";

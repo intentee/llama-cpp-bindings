@@ -1,10 +1,10 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdCapability;
-use llama_cpp_bindings::mtmd::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::MtmdInputText;
+use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_bindings::mtmd::mtmd_capability::MtmdCapability;
+use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 

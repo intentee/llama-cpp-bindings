@@ -25,7 +25,7 @@ mod tests {
     use std::str;
 
     use super::marker_bytes_to_str;
-    use super::mtmd_default_marker;
+    use crate::mtmd::mtmd_default_marker::mtmd_default_marker;
     use crate::mtmd::mtmd_default_marker_error::MtmdDefaultMarkerError;
 
     #[test]

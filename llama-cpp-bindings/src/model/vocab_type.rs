@@ -35,7 +35,8 @@ impl TryFrom<llama_cpp_bindings_sys::llama_vocab_type> for VocabType {
 
 #[cfg(test)]
 mod tests {
-    use super::{VocabType, VocabTypeFromIntError};
+    use crate::model::vocab_type::VocabType;
+    use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
 
     #[test]
     fn every_llama_cpp_vocab_type_maps_to_its_variant() {

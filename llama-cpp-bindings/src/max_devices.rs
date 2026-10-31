@@ -5,7 +5,7 @@ pub fn max_devices() -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::max_devices;
+    use crate::max_devices::max_devices;
 
     #[test]
     fn returns_at_least_one() {

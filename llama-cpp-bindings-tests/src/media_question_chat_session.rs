@@ -1,7 +1,7 @@
 use anyhow::Result;
-use llama_cpp_bindings::ChatSession;
+use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::mtmd::mtmd_default_marker;
+use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
 
 use crate::user_turn_chat_session::user_turn_chat_session;
 

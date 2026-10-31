@@ -65,21 +65,21 @@ fn input_chunk_copy_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK => NonNull::new(out_chunk)
             .map(|chunk| MtmdInputChunk { chunk, owned: true })
             .ok_or_else(|| {
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: OPERATION,
                     detail: "success status contained a null chunk",
                 }
                 .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: OPERATION,
                 detail: "was given a null chunk argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: OPERATION,
                 detail: "was given a null out_chunk argument",
             }
@@ -102,7 +102,7 @@ fn input_chunk_copy_status_to_result(
 
             Err(MtmdInputChunkError::Reported { message })
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -279,7 +279,7 @@ mod input_chunk_copy_status_to_result_tests {
     const OPERATION: &str = "llama_rs_mtmd_input_chunk_copy";
 
     fn contract_violation(detail: &'static str) -> MtmdInputChunkError {
-        crate::FfiContractError {
+        llama_cpp_ffi_status::FfiContractError {
             operation: OPERATION,
             detail,
         }
@@ -311,10 +311,12 @@ mod input_chunk_copy_status_to_result_tests {
                 Some(contract_violation(
                     "reported a thrown C++ exception without an error message"
                 )),
-                Some(MtmdInputChunkError::FfiStatus(crate::FfiStatusError {
-                    operation: OPERATION,
-                    code: 255,
-                })),
+                Some(MtmdInputChunkError::FfiStatus(
+                    llama_cpp_ffi_status::FfiStatusError {
+                        operation: OPERATION,
+                        code: 255,
+                    }
+                )),
             ]
         );
     }

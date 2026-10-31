@@ -3,9 +3,9 @@ use std::path::PathBuf;
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdBitmapError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("Failed to create CString from bitmap-source path: {0}")]
     CStringError(#[from] std::ffi::NulError),
     #[error("Bitmap-source path is not valid UTF-8: {0:?}")]

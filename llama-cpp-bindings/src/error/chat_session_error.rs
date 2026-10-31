@@ -9,9 +9,9 @@ use crate::error::string_to_token_error::StringToTokenError;
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ChatSessionError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("the model's chat templates are unavailable: {0}")]
     Templates(#[from] ChatTemplatesError),
     #[error("a chat message is not valid UTF-8")]

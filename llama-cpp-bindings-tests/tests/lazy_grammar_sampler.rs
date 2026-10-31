@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
 use anyhow::Result;
-use llama_cpp_bindings::GrammarError;
-use llama_cpp_bindings::model::AddBos;
-use llama_cpp_bindings::model::ParseSpecialTokens;
+use llama_cpp_bindings::error::grammar_error::GrammarError;
+use llama_cpp_bindings::model::add_bos::AddBos;
+use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;

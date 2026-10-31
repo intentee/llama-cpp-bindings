@@ -3,9 +3,9 @@ use std::ffi::NulError;
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SamplingError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("a value does not fit into i32")]
     IntegerOverflow(#[source] std::num::TryFromIntError),
     #[error("the llama.cpp library ran out of memory initializing the {sampler} sampler")]

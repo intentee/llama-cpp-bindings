@@ -25,14 +25,14 @@ fn input_chunks_init_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => NonNull::new(out_chunks)
             .map(|chunks| MtmdInputChunks { chunks })
             .ok_or_else(|| {
-                crate::FfiContractError {
+                llama_cpp_ffi_status::FfiContractError {
                     operation: OPERATION,
                     detail: "success status contained null chunks",
                 }
                 .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: OPERATION,
                 detail: "was given a null out_chunks argument",
             }
@@ -55,7 +55,7 @@ fn input_chunks_init_status_to_result(
 
             Err(MtmdInputChunksError::Reported { message })
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -187,7 +187,7 @@ impl MtmdInputChunks {
 
     fn chunk_within_count(&self, index: usize) -> Result<MtmdInputChunk, MtmdEvalError> {
         self.get(index).ok_or_else(|| {
-            crate::FfiContractError {
+            llama_cpp_ffi_status::FfiContractError {
                 operation: "mtmd_input_chunks_get",
                 detail: "returned a null chunk within the chunk count",
             }
@@ -204,7 +204,7 @@ impl Drop for MtmdInputChunks {
 
 #[cfg(test)]
 mod tests {
-    use super::MtmdInputChunks;
+    use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
 
     #[test]
     fn new_creates_empty_chunks() {
@@ -233,7 +233,7 @@ mod input_chunks_init_status_to_result_tests {
     const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
 
     fn contract_violation(detail: &'static str) -> MtmdInputChunksError {
-        crate::FfiContractError {
+        llama_cpp_ffi_status::FfiContractError {
             operation: OPERATION,
             detail,
         }
@@ -263,10 +263,12 @@ mod input_chunks_init_status_to_result_tests {
                 Some(contract_violation(
                     "reported a thrown C++ exception without an error message"
                 )),
-                Some(MtmdInputChunksError::FfiStatus(crate::FfiStatusError {
-                    operation: OPERATION,
-                    code: 255,
-                })),
+                Some(MtmdInputChunksError::FfiStatus(
+                    llama_cpp_ffi_status::FfiStatusError {
+                        operation: OPERATION,
+                        code: 255,
+                    }
+                )),
             ]
         );
     }

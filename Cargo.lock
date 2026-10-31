@@ -1217,6 +1217,8 @@ dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
  "llama-cpp-fault-injection",
+ "llama-cpp-ffi-status",
+ "llama-cpp-gbnf",
  "llama-cpp-test-harness",
  "serde_json",
  "toktrie",

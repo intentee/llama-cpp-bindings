@@ -43,7 +43,7 @@ impl From<NonZeroI32> for DecodeError {
 mod tests {
     use std::num::NonZeroI32;
 
-    use super::DecodeError;
+    use crate::error::decode_error::DecodeError;
 
     #[test]
     fn no_kv_cache_slot_maps_from_code_one() {

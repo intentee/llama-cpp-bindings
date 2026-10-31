@@ -1,5 +1,5 @@
 use anyhow::Result;
-use llama_cpp_bindings::MemorySeqRmError;
+use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;

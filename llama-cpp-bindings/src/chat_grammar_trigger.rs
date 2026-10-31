@@ -14,12 +14,12 @@ impl ChatGrammarTrigger {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::FfiStatusError`] for a trigger type unknown to this binding.
+    /// Returns [`llama_cpp_ffi_status::FfiStatusError`] for a trigger type unknown to this binding.
     pub fn from_wrapper(
         trigger_type: llama_cpp_bindings_sys::llama_rs_chat_grammar_trigger_type,
         value: String,
         token: impl FnOnce() -> LlamaToken,
-    ) -> Result<Self, crate::FfiStatusError> {
+    ) -> Result<Self, llama_cpp_ffi_status::FfiStatusError> {
         match trigger_type {
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN => {
                 Ok(Self::Token(token()))
@@ -33,7 +33,7 @@ impl ChatGrammarTrigger {
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL => {
                 Ok(Self::PatternFull(value))
             }
-            other => Err(crate::FfiStatusError {
+            other => Err(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_chat_session_grammar_trigger_type",
                 code: i64::from(other),
             }),
@@ -43,12 +43,12 @@ impl ChatGrammarTrigger {
 
 #[cfg(test)]
 mod tests {
-    use super::ChatGrammarTrigger;
+    use crate::chat_grammar_trigger::ChatGrammarTrigger;
     use crate::token::LlamaToken;
 
     fn trigger_of(
         trigger_type: llama_cpp_bindings_sys::llama_rs_chat_grammar_trigger_type,
-    ) -> Result<ChatGrammarTrigger, crate::FfiStatusError> {
+    ) -> Result<ChatGrammarTrigger, llama_cpp_ffi_status::FfiStatusError> {
         ChatGrammarTrigger::from_wrapper(trigger_type, "<tool_call>".to_owned(), || {
             LlamaToken::new(151_657)
         })
@@ -77,7 +77,7 @@ mod tests {
     fn an_unknown_wrapper_trigger_type_is_a_status_error() {
         assert_eq!(
             trigger_of(99),
-            Err(crate::FfiStatusError {
+            Err(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_chat_session_grammar_trigger_type",
                 code: 99,
             })

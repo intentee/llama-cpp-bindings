@@ -40,7 +40,7 @@ mod ownership_tests {
     use std::mem::ManuallyDrop;
     use std::ptr::NonNull;
 
-    use super::LlamaLoraAdapter;
+    use crate::model::llama_lora_adapter::LlamaLoraAdapter;
 
     #[test]
     fn adapter_preserves_the_owned_native_pointer() {

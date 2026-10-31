@@ -4,11 +4,11 @@ use std::pin::pin;
 
 use anyhow::Result;
 use llama_cpp_bindings::context::params::LlamaContextParams;
-use llama_cpp_bindings::max_devices;
+use llama_cpp_bindings::max_devices::max_devices;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::model::params::fit_extra_model::FitExtraModel;
-use llama_cpp_bindings::mtmd::MtmdContextParams;
-use llama_cpp_bindings::mtmd::MtmdMemoryUsage;
+use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
+use llama_cpp_bindings::mtmd::mtmd_memory_usage::MtmdMemoryUsage;
 use llama_cpp_test_harness::GgufSource;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;

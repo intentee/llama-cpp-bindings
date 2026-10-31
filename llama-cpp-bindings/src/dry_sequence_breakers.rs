@@ -3,7 +3,7 @@ use std::ffi::CString;
 
 use llama_cpp_bindings_sys::LLAMA_DRY_MAX_SEQ_BREAKERS;
 
-use crate::SamplingError;
+use crate::error::sampling_error::SamplingError;
 
 const DRY_SEQUENCE_BREAKER_MAX_BYTES: usize = 40;
 
@@ -58,7 +58,7 @@ mod tests {
     use std::ffi::CString;
 
     use super::dry_sequence_breakers;
-    use crate::SamplingError;
+    use crate::error::sampling_error::SamplingError;
 
     fn distinct_breakers(count: usize) -> Vec<String> {
         (0..count)

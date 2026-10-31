@@ -1,7 +1,7 @@
-use llama_cpp_bindings::ChatOutput;
-use llama_cpp_bindings::SampledTokenSection;
+use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::sampled_token::SampledToken;
+use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 
 #[derive(Debug, Default)]
 pub struct ClassifySampleLoopOutcome {
@@ -48,11 +48,11 @@ impl ClassifySampleLoopOutcome {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::SampledTokenSection;
-    use llama_cpp_bindings::TokenPiece;
     use llama_cpp_bindings::ingest_outcome::IngestOutcome;
     use llama_cpp_bindings::sampled_token::SampledToken;
+    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
     use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_bindings::token_piece::TokenPiece;
 
     use super::ClassifySampleLoopOutcome;
 

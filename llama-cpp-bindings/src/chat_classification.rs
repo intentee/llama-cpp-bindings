@@ -29,7 +29,7 @@ impl ChatClassification {
 
 #[cfg(test)]
 mod tests {
-    use super::ChatClassification;
+    use crate::chat_classification::ChatClassification;
     use crate::chat_output_completeness::ChatOutputCompleteness;
     use crate::chat_piece_role::ChatPieceRole;
     use crate::sampled_token_section::SampledTokenSection;

@@ -71,7 +71,7 @@ impl From<llama_cpp_bindings_sys::mtmd_context_params> for MtmdContextParams {
 mod tests {
     use std::num::NonZeroU32;
 
-    use super::MtmdContextParams;
+    use crate::mtmd::mtmd_context_params::MtmdContextParams;
     use crate::mtmd::mtmd_context_params_error::MtmdContextParamsError;
     use crate::mtmd::mtmd_image_token_limit::MtmdImageTokenLimit;
 

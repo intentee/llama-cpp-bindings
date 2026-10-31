@@ -4,9 +4,9 @@ use std::path::PathBuf;
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LlamaModelLoadError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("null byte in string {0}")]
     NullError(#[from] NulError),
     #[error("failed to convert path {0} to str")]

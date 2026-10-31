@@ -43,7 +43,7 @@ impl SampledToken {
 
 #[cfg(test)]
 mod tests {
-    use super::SampledToken;
+    use crate::sampled_token::SampledToken;
     use crate::sampled_token_section::SampledTokenSection;
     use crate::token::LlamaToken;
 

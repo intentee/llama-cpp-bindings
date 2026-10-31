@@ -2,11 +2,11 @@ use std::num::NonZeroU8;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::MemorySeqAddError;
-use llama_cpp_bindings::MemorySeqCpError;
-use llama_cpp_bindings::MemorySeqDivError;
-use llama_cpp_bindings::MemorySeqPosMaxError;
-use llama_cpp_bindings::MemorySeqRmError;
+use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
+use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
+use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
+use llama_cpp_bindings::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
+use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 

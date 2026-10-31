@@ -57,7 +57,7 @@ mod tests {
     use std::sync::PoisonError;
 
     use llama_cpp_bindings::llama_backend::LlamaBackend;
-    use llama_cpp_bindings::model::LlamaLoadMode;
+    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 
     use crate::gguf_source::GgufSource;
     use crate::load_key::LoadKey;

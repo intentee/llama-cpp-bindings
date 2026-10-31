@@ -1,8 +1,8 @@
-use llama_cpp_bindings::BareJsonToolCalls;
-use llama_cpp_bindings::ChatSession;
-use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
+use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_test_harness::LlamaFixture;
 

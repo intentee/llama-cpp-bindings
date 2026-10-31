@@ -5,9 +5,9 @@ use super::mtmd_context_params_error::MtmdContextParamsError;
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdInitError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error(transparent)]
     ContextParams(#[from] MtmdContextParamsError),
     #[error("Failed to create CString from mmproj path: {0}")]

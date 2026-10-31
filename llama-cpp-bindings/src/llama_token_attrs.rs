@@ -38,7 +38,9 @@ impl TryFrom<llama_cpp_bindings_sys::llama_token_attr> for LlamaTokenAttrs {
 mod tests {
     use enumflags2::BitFlags;
 
-    use super::{LlamaTokenAttr, LlamaTokenAttrs, LlamaTokenAttrsFromIntError};
+    use super::LlamaTokenAttr;
+    use super::LlamaTokenAttrs;
+    use super::LlamaTokenAttrsFromIntError;
 
     #[test]
     fn try_from_valid_single_attribute() {

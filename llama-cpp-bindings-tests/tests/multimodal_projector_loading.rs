@@ -1,11 +1,11 @@
 use std::ffi::CString;
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::mtmd::MtmdContext;
-use llama_cpp_bindings::mtmd::MtmdContextParams;
-use llama_cpp_bindings::mtmd::MtmdContextParamsError;
-use llama_cpp_bindings::mtmd::MtmdImageTokenLimit;
-use llama_cpp_bindings::mtmd::MtmdInitError;
+use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
+use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
+use llama_cpp_bindings::mtmd::mtmd_context_params_error::MtmdContextParamsError;
+use llama_cpp_bindings::mtmd::mtmd_image_token_limit::MtmdImageTokenLimit;
+use llama_cpp_bindings::mtmd::mtmd_init_error::MtmdInitError;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 

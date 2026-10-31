@@ -3,10 +3,11 @@ use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
 use std::ptr::null;
 
-use crate::LlamaCppError;
 use crate::backend_device_index::backend_device_index;
 use crate::context::params::LlamaContextParams;
-use crate::error::{FitError, ModelParamsError};
+use crate::error::fit_error::FitError;
+use crate::error::llama_cpp_error::LlamaCppError;
+use crate::error::model_params_error::ModelParamsError;
 use crate::model::llama_lazy_mode::LlamaLazyMode;
 use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 use crate::model::llama_load_mode::LlamaLoadMode;
@@ -63,62 +64,62 @@ fn fit_params_status_to_result(
             Err(FitError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null path_model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null mparams argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null cparams argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null out_unrecognized_status_code argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null path_model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null mparams argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null cparams argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation: "llama_rs_fit_params",
             code: i64::from(other),
         }
@@ -372,7 +373,7 @@ impl LlamaModelParams {
         for dev in self.devices.iter_mut() {
             *dev = std::ptr::null_mut();
         }
-        let max_devices = crate::max_devices().min(LLAMA_CPP_MAX_DEVICES);
+        let max_devices = crate::max_devices::max_devices().min(LLAMA_CPP_MAX_DEVICES);
         if devices.len() > max_devices {
             return Err(LlamaCppError::MaxDevicesExceeded(max_devices));
         }
@@ -492,8 +493,8 @@ mod tests {
     use super::LLAMA_CPP_MAX_DEVICES;
     use super::LlamaModelParams;
     use super::fit_params_status_to_result;
-    use crate::LlamaCppError;
     use crate::error::fit_error::FitError;
+    use crate::error::llama_cpp_error::LlamaCppError;
     use crate::model::llama_lazy_mode::LlamaLazyMode;
     use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
     use crate::model::llama_load_mode::LlamaLoadMode;
@@ -506,7 +507,7 @@ mod tests {
     }
 
     fn contract_error_with(detail: &'static str) -> FitError {
-        crate::FfiContractError {
+        llama_cpp_ffi_status::FfiContractError {
             operation: "llama_rs_fit_params",
             detail,
         }
@@ -515,7 +516,7 @@ mod tests {
 
     #[test]
     fn device_capacity_is_not_smaller_than_the_upstream_limit() {
-        let upstream_limit = crate::max_devices();
+        let upstream_limit = crate::max_devices::max_devices();
         assert!(
             LLAMA_CPP_MAX_DEVICES >= upstream_limit,
             "LLAMA_CPP_MAX_DEVICES ({LLAMA_CPP_MAX_DEVICES}) backs a fixed-size device array and is \
@@ -752,7 +753,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::error::ModelParamsError::SlotNotEmpty
+            crate::error::model_params_error::ModelParamsError::SlotNotEmpty
         );
     }
 
@@ -783,7 +784,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::error::ModelParamsError::SlotNotEmpty
+            crate::error::model_params_error::ModelParamsError::SlotNotEmpty
         );
     }
 
@@ -791,7 +792,7 @@ mod tests {
     fn with_devices_too_many_returns_max_exceeded() {
         let too_many: Vec<usize> = (0..17).collect();
         let result = LlamaModelParams::default().with_devices(&too_many);
-        let device_limit = crate::max_devices().min(LLAMA_CPP_MAX_DEVICES);
+        let device_limit = crate::max_devices::max_devices().min(LLAMA_CPP_MAX_DEVICES);
 
         assert!(
             matches!(
@@ -843,10 +844,12 @@ mod tests {
 
         assert_eq!(
             std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&crate::error::ModelParamsError::InvalidCharacterInKey {
-                byte: 0,
-                reason: String::new(),
-            }),
+            std::mem::discriminant(
+                &crate::error::model_params_error::ModelParamsError::InvalidCharacterInKey {
+                    byte: 0,
+                    reason: String::new(),
+                }
+            ),
         );
     }
 
@@ -859,10 +862,12 @@ mod tests {
 
         assert_eq!(
             std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&crate::error::ModelParamsError::InvalidCharacterInKey {
-                byte: 0,
-                reason: String::new(),
-            }),
+            std::mem::discriminant(
+                &crate::error::model_params_error::ModelParamsError::InvalidCharacterInKey {
+                    byte: 0,
+                    reason: String::new(),
+                }
+            ),
         );
     }
 
@@ -880,7 +885,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::error::ModelParamsError::NoAvailableSlot
+            crate::error::model_params_error::ModelParamsError::NoAvailableSlot
         );
     }
 
@@ -894,7 +899,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::error::ModelParamsError::NoAvailableSlot
+            crate::error::model_params_error::ModelParamsError::NoAvailableSlot
         );
     }
 
@@ -902,13 +907,13 @@ mod tests {
     #[serial_test::serial]
     fn fit_params_invalid_model_path_returns_error() {
         use crate::context::params::LlamaContextParams;
-        use crate::error::FitError;
+        use crate::error::fit_error::FitError;
         use crate::llama_backend::LlamaBackend;
 
         let _backend = LlamaBackend::init();
         let mut params = std::pin::pin!(LlamaModelParams::default());
         let mut context_params = LlamaContextParams::default();
-        let mut margins = vec![0usize; crate::max_devices()];
+        let mut margins = vec![0usize; crate::max_devices::max_devices()];
 
         let bogus_path = c"/nonexistent/path/to/model.gguf";
         let result = params.as_mut().fit_params(
@@ -926,11 +931,11 @@ mod tests {
     #[test]
     fn fit_params_refuses_margins_not_sized_to_the_device_count() {
         use crate::context::params::LlamaContextParams;
-        use crate::error::FitError;
+        use crate::error::fit_error::FitError;
 
         let mut params = std::pin::pin!(LlamaModelParams::default());
         let mut context_params = LlamaContextParams::default();
-        let mut margins = vec![0usize; crate::max_devices() + 1];
+        let mut margins = vec![0usize; crate::max_devices::max_devices() + 1];
 
         let result = params.as_mut().fit_params(
             c"/nonexistent/path/to/model.gguf",
@@ -944,8 +949,8 @@ mod tests {
         assert_eq!(
             result.err(),
             Some(FitError::MarginsDeviceCountMismatch {
-                expected: crate::max_devices(),
-                actual: crate::max_devices() + 1,
+                expected: crate::max_devices::max_devices(),
+                actual: crate::max_devices::max_devices() + 1,
             })
         );
     }
@@ -1129,7 +1134,7 @@ mod fit_params_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1143,7 +1148,7 @@ mod fit_params_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FitError::FfiStatus(crate::FfiStatusError {
+            Err(FitError::FfiStatus(llama_cpp_ffi_status::FfiStatusError {
                 operation: "llama_rs_fit_params",
                 code: 255,
             }))

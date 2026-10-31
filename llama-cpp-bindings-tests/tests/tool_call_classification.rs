@@ -1,9 +1,9 @@
 use anyhow::Result;
-use llama_cpp_bindings::BareJsonToolCalls;
-use llama_cpp_bindings::ChatOutputCompleteness;
-use llama_cpp_bindings::SampledToken;
-use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
+use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
+use llama_cpp_bindings::sampled_token::SampledToken;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;

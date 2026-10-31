@@ -4,7 +4,7 @@ use llama_cpp_bindings_types::ParsedToolCallId;
 use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_bindings_types::ToolCallMarkers;
 
-use crate::error::BracketedArgsFailure;
+use crate::error::bracketed_args_failure::BracketedArgsFailure;
 use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
 use crate::tool_call_format::parse_step::ParseStep;
 use crate::tool_call_format::separator_split::SeparatorSplit;
@@ -106,7 +106,7 @@ mod tests {
     use serde_json::json;
 
     use super::parse;
-    use crate::error::BracketedArgsFailure;
+    use crate::error::bracketed_args_failure::BracketedArgsFailure;
 
     fn mistral3_markers() -> ToolCallMarkers {
         ToolCallMarkers {

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
-use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 

@@ -30,7 +30,7 @@ mod tests {
 
     use libtest_mimic::Arguments;
     use libtest_mimic::Conclusion;
-    use llama_cpp_bindings::error::LlamaCppError;
+    use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
     use llama_cpp_bindings::llama_backend::LlamaBackend;
 
     use crate::harness_run_error::HarnessRunError;

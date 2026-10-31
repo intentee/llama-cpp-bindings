@@ -1,9 +1,9 @@
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MemorySeqPosMaxError {
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error("context has no memory module available")]
     MemoryHandleUnavailable,
     #[error("sequence id {seq_id} is outside the context sequence range")]

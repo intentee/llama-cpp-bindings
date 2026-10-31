@@ -1,6 +1,6 @@
 use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::LlamaLoraAdaptersError;
+use llama_cpp_bindings::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
 use llama_cpp_bindings::model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_fault_injection::ArmedFault;
 use llama_cpp_test_harness::LlamaFixture;

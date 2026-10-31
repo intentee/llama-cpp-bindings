@@ -42,7 +42,7 @@ impl From<NonZeroI32> for EncodeError {
 mod tests {
     use std::num::NonZeroI32;
 
-    use super::EncodeError;
+    use crate::error::encode_error::EncodeError;
 
     #[test]
     fn no_kv_cache_slot_maps_from_code_one() {

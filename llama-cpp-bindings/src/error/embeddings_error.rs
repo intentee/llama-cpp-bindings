@@ -16,7 +16,7 @@ pub enum EmbeddingsError {
         "Token embeddings need a context with LLAMA_POOLING_TYPE_NONE, but it pools with {pooling_type:?}"
     )]
     TokenEmbeddingsRequireNonePooling {
-        pooling_type: crate::context::params::LlamaPoolingType,
+        pooling_type: crate::context::llama_pooling_type::LlamaPoolingType,
     },
     #[error("Invalid embedding dimension: {0}")]
     InvalidEmbeddingDimension(#[source] std::num::TryFromIntError),
@@ -24,7 +24,7 @@ pub enum EmbeddingsError {
         "NextN embeddings need a context with LLAMA_POOLING_TYPE_NONE, but it pools with {pooling_type:?}"
     )]
     NextnEmbeddingsRequireNonePooling {
-        pooling_type: crate::context::params::LlamaPoolingType,
+        pooling_type: crate::context::llama_pooling_type::LlamaPoolingType,
     },
     #[error("NextN embeddings weren't enabled on this context")]
     NextnEmbeddingsNotEnabled,
@@ -41,9 +41,9 @@ pub enum EmbeddingsError {
     #[error("llama.cpp failed while checking for a NextN hidden state: {message}")]
     NextnProbeReported { message: String },
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(
         "No NextN embedding exists for token {token_index}; it was not marked as an output of the last decoded batch"
     )]

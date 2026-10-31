@@ -1,10 +1,10 @@
 use anyhow::Result;
-use llama_cpp_bindings::ChatAssistantTurn;
-use llama_cpp_bindings::ChatSession;
-use llama_cpp_bindings::ChatSessionOptions;
-use llama_cpp_bindings::ChatToolChoice;
-use llama_cpp_bindings::model::LlamaChatMessage;
+use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_bindings::chat_session::ChatSession;
+use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::model::LlamaModel;
+use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 
 /// A chat session that answers one user turn, offering the tools of `tools_json`.
 ///

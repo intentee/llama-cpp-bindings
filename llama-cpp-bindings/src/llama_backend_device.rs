@@ -1,6 +1,6 @@
+use crate::llama_backend_device_type::LlamaBackendDeviceType;
 use std::ffi::c_char;
 
-pub use crate::llama_backend_device_type::LlamaBackendDeviceType;
 fn cstr_to_string(ptr: *const c_char) -> String {
     if ptr.is_null() {
         String::new()
@@ -61,8 +61,8 @@ impl LlamaBackendDevice {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaBackendDevice;
     use super::cstr_to_string;
+    use crate::llama_backend_device::LlamaBackendDevice;
 
     #[test]
     fn cstr_to_string_with_null_returns_empty() {

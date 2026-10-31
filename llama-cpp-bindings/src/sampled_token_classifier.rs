@@ -11,28 +11,27 @@ use crate::chat_output::ChatOutput;
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_piece_role::ChatPieceRole;
 use crate::chat_session::ChatSession;
+use crate::classified_sample::ClassifiedSample;
 use crate::context::LlamaContext;
-use crate::error::EvalMultimodalChunksError;
-use crate::error::SampleError;
+use crate::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use crate::error::ingest_error::IngestError;
+use crate::error::sample_error::SampleError;
 use crate::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use crate::generation_progress::GenerationProgress;
 use crate::ingest_outcome::IngestOutcome;
 use crate::llama_batch::LlamaBatch;
 use crate::model::LlamaModel;
-use crate::mtmd::FittedMtmdInputChunk;
-use crate::mtmd::FittedMtmdInputChunks;
-use crate::mtmd::MtmdContext;
-use crate::mtmd::MtmdInputChunkType;
-use crate::mtmd::MtmdInputChunks;
+use crate::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
+use crate::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
+use crate::mtmd::mtmd_context::MtmdContext;
 use crate::mtmd::mtmd_eval_limits::MtmdEvalLimits;
+use crate::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
 use crate::sampled_token::SampledToken;
+use crate::sampled_token_section::SampledTokenSection;
 use crate::sampling::LlamaSampler;
 use crate::token::LlamaToken;
 use crate::token_piece::TokenPiece;
-
-pub use crate::classified_sample::ClassifiedSample;
-pub use crate::sampled_token_section::SampledTokenSection;
 
 enum ContentProbe {
     Disabled,

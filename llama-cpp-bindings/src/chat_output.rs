@@ -62,7 +62,7 @@ impl ChatOutput {
 mod tests {
     use llama_cpp_bindings_sys::LLAMA_TOKEN_NULL;
 
-    use super::ChatOutput;
+    use crate::chat_output::ChatOutput;
     use crate::chat_output_token::ChatOutputToken;
     use crate::token::LlamaToken;
 

@@ -1,5 +1,5 @@
-use llama_cpp_bindings::GenerationProgress;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;

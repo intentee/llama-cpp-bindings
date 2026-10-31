@@ -1,5 +1,5 @@
 use anyhow::Result;
-use llama_cpp_bindings::error::MemorySeqRmError;
+use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -42,7 +42,7 @@ fn memory_seq_pos_max_rejects_out_of_range_sequence(fixture: &LlamaFixture<'_>) 
 
     assert_eq!(
         result,
-        Err(llama_cpp_bindings::MemorySeqPosMaxError::SequenceIdOutOfRange { seq_id: 999 })
+        Err(llama_cpp_bindings::error::memory_seq_pos_max_error::MemorySeqPosMaxError::SequenceIdOutOfRange { seq_id: 999 })
     );
 
     Ok(())

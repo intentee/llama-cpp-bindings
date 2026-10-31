@@ -1,5 +1,5 @@
-use crate::LlamaContextLoadError;
-use crate::context::params::LlamaAttentionType;
+use crate::context::llama_attention_type::LlamaAttentionType;
+use crate::error::llama_context_load_error::LlamaContextLoadError;
 
 pub struct SequenceOutputCapacity {
     pub attention_type: LlamaAttentionType,
@@ -53,8 +53,8 @@ impl SequenceOutputCapacity {
 #[cfg(test)]
 mod tests {
     use super::SequenceOutputCapacity;
-    use crate::LlamaContextLoadError;
-    use crate::context::params::LlamaAttentionType;
+    use crate::context::llama_attention_type::LlamaAttentionType;
+    use crate::error::llama_context_load_error::LlamaContextLoadError;
 
     const TWO_SEQUENCES_PAST_ONE_OUTPUT: Result<(), LlamaContextLoadError> =
         Err(LlamaContextLoadError::SequencesExceedOutputCapacity {

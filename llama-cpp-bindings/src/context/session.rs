@@ -21,27 +21,29 @@ fn state_data_status_to_result(
 ) -> Result<usize, StateDataError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_OK => Ok(byte_count),
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => Err(crate::FfiContractError {
-            operation,
-            detail: "was given a null ctx argument",
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => {
+            Err(llama_cpp_ffi_status::FfiContractError {
+                operation,
+                detail: "was given a null ctx argument",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation,
                 detail: "was given a null buffer argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_BYTE_COUNT_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation,
                 detail: "was given a null out_byte_count argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
+            Err(llama_cpp_ffi_status::FfiContractError {
                 operation,
                 detail: "was given a null out_error argument",
             }
@@ -64,7 +66,7 @@ fn state_data_status_to_result(
 
             Err(StateDataError::Reported { message })
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(llama_cpp_ffi_status::FfiStatusError {
             operation,
             code: i64::from(other),
         }
@@ -520,10 +522,12 @@ mod state_data_status_to_result_tests {
         ] {
             assert_eq!(
                 state_data_status_to_result(status, 0, ptr::null_mut(), "llama_rs_state_get_data"),
-                Err(StateDataError::FfiContract(crate::FfiContractError {
-                    operation: "llama_rs_state_get_data",
-                    detail,
-                }))
+                Err(StateDataError::FfiContract(
+                    llama_cpp_ffi_status::FfiContractError {
+                        operation: "llama_rs_state_get_data",
+                        detail,
+                    }
+                ))
             );
         }
     }
@@ -568,10 +572,12 @@ mod state_data_status_to_result_tests {
                 ptr::null_mut(),
                 "llama_rs_state_get_data",
             ),
-            Err(StateDataError::FfiContract(crate::FfiContractError {
-                operation: "llama_rs_state_get_data",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(StateDataError::FfiContract(
+                llama_cpp_ffi_status::FfiContractError {
+                    operation: "llama_rs_state_get_data",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            ))
         );
     }
 
@@ -579,10 +585,12 @@ mod state_data_status_to_result_tests {
     fn state_data_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             state_data_status_to_result(255, 0, ptr::null_mut(), "llama_rs_state_get_data"),
-            Err(StateDataError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_state_get_data",
-                code: 255,
-            }))
+            Err(StateDataError::FfiStatus(
+                llama_cpp_ffi_status::FfiStatusError {
+                    operation: "llama_rs_state_get_data",
+                    code: 255,
+                }
+            ))
         );
     }
 }

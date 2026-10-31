@@ -1,9 +1,9 @@
 use anyhow::Result;
-use llama_cpp_bindings::ChatAssistantTurn;
-use llama_cpp_bindings::ChatSession;
-use llama_cpp_bindings::ChatSessionOptions;
-use llama_cpp_bindings::ChatToolChoice;
-use llama_cpp_bindings::model::LlamaChatMessage;
+use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_bindings::chat_session::ChatSession;
+use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
+use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;

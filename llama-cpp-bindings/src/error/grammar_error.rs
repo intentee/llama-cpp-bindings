@@ -1,14 +1,14 @@
 use std::ffi::NulError;
 
-use crate::SamplingError;
+use crate::error::sampling_error::SamplingError;
 use crate::error::token_to_string_error::TokenToStringError;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GrammarError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
     #[error("sampler initialization failed: {0}")]
     SamplerInitialization(#[from] SamplingError),
     #[error("the approximate token environment could not be built: {0}")]

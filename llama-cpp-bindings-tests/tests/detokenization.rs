@@ -1,10 +1,10 @@
 use std::num::NonZeroU16;
 
 use anyhow::Result;
-use llama_cpp_bindings::SampledToken;
-use llama_cpp_bindings::TokenToStringError;
-use llama_cpp_bindings::model::AddBos;
-use llama_cpp_bindings::model::ParseSpecialTokens;
+use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
+use llama_cpp_bindings::model::add_bos::AddBos;
+use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
