@@ -4,6 +4,7 @@ pub mod json_object;
 pub mod key_value_xml_tags;
 pub mod paired_quote_args;
 pub mod parse_step;
+pub mod parsed_prefix;
 pub mod scalar_value_to_json;
 pub mod separator_split;
 pub mod tool_call_format_outcome;

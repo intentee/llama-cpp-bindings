@@ -370,7 +370,7 @@ mod tests {
             expansion_error(
                 well_formed_attribute(),
                 quote! {
-                    fn my_test<T>(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
+                    fn my_test<TValue>(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
                 },
             ),
             "llama_test functions must not be generic"

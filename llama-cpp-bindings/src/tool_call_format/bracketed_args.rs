@@ -7,12 +7,13 @@ use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 use crate::error::bracketed_args_failure::BracketedArgsFailure;
 use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
 use crate::tool_call_format::parse_step::ParseStep;
+use crate::tool_call_format::parsed_prefix::ParsedPrefix;
 use crate::tool_call_format::separator_split::SeparatorSplit;
 
 fn consume_one_json_value<'body>(
     input: &'body str,
     tool_name: &str,
-) -> Result<(serde_json::Value, &'body str), BracketedArgsFailure> {
+) -> Result<ParsedPrefix<'body, serde_json::Value>, BracketedArgsFailure> {
     let mut stream = serde_json::Deserializer::from_str(input).into_iter::<serde_json::Value>();
     let value = stream
         .next()
@@ -25,7 +26,10 @@ fn consume_one_json_value<'body>(
         })?;
     let consumed = stream.byte_offset();
 
-    Ok((value, &input[consumed..]))
+    Ok(ParsedPrefix {
+        value,
+        remaining: &input[consumed..],
+    })
 }
 
 fn parse_one_call<'body>(
@@ -52,7 +56,10 @@ fn parse_one_call<'body>(
         return Ok(ParseStep::Done);
     }
 
-    let (arguments_value, after_arguments) = consume_one_json_value(after_separator, &name)?;
+    let ParsedPrefix {
+        value: arguments_value,
+        remaining: after_arguments,
+    } = consume_one_json_value(after_separator, &name)?;
 
     let after_close = consume_optional_prefix(after_arguments, markers.close.as_str());
 

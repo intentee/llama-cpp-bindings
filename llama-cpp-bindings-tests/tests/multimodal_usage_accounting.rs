@@ -12,15 +12,15 @@ use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
+use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsage;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
-use llama_cpp_bindings_types::token_usage::TokenUsage;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
 fn build_multimodal_chunks_and_eval_into_usage(
     fixture: &LlamaFixture<'_>,
-) -> Result<(TokenUsage, ChunkTokenBreakdown)> {
+) -> Result<EvaluatedMultimodalUsage> {
     let model = fixture.model;
     let mtmd_ctx = fixture
         .mtmd_context
@@ -60,7 +60,10 @@ fn build_multimodal_chunks_and_eval_into_usage(
         },
     )?;
 
-    Ok((classifier.into_usage(), expected))
+    Ok(EvaluatedMultimodalUsage {
+        usage: classifier.into_usage(),
+        chunk_breakdown: expected,
+    })
 }
 
 #[llama_test(
@@ -73,7 +76,10 @@ fn build_multimodal_chunks_and_eval_into_usage(
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
 fn prompt_tokens_match_text_chunk_total(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let (usage, expected) = build_multimodal_chunks_and_eval_into_usage(fixture)?;
+    let EvaluatedMultimodalUsage {
+        usage,
+        chunk_breakdown: expected,
+    } = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
     if usage.prompt_tokens != expected.text {
         bail!(
@@ -96,7 +102,10 @@ fn prompt_tokens_match_text_chunk_total(fixture: &LlamaFixture<'_>) -> Result<()
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
 fn input_image_tokens_match_image_chunk_total(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let (usage, expected) = build_multimodal_chunks_and_eval_into_usage(fixture)?;
+    let EvaluatedMultimodalUsage {
+        usage,
+        chunk_breakdown: expected,
+    } = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
     if usage.input_image_tokens != expected.image {
         bail!(
@@ -119,7 +128,10 @@ fn input_image_tokens_match_image_chunk_total(fixture: &LlamaFixture<'_>) -> Res
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
 fn input_audio_tokens_are_zero_for_image_only_input(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let (usage, expected) = build_multimodal_chunks_and_eval_into_usage(fixture)?;
+    let EvaluatedMultimodalUsage {
+        usage,
+        chunk_breakdown: expected,
+    } = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
     if expected.audio != 0 {
         bail!(
@@ -149,7 +161,8 @@ fn input_audio_tokens_are_zero_for_image_only_input(fixture: &LlamaFixture<'_>) 
 fn completion_tokens_are_zero_after_eval_before_generation(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let (usage, _expected) = build_multimodal_chunks_and_eval_into_usage(fixture)?;
+    let EvaluatedMultimodalUsage { usage, .. } =
+        build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
     if usage.completion_tokens() != 0 {
         bail!(

@@ -8,6 +8,7 @@ use llama_cpp_bindings_types::tool_call_value_quote::ToolCallValueQuote;
 use crate::error::paired_quote_failure::PairedQuoteFailure;
 use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
 use crate::tool_call_format::parse_step::ParseStep;
+use crate::tool_call_format::parsed_prefix::ParsedPrefix;
 use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
 use crate::tool_call_format::separator_split::SeparatorSplit;
 
@@ -35,7 +36,7 @@ fn find_bare_value_end(input: &str, close_marker: &str) -> usize {
 fn parse_one_key<'body>(
     input: &'body str,
     tool_name: &str,
-) -> Result<(String, &'body str), PairedQuoteFailure> {
+) -> Result<ParsedPrefix<'body, String>, PairedQuoteFailure> {
     let Some((key_raw, after_colon)) = input.split_once(':') else {
         return Err(PairedQuoteFailure::UnclosedArgumentBlock {
             tool_name: tool_name.to_owned(),
@@ -49,7 +50,10 @@ fn parse_one_key<'body>(
         });
     }
 
-    Ok((key, after_colon))
+    Ok(ParsedPrefix {
+        value: key,
+        remaining: after_colon,
+    })
 }
 
 fn parse_one_value<'body>(
@@ -58,7 +62,7 @@ fn parse_one_value<'body>(
     close_marker: &str,
     tool_name: &str,
     key: &str,
-) -> Result<(serde_json::Value, &'body str), PairedQuoteFailure> {
+) -> Result<ParsedPrefix<'body, serde_json::Value>, PairedQuoteFailure> {
     let trimmed = input.trim_start();
 
     if !value_quote.open.is_empty()
@@ -74,14 +78,20 @@ fn parse_one_value<'body>(
         let value_text = after_open[..close_position].to_owned();
         let after_close = &after_open[close_position + value_quote.close.len()..];
 
-        return Ok((serde_json::Value::String(value_text), after_close));
+        return Ok(ParsedPrefix {
+            value: serde_json::Value::String(value_text),
+            remaining: after_close,
+        });
     }
 
     let bare_end = find_bare_value_end(trimmed, close_marker);
     let bare_text = trimmed[..bare_end].trim();
     let value = bare_value_to_json(bare_text);
 
-    Ok((value, &trimmed[bare_end..]))
+    Ok(ParsedPrefix {
+        value,
+        remaining: &trimmed[bare_end..],
+    })
 }
 
 fn parse_args_body<'body>(
@@ -89,30 +99,44 @@ fn parse_args_body<'body>(
     value_quote: &ToolCallValueQuote,
     close_marker: &str,
     tool_name: &str,
-) -> Result<(serde_json::Map<String, serde_json::Value>, &'body str), PairedQuoteFailure> {
+) -> Result<ParsedPrefix<'body, serde_json::Map<String, serde_json::Value>>, PairedQuoteFailure> {
     let mut map = serde_json::Map::new();
     let mut remaining = input.trim_start();
 
     loop {
         if remaining.is_empty() {
-            return Ok((map, remaining));
+            return Ok(ParsedPrefix {
+                value: map,
+                remaining,
+            });
         }
         if !close_marker.is_empty()
             && let Some(after_close) = remaining.strip_prefix(close_marker)
         {
-            return Ok((map, after_close));
+            return Ok(ParsedPrefix {
+                value: map,
+                remaining: after_close,
+            });
         }
 
-        let (key, after_key) = parse_one_key(remaining, tool_name)?;
-        let (value, after_value) =
-            parse_one_value(after_key, value_quote, close_marker, tool_name, &key)?;
+        let ParsedPrefix {
+            value: key,
+            remaining: after_key,
+        } = parse_one_key(remaining, tool_name)?;
+        let ParsedPrefix {
+            value,
+            remaining: after_value,
+        } = parse_one_value(after_key, value_quote, close_marker, tool_name, &key)?;
         map.insert(key.clone(), value);
 
         remaining = after_value.trim_start();
         if !close_marker.is_empty()
             && let Some(after_close) = remaining.strip_prefix(close_marker)
         {
-            return Ok((map, after_close));
+            return Ok(ParsedPrefix {
+                value: map,
+                remaining: after_close,
+            });
         }
         if let Some(after_comma) = remaining.strip_prefix(',') {
             remaining = after_comma.trim_start();
@@ -120,7 +144,10 @@ fn parse_args_body<'body>(
         }
 
         let Some(character) = remaining.chars().next() else {
-            return Ok((map, remaining));
+            return Ok(ParsedPrefix {
+                value: map,
+                remaining,
+            });
         };
 
         return Err(PairedQuoteFailure::UnexpectedCharAfterValue {
@@ -155,7 +182,10 @@ fn parse_one_call<'body>(
         return Ok(ParseStep::Done);
     }
 
-    let (args_object, after_args) = parse_args_body(
+    let ParsedPrefix {
+        value: args_object,
+        remaining: after_args,
+    } = parse_args_body(
         after_separator,
         &shape.value_quote,
         markers.close.as_str(),
