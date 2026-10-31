@@ -1,4 +1,4 @@
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, CString, c_char};
 use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
 use std::ptr::null;
@@ -129,6 +129,7 @@ pub struct LlamaModelParams {
     pub params: llama_cpp_bindings_sys::llama_model_params,
     kv_overrides: Vec<llama_cpp_bindings_sys::llama_model_kv_override>,
     buft_overrides: Vec<llama_cpp_bindings_sys::llama_model_tensor_buft_override>,
+    buft_override_patterns: Vec<CString>,
     devices: Pin<Box<[llama_cpp_bindings_sys::ggml_backend_dev_t; LLAMA_CPP_MAX_DEVICES]>>,
     tensor_split: Vec<f32>,
 }
@@ -239,9 +240,12 @@ impl LlamaModelParams {
             })?;
         }
 
-        buft_override.pattern = key.as_ptr();
+        let pattern = key.to_owned();
+
+        buft_override.pattern = pattern.as_ptr();
         buft_override.buft = unsafe { llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type() };
 
+        self.buft_override_patterns.push(pattern);
         self.push_buft_override_terminator();
 
         Ok(())
@@ -479,6 +483,7 @@ impl Default for LlamaModelParams {
                 pattern: null(),
                 buft: std::ptr::null_mut(),
             }],
+            buft_override_patterns: Vec::new(),
             devices: Box::pin([std::ptr::null_mut(); 16]),
             tensor_split: Vec::new(),
         }
@@ -722,6 +727,23 @@ mod tests {
         let result = params.as_mut().add_cpu_buft_override(c"test_pattern");
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn a_buft_override_pattern_stays_valid_after_the_callers_buffer_changes() {
+        let mut caller_buffer = b"blk\\.0\\.ffn\0".to_vec();
+        let mut params = std::pin::pin!(LlamaModelParams::default());
+
+        params
+            .as_mut()
+            .add_cpu_buft_override(std::ffi::CStr::from_bytes_with_nul(&caller_buffer).unwrap())
+            .unwrap();
+        caller_buffer.fill(b'x');
+
+        assert_eq!(
+            unsafe { std::ffi::CStr::from_ptr(params.buft_overrides[0].pattern) },
+            c"blk\\.0\\.ffn"
+        );
     }
 
     #[test]

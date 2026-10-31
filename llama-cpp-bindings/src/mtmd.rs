@@ -1,3 +1,4 @@
+mod eval_chunk;
 mod mtmd_ffi_input_part;
 
 pub mod fitted_mtmd_input_chunk;

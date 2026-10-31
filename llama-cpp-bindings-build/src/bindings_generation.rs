@@ -63,6 +63,26 @@ const DEPRECATED_FUNCTIONS: &[&str] = &[
     "mtmd_image_tokens_get_ny",
 ];
 
+const SUPERSEDED_ITEMS: &[&str] = &[
+    "LLAMA_TOKEN_TYPE_.*",
+    "ggml_backend_offload_op",
+    "ggml_backend_supports_buft",
+    "ggml_backend_supports_op",
+    "llama_batch",
+    "llama_batch_free",
+    "llama_batch_get_one",
+    "llama_batch_init",
+    "llama_decode",
+    "llama_encode",
+    "llama_get_embeddings",
+    "llama_get_logits",
+    "llama_perf_.*",
+    "llama_token_type",
+    "mtmd_image_tokens_get_id",
+    "mtmd_image_tokens_get_n_pos",
+    "mtmd_image_tokens_get_n_tokens",
+];
+
 fn configured_builder() -> Builder {
     let builder = Builder::default()
         .generate_comments(false)
@@ -86,11 +106,13 @@ fn configured_builder() -> Builder {
         .blocklist_type("_IO_.*")
         .prepend_enum_name(false);
 
-    DEPRECATED_FUNCTIONS
+    let builder = DEPRECATED_FUNCTIONS
         .iter()
-        .fold(builder, |builder, function| {
-            builder.blocklist_function(function)
-        })
+        .fold(builder, Builder::blocklist_function);
+
+    SUPERSEDED_ITEMS
+        .iter()
+        .fold(builder, Builder::blocklist_item)
 }
 
 fn fault_injection_args(environment: &BuildEnvironment) -> Vec<String> {

@@ -58,8 +58,7 @@ fn sample_returns_result_and_succeeds_with_valid_index(fixture: &LlamaFixture<'_
 
     context.decode(&batch)?;
 
-    let mut sampler =
-        LlamaSampler::chain_simple([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
 
     let result = sampler.sample(&context, batch.n_tokens() - 1);
 
@@ -116,8 +115,7 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
 
     context.decode(&batch)?;
 
-    let mut sampler =
-        LlamaSampler::chain_simple([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut outcomes = Vec::new();
@@ -204,8 +202,7 @@ fn sample_returns_token_after_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
-    let mut sampler =
-        LlamaSampler::chain_simple([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
     let result = sampler.sample(&context, batch.n_tokens() - 1);
 
     assert!(result.is_ok());

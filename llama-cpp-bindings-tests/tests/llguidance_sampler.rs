@@ -417,7 +417,7 @@ fn samples_token_constrained_by_grammar(fixture: &LlamaFixture<'_>) -> Result<()
     context.decode(&batch)?;
 
     let llg_sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
-    let mut chain = LlamaSampler::chain_simple([llg_sampler, LlamaSampler::greedy()?])?;
+    let mut chain = LlamaSampler::chain([llg_sampler, LlamaSampler::greedy()?])?;
 
     let token = chain.sample(&context, batch.n_tokens() - 1)?;
     assert!(
@@ -602,7 +602,7 @@ fn llguidance_chain_samples_a_valid_token(fixture: &LlamaFixture<'_>) -> Result<
     context.decode(&batch)?;
 
     let llg_sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
-    let mut chain = LlamaSampler::chain_simple([llg_sampler, LlamaSampler::greedy()?])?;
+    let mut chain = LlamaSampler::chain([llg_sampler, LlamaSampler::greedy()?])?;
     let token = chain.sample(&context, batch.n_tokens() - 1)?;
 
     assert!(token.0 >= 0);
@@ -632,7 +632,7 @@ fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let mut chain = LlamaSampler::chain_simple([
+    let mut chain = LlamaSampler::chain([
         create_llg_sampler(model, "regex", REGEX_GRAMMAR)?,
         LlamaSampler::greedy()?,
     ])?;

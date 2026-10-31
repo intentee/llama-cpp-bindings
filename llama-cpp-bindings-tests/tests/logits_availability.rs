@@ -91,16 +91,14 @@ fn every_logits_accessor_refuses_a_pooled_embeddings_decode(fixture: &LlamaFixtu
 
     assert_eq!(
         [
-            context.get_logits().err(),
-            context.candidates().err(),
-            context.token_data_array().err(),
+            context.get_logits_ith(-1).err(),
             context.candidates_ith(-1).err(),
             context.token_data_array_ith(-1).err(),
             context
                 .fill_token_data_array_ith(-1, &mut LlamaTokenDataArray::new(Vec::new(), false))
                 .err(),
         ],
-        [(); 6].map(|()| {
+        [(); 4].map(|()| {
             Some(LogitsError::PooledEmbeddingsProduceNoLogits {
                 pooling_type: LlamaPoolingType::Mean,
             })

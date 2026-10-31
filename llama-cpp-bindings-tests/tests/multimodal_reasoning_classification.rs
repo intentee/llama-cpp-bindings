@@ -78,7 +78,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         },
     )?;
 
-    let mut sampler = LlamaSampler::chain_simple([
+    let mut sampler = LlamaSampler::chain([
         LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
         LlamaSampler::top_k(40)?,
         LlamaSampler::top_p(0.9, 1)?,
@@ -289,7 +289,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         },
     )?;
 
-    let mut sampler = LlamaSampler::chain_simple([
+    let mut sampler = LlamaSampler::chain([
         LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
         LlamaSampler::top_k(40)?,
         LlamaSampler::top_p(0.9, 1)?,
@@ -381,7 +381,7 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         },
     )?;
 
-    let mut sampler = LlamaSampler::chain_simple([
+    let mut sampler = LlamaSampler::chain([
         LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
         LlamaSampler::top_k(40)?,
         LlamaSampler::top_p(0.9, 1)?,

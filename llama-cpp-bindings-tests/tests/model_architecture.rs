@@ -127,10 +127,8 @@ fn rope_type_returns_a_known_variant_for_rope_carrying_default_models(fixture: &
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn rope_type_returns_none_for_qwen_default_models(fixture: &LlamaFixture<'_>) {
-    let rope = fixture.model.rope_type();
-    assert!(
-        rope.is_none(),
-        "Qwen 3.5 and Qwen 3.6 default GGUFs do not expose a rope_type in their metadata; got {rope:?}"
-    );
+fn rope_type_reports_interleaved_mrope_for_qwen_default_models(fixture: &LlamaFixture<'_>) {
+    use llama_cpp_bindings::model::rope_type::RopeType;
+
+    assert_eq!(fixture.model.rope_type(), Some(RopeType::IMRope));
 }

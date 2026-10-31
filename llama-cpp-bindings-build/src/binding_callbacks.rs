@@ -5,6 +5,8 @@ use std::rc::Rc;
 
 use bindgen::FieldVisibilityKind;
 use bindgen::callbacks::DeriveInfo;
+use bindgen::callbacks::EnumVariantCustomBehavior;
+use bindgen::callbacks::EnumVariantValue;
 use bindgen::callbacks::FieldInfo;
 use bindgen::callbacks::ParseCallbacks;
 
@@ -14,6 +16,8 @@ use crate::privatized_field::PrivatizedField;
 
 const COMPARED_STRUCTS: &[&str] = &["llama_logit_bias", "llama_token_data"];
 
+const SUPERSEDED_ENUM_VARIANTS: &[&str] = &["GGML_PREC_DEFAULT"];
+
 fn derives_for(type_name: &str) -> Vec<String> {
     if COMPARED_STRUCTS.contains(&type_name) {
         vec!["PartialEq".to_owned()]
@@ -22,8 +26,15 @@ fn derives_for(type_name: &str) -> Vec<String> {
     }
 }
 
-/// Observes bindgen while it parses: keeps the [`PrivatizedField::ALL`] fields private, derives
-/// `PartialEq` for the structs the bindings compare, and records what the bindings depend on.
+fn variant_behavior_for(variant_name: &str) -> Option<EnumVariantCustomBehavior> {
+    SUPERSEDED_ENUM_VARIANTS
+        .contains(&variant_name)
+        .then_some(EnumVariantCustomBehavior::Hide)
+}
+
+/// Observes bindgen while it parses: keeps the [`PrivatizedField::ALL`] fields private, hides
+/// enum variants llama.cpp superseded, derives `PartialEq` for the structs the bindings compare,
+/// and records what the bindings depend on.
 #[derive(Clone, Debug)]
 pub struct BindingCallbacks {
     privatized_field_hits: Rc<[Cell<bool>]>,
@@ -90,6 +101,15 @@ impl ParseCallbacks for BindingCallbacks {
         derives_for(info.name)
     }
 
+    fn enum_variant_behavior(
+        &self,
+        _enum_name: Option<&str>,
+        original_variant_name: &str,
+        _variant_value: EnumVariantValue,
+    ) -> Option<EnumVariantCustomBehavior> {
+        variant_behavior_for(original_variant_name)
+    }
+
     fn field_visibility(&self, info: FieldInfo<'_>) -> Option<FieldVisibilityKind> {
         PrivatizedField::ALL
             .iter()
@@ -107,7 +127,18 @@ impl ParseCallbacks for BindingCallbacks {
 
 #[cfg(test)]
 mod tests {
+    use bindgen::callbacks::EnumVariantCustomBehavior;
+
     use super::derives_for;
+    use super::variant_behavior_for;
+
+    #[test]
+    fn only_superseded_enum_variants_are_hidden() {
+        assert_eq!(
+            ["GGML_PREC_DEFAULT", "GGML_PREC_UNDEFINED"].map(variant_behavior_for),
+            [Some(EnumVariantCustomBehavior::Hide), None]
+        );
+    }
 
     #[test]
     fn only_the_structs_the_bindings_compare_derive_partial_eq() {

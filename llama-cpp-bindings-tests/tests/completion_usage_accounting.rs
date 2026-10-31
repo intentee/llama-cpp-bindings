@@ -83,8 +83,7 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
     assert_eq!(promoted, prompt_token_count);
     assert_eq!(classifier.usage().prompt_tokens, prompt_token_count);
 
-    let mut sampler =
-        LlamaSampler::chain_simple([LlamaSampler::dist(1234)?, LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([LlamaSampler::dist(1234)?, LlamaSampler::greedy()?])?;
     let initial_position = batch.n_tokens();
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,

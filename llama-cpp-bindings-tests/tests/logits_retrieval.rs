@@ -17,35 +17,6 @@ use llama_cpp_test_harness::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn get_logits_returns_values_after_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
-    batch.add_sequence(&tokens, 0, false)?;
-
-    let decode_result = context.decode(&batch);
-    assert!(decode_result.is_ok());
-
-    let logits = context.get_logits()?;
-    assert_ne!(logits, Vec::<f32>::new());
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 2048,
-    n_ubatch = 512,
-)]
 fn get_logits_ith_returns_valid_slice(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,

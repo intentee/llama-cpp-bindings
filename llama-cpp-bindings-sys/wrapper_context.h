@@ -40,6 +40,8 @@ llama_rs_context_nextn_hidden_state_probe_status llama_rs_context_graph_produces
 
 bool llama_rs_model_causal_attn(const struct llama_model * model);
 
+bool llama_rs_context_produced_logits(struct llama_context * ctx);
+
 float * llama_rs_get_logits_ith(struct llama_context * ctx, int32_t token_index);
 
 int32_t llama_rs_set_adapters_lora(

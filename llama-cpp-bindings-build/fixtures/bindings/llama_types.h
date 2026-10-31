@@ -13,3 +13,8 @@ struct llama_token_data {
 struct llama_sampler_chain_params {
     int no_perf;
 };
+
+enum ggml_prec {
+    GGML_PREC_UNDEFINED = 0,
+    GGML_PREC_DEFAULT = 0,
+};

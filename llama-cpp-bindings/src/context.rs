@@ -23,7 +23,6 @@ use crate::llama_backend::LlamaBackend;
 use crate::llama_batch::LlamaBatch;
 use crate::model::LlamaModel;
 use crate::model::lora_adapter_scale::LoraAdapterScale;
-use crate::timing::LlamaTimings;
 use crate::token::LlamaToken;
 use crate::token::data::LlamaTokenData;
 use crate::token::data_array::LlamaTokenDataArray;
@@ -841,34 +840,14 @@ impl<'model> LlamaContext<'model> {
         }
     }
 
-    /// # Errors
-    /// Returns `LogitsError` if logits are null or `n_vocab` overflows.
-    pub fn candidates(&self) -> Result<impl Iterator<Item = LlamaTokenData> + '_, LogitsError> {
-        let logits = self.get_logits()?;
-
-        Ok((0_i32..).zip(logits).map(|(token_id, logit)| {
-            let token = LlamaToken::new(token_id);
-            LlamaTokenData::new(token, *logit, 0_f32)
-        }))
-    }
-
-    /// # Errors
-    /// Returns `LogitsError` if logits are null or `n_vocab` overflows.
-    pub fn token_data_array(&self) -> Result<LlamaTokenDataArray, LogitsError> {
-        Ok(LlamaTokenDataArray::from_iter(self.candidates()?, false))
-    }
-
-    fn produced_logits(&self) -> Result<NonNull<f32>, LogitsError> {
-        NonNull::new(unsafe { llama_cpp_bindings_sys::llama_get_logits(self.context.as_ptr()) })
-            .ok_or_else(|| self.decoded_outputs.missing_logits_error())
-    }
-
-    /// # Errors
-    /// Returns `LogitsError` if the last decode produced no logits or `n_vocab` overflows.
-    pub fn get_logits(&self) -> Result<&[f32], LogitsError> {
-        let logits = self.produced_logits()?;
-
-        unsafe { logits_slice(logits, self.model.n_vocab()) }
+    fn ensure_logits_produced(&self) -> Result<(), LogitsError> {
+        if unsafe {
+            llama_cpp_bindings_sys::llama_rs_context_produced_logits(self.context.as_ptr())
+        } {
+            Ok(())
+        } else {
+            Err(self.decoded_outputs.missing_logits_error())
+        }
     }
 
     /// # Errors
@@ -921,7 +900,7 @@ impl<'model> LlamaContext<'model> {
     /// last decode produced no logits, or `n_vocab` overflows.
     pub fn get_logits_ith(&self, token_index: i32) -> Result<&[f32], LogitsError> {
         self.decoded_outputs.ensure_output(token_index)?;
-        self.produced_logits()?;
+        self.ensure_logits_produced()?;
 
         let row = NonNull::new(unsafe {
             llama_cpp_bindings_sys::llama_rs_get_logits_ith(self.context.as_ptr(), token_index)
@@ -929,16 +908,6 @@ impl<'model> LlamaContext<'model> {
         .ok_or(LogitsError::NullLogits)?;
 
         unsafe { logits_slice(row, self.model.n_vocab()) }
-    }
-
-    pub fn reset_timings(&mut self) {
-        unsafe { llama_cpp_bindings_sys::llama_perf_context_reset(self.context.as_ptr()) }
-    }
-
-    pub fn timings(&mut self) -> LlamaTimings {
-        LlamaTimings::from(unsafe {
-            llama_cpp_bindings_sys::llama_perf_context(self.context.as_ptr())
-        })
     }
 
     /// # Errors

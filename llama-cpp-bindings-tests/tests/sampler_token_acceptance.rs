@@ -14,7 +14,7 @@ use llama_cpp_test_harness::llama_test;
     n_ubatch = 512,
 )]
 fn accept_many_iterates_over_borrowed_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut sampler = LlamaSampler::chain_simple([LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([LlamaSampler::greedy()?])?;
     let tokens = vec![
         fixture
             .model
@@ -40,7 +40,7 @@ fn accept_many_iterates_over_borrowed_tokens(fixture: &LlamaFixture<'_>) -> Resu
     n_ubatch = 512,
 )]
 fn with_tokens_returns_self_after_accepting_each_token(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let sampler = LlamaSampler::chain_simple([LlamaSampler::greedy()?])?;
+    let sampler = LlamaSampler::chain([LlamaSampler::greedy()?])?;
     let tokens = [
         fixture
             .model
@@ -66,7 +66,7 @@ fn with_tokens_returns_self_after_accepting_each_token(fixture: &LlamaFixture<'_
     n_ubatch = 512,
 )]
 fn accept_consumes_a_single_token(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut sampler = LlamaSampler::chain_simple([LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([LlamaSampler::greedy()?])?;
 
     sampler.accept(
         fixture
@@ -87,7 +87,7 @@ fn accept_consumes_a_single_token(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 512,
 )]
 fn accept_succeeds_for_a_valid_token(_fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut sampler = LlamaSampler::chain_simple([LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([LlamaSampler::greedy()?])?;
 
     sampler.accept(LlamaToken::new(0))?;
 

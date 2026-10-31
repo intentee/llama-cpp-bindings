@@ -21,7 +21,7 @@ fn generated_tool_call_answer(
     let grammar_sampler = session
         .grammar_sampler()?
         .context("a tool request must constrain generation with a grammar")?;
-    let mut sampler = LlamaSampler::chain_simple([grammar_sampler, LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([grammar_sampler, LlamaSampler::greedy()?])?;
     let answer = ChatAnswerGeneration {
         fixture,
         session,

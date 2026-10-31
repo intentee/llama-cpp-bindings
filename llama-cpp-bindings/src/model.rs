@@ -306,14 +306,14 @@ impl LlamaModel {
     /// # Errors
     ///
     /// Returns [`TokenAttrError::TokenOutsideVocabulary`] when the token is not part of this
-    /// model's vocabulary, or [`TokenAttrError::UnknownAttributes`] when the token type is not
-    /// known to this library.
+    /// model's vocabulary, or [`TokenAttrError::UnknownAttributes`] when llama.cpp reports
+    /// attributes this library does not know.
     pub fn token_attr(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
         let LlamaToken(id) = self.require_vocabulary_token(token)?;
-        let token_type =
+        let token_attr =
             unsafe { llama_cpp_bindings_sys::llama_vocab_get_attr(self.vocab_ptr(), id) };
 
-        LlamaTokenAttrs::try_from(token_type).map_err(TokenAttrError::UnknownAttributes)
+        LlamaTokenAttrs::try_from(token_attr).map_err(TokenAttrError::UnknownAttributes)
     }
 
     /// # Errors

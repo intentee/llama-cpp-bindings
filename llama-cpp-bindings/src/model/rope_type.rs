@@ -3,6 +3,7 @@ pub enum RopeType {
     Norm,
     NeoX,
     MRope,
+    IMRope,
     Vision,
 }
 
@@ -13,6 +14,7 @@ impl RopeType {
             llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NORM => Some(Self::Norm),
             llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NEOX => Some(Self::NeoX),
             llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_MROPE => Some(Self::MRope),
+            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE => Some(Self::IMRope),
             llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_VISION => Some(Self::Vision),
             _ => None,
         }
@@ -52,6 +54,14 @@ mod tests {
         assert_eq!(
             RopeType::from_raw(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_MROPE),
             Some(RopeType::MRope)
+        );
+    }
+
+    #[test]
+    fn rope_type_interleaved_mrope() {
+        assert_eq!(
+            RopeType::from_raw(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE),
+            Some(RopeType::IMRope)
         );
     }
 

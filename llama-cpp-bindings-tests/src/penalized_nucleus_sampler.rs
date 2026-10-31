@@ -11,7 +11,7 @@ const SAMPLING_SEED: u32 = 0x00C0_FFEE;
 /// Panics when llama.cpp cannot build one of the samplers.
 #[must_use]
 pub fn penalized_nucleus_sampler(model: &LlamaModel) -> LlamaSampler {
-    LlamaSampler::chain_simple([
+    LlamaSampler::chain([
         LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)
             .expect("the penalties sampler must build"),
         LlamaSampler::top_k(40).expect("the top-k sampler must build"),

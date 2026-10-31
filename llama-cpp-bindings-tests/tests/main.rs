@@ -60,7 +60,6 @@ mod multimodal_prompt_parts_tokenization;
 mod multimodal_reasoning_classification;
 mod multimodal_usage_accounting;
 mod parameter_fitting;
-mod performance_timings;
 mod prompt_token_accounting;
 mod reasoning_classification;
 mod reranking;

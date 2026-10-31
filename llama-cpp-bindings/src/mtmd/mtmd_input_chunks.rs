@@ -5,22 +5,14 @@ use std::ptr::NonNull;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::context::LlamaContext;
-use crate::context::decoded_output_rows::DecodedOutputRows;
 
+use super::eval_chunk::eval_chunk;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_eval_limits::MtmdEvalLimits;
 use super::mtmd_input_chunk::MtmdInputChunk;
 use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunks_error::MtmdInputChunksError;
-
-const fn check_eval_result(result: i32) -> Result<(), MtmdEvalError> {
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(MtmdEvalError::EvalFailed { code: result })
-    }
-}
 
 fn input_chunks_init_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_init_status,
@@ -137,11 +129,7 @@ impl MtmdInputChunks {
     ) -> Result<Vec<MtmdInputChunkType>, MtmdEvalError> {
         (0..self.len())
             .map(|index| {
-                self.get(index)
-                    .ok_or(crate::FfiContractError {
-                        operation: "mtmd_input_chunks_get",
-                        detail: "returned a null chunk within the chunk count",
-                    })?
+                self.chunk_within_count(index)?
                     .fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)
             })
             .collect()
@@ -182,25 +170,29 @@ impl MtmdInputChunks {
                 .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?),
         )?;
 
-        let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
+        let chunk_count = self.len();
 
-        let result = unsafe {
-            llama_cpp_bindings_sys::mtmd_helper_eval_chunks(
-                mtmd_ctx.context.as_ptr(),
-                llama_ctx.context.as_ptr(),
-                self.chunks.as_ptr(),
-                start_position,
+        (0..chunk_count).try_fold(start_position, |position, index| {
+            eval_chunk(
+                &self.chunk_within_count(index)?,
+                mtmd_ctx,
+                llama_ctx,
+                position,
                 seq_id,
                 n_batch,
-                logits_last,
-                &raw mut final_position,
+                logits_last && index + 1 == chunk_count,
             )
-        };
+        })
+    }
 
-        check_eval_result(result)?;
-        llama_ctx.record_decoded_rows(DecodedOutputRows::of_helper_decode(logits_last));
-
-        Ok(final_position)
+    fn chunk_within_count(&self, index: usize) -> Result<MtmdInputChunk, MtmdEvalError> {
+        self.get(index).ok_or_else(|| {
+            crate::FfiContractError {
+                operation: "mtmd_input_chunks_get",
+                detail: "returned a null chunk within the chunk count",
+            }
+            .into()
+        })
     }
 }
 
@@ -228,27 +220,6 @@ mod tests {
 
         assert!(chunks.get(0).is_none());
         assert!(chunks.get(999).is_none());
-    }
-
-    #[test]
-    fn check_eval_result_ok_for_zero() {
-        use super::check_eval_result;
-
-        assert!(check_eval_result(0).is_ok());
-    }
-
-    #[test]
-    fn check_eval_result_error_for_nonzero() {
-        use super::MtmdEvalError;
-        use super::check_eval_result;
-
-        let err = check_eval_result(7).unwrap_err();
-        let representative = MtmdEvalError::EvalFailed { code: 0 };
-
-        assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
-        );
     }
 }
 

@@ -27,16 +27,21 @@ impl LlamaBackend {
         Ok(Self {})
     }
 
+    /// Initializes the backend, then llama.cpp's NUMA support, which needs the CPU backend the
+    /// backend initialization loads.
+    ///
     /// # Errors
     /// Returns an error if the backend was already initialized.
     pub fn init_numa(strategy: NumaStrategy) -> crate::Result<Self> {
-        Self::mark_init()?;
+        let backend = Self::init()?;
+
         unsafe {
             llama_cpp_bindings_sys::llama_numa_init(
                 llama_cpp_bindings_sys::ggml_numa_strategy::from(strategy),
             );
         }
-        Ok(Self {})
+
+        Ok(backend)
     }
 
     #[must_use]
@@ -148,10 +153,12 @@ mod tests {
 
     #[test]
     #[serial]
-    fn init_numa_succeeds() {
+    fn init_numa_with_a_numa_strategy_initializes_the_backend_numa_support_needs() {
         use crate::llama_backend_numa_strategy::NumaStrategy;
 
-        let backend = LlamaBackend::init_numa(NumaStrategy::Disabled);
-        assert!(backend.is_ok());
+        assert_eq!(
+            LlamaBackend::init_numa(NumaStrategy::Distribute),
+            Ok(LlamaBackend {})
+        );
     }
 }

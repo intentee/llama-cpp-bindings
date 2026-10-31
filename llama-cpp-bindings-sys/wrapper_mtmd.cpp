@@ -295,6 +295,8 @@ extern "C" auto llama_rs_mtmd_eval_chunk_single(
     }
 
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_MTMD_EVAL_CHUNK_SINGLE_THROWS);
+
         int32_t const result = mtmd_helper_eval_chunk_single(
             ctx, lctx, chunk, n_past, seq_id, n_batch, logits_last, out_new_n_past);
         if (result != 0) {

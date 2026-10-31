@@ -64,7 +64,7 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
         r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#,
     )?;
 
-    let mut sampler = LlamaSampler::chain_simple([
+    let mut sampler = LlamaSampler::chain([
         LlamaSampler::grammar(model, &grammar_str, "root")?,
         LlamaSampler::temp(0.8)?,
         LlamaSampler::greedy()?,
@@ -173,7 +173,7 @@ fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
 }"#;
 
     let llg_sampler = LlamaSampler::llguidance(model, "json", schema)?;
-    let mut sampler = LlamaSampler::chain_simple([llg_sampler, LlamaSampler::greedy()?])?;
+    let mut sampler = LlamaSampler::chain([llg_sampler, LlamaSampler::greedy()?])?;
 
     let mut n_cur = batch.n_tokens();
     let mut decoder = encoding_rs::UTF_8.new_decoder();

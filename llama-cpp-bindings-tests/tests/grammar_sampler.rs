@@ -68,7 +68,7 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
 
     context.decode(&batch)?;
 
-    let mut sampler = LlamaSampler::chain_simple([
+    let mut sampler = LlamaSampler::chain([
         LlamaSampler::grammar(model, r"root ::= [Yy] [Ee] [Ss] | [Nn] [Oo]", "root")?,
         LlamaSampler::temp(0.8)?,
         LlamaSampler::greedy()?,
@@ -167,7 +167,7 @@ fn sample_with_grammar_produces_constrained_output_in_loop(
     context.decode(&batch)?;
     classifier.commit_prompt_tokens();
 
-    let mut sampler = LlamaSampler::chain_simple([
+    let mut sampler = LlamaSampler::chain([
         LlamaSampler::grammar(model, r#"root ::= "yes" | "no""#, "root")?,
         LlamaSampler::temp(0.8)?,
         LlamaSampler::greedy()?,
@@ -253,7 +253,7 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
     batch.add_sequence(&prompt_tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let mut sampler = LlamaSampler::chain_simple([
+    let mut sampler = LlamaSampler::chain([
         LlamaSampler::grammar(model, r#"root ::= <think> "x""#, "root")?,
         LlamaSampler::greedy()?,
     ])?;

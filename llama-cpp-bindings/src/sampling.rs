@@ -515,13 +515,10 @@ impl LlamaSampler {
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the sampler chain cannot be initialized.
-    pub fn chain(
-        samplers: impl IntoIterator<Item = Self>,
-        no_perf: bool,
-    ) -> Result<Self, SamplingError> {
+    pub fn chain(samplers: impl IntoIterator<Item = Self>) -> Result<Self, SamplingError> {
         Self::initialize("chain", |out_sampler, out_error| unsafe {
             llama_cpp_bindings_sys::llama_rs_sampler_chain_init(
-                llama_cpp_bindings_sys::llama_sampler_chain_params { no_perf },
+                llama_cpp_bindings_sys::llama_sampler_chain_params { no_perf: true },
                 out_sampler,
                 out_error,
             )
@@ -532,13 +529,6 @@ impl LlamaSampler {
                 .try_for_each(|sampler| chain.take_into_chain(sampler))
                 .map(|()| chain)
         })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the sampler chain cannot be initialized.
-    pub fn chain_simple(samplers: impl IntoIterator<Item = Self>) -> Result<Self, SamplingError> {
-        Self::chain(samplers, false)
     }
 
     /// # Errors
@@ -1138,7 +1128,7 @@ mod tests {
 
     #[test]
     fn accept_succeeds() {
-        let mut sampler = LlamaSampler::chain_simple([penalties_sampler(), greedy_sampler()])
+        let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize");
 
         sampler
@@ -1148,7 +1138,7 @@ mod tests {
 
     #[test]
     fn accept_succeeds_on_penalties_sampler() {
-        let mut sampler = LlamaSampler::chain_simple([penalties_sampler(), greedy_sampler()])
+        let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize");
 
         let result = sampler.accept(crate::token::LlamaToken::new(42));
@@ -1160,7 +1150,7 @@ mod tests {
     fn accept_many_multiple_tokens() {
         use crate::token::LlamaToken;
 
-        let mut sampler = LlamaSampler::chain_simple([penalties_sampler(), greedy_sampler()])
+        let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize");
 
         sampler
@@ -1172,7 +1162,7 @@ mod tests {
     fn with_tokens_builder_pattern() {
         use crate::token::LlamaToken;
 
-        let _sampler = LlamaSampler::chain_simple([penalties_sampler(), greedy_sampler()])
+        let _sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize")
             .with_tokens([LlamaToken::new(10), LlamaToken::new(20)])
             .expect("test: with_tokens should succeed");
@@ -1201,7 +1191,7 @@ mod tests {
         let biases = vec![LlamaLogitBias::new(LlamaToken::new(0), -100.0)];
         let _logit_bias = LlamaSampler::logit_bias(32000, &biases);
         let _chain =
-            LlamaSampler::chain([greedy_sampler()], true).expect("sampler chain must initialize");
+            LlamaSampler::chain([greedy_sampler()]).expect("sampler chain must initialize");
     }
 
     #[test]
