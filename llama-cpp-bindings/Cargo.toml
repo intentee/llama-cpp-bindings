@@ -26,6 +26,7 @@ toktrie = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+llama-cpp-fault-injection = { workspace = true }
 llama-cpp-wrapper-error-fixture = { workspace = true }
 serial_test = { workspace = true }
 

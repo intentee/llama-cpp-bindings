@@ -17,17 +17,16 @@ fn validate(mut arguments: Arguments) -> Result<Arguments, HarnessArgumentsError
 /// Returns [`HarnessArgumentsError::ConflictingTestThreads`] when `--test-threads` is set to
 /// any value other than `1`. The harness orchestrates phase batching itself and cannot share
 /// that responsibility with `libtest_mimic`'s thread pool.
-pub fn parse_harness_arguments() -> Result<Arguments, HarnessArgumentsError> {
-    validate(Arguments::from_args())
+pub fn parse_harness_arguments(arguments: Arguments) -> Result<Arguments, HarnessArgumentsError> {
+    validate(arguments)
 }
 
 #[cfg(test)]
 mod tests {
     use libtest_mimic::Arguments;
 
-    use crate::harness_arguments_error::HarnessArgumentsError;
-
     use super::validate;
+    use crate::harness_arguments_error::HarnessArgumentsError;
 
     #[test]
     fn validate_accepts_unset_test_threads_and_defaults_to_one() {

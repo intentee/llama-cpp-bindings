@@ -1,4 +1,5 @@
 #include "wrapper_common.h"
+#include "wrapper_fault_injection.h"
 
 #include <cstdlib>
 #include <cstdint>
@@ -8,15 +9,14 @@
 #include <stdexcept>
 #include <string>
 
-#include "llama.cpp/common/json-schema-to-grammar.h"
-#include "llama.cpp/common/json.h"
-#include "llama.cpp/include/llama.h"
+#include <common/json-schema-to-grammar.h>
+#include <common/json.h>
+#include <llama.h>
 #include "wrapper_report_current_exception.h"
 #include "wrapper_utils.h"
 
 extern "C" auto llama_rs_json_schema_to_grammar(
     const char * schema_json,
-    bool force_gbnf,
     char ** out_grammar,
     char ** out_error) -> llama_rs_json_schema_to_grammar_status {
     if (out_grammar != nullptr) {
@@ -37,12 +37,18 @@ extern "C" auto llama_rs_json_schema_to_grammar(
 
     try {
         const auto schema = common_json::parse(schema_json);
-        const auto grammar = json_schema_to_grammar(schema, force_gbnf);
+        const auto grammar = json_schema_to_grammar(schema);
         *out_grammar = llama_rs_dup_string(grammar);
         if (*out_grammar == nullptr) {
             return LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED;
         }
         return LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK;
+    } catch (const common_json_error & err) {
+        return llama_rs_report_exception_message(
+            out_error,
+            err.what(),
+            LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON,
+            LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED);
     } catch (const std::invalid_argument & err) {
         return llama_rs_report_exception_message(
             out_error,
@@ -88,7 +94,10 @@ extern "C" auto llama_rs_sampler_init_grammar(
         return LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_ERROR_ARG;
     }
     try {
-        *out_sampler = llama_sampler_init_grammar(vocab, grammar_str, grammar_root);
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_THROWS);
+        *out_sampler = llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_RETURNS_NULL)
+                           ? nullptr
+                           : llama_sampler_init_grammar(vocab, grammar_str, grammar_root);
         if (*out_sampler == nullptr) {
             return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_RETURNED_NULL;
         }
@@ -125,6 +134,7 @@ extern "C" auto llama_rs_sampler_init_grammar_lazy_patterns(
         return LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_ERROR_ARG;
     }
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_THROWS);
         *out_sampler = llama_sampler_init_grammar_lazy_patterns(
             vocab,
             grammar_str,
@@ -190,51 +200,6 @@ extern "C" auto llama_rs_memory_seq_pos_max(
             LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
             LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
             LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED);
-    }
-}
-
-extern "C" auto llama_rs_encode(
-    struct llama_context * ctx,
-    struct llama_batch batch,
-    int32_t * out_llama_cpp_return_code,
-    char ** out_error) -> llama_rs_encode_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (out_llama_cpp_return_code != nullptr) {
-        *out_llama_cpp_return_code = 0;
-    }
-    if (ctx == nullptr) {
-        return LLAMA_RS_ENCODE_NULL_CTX_ARG;
-    }
-    try {
-        const auto * model = llama_get_model(ctx);
-        if (model == nullptr) {
-            return LLAMA_RS_ENCODE_NULL_MODEL;
-        }
-        if (!llama_model_has_encoder(model)) {
-            return LLAMA_RS_ENCODE_MODEL_HAS_NO_ENCODER;
-        }
-        int32_t const result = llama_encode(ctx, batch);
-        if (result != 0) {
-            if (out_llama_cpp_return_code != nullptr) {
-                *out_llama_cpp_return_code = result;
-            }
-            if (result == -2) {
-                return LLAMA_RS_ENCODE_OUT_OF_MEMORY;
-            }
-            if (result == -3) {
-                return LLAMA_RS_ENCODE_COMPUTE_FAILED;
-            }
-            return LLAMA_RS_ENCODE_LLAMA_CPP_RETURNED_NONZERO_CODE;
-        }
-        return LLAMA_RS_ENCODE_OK;
-    } catch (...) {
-        return llama_rs_report_current_exception(
-            out_error,
-            LLAMA_RS_ENCODE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_ENCODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            LLAMA_RS_ENCODE_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -359,6 +324,7 @@ extern "C" auto llama_rs_sampler_accept(
         return LLAMA_RS_SAMPLER_ACCEPT_NULL_OUT_ERROR_ARG;
     }
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_ACCEPT_THROWS);
         llama_sampler_accept(sampler, token);
         return LLAMA_RS_SAMPLER_ACCEPT_OK;
     } catch (...) {
@@ -440,44 +406,39 @@ extern "C" auto llama_rs_new_context_with_model(
     }
 }
 
-extern "C" auto llama_rs_decode(
+extern "C" auto llama_rs_process(
     struct llama_context * ctx,
-    struct llama_batch batch,
+    enum llama_process_type process_type,
+    struct llama_batch_ext * batch,
     int32_t * out_llama_cpp_return_code,
-    char ** out_error) -> llama_rs_decode_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (out_llama_cpp_return_code != nullptr) {
-        *out_llama_cpp_return_code = 0;
-    }
-    if (ctx == nullptr) {
-        return LLAMA_RS_DECODE_NULL_CTX_ARG;
-    }
+    char ** out_error) -> llama_rs_process_status {
     if (out_error == nullptr) {
-        return LLAMA_RS_DECODE_NULL_OUT_ERROR_ARG;
+        return LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG;
+    }
+    *out_error = nullptr;
+    if (out_llama_cpp_return_code == nullptr) {
+        return LLAMA_RS_PROCESS_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG;
+    }
+    *out_llama_cpp_return_code = 0;
+    if (ctx == nullptr) {
+        return LLAMA_RS_PROCESS_NULL_CTX_ARG;
+    }
+    if (batch == nullptr) {
+        return LLAMA_RS_PROCESS_NULL_BATCH_ARG;
     }
     try {
-        int32_t const result = llama_decode(ctx, batch);
+        int32_t const result = llama_process(ctx, process_type, batch);
         if (result != 0) {
-            if (out_llama_cpp_return_code != nullptr) {
-                *out_llama_cpp_return_code = result;
-            }
-            if (result == -2) {
-                return LLAMA_RS_DECODE_OUT_OF_MEMORY;
-            }
-            if (result == -3) {
-                return LLAMA_RS_DECODE_COMPUTE_FAILED;
-            }
-            return LLAMA_RS_DECODE_LLAMA_CPP_RETURNED_NONZERO_CODE;
+            *out_llama_cpp_return_code = result;
+            return LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE;
         }
-        return LLAMA_RS_DECODE_OK;
+        return LLAMA_RS_PROCESS_OK;
     } catch (...) {
         return llama_rs_report_current_exception(
             out_error,
-            LLAMA_RS_DECODE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_DECODE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            LLAMA_RS_DECODE_ERROR_STRING_ALLOCATION_FAILED);
+            LLAMA_RS_PROCESS_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_PROCESS_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
@@ -540,6 +501,7 @@ extern "C" auto llama_rs_sampler_apply(
         return LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG;
     }
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_APPLY_THROWS);
         llama_sampler_apply(sampler, data_array);
         return LLAMA_RS_SAMPLER_APPLY_OK;
     } catch (...) {
@@ -549,4 +511,19 @@ extern "C" auto llama_rs_sampler_apply(
             LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
             LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED);
     }
+}
+
+extern "C" auto llama_rs_token_to_piece(
+    const struct llama_vocab * vocab,
+    llama_token token,
+    char * buf,
+    int32_t length,
+    int32_t lstrip,
+    bool special) -> int32_t {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_TOKEN_TO_PIECE_FAILS) ||
+        (special && llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_SPECIAL_TOKEN_TO_PIECE_FAILS))) {
+        return -(length + 1);
+    }
+
+    return llama_token_to_piece(vocab, token, buf, length, lstrip, special);
 }

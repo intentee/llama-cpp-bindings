@@ -1,11 +1,20 @@
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, CString, c_char};
+use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
+use std::ptr;
 use std::ptr::null;
 
-use crate::LlamaCppError;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+
+use crate::backend_device_index::backend_device_index;
 use crate::context::params::LlamaContextParams;
-use crate::error::{FitError, ModelParamsError};
+use crate::error::fit_error::FitError;
+use crate::error::llama_cpp_error::LlamaCppError;
+use crate::error::model_params_error::ModelParamsError;
+use crate::max_devices::max_devices;
 use crate::model::llama_lazy_mode::LlamaLazyMode;
 use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 use crate::model::llama_load_mode::LlamaLoadMode;
@@ -15,7 +24,6 @@ use crate::model::params::fit_extra_model::FitExtraModel;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
 use crate::model::split_mode::LlamaSplitMode;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 pub mod fit_extra_model;
 pub mod fit_result;
@@ -61,63 +69,55 @@ fn fit_params_status_to_result(
             }?;
             Err(FitError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null path_model argument",
-            }
-            .into())
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => Err(FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail: "was given a null path_model argument",
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null mparams argument",
-            }
-            .into())
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => Err(FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail: "was given a null mparams argument",
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null cparams argument",
-            }
-            .into())
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => Err(FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail: "was given a null cparams argument",
         }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null out_unrecognized_status_code argument",
             }
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null out_error argument",
-            }
-            .into())
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => Err(FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail: "was given a null out_error argument",
         }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG => {
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null path_model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG => {
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null mparams argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG => {
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null cparams argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_fit_params",
             code: i64::from(other),
         }
@@ -129,12 +129,13 @@ pub struct LlamaModelParams {
     pub params: llama_cpp_bindings_sys::llama_model_params,
     kv_overrides: Vec<llama_cpp_bindings_sys::llama_model_kv_override>,
     buft_overrides: Vec<llama_cpp_bindings_sys::llama_model_tensor_buft_override>,
+    buft_override_patterns: Vec<CString>,
     devices: Pin<Box<[llama_cpp_bindings_sys::ggml_backend_dev_t; LLAMA_CPP_MAX_DEVICES]>>,
     tensor_split: Vec<f32>,
 }
 
 impl Debug for LlamaModelParams {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LlamaModelParams")
             .field("n_gpu_layers", &self.params.n_gpu_layers)
             .field("main_gpu", &self.params.main_gpu)
@@ -239,9 +240,12 @@ impl LlamaModelParams {
             })?;
         }
 
-        buft_override.pattern = key.as_ptr();
+        let pattern = key.to_owned();
+
+        buft_override.pattern = pattern.as_ptr();
         buft_override.buft = unsafe { llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type() };
 
+        self.buft_override_patterns.push(pattern);
         self.push_buft_override_terminator();
 
         Ok(())
@@ -253,7 +257,7 @@ impl LlamaModelParams {
         self.buft_overrides
             .push(llama_cpp_bindings_sys::llama_model_tensor_buft_override {
                 pattern: null(),
-                buft: std::ptr::null_mut(),
+                buft: ptr::null_mut(),
             });
 
         self.params.tensor_buft_overrides = self.buft_overrides.as_ptr();
@@ -301,27 +305,11 @@ impl LlamaModelParams {
 
     #[must_use]
     pub fn devices(&self) -> Vec<usize> {
-        let mut backend_devices = Vec::new();
-        for device_index in 0..unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
-            let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
-            backend_devices.push(dev);
-        }
-        let mut devices = Vec::new();
-        for &dev in self.devices.iter() {
-            if dev.is_null() {
-                break;
-            }
-            let matched_index = backend_devices
-                .iter()
-                .enumerate()
-                .find(|&(_i, &d)| d == dev)
-                .map(|(index, _)| index);
-
-            if let Some(index) = matched_index {
-                devices.push(index);
-            }
-        }
-        devices
+        self.devices
+            .iter()
+            .take_while(|device| !device.is_null())
+            .filter_map(|device| backend_device_index(*device))
+            .collect()
     }
 
     #[must_use]
@@ -381,9 +369,9 @@ impl LlamaModelParams {
     /// Returns `LlamaCppError::BackendDeviceNotFound` if any device index is invalid.
     pub fn with_devices(mut self, devices: &[usize]) -> Result<Self, LlamaCppError> {
         for dev in self.devices.iter_mut() {
-            *dev = std::ptr::null_mut();
+            *dev = ptr::null_mut();
         }
-        let max_devices = crate::max_devices().min(LLAMA_CPP_MAX_DEVICES);
+        let max_devices = max_devices().min(LLAMA_CPP_MAX_DEVICES);
         if devices.len() > max_devices {
             return Err(LlamaCppError::MaxDevicesExceeded(max_devices));
         }
@@ -416,6 +404,13 @@ impl LlamaModelParams {
         let max_devices = unsafe { llama_cpp_bindings_sys::llama_max_devices() };
         let max_buft = unsafe { llama_cpp_bindings_sys::llama_max_tensor_buft_overrides() };
 
+        if margins.len() != max_devices {
+            return Err(FitError::MarginsDeviceCountMismatch {
+                expected: max_devices,
+                actual: margins.len(),
+            });
+        }
+
         self.tensor_split.clear();
         self.tensor_split.resize(max_devices, 0.0);
 
@@ -424,7 +419,7 @@ impl LlamaModelParams {
             max_buft + 1,
             llama_cpp_bindings_sys::llama_model_tensor_buft_override {
                 pattern: null(),
-                buft: std::ptr::null_mut(),
+                buft: ptr::null_mut(),
             },
         );
 
@@ -432,7 +427,7 @@ impl LlamaModelParams {
         self.params.tensor_buft_overrides = null();
 
         let mut out_unrecognized_status_code: i32 = 0;
-        let mut out_error: *mut c_char = std::ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
 
         let mut extra_ffi = extra.as_mut().map(|extra_model| extra_model.as_ffi());
         let extra_ptr = extra_ffi
@@ -480,9 +475,10 @@ impl Default for LlamaModelParams {
             }],
             buft_overrides: vec![llama_cpp_bindings_sys::llama_model_tensor_buft_override {
                 pattern: null(),
-                buft: std::ptr::null_mut(),
+                buft: ptr::null_mut(),
             }],
-            devices: Box::pin([std::ptr::null_mut(); 16]),
+            buft_override_patterns: Vec::new(),
+            devices: Box::pin([ptr::null_mut(); 16]),
             tensor_split: Vec::new(),
         }
     }
@@ -490,15 +486,29 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CStr;
+    use std::ffi::CString;
+    use std::mem::discriminant;
+    use std::pin::pin;
     use std::ptr;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 
     use super::LLAMA_CPP_MAX_DEVICES;
     use super::LlamaModelParams;
     use super::fit_params_status_to_result;
+    use crate::context::params::LlamaContextParams;
     use crate::error::fit_error::FitError;
+    use crate::error::llama_cpp_error::LlamaCppError;
+    use crate::error::model_params_error::ModelParamsError;
+    use crate::llama_backend::LlamaBackend;
+    #[cfg(feature = "dynamic-backends")]
+    use crate::load_backends::load_backends;
+    use crate::max_devices::max_devices;
     use crate::model::llama_lazy_mode::LlamaLazyMode;
     use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
     use crate::model::llama_load_mode::LlamaLoadMode;
+    use crate::model::params::param_override_value::ParamOverrideValue;
     use crate::model::split_mode::LlamaSplitMode;
 
     fn contract_error_reported_for(
@@ -508,7 +518,7 @@ mod tests {
     }
 
     fn contract_error_with(detail: &'static str) -> FitError {
-        crate::FfiContractError {
+        FfiContractError {
             operation: "llama_rs_fit_params",
             detail,
         }
@@ -517,7 +527,7 @@ mod tests {
 
     #[test]
     fn device_capacity_is_not_smaller_than_the_upstream_limit() {
-        let upstream_limit = crate::max_devices();
+        let upstream_limit = max_devices();
         assert!(
             LLAMA_CPP_MAX_DEVICES >= upstream_limit,
             "LLAMA_CPP_MAX_DEVICES ({LLAMA_CPP_MAX_DEVICES}) backs a fixed-size device array and is \
@@ -527,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn default_params_have_expected_values() {
+    fn default_params_match_the_llama_cpp_model_defaults() {
         let params = LlamaModelParams::default();
 
         assert_eq!(params.n_gpu_layers(), -1);
@@ -573,13 +583,6 @@ mod tests {
         let params = LlamaModelParams::default().with_n_gpu_layers(999);
 
         assert_eq!(params.n_gpu_layers(), 999);
-    }
-
-    #[test]
-    fn with_n_gpu_layers_sets_value() {
-        let params = LlamaModelParams::default().with_n_gpu_layers(32);
-
-        assert_eq!(params.n_gpu_layers(), 32);
     }
 
     #[test]
@@ -662,24 +665,36 @@ mod tests {
         assert!(!params.no_alloc());
     }
 
+    fn debug_output_of_default_params_with(lazy_mode: LlamaLazyMode) -> String {
+        format!(
+            "LlamaModelParams {{ n_gpu_layers: -1, main_gpu: 0, vocab_only: false, \
+             lazy_mode: Ok({lazy_mode:?}), load_mode: Ok(Auto), load_mtp: false, \
+             split_mode: Ok(Layer), devices: [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, \
+             0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0], \
+             kv_overrides: \"vec of kv_overrides\", .. }}"
+        )
+    }
+
     #[test]
     fn debug_format_contains_field_names() {
         let params = LlamaModelParams::default();
         let debug_output = format!("{params:?}");
 
-        assert!(debug_output.contains("n_gpu_layers"));
-        assert!(debug_output.contains("main_gpu"));
-        assert!(debug_output.contains("vocab_only"));
-        assert!(debug_output.contains("load_mode"));
-        assert!(debug_output.contains("split_mode"));
+        assert_eq!(
+            debug_output,
+            debug_output_of_default_params_with(LlamaLazyMode::Auto)
+        );
     }
 
     #[test]
     fn debug_format_includes_lazy_mode() {
-        let debug_output = format!("{:?}", LlamaModelParams::default());
+        let params = LlamaModelParams::default().with_lazy_mode(LlamaLazyMode::On);
+        let debug_output = format!("{params:?}");
 
-        assert!(debug_output.contains("lazy_mode"));
-        assert!(debug_output.contains("Auto"));
+        assert_eq!(
+            debug_output,
+            debug_output_of_default_params_with(LlamaLazyMode::On)
+        );
     }
 
     #[test]
@@ -699,7 +714,7 @@ mod tests {
     }
 
     #[test]
-    fn with_devices_empty_list_succeeds() {
+    fn with_devices_accepts_an_empty_device_list() {
         let params = LlamaModelParams::default().with_devices(&[]);
 
         assert!(params.is_ok());
@@ -707,41 +722,45 @@ mod tests {
     }
 
     #[test]
-    fn with_devices_invalid_index_returns_error() {
-        let result = LlamaModelParams::default().with_devices(&[999_999]);
-
-        assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&crate::LlamaCppError::BackendDeviceNotFound(0)),
-        );
-    }
-
-    #[test]
-    fn add_cpu_buft_override_succeeds() {
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+    fn add_cpu_buft_override_fills_an_empty_override_slot() {
+        let mut params = pin!(LlamaModelParams::default());
         let result = params.as_mut().add_cpu_buft_override(c"test_pattern");
 
         assert!(result.is_ok());
     }
 
     #[test]
+    fn a_buft_override_pattern_stays_valid_after_the_callers_buffer_changes() {
+        let mut caller_buffer = b"blk\\.0\\.ffn\0".to_vec();
+        let mut params = pin!(LlamaModelParams::default());
+
+        params
+            .as_mut()
+            .add_cpu_buft_override(CStr::from_bytes_with_nul(&caller_buffer).unwrap())
+            .unwrap();
+        caller_buffer.fill(b'x');
+
+        assert_eq!(
+            unsafe { CStr::from_ptr(params.buft_overrides[0].pattern) },
+            c"blk\\.0\\.ffn"
+        );
+    }
+
+    #[test]
     fn add_cpu_buft_override_twice_fails_with_slot_not_empty() {
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         params
             .as_mut()
             .add_cpu_buft_override(c"first_pattern")
             .unwrap();
         let result = params.as_mut().add_cpu_buft_override(c"second_pattern");
 
-        assert_eq!(
-            result.unwrap_err(),
-            crate::error::ModelParamsError::SlotNotEmpty
-        );
+        assert_eq!(result.unwrap_err(), ModelParamsError::SlotNotEmpty);
     }
 
     #[test]
-    fn add_cpu_moe_override_succeeds() {
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+    fn add_cpu_moe_override_fills_an_empty_override_slot() {
+        let mut params = pin!(LlamaModelParams::default());
         let result = params.as_mut().add_cpu_moe_override();
 
         assert!(result.is_ok());
@@ -749,10 +768,7 @@ mod tests {
 
     #[test]
     fn append_kv_override_twice_fails_with_slot_not_empty() {
-        use crate::model::params::param_override_value::ParamOverrideValue;
-        use std::ffi::CString;
-
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         let key = CString::new("first_key").unwrap();
         params
             .as_mut()
@@ -764,29 +780,28 @@ mod tests {
             .as_mut()
             .append_kv_override(&key2, ParamOverrideValue::Int(2));
 
-        assert_eq!(
-            result.unwrap_err(),
-            crate::error::ModelParamsError::SlotNotEmpty
-        );
+        assert_eq!(result.unwrap_err(), ModelParamsError::SlotNotEmpty);
     }
 
     #[test]
     fn with_devices_too_many_returns_max_exceeded() {
         let too_many: Vec<usize> = (0..17).collect();
         let result = LlamaModelParams::default().with_devices(&too_many);
+        let device_limit = max_devices().min(LLAMA_CPP_MAX_DEVICES);
 
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Max devices exceeded")
+            matches!(
+                result,
+                Err(LlamaCppError::MaxDevicesExceeded(max_devices)) if max_devices == device_limit
+            ),
+            "17 devices must exceed the device limit of {device_limit}, got {result:?}"
         );
     }
 
     #[test]
     fn with_devices_sets_devices_when_available() {
         #[cfg(feature = "dynamic-backends")]
-        crate::load_backends::load_backends().unwrap();
+        load_backends().unwrap();
 
         let dev_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
         assert!(dev_count > 0, "Test requires at least one backend device");
@@ -802,23 +817,27 @@ mod tests {
         let invalid_index = usize::MAX;
         let result = LlamaModelParams::default().with_devices(&[invalid_index]);
 
-        assert!(result.unwrap_err().to_string().contains("Backend device"));
+        assert!(
+            matches!(
+                result,
+                Err(LlamaCppError::BackendDeviceNotFound(device)) if device == invalid_index
+            ),
+            "an out-of-range device index must not be found, got {result:?}"
+        );
     }
 
     #[test]
     fn append_kv_override_with_high_byte_returns_invalid_character_error() {
-        use crate::model::params::param_override_value::ParamOverrideValue;
-
         let key_bytes: &[u8] = b"\xff\0";
-        let key = std::ffi::CStr::from_bytes_with_nul(key_bytes).unwrap();
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let key = CStr::from_bytes_with_nul(key_bytes).unwrap();
+        let mut params = pin!(LlamaModelParams::default());
         let result = params
             .as_mut()
             .append_kv_override(key, ParamOverrideValue::Int(1));
 
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&crate::error::ModelParamsError::InvalidCharacterInKey {
+            discriminant(&result.unwrap_err()),
+            discriminant(&ModelParamsError::InvalidCharacterInKey {
                 byte: 0,
                 reason: String::new(),
             }),
@@ -828,13 +847,13 @@ mod tests {
     #[test]
     fn add_cpu_buft_override_with_high_byte_returns_invalid_character_error() {
         let key_bytes: &[u8] = b"\xff\0";
-        let key = std::ffi::CStr::from_bytes_with_nul(key_bytes).unwrap();
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let key = CStr::from_bytes_with_nul(key_bytes).unwrap();
+        let mut params = pin!(LlamaModelParams::default());
         let result = params.as_mut().add_cpu_buft_override(key);
 
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&crate::error::ModelParamsError::InvalidCharacterInKey {
+            discriminant(&result.unwrap_err()),
+            discriminant(&ModelParamsError::InvalidCharacterInKey {
                 byte: 0,
                 reason: String::new(),
             }),
@@ -843,47 +862,35 @@ mod tests {
 
     #[test]
     fn append_kv_override_with_empty_slot_vector_returns_no_available_slot() {
-        use crate::model::params::param_override_value::ParamOverrideValue;
-
         let mut params = LlamaModelParams::default();
         params.kv_overrides.clear();
-        let mut pinned = std::pin::pin!(params);
+        let mut pinned = pin!(params);
 
         let result = pinned
             .as_mut()
             .append_kv_override(c"any_key", ParamOverrideValue::Int(1));
 
-        assert_eq!(
-            result.unwrap_err(),
-            crate::error::ModelParamsError::NoAvailableSlot
-        );
+        assert_eq!(result.unwrap_err(), ModelParamsError::NoAvailableSlot);
     }
 
     #[test]
     fn add_cpu_buft_override_with_empty_slot_vector_returns_no_available_slot() {
         let mut params = LlamaModelParams::default();
         params.buft_overrides.clear();
-        let mut pinned = std::pin::pin!(params);
+        let mut pinned = pin!(params);
 
         let result = pinned.as_mut().add_cpu_buft_override(c"any_pattern");
 
-        assert_eq!(
-            result.unwrap_err(),
-            crate::error::ModelParamsError::NoAvailableSlot
-        );
+        assert_eq!(result.unwrap_err(), ModelParamsError::NoAvailableSlot);
     }
 
     #[test]
     #[serial_test::serial]
     fn fit_params_invalid_model_path_returns_error() {
-        use crate::context::params::LlamaContextParams;
-        use crate::error::FitError;
-        use crate::llama_backend::LlamaBackend;
-
         let _backend = LlamaBackend::init();
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         let mut context_params = LlamaContextParams::default();
-        let mut margins = vec![0usize; crate::max_devices()];
+        let mut margins = vec![0usize; max_devices()];
 
         let bogus_path = c"/nonexistent/path/to/model.gguf";
         let result = params.as_mut().fit_params(
@@ -895,9 +902,30 @@ mod tests {
             llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
         );
 
-        assert!(
-            matches!(result, Err(FitError::Aborted | FitError::Reported { .. })),
-            "expected Aborted or Reported, got {result:?}"
+        assert_eq!(result.err(), Some(FitError::Aborted));
+    }
+
+    #[test]
+    fn fit_params_refuses_margins_not_sized_to_the_device_count() {
+        let mut params = pin!(LlamaModelParams::default());
+        let mut context_params = LlamaContextParams::default();
+        let mut margins = vec![0usize; max_devices() + 1];
+
+        let result = params.as_mut().fit_params(
+            c"/nonexistent/path/to/model.gguf",
+            &mut context_params,
+            &mut margins,
+            512,
+            None,
+            llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+        );
+
+        assert_eq!(
+            result.err(),
+            Some(FitError::MarginsDeviceCountMismatch {
+                expected: max_devices(),
+                actual: max_devices() + 1,
+            })
         );
     }
 
@@ -994,6 +1022,9 @@ mod tests {
 mod fit_params_status_to_result_tests {
     use std::ptr;
 
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::fit_params_status_to_result;
     use crate::error::fit_error::FitError;
 
@@ -1053,6 +1084,24 @@ mod fit_params_status_to_result_tests {
     }
 
     #[test]
+    fn fit_params_status_cxx_exception_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"fitting threw".as_ptr()) };
+        let result = fit_params_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            0,
+            out_error,
+        );
+
+        assert_eq!(
+            result,
+            Err(FitError::Reported {
+                message: "fitting threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
     fn fit_params_status_cxx_exception_without_a_message_is_a_contract_error_with_unknown_error() {
         let result = fit_params_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1062,7 +1111,7 @@ mod fit_params_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1076,7 +1125,7 @@ mod fit_params_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FitError::FfiStatus(crate::FfiStatusError {
+            Err(FitError::FfiStatus(FfiStatusError {
                 operation: "llama_rs_fit_params",
                 code: 255,
             }))

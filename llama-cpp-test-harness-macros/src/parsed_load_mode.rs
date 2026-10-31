@@ -30,12 +30,24 @@ impl ParsedLoadMode {
 
     pub fn tokens(self) -> TokenStream {
         match self {
-            Self::Auto => quote! { ::llama_cpp_test_harness::LlamaLoadMode::Auto },
-            Self::None => quote! { ::llama_cpp_test_harness::LlamaLoadMode::None },
-            Self::Mmap => quote! { ::llama_cpp_test_harness::LlamaLoadMode::Mmap },
-            Self::Mlock => quote! { ::llama_cpp_test_harness::LlamaLoadMode::Mlock },
-            Self::MmapMlock => quote! { ::llama_cpp_test_harness::LlamaLoadMode::MmapMlock },
-            Self::DirectIo => quote! { ::llama_cpp_test_harness::LlamaLoadMode::DirectIo },
+            Self::Auto => {
+                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Auto }
+            }
+            Self::None => {
+                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::None }
+            }
+            Self::Mmap => {
+                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Mmap }
+            }
+            Self::Mlock => {
+                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Mlock }
+            }
+            Self::MmapMlock => {
+                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::MmapMlock }
+            }
+            Self::DirectIo => {
+                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::DirectIo }
+            }
         }
     }
 }
@@ -65,7 +77,9 @@ mod tests {
             assert_eq!(parsed, expected);
             assert_eq!(
                 parsed.tokens().to_string(),
-                format!(":: llama_cpp_test_harness :: LlamaLoadMode :: {identifier}"),
+                format!(
+                    ":: llama_cpp_bindings :: model :: llama_load_mode :: LlamaLoadMode :: {identifier}"
+                ),
             );
         }
     }
@@ -77,8 +91,9 @@ mod tests {
             .expect_err("unknown mode must fail")
             .to_string();
 
-        for valid in ["Auto", "None", "Mmap", "Mlock", "MmapMlock", "DirectIo"] {
-            assert!(message.contains(valid), "missing {valid} in {message}");
-        }
+        assert_eq!(
+            message,
+            "expected one of: Auto, None, Mmap, Mlock, MmapMlock, DirectIo"
+        );
     }
 }

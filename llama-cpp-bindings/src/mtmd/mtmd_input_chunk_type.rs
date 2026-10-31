@@ -25,7 +25,7 @@ impl TryFrom<llama_cpp_bindings_sys::mtmd_input_chunk_type> for MtmdInputChunkTy
 
 #[cfg(test)]
 mod tests {
-    use super::MtmdInputChunkType;
+    use crate::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
     use crate::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 
     #[test]

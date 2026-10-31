@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use crate::NewLlamaChatMessageError;
+use crate::error::new_llama_chat_message_error::NewLlamaChatMessageError;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LlamaChatMessage {
@@ -21,10 +21,10 @@ impl LlamaChatMessage {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaChatMessage;
+    use crate::model::llama_chat_message::LlamaChatMessage;
 
     #[test]
-    fn valid_construction() {
+    fn a_role_and_content_without_nul_bytes_form_a_message() {
         let message = LlamaChatMessage::new("user".to_string(), "hello".to_string());
 
         assert!(message.is_ok());
@@ -45,7 +45,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_strings_are_valid() {
+    fn an_empty_role_and_content_form_a_message() {
         let message = LlamaChatMessage::new(String::new(), String::new());
 
         assert!(message.is_ok());

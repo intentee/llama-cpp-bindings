@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process;
 use std::process::Command;
 
 use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
@@ -18,7 +19,7 @@ fn emitter_succeeded(arguments: &[&str]) -> bool {
 fn temporary_path(suffix: &str) -> PathBuf {
     env::temp_dir().join(format!(
         "llama-cpp-wrapper-sources-{}-{suffix}",
-        std::process::id()
+        process::id()
     ))
 }
 

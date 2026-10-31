@@ -1,11 +1,11 @@
-use llama_cpp_bindings_types::PairedQuoteShape;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
-use llama_cpp_bindings_types::ToolCallMarkers;
-use llama_cpp_bindings_types::ToolCallValueQuote;
+use llama_cpp_bindings_types::paired_quote_shape::PairedQuoteShape;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
+use llama_cpp_bindings_types::tool_call_value_quote::ToolCallValueQuote;
 
-use crate::error::PairedQuoteFailure;
+use crate::error::paired_quote_failure::PairedQuoteFailure;
 use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
 use crate::tool_call_format::parse_step::ParseStep;
 use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
@@ -206,16 +206,18 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::PairedQuoteShape;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ToolCallArgsShape;
-    use llama_cpp_bindings_types::ToolCallArguments;
-    use llama_cpp_bindings_types::ToolCallMarkers;
-    use llama_cpp_bindings_types::ToolCallValueQuote;
     use serde_json::json;
 
+    use llama_cpp_bindings_types::paired_quote_shape::PairedQuoteShape;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+    use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+    use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
+    use llama_cpp_bindings_types::tool_call_value_quote::ToolCallValueQuote;
+
     use super::parse;
-    use crate::error::PairedQuoteFailure;
+    use crate::error::paired_quote_failure::PairedQuoteFailure;
 
     fn gemma4_markers() -> ToolCallMarkers {
         ToolCallMarkers {
@@ -302,6 +304,24 @@ mod tests {
         assert_eq!(
             parsed[0].arguments,
             ToolCallArguments::ValidJson(json!({"a": 42})),
+        );
+    }
+
+    #[test]
+    fn parses_comma_separated_bare_values() {
+        let parsed = parse(
+            &gemma4_call("a:42,b:true"),
+            &gemma4_markers(),
+            &gemma4_shape(),
+        );
+
+        assert_eq!(
+            parsed,
+            Ok(vec![ParsedToolCall::new(
+                ParsedToolCallId::NotProvidedByModel,
+                "f".to_owned(),
+                ToolCallArguments::ValidJson(json!({"a": 42, "b": true})),
+            )]),
         );
     }
 

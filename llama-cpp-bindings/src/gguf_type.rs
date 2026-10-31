@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    fn to_raw_roundtrips() {
+    fn every_known_gguf_type_converts_back_to_its_raw_value() {
         for raw in 0..=12 {
             let gguf_type = GgufType::from_raw(raw).unwrap();
             assert_eq!(gguf_type.to_raw(), raw);

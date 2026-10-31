@@ -40,7 +40,7 @@ mod tests {
     }
 
     #[test]
-    fn rope_scaling_type_roundtrip_all_variants() {
+    fn every_rope_scaling_type_converts_to_llama_cpp_and_back() {
         for (raw, expected) in [
             (-1, RopeScalingType::Unspecified),
             (0, RopeScalingType::None),

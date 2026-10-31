@@ -1,67 +1,133 @@
-use crate::apple_variant::AppleVariant;
+use crate::android_ndk::AndroidNdk;
+use crate::build_environment::BuildEnvironment;
+use crate::build_error::BuildError;
+use crate::host_os::HostOs;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TargetOs {
-    Apple(AppleVariant),
+    Apple,
     Linux,
-    Android,
+    Android(AndroidNdk),
 }
 
 impl TargetOs {
-    #[must_use]
-    pub fn from_cargo_cfg(cargo_cfg_target_os: &str) -> Option<Self> {
-        match cargo_cfg_target_os {
-            "macos" => Some(Self::Apple(AppleVariant::MacOS)),
-            "ios" | "tvos" | "watchos" | "visionos" => Some(Self::Apple(AppleVariant::Other)),
-            "android" => Some(Self::Android),
-            "linux" => Some(Self::Linux),
-            _ => None,
-        }
-    }
+    /// The operating system cargo builds for, with the NDK it needs when that is Android.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BuildError::Environment`] when `CARGO_CFG_TARGET_OS` cannot be read,
+    /// [`BuildError::UnsupportedTargetOs`] for an operating system this crate does not build
+    /// for, or the [`BuildError`] of [`AndroidNdk::detect`] when an Android target has no
+    /// usable NDK.
+    pub fn detect(
+        environment: &BuildEnvironment,
+        target_triple: &str,
+        cargo_cfg_target_arch: &str,
+        host_os: HostOs,
+    ) -> Result<Self, BuildError> {
+        let cargo_cfg_target_os = environment.required("CARGO_CFG_TARGET_OS")?;
 
-    #[must_use]
-    pub const fn is_android(self) -> bool {
-        matches!(self, Self::Android)
+        match cargo_cfg_target_os.as_str() {
+            "macos" | "ios" | "tvos" | "watchos" | "visionos" => Ok(Self::Apple),
+            "android" => Ok(Self::Android(AndroidNdk::detect(
+                environment,
+                target_triple,
+                cargo_cfg_target_arch,
+                host_os,
+            )?)),
+            "linux" => Ok(Self::Linux),
+            _ => Err(BuildError::UnsupportedTargetOs {
+                cargo_cfg_target_os,
+            }),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::TargetOs;
-    use crate::apple_variant::AppleVariant;
+    use std::ffi::OsString;
 
-    #[test]
-    fn macos_is_distinguished_from_the_other_apple_platforms() {
-        assert_eq!(
-            TargetOs::from_cargo_cfg("macos"),
-            Some(TargetOs::Apple(AppleVariant::MacOS))
+    use enumflags2::BitFlags;
+
+    use super::TargetOs;
+    use crate::android_ndk::AndroidNdk;
+    use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
+    use crate::build_environment::tests::environment_of;
+    use crate::host_os::HostOs;
+
+    fn detected(cargo_cfg_target_os: &str) -> Result<TargetOs, String> {
+        let environment = environment_of(
+            BitFlags::empty(),
+            [
+                ("CARGO_CFG_TARGET_OS", OsString::from(cargo_cfg_target_os)),
+                ("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
+            ],
         );
 
-        for apple_os in ["ios", "tvos", "watchos", "visionos"] {
-            assert_eq!(
-                TargetOs::from_cargo_cfg(apple_os),
-                Some(TargetOs::Apple(AppleVariant::Other)),
-                "{apple_os} must classify as a non-macOS Apple target"
-            );
-        }
+        TargetOs::detect(
+            &environment,
+            "aarch64-linux-android",
+            "aarch64",
+            HostOs::Linux,
+        )
+        .map_err(|error| error.to_string())
     }
 
     #[test]
-    fn android_is_not_mistaken_for_linux() {
-        assert_eq!(TargetOs::from_cargo_cfg("android"), Some(TargetOs::Android));
-        assert_eq!(TargetOs::from_cargo_cfg("linux"), Some(TargetOs::Linux));
+    fn every_apple_platform_is_an_apple_target() {
+        assert_eq!(
+            ["macos", "ios", "tvos", "watchos", "visionos"].map(detected),
+            [(); 5].map(|()| Ok(TargetOs::Apple))
+        );
     }
 
     #[test]
-    fn only_android_needs_the_android_stdlib_handling() {
-        assert!(TargetOs::Android.is_android());
-        assert!(!TargetOs::Linux.is_android());
+    fn android_is_not_mistaken_for_linux_and_carries_its_ndk() {
+        let environment = environment_of(
+            BitFlags::empty(),
+            [("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK))],
+        );
+
+        assert_eq!(
+            [detected("android"), detected("linux")],
+            [
+                Ok(TargetOs::Android(
+                    AndroidNdk::detect(
+                        &environment,
+                        "aarch64-linux-android",
+                        "aarch64",
+                        HostOs::Linux
+                    )
+                    .unwrap()
+                )),
+                Ok(TargetOs::Linux)
+            ]
+        );
     }
 
     #[test]
-    fn an_unsupported_target_os_is_rejected() {
-        for unsupported_target_os in ["freebsd", "windows"] {
-            assert_eq!(TargetOs::from_cargo_cfg(unsupported_target_os), None);
-        }
+    fn an_unsupported_or_unusable_target_is_refused() {
+        assert_eq!(
+            [
+                detected("freebsd"),
+                TargetOs::detect(
+                    &environment_of(
+                        BitFlags::empty(),
+                        [("CARGO_CFG_TARGET_OS", "android".into())]
+                    ),
+                    "aarch64-linux-android",
+                    "aarch64",
+                    HostOs::Linux
+                )
+                .map_err(|error| error.to_string()),
+            ],
+            [
+                Err("unsupported target operating system: freebsd".to_owned()),
+                Err(
+                    "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME."
+                        .to_owned()
+                ),
+            ]
+        );
     }
 }

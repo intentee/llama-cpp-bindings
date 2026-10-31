@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
+
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 
 use crate::execution_phase::ExecutionPhase;
@@ -73,15 +74,16 @@ impl ExecutionPlan {
 
 #[cfg(test)]
 mod tests {
-    use crate::LlamaLoadMode;
+    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+
+    use super::ExecutionPlan;
     use crate::context_params::ContextParams;
     use crate::gguf_source::GgufSource;
+    use crate::llama_test_fn::LlamaTestFn;
     use crate::llama_test_registration::LlamaTestRegistration;
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
     use crate::no_op::no_op;
-
-    use super::ExecutionPlan;
 
     const TRIVIAL_CONTEXT_PARAMS: ContextParams = ContextParams {
         n_ctx: 1,
@@ -116,7 +118,7 @@ mod tests {
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
         void_logs: false,
-        func: no_op,
+        func: LlamaTestFn::Infallible(no_op),
     };
     static REG_BETA_B: LlamaTestRegistration = LlamaTestRegistration {
         name: "bravo",
@@ -133,7 +135,7 @@ mod tests {
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
         void_logs: false,
-        func: no_op,
+        func: LlamaTestFn::Infallible(no_op),
     };
     static REG_ALPHA_Z: LlamaTestRegistration = LlamaTestRegistration {
         name: "zulu",
@@ -150,7 +152,7 @@ mod tests {
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
         void_logs: false,
-        func: no_op,
+        func: LlamaTestFn::Infallible(no_op),
     };
     static REG_BETA_DIFFERENT_CONTEXT: LlamaTestRegistration = LlamaTestRegistration {
         name: "charlie",
@@ -167,7 +169,7 @@ mod tests {
         },
         context_params: ALTERNATE_CONTEXT_PARAMS,
         void_logs: false,
-        func: no_op,
+        func: LlamaTestFn::Infallible(no_op),
     };
 
     static REG_VOID_LOGS: LlamaTestRegistration = LlamaTestRegistration {
@@ -185,7 +187,7 @@ mod tests {
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
         void_logs: true,
-        func: no_op,
+        func: LlamaTestFn::Infallible(no_op),
     };
 
     #[test]

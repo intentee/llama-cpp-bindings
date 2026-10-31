@@ -43,7 +43,7 @@ mod tests {
     }
 
     #[test]
-    fn attention_type_roundtrip_all_variants() {
+    fn every_attention_type_converts_to_llama_cpp_and_back() {
         for (raw, expected) in [
             (-1, LlamaAttentionType::Unspecified),
             (0, LlamaAttentionType::Causal),

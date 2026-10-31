@@ -1,7 +1,11 @@
 use std::ffi::{CStr, CString, c_char};
+use std::ptr;
 
-use crate::error::JsonSchemaToGrammarError;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+
+use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
 
 /// # Safety
 ///
@@ -17,7 +21,7 @@ unsafe fn json_schema_to_grammar_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK => {
             if out.is_null() {
-                return Err(crate::FfiContractError {
+                return Err(FfiContractError {
                     operation: "llama_rs_json_schema_to_grammar",
                     detail: "success status contained a null grammar string",
                 }
@@ -43,6 +47,16 @@ unsafe fn json_schema_to_grammar_status_to_result(
             }?;
             Err(JsonSchemaToGrammarError::InvalidSchema { message })
         }
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    error_ptr,
+                    "llama_rs_json_schema_to_grammar",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(JsonSchemaToGrammarError::InvalidJson { message })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
                 read_and_free_cpp_string(
@@ -54,27 +68,27 @@ unsafe fn json_schema_to_grammar_status_to_result(
             Err(JsonSchemaToGrammarError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG => {
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_json_schema_to_grammar",
                 detail: "was given a null schema_json argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG => {
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_json_schema_to_grammar",
                 detail: "was given a null out_grammar argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_json_schema_to_grammar",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(crate::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_json_schema_to_grammar",
             code: i64::from(other),
         }
@@ -88,13 +102,12 @@ unsafe fn json_schema_to_grammar_status_to_result(
 /// the wrapper reports any non-OK status, or the returned grammar is not valid UTF-8.
 pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, JsonSchemaToGrammarError> {
     let schema_cstr = CString::new(schema_json)?;
-    let mut out: *mut c_char = std::ptr::null_mut();
-    let mut error_ptr: *mut c_char = std::ptr::null_mut();
+    let mut out: *mut c_char = ptr::null_mut();
+    let mut error_ptr: *mut c_char = ptr::null_mut();
 
     let status = unsafe {
         llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar(
             schema_cstr.as_ptr(),
-            false,
             &raw mut out,
             &raw mut error_ptr,
         )
@@ -105,11 +118,14 @@ pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, JsonSchemaToG
 
 #[cfg(test)]
 mod tests {
-    use super::json_schema_to_grammar;
-    use crate::error::JsonSchemaToGrammarError;
+    use std::ffi::CString;
+    use std::mem::discriminant;
+
+    use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
+    use crate::json_schema_to_grammar::json_schema_to_grammar;
 
     #[test]
-    fn simple_object() {
+    fn an_object_schema_converts_to_a_grammar() {
         let schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}}"#;
         let grammar = json_schema_to_grammar(schema).expect("schema converts to grammar");
 
@@ -118,22 +134,17 @@ mod tests {
 
     #[test]
     fn null_byte_returns_schema_contains_nul_byte_error() {
-        use std::ffi::CString;
-
         let schema = "{\x00}";
         let err = json_schema_to_grammar(schema).unwrap_err();
         let representative = JsonSchemaToGrammarError::SchemaContainsNulByte(
             CString::new(b"a\0b".to_vec()).unwrap_err(),
         );
 
-        assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
-        );
+        assert_eq!(discriminant(&err), discriminant(&representative));
     }
 
     #[test]
-    fn simple_string() {
+    fn a_string_schema_converts_to_a_grammar() {
         let schema = r#"{"type": "string"}"#;
         let grammar = json_schema_to_grammar(schema).expect("schema converts to grammar");
 
@@ -141,17 +152,14 @@ mod tests {
     }
 
     #[test]
-    fn invalid_json_returns_reported() {
+    fn invalid_json_returns_invalid_json() {
         let schema = "not valid json at all";
         let err = json_schema_to_grammar(schema).unwrap_err();
-        let representative = JsonSchemaToGrammarError::Reported {
+        let representative = JsonSchemaToGrammarError::InvalidJson {
             message: String::new(),
         };
 
-        assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
-        );
+        assert_eq!(discriminant(&err), discriminant(&representative));
     }
 
     #[test]
@@ -162,20 +170,21 @@ mod tests {
             message: String::new(),
         };
 
-        assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
-        );
+        assert_eq!(discriminant(&err), discriminant(&representative));
     }
 }
 
 #[cfg(test)]
 mod json_schema_to_grammar_status_to_result_tests {
     use std::ffi::c_char;
+    use std::mem::discriminant;
     use std::ptr;
 
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::json_schema_to_grammar_status_to_result;
-    use crate::error::JsonSchemaToGrammarError;
+    use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
 
     #[test]
     fn invalid_schema_status_without_a_message_is_a_contract_error() {
@@ -189,7 +198,27 @@ mod json_schema_to_grammar_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into())
+        );
+    }
+
+    #[test]
+    fn invalid_json_status_without_a_message_is_a_contract_error() {
+        let result = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+
+        assert_eq!(
+            result,
+            Err(FfiContractError {
                 operation: "llama_rs_json_schema_to_grammar",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -209,11 +238,32 @@ mod json_schema_to_grammar_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_json_schema_to_grammar",
                 detail: "reported a thrown C++ exception without an error message",
             }
             .into())
+        );
+    }
+
+    #[test]
+    fn llama_cpp_exception_status_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"conversion threw".as_ptr()) };
+
+        let result = unsafe {
+            json_schema_to_grammar_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+            )
+        };
+
+        assert_eq!(
+            result,
+            Err(JsonSchemaToGrammarError::Reported {
+                message: "conversion threw".to_owned(),
+            })
         );
     }
 
@@ -251,8 +301,8 @@ mod json_schema_to_grammar_status_to_result_tests {
             JsonSchemaToGrammarError::GrammarNotUtf8(String::from_utf8(vec![0xFF]).unwrap_err());
 
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&representative),
+            discriminant(&result.unwrap_err()),
+            discriminant(&representative),
         );
     }
 
@@ -287,12 +337,10 @@ mod json_schema_to_grammar_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(JsonSchemaToGrammarError::FfiContract(
-                crate::FfiContractError {
-                    operation: "llama_rs_json_schema_to_grammar",
-                    detail: "success status contained a null grammar string",
-                }
-            ))
+            Err(JsonSchemaToGrammarError::FfiContract(FfiContractError {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "success status contained a null grammar string",
+            }))
         );
     }
 
@@ -304,7 +352,7 @@ mod json_schema_to_grammar_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(JsonSchemaToGrammarError::FfiStatus(crate::FfiStatusError {
+            Err(JsonSchemaToGrammarError::FfiStatus(FfiStatusError {
                 operation: "llama_rs_json_schema_to_grammar",
                 code: 255,
             }))
@@ -323,7 +371,7 @@ mod json_schema_to_grammar_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_json_schema_to_grammar",
                     detail: "was given a null schema_json argument",
                 }
@@ -344,7 +392,7 @@ mod json_schema_to_grammar_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_json_schema_to_grammar",
                     detail: "was given a null out_grammar argument",
                 }
@@ -365,7 +413,7 @@ mod json_schema_to_grammar_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                crate::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_json_schema_to_grammar",
                     detail: "was given a null out_error argument",
                 }

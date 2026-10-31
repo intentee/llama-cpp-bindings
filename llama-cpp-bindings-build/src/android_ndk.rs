@@ -1,58 +1,103 @@
-use std::env;
-use std::path::{Path, PathBuf};
+use std::env::VarError;
+use std::fs;
+use std::fs::DirEntry;
+use std::io;
+use std::path::Path;
+use std::path::PathBuf;
 
-use thiserror::Error;
+use crate::android_architecture::AndroidArchitecture;
+use crate::build_environment::BuildEnvironment;
+use crate::build_error::BuildError;
+use crate::host_os::HostOs;
 
 const DEFAULT_ANDROID_API_LEVEL: &str = "28";
 
-#[derive(Debug, Error)]
-pub enum AndroidNdkDetectionError {
-    #[error("Android NDK not found for target {target_triple}. Set ANDROID_NDK_HOME.")]
-    NdkRootNotConfigured {
-        target_triple: String,
-        #[source]
-        source: env::VarError,
-    },
-    #[error("Android NDK path does not exist: {path}")]
-    NdkRootMissing { path: PathBuf },
-    #[error("Android NDK toolchain file not found: {path}")]
-    NdkToolchainFileMissing { path: PathBuf },
-    #[error("Android NDK toolchain not found at: {path}")]
-    NdkToolchainDirectoryMissing { path: PathBuf },
-    #[error("Unsupported host platform for Android NDK")]
-    UnsupportedHostPlatform,
-    #[error("Unsupported Android target architecture: {cargo_cfg_target_arch}")]
-    UnsupportedAndroidTarget { cargo_cfg_target_arch: String },
-    #[error("ANDROID_PLATFORM is set but could not be read: {source}")]
-    AndroidPlatformUnreadable {
-        #[source]
-        source: env::VarError,
-    },
-    #[error("Android NDK Clang directory could not be read at {path}: {source}")]
-    ClangDirectoryUnreadable {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("Android NDK Clang version directory was not found at {path}")]
-    ClangVersionDirectoryMissing { path: PathBuf },
-    #[error("Android NDK Clang directory entry could not be read at {path}: {source}")]
-    ClangDirectoryEntryUnreadable {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("Android NDK Clang built-in include directory was not found at {path}")]
-    ClangBuiltinIncludesMissing { path: PathBuf },
+fn detect_ndk_path(
+    environment: &BuildEnvironment,
+    target_triple: &str,
+) -> Result<String, BuildError> {
+    environment
+        .var("ANDROID_NDK_HOME")
+        .map_err(|source| BuildError::AndroidNdkRootNotConfigured {
+            target_triple: target_triple.to_owned(),
+            source,
+        })
 }
 
-#[derive(Debug)]
+fn validate_ndk_installation(ndk_path: &str) -> Result<(), BuildError> {
+    let ndk_path = Path::new(ndk_path);
+
+    if !ndk_path.exists() {
+        return Err(BuildError::AndroidNdkRootMissing {
+            path: ndk_path.to_path_buf(),
+        });
+    }
+
+    let toolchain_file = ndk_path.join("build/cmake/android.toolchain.cmake");
+
+    if !toolchain_file.exists() {
+        return Err(BuildError::AndroidNdkToolchainFileMissing {
+            path: toolchain_file,
+        });
+    }
+
+    Ok(())
+}
+
+fn detect_api_level(environment: &BuildEnvironment) -> Result<String, BuildError> {
+    match environment.var("ANDROID_PLATFORM") {
+        Ok(platform) => Ok(platform
+            .strip_prefix("android-")
+            .unwrap_or(&platform)
+            .to_owned()),
+        Err(VarError::NotPresent) => Ok(DEFAULT_ANDROID_API_LEVEL.to_owned()),
+        Err(source) => Err(BuildError::AndroidPlatformUnreadable { source }),
+    }
+}
+
+/// The NDK toolchain keeps the built-in headers of its clang in the single version directory
+/// under `lib/clang`.
+fn find_clang_builtin_includes(toolchain_path: &str) -> Result<String, BuildError> {
+    let clang_lib_path = PathBuf::from(toolchain_path).join("lib/clang");
+    let mut version_dirs = fs::read_dir(&clang_lib_path)
+        .and_then(Iterator::collect::<Result<Vec<DirEntry>, io::Error>>)
+        .map_err(|source| BuildError::AndroidNdkClangDirectoryUnreadable {
+            path: clang_lib_path.clone(),
+            source,
+        })?
+        .into_iter()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect::<Vec<PathBuf>>();
+
+    version_dirs.sort();
+
+    let [version_dir] = <[PathBuf; 1]>::try_from(version_dirs).map_err(|candidates| {
+        if candidates.is_empty() {
+            BuildError::AndroidNdkClangVersionDirectoryMissing {
+                path: clang_lib_path.clone(),
+            }
+        } else {
+            BuildError::AndroidNdkClangVersionDirectoryAmbiguous {
+                path: clang_lib_path.clone(),
+                candidates,
+            }
+        }
+    })?;
+    let include_path = version_dir.join("include");
+
+    if !include_path.is_dir() {
+        return Err(BuildError::AndroidNdkClangBuiltinIncludesMissing { path: include_path });
+    }
+
+    Ok(include_path.to_string_lossy().into_owned())
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AndroidNdk {
     pub ndk_path: String,
     pub api_level: String,
     pub abi: &'static str,
-    pub host_tag: &'static str,
-    pub toolchain_path: String,
     pub sysroot: String,
     pub target_prefix: &'static str,
     pub clang_builtin_includes: String,
@@ -61,362 +106,339 @@ pub struct AndroidNdk {
 impl AndroidNdk {
     /// # Errors
     ///
-    /// Returns [`AndroidNdkDetectionError`] when the NDK installation cannot be
-    /// located, an environment variable is missing or malformed, the target
-    /// architecture is unsupported, or the host platform is not supported by the NDK.
+    /// Returns the [`BuildError`] describing why the NDK installation cannot be located, an
+    /// environment variable is missing or malformed, the target architecture is unsupported, or
+    /// the host platform is not supported by the NDK.
     pub fn detect(
+        environment: &BuildEnvironment,
         target_triple: &str,
         cargo_cfg_target_arch: &str,
-    ) -> Result<Self, AndroidNdkDetectionError> {
-        let ndk_path = detect_ndk_path(target_triple)?;
+        host_os: HostOs,
+    ) -> Result<Self, BuildError> {
+        let ndk_path = detect_ndk_path(environment, target_triple)?;
 
         validate_ndk_installation(&ndk_path)?;
 
         let architecture = AndroidArchitecture::from_cargo_cfg(cargo_cfg_target_arch)?;
-        let api_level = detect_api_level()?;
-        let abi = architecture.abi();
-        let host_tag = detect_host_tag()?;
-        let target_prefix = architecture.ndk_prefix();
+        let api_level = detect_api_level(environment)?;
+        let host_tag = host_os.android_ndk_tag()?;
         let toolchain_path = format!("{ndk_path}/toolchains/llvm/prebuilt/{host_tag}");
 
         if !Path::new(&toolchain_path).exists() {
-            return Err(AndroidNdkDetectionError::NdkToolchainDirectoryMissing {
+            return Err(BuildError::AndroidNdkToolchainDirectoryMissing {
                 path: PathBuf::from(toolchain_path),
             });
         }
 
-        let sysroot = format!("{toolchain_path}/sysroot");
         let clang_builtin_includes = find_clang_builtin_includes(&toolchain_path)?;
 
         Ok(Self {
             ndk_path,
             api_level,
-            abi,
-            host_tag,
-            toolchain_path,
-            sysroot,
-            target_prefix,
+            abi: architecture.abi(),
+            sysroot: format!("{toolchain_path}/sysroot"),
+            target_prefix: architecture.ndk_prefix(),
             clang_builtin_includes,
         })
     }
 
+    #[must_use]
     pub fn android_platform(&self) -> String {
         format!("android-{}", self.api_level)
     }
 
+    #[must_use]
     pub fn cmake_toolchain_file(&self) -> String {
         format!("{}/build/cmake/android.toolchain.cmake", self.ndk_path)
     }
-}
 
-fn detect_ndk_path(target_triple: &str) -> Result<String, AndroidNdkDetectionError> {
-    env::var("ANDROID_NDK_HOME").map_err(|source| AndroidNdkDetectionError::NdkRootNotConfigured {
-        target_triple: target_triple.to_owned(),
-        source,
-    })
-}
-
-fn validate_ndk_installation(ndk_path: &str) -> Result<(), AndroidNdkDetectionError> {
-    let ndk_path = Path::new(ndk_path);
-
-    if !ndk_path.exists() {
-        return Err(AndroidNdkDetectionError::NdkRootMissing {
-            path: ndk_path.to_path_buf(),
-        });
+    /// The clang arguments that parse headers the way the NDK compiles them for `target_triple`.
+    #[must_use]
+    pub fn clang_args(&self, target_triple: &str) -> Vec<String> {
+        vec![
+            format!("--sysroot={}", self.sysroot),
+            format!("-D__ANDROID_API__={}", self.api_level),
+            "-D__ANDROID__".to_owned(),
+            "-isystem".to_owned(),
+            self.clang_builtin_includes.clone(),
+            "-isystem".to_owned(),
+            format!("{}/usr/include/{}", self.sysroot, self.target_prefix),
+            "-isystem".to_owned(),
+            format!("{}/usr/include", self.sysroot),
+            "-include".to_owned(),
+            "stdbool.h".to_owned(),
+            "-include".to_owned(),
+            "stdint.h".to_owned(),
+            format!("--target={target_triple}"),
+        ]
     }
-
-    let toolchain_file = ndk_path.join("build/cmake/android.toolchain.cmake");
-
-    if !toolchain_file.exists() {
-        return Err(AndroidNdkDetectionError::NdkToolchainFileMissing {
-            path: toolchain_file,
-        });
-    }
-
-    Ok(())
-}
-
-fn detect_api_level() -> Result<String, AndroidNdkDetectionError> {
-    match env::var("ANDROID_PLATFORM") {
-        Ok(platform) => Ok(platform
-            .strip_prefix("android-")
-            .unwrap_or(&platform)
-            .to_owned()),
-        Err(env::VarError::NotPresent) => Ok(DEFAULT_ANDROID_API_LEVEL.to_string()),
-        Err(source) => Err(AndroidNdkDetectionError::AndroidPlatformUnreadable { source }),
-    }
-}
-
-const fn detect_host_tag() -> Result<&'static str, AndroidNdkDetectionError> {
-    if cfg!(target_os = "macos") {
-        Ok("darwin-x86_64")
-    } else if cfg!(target_os = "linux") {
-        Ok("linux-x86_64")
-    } else {
-        Err(AndroidNdkDetectionError::UnsupportedHostPlatform)
-    }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum AndroidArchitecture {
-    Aarch64,
-    Armv7,
-    X86_64,
-    X86,
-}
-
-impl AndroidArchitecture {
-    fn from_cargo_cfg(cargo_cfg_target_arch: &str) -> Result<Self, AndroidNdkDetectionError> {
-        match cargo_cfg_target_arch {
-            "aarch64" => Ok(Self::Aarch64),
-            "arm" => Ok(Self::Armv7),
-            "x86_64" => Ok(Self::X86_64),
-            "x86" => Ok(Self::X86),
-            unsupported => Err(AndroidNdkDetectionError::UnsupportedAndroidTarget {
-                cargo_cfg_target_arch: unsupported.to_owned(),
-            }),
-        }
-    }
-
-    const fn abi(self) -> &'static str {
-        match self {
-            Self::Aarch64 => "arm64-v8a",
-            Self::Armv7 => "armeabi-v7a",
-            Self::X86_64 => "x86_64",
-            Self::X86 => "x86",
-        }
-    }
-
-    const fn ndk_prefix(self) -> &'static str {
-        match self {
-            Self::Aarch64 => "aarch64-linux-android",
-            Self::Armv7 => "arm-linux-androideabi",
-            Self::X86_64 => "x86_64-linux-android",
-            Self::X86 => "i686-linux-android",
-        }
-    }
-}
-
-fn find_clang_builtin_includes(toolchain_path: &str) -> Result<String, AndroidNdkDetectionError> {
-    let clang_lib_path = PathBuf::from(toolchain_path).join("lib/clang");
-    let entries = std::fs::read_dir(&clang_lib_path).map_err(|source| {
-        AndroidNdkDetectionError::ClangDirectoryUnreadable {
-            path: clang_lib_path.clone(),
-            source,
-        }
-    })?;
-    let mut version_dir = None;
-    for entry in entries {
-        let entry =
-            entry.map_err(
-                |source| AndroidNdkDetectionError::ClangDirectoryEntryUnreadable {
-                    path: clang_lib_path.clone(),
-                    source,
-                },
-            )?;
-        let file_type = entry.file_type().map_err(|source| {
-            AndroidNdkDetectionError::ClangDirectoryEntryUnreadable {
-                path: entry.path(),
-                source,
-            }
-        })?;
-        if file_type.is_dir()
-            && entry
-                .file_name()
-                .to_str()
-                .is_some_and(|name| name.starts_with(|character: char| character.is_ascii_digit()))
-        {
-            version_dir = Some(entry);
-            break;
-        }
-    }
-    let version_dir =
-        version_dir.ok_or_else(|| AndroidNdkDetectionError::ClangVersionDirectoryMissing {
-            path: clang_lib_path.clone(),
-        })?;
-
-    let include_path = clang_lib_path.join(version_dir.file_name()).join("include");
-
-    if !include_path.is_dir() {
-        return Err(AndroidNdkDetectionError::ClangBuiltinIncludesMissing { path: include_path });
-    }
-
-    Ok(include_path.to_string_lossy().into_owned())
 }
 
 #[cfg(test)]
-mod android_ndk_resolution_tests {
+pub mod tests {
+    use std::env;
+    use std::ffi::OsString;
+    use std::fs;
+    use std::os::unix::ffi::OsStringExt;
+    use std::path::Path;
     use std::path::PathBuf;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::process;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
 
-    use super::AndroidArchitecture;
+    use enumflags2::BitFlags;
+
     use super::AndroidNdk;
-    use super::AndroidNdkDetectionError;
     use super::find_clang_builtin_includes;
     use super::validate_ndk_installation;
+    use crate::build_environment::BuildEnvironment;
+    use crate::build_environment::tests::environment_of;
+    use crate::host_os::HostOs;
+
+    pub const FIXTURE_ANDROID_NDK: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/android_ndk");
+
+    const FIXTURE_TOOLCHAIN: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/fixtures/android_ndk/toolchains/llvm/prebuilt/linux-x86_64"
+    );
 
     static NEXT_DIRECTORY_ID: AtomicUsize = AtomicUsize::new(0);
 
     fn temporary_directory(name: &str) -> PathBuf {
         let id = NEXT_DIRECTORY_ID.fetch_add(1, Ordering::Relaxed);
-        std::env::temp_dir().join(format!(
-            "llama-cpp-bindings-{name}-{}-{id}",
-            std::process::id()
-        ))
+
+        env::temp_dir().join(format!("llama-cpp-bindings-{name}-{}-{id}", process::id()))
+    }
+
+    fn ndk_at(root: &Path) -> BuildEnvironment {
+        environment_of(
+            BitFlags::empty(),
+            [("ANDROID_NDK_HOME", OsString::from(root))],
+        )
+    }
+
+    fn detection_failure(
+        environment: &BuildEnvironment,
+        cargo_cfg_target_arch: &str,
+        host_os: HostOs,
+    ) -> Option<String> {
+        AndroidNdk::detect(
+            environment,
+            "aarch64-linux-android",
+            cargo_cfg_target_arch,
+            host_os,
+        )
+        .err()
+        .map(|error| error.to_string())
     }
 
     #[test]
-    fn every_supported_android_architecture_maps_to_its_abi_and_ndk_prefix() {
-        let architectures = [
-            ("aarch64", "arm64-v8a", "aarch64-linux-android"),
-            ("arm", "armeabi-v7a", "arm-linux-androideabi"),
-            ("x86_64", "x86_64", "x86_64-linux-android"),
-            ("x86", "x86", "i686-linux-android"),
-        ];
+    fn an_installed_ndk_is_detected_with_the_platform_api_level() {
+        let detected = AndroidNdk::detect(
+            &environment_of(
+                BitFlags::empty(),
+                [
+                    ("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
+                    ("ANDROID_PLATFORM", OsString::from("android-30")),
+                ],
+            ),
+            "aarch64-linux-android",
+            "aarch64",
+            HostOs::Linux,
+        )
+        .unwrap();
 
-        for (cargo_cfg_target_arch, abi, prefix) in architectures {
-            let architecture = AndroidArchitecture::from_cargo_cfg(cargo_cfg_target_arch)
-                .expect("the architecture is supported");
-
-            assert_eq!(architecture.abi(), abi);
-            assert_eq!(architecture.ndk_prefix(), prefix);
-        }
-    }
-
-    #[test]
-    fn an_unsupported_android_architecture_preserves_what_cargo_reported() {
-        let error = AndroidArchitecture::from_cargo_cfg("riscv64")
-            .expect_err("riscv64 has no NDK toolchain in this build");
-
-        assert!(matches!(
-            error,
-            AndroidNdkDetectionError::UnsupportedAndroidTarget { cargo_cfg_target_arch }
-                if cargo_cfg_target_arch == "riscv64"
-        ));
-    }
-
-    #[test]
-    fn android_ndk_paths_derive_from_the_resolved_root_and_api_level() {
-        let ndk = AndroidNdk {
-            ndk_path: "/opt/android-ndk".to_owned(),
-            api_level: "35".to_owned(),
-            abi: "arm64-v8a",
-            host_tag: "linux-x86_64",
-            toolchain_path: "/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64".to_owned(),
-            sysroot: "/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot".to_owned(),
-            target_prefix: "aarch64-linux-android",
-            clang_builtin_includes: "/opt/android-ndk/lib/clang/20/include".to_owned(),
-        };
-
-        assert_eq!(ndk.android_platform(), "android-35");
         assert_eq!(
-            ndk.cmake_toolchain_file(),
-            "/opt/android-ndk/build/cmake/android.toolchain.cmake"
+            [detected.android_platform(), detected.cmake_toolchain_file(),],
+            [
+                "android-30".to_owned(),
+                format!("{FIXTURE_ANDROID_NDK}/build/cmake/android.toolchain.cmake"),
+            ]
+        );
+        assert_eq!(
+            detected,
+            AndroidNdk {
+                ndk_path: FIXTURE_ANDROID_NDK.to_owned(),
+                api_level: "30".to_owned(),
+                abi: "arm64-v8a",
+                sysroot: format!("{FIXTURE_TOOLCHAIN}/sysroot"),
+                target_prefix: "aarch64-linux-android",
+                clang_builtin_includes: format!("{FIXTURE_TOOLCHAIN}/lib/clang/20/include"),
+            }
         );
     }
 
     #[test]
-    fn ndk_validation_rejects_a_missing_root_directory() {
-        let root = temporary_directory("missing-ndk-root");
+    fn the_api_level_is_read_with_or_without_the_android_prefix_and_defaults_to_28() {
+        let api_level_of = |environment: &BuildEnvironment| {
+            AndroidNdk::detect(
+                environment,
+                "aarch64-linux-android",
+                "aarch64",
+                HostOs::Linux,
+            )
+            .map(|ndk| ndk.api_level)
+            .ok()
+        };
 
-        let error = validate_ndk_installation(root.to_str().expect("UTF-8 temporary path"))
-            .expect_err("missing NDK root must fail");
+        assert_eq!(
+            [
+                api_level_of(&environment_of(
+                    BitFlags::empty(),
+                    [
+                        ("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
+                        ("ANDROID_PLATFORM", OsString::from("33")),
+                    ]
+                )),
+                api_level_of(&ndk_at(Path::new(FIXTURE_ANDROID_NDK))),
+            ],
+            [Some("33".to_owned()), Some("28".to_owned())]
+        );
+    }
 
-        assert!(matches!(
-            error,
-            AndroidNdkDetectionError::NdkRootMissing { path } if path == root
-        ));
+    #[test]
+    fn detection_reports_every_way_the_ndk_cannot_be_used() {
+        let fixture_ndk = Path::new(FIXTURE_ANDROID_NDK);
+        let missing_root = temporary_directory("missing-ndk-root");
+
+        assert_eq!(
+            [
+                detection_failure(
+                    &environment_of(BitFlags::empty(), []),
+                    "aarch64",
+                    HostOs::Linux
+                ),
+                detection_failure(&ndk_at(&missing_root), "aarch64", HostOs::Linux),
+                detection_failure(&ndk_at(fixture_ndk), "riscv64", HostOs::Linux),
+                detection_failure(
+                    &environment_of(
+                        BitFlags::empty(),
+                        [
+                            ("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
+                            ("ANDROID_PLATFORM", OsString::from_vec(vec![0xff])),
+                        ]
+                    ),
+                    "aarch64",
+                    HostOs::Linux
+                ),
+                detection_failure(&ndk_at(fixture_ndk), "aarch64", HostOs::Unsupported),
+                detection_failure(&ndk_at(fixture_ndk), "aarch64", HostOs::MacOs),
+            ],
+            [
+                Some(
+                    "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME."
+                        .to_owned()
+                ),
+                Some(format!(
+                    "Android NDK path does not exist: {}",
+                    missing_root.display()
+                )),
+                Some("Unsupported Android target architecture: riscv64".to_owned()),
+                Some(
+                    "ANDROID_PLATFORM is set but could not be read: environment variable was not \
+                     valid unicode: \"\\xFF\""
+                        .to_owned()
+                ),
+                Some("Unsupported host platform for Android NDK".to_owned()),
+                Some(format!(
+                    "Android NDK toolchain not found at: \
+                     {FIXTURE_ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64"
+                )),
+            ]
+        );
     }
 
     #[test]
     fn ndk_validation_rejects_a_root_without_a_cmake_toolchain() {
         let root = temporary_directory("ndk-without-toolchain");
-        std::fs::create_dir_all(&root).expect("temporary NDK root must be created");
+        fs::create_dir_all(&root).unwrap();
 
-        let error = validate_ndk_installation(root.to_str().expect("UTF-8 temporary path"))
-            .expect_err("missing toolchain file must fail");
-
-        assert!(matches!(
-            error,
-            AndroidNdkDetectionError::NdkToolchainFileMissing { path }
-                if path == root.join("build/cmake/android.toolchain.cmake")
-        ));
-        std::fs::remove_dir_all(root).expect("temporary NDK root must be removed");
+        assert_eq!(
+            validate_ndk_installation(root.to_str().unwrap())
+                .err()
+                .map(|error| error.to_string()),
+            Some(format!(
+                "Android NDK toolchain file not found: {}",
+                root.join("build/cmake/android.toolchain.cmake").display()
+            ))
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
-    fn ndk_validation_accepts_a_root_with_a_cmake_toolchain() {
-        let root = temporary_directory("valid-ndk-root");
-        let toolchain = root.join("build/cmake/android.toolchain.cmake");
-        std::fs::create_dir_all(toolchain.parent().expect("toolchain parent"))
-            .expect("toolchain directory must be created");
-        std::fs::write(&toolchain, "").expect("toolchain file must be created");
+    fn detection_rejects_a_toolchain_without_a_clang_directory() {
+        let root = temporary_directory("ndk-without-clang");
+        let toolchain = root.join("toolchains/llvm/prebuilt/linux-x86_64");
+        fs::create_dir_all(root.join("build/cmake")).unwrap();
+        fs::write(root.join("build/cmake/android.toolchain.cmake"), "").unwrap();
+        fs::create_dir_all(&toolchain).unwrap();
 
-        validate_ndk_installation(root.to_str().expect("UTF-8 temporary path"))
-            .expect("valid NDK root must pass");
-
-        std::fs::remove_dir_all(root).expect("temporary NDK root must be removed");
-    }
-
-    #[test]
-    fn clang_builtin_include_resolution_rejects_a_missing_clang_directory() {
-        let toolchain = temporary_directory("missing-clang-directory");
-
-        let error = find_clang_builtin_includes(toolchain.to_str().expect("UTF-8 temporary path"))
-            .expect_err("missing Clang directory must fail");
-
-        assert!(matches!(
-            error,
-            AndroidNdkDetectionError::ClangDirectoryUnreadable { path, .. }
-                if path == toolchain.join("lib/clang")
-        ));
+        assert_eq!(
+            detection_failure(&ndk_at(&root), "aarch64", HostOs::Linux),
+            Some(format!(
+                "Android NDK Clang directory could not be listed at {}: No such file or directory \
+                 (os error 2)",
+                toolchain.join("lib/clang").display()
+            ))
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn clang_builtin_include_resolution_requires_a_version_directory() {
         let toolchain = temporary_directory("clang-without-version");
-        std::fs::create_dir_all(toolchain.join("lib/clang/not-a-version"))
-            .expect("Clang directory must be created");
+        fs::create_dir_all(toolchain.join("lib/clang")).unwrap();
+        fs::write(toolchain.join("lib/clang/21"), "").unwrap();
 
-        let error = find_clang_builtin_includes(toolchain.to_str().expect("UTF-8 temporary path"))
-            .expect_err("missing version directory must fail");
+        assert_eq!(
+            find_clang_builtin_includes(toolchain.to_str().unwrap())
+                .err()
+                .map(|error| error.to_string()),
+            Some(format!(
+                "Android NDK Clang version directory was not found at {}",
+                toolchain.join("lib/clang").display()
+            ))
+        );
+        fs::remove_dir_all(toolchain).unwrap();
+    }
 
-        assert!(matches!(
-            error,
-            AndroidNdkDetectionError::ClangVersionDirectoryMissing { path }
-                if path == toolchain.join("lib/clang")
-        ));
-        std::fs::remove_dir_all(toolchain).expect("temporary toolchain must be removed");
+    #[test]
+    fn clang_builtin_include_resolution_refuses_to_choose_between_version_directories() {
+        let toolchain = temporary_directory("clang-with-two-versions");
+        fs::create_dir_all(toolchain.join("lib/clang/18/include")).unwrap();
+        fs::create_dir_all(toolchain.join("lib/clang/17/include")).unwrap();
+
+        assert_eq!(
+            find_clang_builtin_includes(toolchain.to_str().unwrap())
+                .err()
+                .map(|error| error.to_string()),
+            Some(format!(
+                "Android NDK Clang directory {} holds more than one version directory: {:?}",
+                toolchain.join("lib/clang").display(),
+                [
+                    toolchain.join("lib/clang/17"),
+                    toolchain.join("lib/clang/18")
+                ]
+            ))
+        );
+        fs::remove_dir_all(toolchain).unwrap();
     }
 
     #[test]
     fn clang_builtin_include_resolution_requires_an_include_directory() {
         let toolchain = temporary_directory("clang-without-includes");
-        std::fs::create_dir_all(toolchain.join("lib/clang/20"))
-            .expect("Clang version directory must be created");
+        fs::create_dir_all(toolchain.join("lib/clang/20")).unwrap();
 
-        let error = find_clang_builtin_includes(toolchain.to_str().expect("UTF-8 temporary path"))
-            .expect_err("missing built-in includes must fail");
-
-        assert!(matches!(
-            error,
-            AndroidNdkDetectionError::ClangBuiltinIncludesMissing { path }
-                if path == toolchain.join("lib/clang/20/include")
-        ));
-        std::fs::remove_dir_all(toolchain).expect("temporary toolchain must be removed");
-    }
-
-    #[test]
-    fn clang_builtin_include_resolution_returns_the_version_include_directory() {
-        let toolchain = temporary_directory("clang-with-includes");
-        let include = toolchain.join("lib/clang/20/include");
-        std::fs::create_dir_all(&include).expect("Clang include directory must be created");
-
-        let resolved =
-            find_clang_builtin_includes(toolchain.to_str().expect("UTF-8 temporary path"))
-                .expect("built-in includes must resolve");
-
-        assert_eq!(PathBuf::from(resolved), include);
-        std::fs::remove_dir_all(toolchain).expect("temporary toolchain must be removed");
+        assert_eq!(
+            find_clang_builtin_includes(toolchain.to_str().unwrap())
+                .err()
+                .map(|error| error.to_string()),
+            Some(format!(
+                "Android NDK Clang built-in include directory was not found at {}",
+                toolchain.join("lib/clang/20/include").display()
+            ))
+        );
+        fs::remove_dir_all(toolchain).unwrap();
     }
 }

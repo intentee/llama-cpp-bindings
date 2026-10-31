@@ -1,9 +1,14 @@
+use std::ffi::NulError;
+
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SamplingError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] FfiContractError),
     #[error("a value does not fit into i32")]
     IntegerOverflow(#[source] std::num::TryFromIntError),
     #[error("the llama.cpp library ran out of memory initializing the {sampler} sampler")]
@@ -17,4 +22,24 @@ pub enum SamplingError {
     },
     #[error("{sampler} sampler could not be initialized")]
     SamplerUnavailable { sampler: &'static str },
+    #[error("DRY sequence breaker {index} is empty")]
+    DrySequenceBreakerEmpty { index: usize },
+    #[error(
+        "DRY sequence breaker {index} is {length} bytes long, more than the {max_length} bytes llama.cpp uses"
+    )]
+    DrySequenceBreakerTooLong {
+        index: usize,
+        length: usize,
+        max_length: usize,
+    },
+    #[error("DRY sequence breaker {index} contains an interior NUL byte")]
+    DrySequenceBreakerContainsNul {
+        index: usize,
+        #[source]
+        source: NulError,
+    },
+    #[error(
+        "{distinct} distinct DRY sequence breakers were given, more than the {max} llama.cpp uses"
+    )]
+    TooManyDistinctDrySequenceBreakers { distinct: usize, max: usize },
 }

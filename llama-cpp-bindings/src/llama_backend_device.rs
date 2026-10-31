@@ -1,13 +1,14 @@
+use std::ffi::CStr;
 use std::ffi::c_char;
+use std::mem;
 
-pub use crate::llama_backend_device_type::LlamaBackendDeviceType;
+use crate::llama_backend_device_type::LlamaBackendDeviceType;
+
 fn cstr_to_string(ptr: *const c_char) -> String {
     if ptr.is_null() {
         String::new()
     } else {
-        unsafe { std::ffi::CStr::from_ptr(ptr) }
-            .to_string_lossy()
-            .to_string()
+        unsafe { CStr::from_ptr(ptr) }.to_string_lossy().to_string()
     }
 }
 
@@ -31,7 +32,7 @@ impl LlamaBackendDevice {
         for device_index in 0..device_count {
             let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
             let props = unsafe {
-                let mut props = std::mem::zeroed();
+                let mut props = mem::zeroed();
                 llama_cpp_bindings_sys::ggml_backend_dev_get_props(dev, &raw mut props);
                 props
             };
@@ -61,18 +62,22 @@ impl LlamaBackendDevice {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaBackendDevice;
+    use std::ptr;
+
     use super::cstr_to_string;
+    use crate::llama_backend_device::LlamaBackendDevice;
+    #[cfg(feature = "dynamic-backends")]
+    use crate::load_backends::load_backends;
 
     #[test]
     fn cstr_to_string_with_null_returns_empty() {
-        let result = cstr_to_string(std::ptr::null());
+        let result = cstr_to_string(ptr::null());
 
         assert_eq!(result, "");
     }
 
     #[test]
-    fn cstr_to_string_with_valid_ptr() {
+    fn cstr_to_string_copies_a_non_null_string() {
         let result = cstr_to_string(c"hello".as_ptr());
 
         assert_eq!(result, "hello");
@@ -81,7 +86,7 @@ mod tests {
     #[test]
     fn list_devices_returns_at_least_one() {
         #[cfg(feature = "dynamic-backends")]
-        crate::load_backends::load_backends().unwrap();
+        load_backends().unwrap();
 
         let devices = LlamaBackendDevice::list_all();
         assert!(!devices.is_empty());

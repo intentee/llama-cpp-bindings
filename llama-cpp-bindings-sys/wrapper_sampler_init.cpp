@@ -1,6 +1,7 @@
 #include "wrapper_sampler_init.h"
+#include "wrapper_fault_injection.h"
 
-#include "llama.cpp/include/llama.h"
+#include <llama.h>
 #include "wrapper_report_current_exception.h"
 
 #include <cstddef>
@@ -61,14 +62,20 @@ extern "C" auto llama_rs_sampler_chain_init(
 extern "C" auto llama_rs_sampler_init_greedy(
     struct llama_sampler ** out_sampler,
     char ** out_error) -> llama_rs_sampler_init_status {
-    return init_sampler(out_sampler, out_error, []() -> struct llama_sampler * { return llama_sampler_init_greedy(); });
+    return init_sampler(out_sampler, out_error, []() -> struct llama_sampler * {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GREEDY_THROWS);
+        return llama_sampler_init_greedy();
+    });
 }
 
 extern "C" auto llama_rs_sampler_init_dist(
     uint32_t seed,
     struct llama_sampler ** out_sampler,
     char ** out_error) -> llama_rs_sampler_init_status {
-    return init_sampler(out_sampler, out_error, [seed]() -> struct llama_sampler * { return llama_sampler_init_dist(seed); });
+    return init_sampler(out_sampler, out_error, [seed]() -> struct llama_sampler * {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_DIST_THROWS);
+        return llama_sampler_init_dist(seed);
+    });
 }
 
 extern "C" auto llama_rs_sampler_init_top_k(

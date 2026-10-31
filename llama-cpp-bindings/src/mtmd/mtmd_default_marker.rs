@@ -1,5 +1,5 @@
 use std::ffi::CStr;
-use std::os::raw::c_char;
+use std::ffi::c_char;
 
 use crate::mtmd::mtmd_default_marker_error::MtmdDefaultMarkerError;
 
@@ -21,16 +21,16 @@ pub fn mtmd_default_marker() -> Result<&'static str, MtmdDefaultMarkerError> {
 
 #[cfg(test)]
 mod tests {
-    use std::os::raw::c_char;
+    use std::ffi::c_char;
+    use std::str;
 
     use super::marker_bytes_to_str;
-    use super::mtmd_default_marker;
+    use crate::mtmd::mtmd_default_marker::mtmd_default_marker;
     use crate::mtmd::mtmd_default_marker_error::MtmdDefaultMarkerError;
 
     #[test]
-    fn returns_non_empty_marker() {
-        let marker = mtmd_default_marker().expect("llama.cpp marker must be valid UTF-8");
-        assert_ne!(marker, "");
+    fn the_default_marker_is_the_media_marker() {
+        assert_eq!(mtmd_default_marker(), Ok("<__media__>"));
     }
 
     #[test]
@@ -38,6 +38,11 @@ mod tests {
         let invalid: [u8; 3] = [0xFF, 0xFE, 0x00];
         let result = unsafe { marker_bytes_to_str(invalid.as_ptr().cast::<c_char>()) };
 
-        assert!(matches!(result, Err(MtmdDefaultMarkerError::NotUtf8(_))));
+        assert_eq!(
+            result.err(),
+            str::from_utf8(&invalid[..2])
+                .err()
+                .map(MtmdDefaultMarkerError::NotUtf8)
+        );
     }
 }

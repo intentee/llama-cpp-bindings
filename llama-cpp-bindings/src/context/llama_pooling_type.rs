@@ -46,7 +46,7 @@ mod tests {
     }
 
     #[test]
-    fn pooling_type_roundtrip_all_variants() {
+    fn every_pooling_type_converts_to_llama_cpp_and_back() {
         for (raw, expected) in [
             (-1, LlamaPoolingType::Unspecified),
             (0, LlamaPoolingType::None),

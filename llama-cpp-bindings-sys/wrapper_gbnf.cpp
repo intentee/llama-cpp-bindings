@@ -1,7 +1,7 @@
 #include "wrapper_gbnf.h"
 #include "wrapper_report_current_exception.h"
 
-#include "llama.cpp/src/llama-grammar.h"
+#include <src/llama-grammar.h>
 
 
 extern "C" auto llama_rs_validate_gbnf(
@@ -40,7 +40,7 @@ extern "C" auto llama_rs_validate_gbnf(
             vocab, grammar_str, grammar_root, false, nullptr, 0, nullptr, 0);
 
         if (grammar == nullptr) {
-            return LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION;
+            return LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
         }
 
         llama_grammar_free_impl(grammar);

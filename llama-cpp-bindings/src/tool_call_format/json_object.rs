@@ -1,19 +1,15 @@
-use llama_cpp_bindings_types::JsonObjectShape;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
+use llama_cpp_bindings_types::json_object_shape::JsonObjectShape;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 
-use crate::error::JsonObjectFailure;
+use crate::error::json_object_failure::JsonObjectFailure;
 
 fn try_parse_one_object(
     input: &str,
     shape: &JsonObjectShape,
 ) -> Result<Option<(ParsedToolCall, usize)>, JsonObjectFailure> {
-    let trimmed_start = input.find('{');
-    let Some(start) = trimmed_start else {
-        return Ok(None);
-    };
-
+    let start = input.find('{').unwrap_or(input.len());
     let mut stream = serde_json::Deserializer::from_str(&input[start..])
         .into_iter::<serde_json::Map<String, serde_json::Value>>();
     let map = match stream.next() {
@@ -83,13 +79,14 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::JsonObjectShape;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::json;
 
+    use llama_cpp_bindings_types::json_object_shape::JsonObjectShape;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+
     use super::parse;
-    use crate::error::JsonObjectFailure;
+    use crate::error::json_object_failure::JsonObjectFailure;
 
     fn qwen3_shape() -> JsonObjectShape {
         JsonObjectShape {

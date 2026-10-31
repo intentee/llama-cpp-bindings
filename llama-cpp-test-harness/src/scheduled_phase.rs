@@ -4,6 +4,7 @@ use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
 use libtest_mimic::Failed;
 use libtest_mimic::Trial;
+
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 
 use crate::execution_phase::ExecutionPhase;
@@ -15,14 +16,16 @@ fn trial(registration: &'static LlamaTestRegistration, setup: &Arc<PhaseSetup>) 
     let setup = Arc::clone(setup);
 
     Trial::test(registration.name, move || match setup.load_phase_state() {
-        Ok(state) => (registration.func)(&LlamaFixture {
-            model: &state.model,
-            backend: &state.backend,
-            context_params: &registration.context_params,
-            mtmd_context: state.mtmd_context.as_ref(),
-            model_path: &state.model_path,
-        })
-        .map_err(|error| Failed::from(format!("{error:#}"))),
+        Ok(state) => registration
+            .func
+            .run(&LlamaFixture {
+                model: &state.model,
+                backend: &state.backend,
+                context_params: &registration.context_params,
+                mtmd_context: state.mtmd_context.as_ref(),
+                model_path: &state.model_path,
+            })
+            .map_err(|error| Failed::from(format!("{error:#}"))),
         Err(setup_failure) => Err(Failed::from(format!(
             "phase setup failed: {setup_failure:#}"
         ))),
@@ -89,19 +92,20 @@ mod tests {
     use std::sync::PoisonError;
 
     use libtest_mimic::Arguments;
-    use llama_cpp_bindings::llama_backend::LlamaBackend;
-    use llama_cpp_bindings::model::LlamaLoadMode;
 
+    use llama_cpp_bindings::llama_backend::LlamaBackend;
+    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+
+    use super::ScheduledPhase;
     use crate::context_params::ContextParams;
     use crate::execution_phase::ExecutionPhase;
     use crate::gguf_source::GgufSource;
+    use crate::llama_test_fn::LlamaTestFn;
     use crate::llama_test_registration::LlamaTestRegistration;
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
     use crate::no_op::no_op;
     use crate::test_backend_gate::BACKEND_INIT_GATE;
-
-    use super::ScheduledPhase;
 
     static REGISTRATION: LlamaTestRegistration = LlamaTestRegistration {
         name: "scheduled_trial",
@@ -122,7 +126,7 @@ mod tests {
             embeddings: false,
         },
         void_logs: false,
-        func: no_op,
+        func: LlamaTestFn::Infallible(no_op),
     };
 
     fn selects_any_trial_with(harness_arguments: &[&str]) -> bool {

@@ -1,12 +1,14 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+struct llama_adapter_lora;
 struct llama_context;
 struct llama_model;
 
@@ -20,8 +22,6 @@ typedef enum llama_rs_context_nextn_hidden_state_probe_status {
     LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_context_nextn_hidden_state_probe_status;
-
-bool llama_rs_context_decodes_batches_in_one_micro_batch(const struct llama_context * ctx);
 
 bool llama_rs_context_embeddings_enabled(const struct llama_context * ctx);
 
@@ -39,6 +39,16 @@ llama_rs_context_nextn_hidden_state_probe_status llama_rs_context_graph_produces
     char ** out_error);
 
 bool llama_rs_model_causal_attn(const struct llama_model * model);
+
+bool llama_rs_context_produced_logits(struct llama_context * ctx);
+
+float * llama_rs_get_logits_ith(struct llama_context * ctx, int32_t token_index);
+
+int32_t llama_rs_set_adapters_lora(
+    struct llama_context * ctx,
+    struct llama_adapter_lora ** adapters,
+    size_t n_adapters,
+    float * scales);
 
 #ifdef __cplusplus
 }

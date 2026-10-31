@@ -439,6 +439,11 @@ mod tests {
     }
 
     #[test]
+    fn a_key_with_an_invalid_escape_is_failed() {
+        assert_eq!(probe(r#"{"\q":"bar"}"#), JsonProbeOutcome::Failed);
+    }
+
+    #[test]
     fn complete_object_with_non_string_name_is_failed() {
         assert_eq!(
             probe(r#"{"name":123,"arguments":{}}"#),
@@ -595,5 +600,31 @@ mod tests {
             probe(r#"{"name":"f","arguments":{"q" 1}}"#),
             JsonProbeOutcome::Failed,
         );
+    }
+
+    #[test]
+    fn whitespace_around_colons_and_after_values_is_completed_valid() {
+        assert_eq!(
+            probe(r#"{"name" : "f" , "arguments" : {} }"#),
+            JsonProbeOutcome::CompletedValid,
+        );
+    }
+
+    #[test]
+    fn key_not_followed_by_a_colon_is_failed() {
+        assert_eq!(probe(r#"{"name""f"}"#), JsonProbeOutcome::Failed);
+    }
+
+    #[test]
+    fn value_followed_by_neither_a_comma_nor_a_close_is_failed() {
+        assert_eq!(
+            probe(r#"{"name":"f""arguments":{}}"#),
+            JsonProbeOutcome::Failed
+        );
+    }
+
+    #[test]
+    fn trailing_comma_before_the_close_is_failed() {
+        assert_eq!(probe(r#"{"name":"f",}"#), JsonProbeOutcome::Failed);
     }
 }

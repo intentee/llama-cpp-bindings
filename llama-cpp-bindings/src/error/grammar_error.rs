@@ -1,14 +1,17 @@
 use std::ffi::NulError;
 
-use crate::SamplingError;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
+use crate::error::sampling_error::SamplingError;
 use crate::error::token_to_string_error::TokenToStringError;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GrammarError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiContract(#[from] FfiContractError),
     #[error("sampler initialization failed: {0}")]
     SamplerInitialization(#[from] SamplingError),
     #[error("the approximate token environment could not be built: {0}")]
@@ -23,8 +26,6 @@ pub enum GrammarError {
     RootContainsNul(#[source] NulError),
     #[error("a lazy-grammar trigger pattern contains an interior NUL byte")]
     TriggerPatternContainsNul(#[source] NulError),
-    #[error("a DRY sequence breaker contains an interior NUL byte")]
-    SequenceBreakerContainsNul(#[source] NulError),
     #[error("the llguidance parser factory could not be created: {message}")]
     LlguidanceFactoryUnavailable { message: String },
     #[error("the llguidance grammar could not be parsed: {message}")]

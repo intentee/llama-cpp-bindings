@@ -1,5 +1,6 @@
 use std::process::ExitCode;
 
+use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
 
 use crate::run_to_conclusions::run_to_conclusions;
@@ -14,7 +15,7 @@ fn aggregate_exit_code(conclusions: &[Conclusion]) -> ExitCode {
 
 #[must_use]
 pub fn run() -> ExitCode {
-    match run_to_conclusions() {
+    match run_to_conclusions(Arguments::from_args()) {
         Ok(conclusions) => aggregate_exit_code(&conclusions),
         Err(error) => {
             eprintln!("llama-cpp-test-harness: {error}");
@@ -26,16 +27,19 @@ pub fn run() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use std::process::ExitCode;
+    use std::sync::PoisonError;
 
+    use libtest_mimic::Arguments;
     use libtest_mimic::Conclusion;
-    use llama_cpp_bindings::llama_backend::LlamaBackend;
 
-    use crate::harness_run_error::HarnessRunError;
-    use crate::run_to_conclusions::run_to_conclusions;
-    use crate::test_backend_gate::BACKEND_INIT_GATE;
+    use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
+    use llama_cpp_bindings::llama_backend::LlamaBackend;
 
     use super::aggregate_exit_code;
     use super::run;
+    use crate::harness_run_error::HarnessRunError;
+    use crate::run_to_conclusions::run_to_conclusions;
+    use crate::test_backend_gate::BACKEND_INIT_GATE;
 
     fn passing_conclusion() -> Conclusion {
         Conclusion {
@@ -82,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_exit_code_empty_input_succeeds() {
+    fn aggregate_exit_code_reports_success_when_no_phase_ran() {
         let code = aggregate_exit_code(&[]);
 
         assert_eq!(as_u8(code), 0);
@@ -92,19 +96,24 @@ mod tests {
     fn run_to_conclusions_errors_when_backend_init_fails() {
         let _gate = BACKEND_INIT_GATE
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         let _hold = LlamaBackend::init().expect("first init must succeed");
 
-        let outcome = run_to_conclusions();
+        let outcome = run_to_conclusions(Arguments::default());
 
-        assert!(matches!(outcome, Err(HarnessRunError::BackendInit(_))));
+        assert_eq!(
+            outcome.err(),
+            Some(HarnessRunError::BackendInit(
+                LlamaCppError::BackendAlreadyInitialized
+            ))
+        );
     }
 
     #[test]
     fn run_returns_exit_code_two_when_backend_init_fails() {
         let _gate = BACKEND_INIT_GATE
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         let _hold = LlamaBackend::init().expect("first init must succeed");
 
         let code = run();

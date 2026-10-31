@@ -42,7 +42,7 @@ mod tests {
     use crate::invalid_numa_strategy::InvalidNumaStrategy;
 
     #[test]
-    fn numa_from_and_to() {
+    fn every_numa_strategy_converts_to_ggml_and_back() {
         let numas = [
             NumaStrategy::Disabled,
             NumaStrategy::Distribute,

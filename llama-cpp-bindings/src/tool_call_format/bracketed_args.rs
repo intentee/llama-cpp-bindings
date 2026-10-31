@@ -1,10 +1,10 @@
-use llama_cpp_bindings_types::BracketedJsonShape;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
-use llama_cpp_bindings_types::ToolCallMarkers;
+use llama_cpp_bindings_types::bracketed_json_shape::BracketedJsonShape;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 
-use crate::error::BracketedArgsFailure;
+use crate::error::bracketed_args_failure::BracketedArgsFailure;
 use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
 use crate::tool_call_format::parse_step::ParseStep;
 use crate::tool_call_format::separator_split::SeparatorSplit;
@@ -98,15 +98,18 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::BracketedJsonShape;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ToolCallArgsShape;
-    use llama_cpp_bindings_types::ToolCallArguments;
-    use llama_cpp_bindings_types::ToolCallMarkers;
+    use std::mem::discriminant;
+
     use serde_json::json;
 
+    use llama_cpp_bindings_types::bracketed_json_shape::BracketedJsonShape;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+    use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
+
     use super::parse;
-    use crate::error::BracketedArgsFailure;
+    use crate::error::bracketed_args_failure::BracketedArgsFailure;
 
     fn mistral3_markers() -> ToolCallMarkers {
         ToolCallMarkers {
@@ -191,8 +194,8 @@ mod tests {
         let failure = result.expect_err("malformed JSON must produce a typed failure");
 
         assert_eq!(
-            std::mem::discriminant(&failure),
-            std::mem::discriminant(&BracketedArgsFailure::InvalidJsonArguments {
+            discriminant(&failure),
+            discriminant(&BracketedArgsFailure::InvalidJsonArguments {
                 tool_name: String::new(),
                 message: String::new(),
             }),

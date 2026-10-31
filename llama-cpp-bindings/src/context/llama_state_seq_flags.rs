@@ -1,3 +1,5 @@
+use std::ops::BitOr;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LlamaStateSeqFlags {
     flags: u32,
@@ -22,7 +24,7 @@ impl LlamaStateSeqFlags {
     }
 }
 
-impl std::ops::BitOr for LlamaStateSeqFlags {
+impl BitOr for LlamaStateSeqFlags {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self {

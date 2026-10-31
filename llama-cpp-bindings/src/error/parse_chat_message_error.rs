@@ -1,45 +1,20 @@
-use std::string::FromUtf8Error;
+use std::str::Utf8Error;
 
-use crate::error::marker_detection_error::MarkerDetectionError;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ParseChatMessageError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
-    #[error("model has no chat template")]
-    NoChatTemplate,
-    #[error("model has no vocab")]
-    NoVocab,
+    FfiContract(#[from] FfiContractError),
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]
     LlamaCppOutOfMemory,
-    #[error("the chat parser could not be constructed: {message}")]
-    ParserCreationFailed { message: String },
-    #[error("the chat tools contain an interior NUL byte")]
-    ToolsContainNulByte(#[source] std::ffi::NulError),
-    #[error("the chat tools are not a JSON array")]
-    ToolsNotAnArray,
-    #[error("the chat parser could not be built for the given tools: {message}")]
-    ToolsParserBuildFailed { message: String },
-    #[error("the chat parser did not recognize the message: {message}")]
-    MessageUnrecognized { message: String },
-    #[error("the chat parser destructor threw: {message}")]
-    DestructorFailed { message: String },
-    #[error("tool-call id index {index} out of bounds")]
-    ToolCallIdIndexOutOfBounds { index: usize },
-    #[error("tool-call name index {index} out of bounds")]
-    ToolCallNameIndexOutOfBounds { index: usize },
-    #[error("tool-call arguments index {index} out of bounds")]
-    ToolCallArgumentsIndexOutOfBounds { index: usize },
-    #[error("ffi returned non-utf8 string: {0}")]
-    StringUtf8Error(#[from] FromUtf8Error),
-    #[error("the message to parse contains an interior NUL byte")]
-    InputContainsNulByte(#[source] std::ffi::NulError),
-    #[error("reasoning-marker detection failed: {0}")]
-    MarkerDetection(#[from] MarkerDetectionError),
+    #[error("text llama.cpp parsed out of the answer is not valid UTF-8: {0}")]
+    ParsedTextNotUtf8(#[source] Utf8Error),
     #[error("{message}")]
     Reported { message: String },
 }

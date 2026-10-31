@@ -2,10 +2,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
+
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::mtmd::MtmdContext;
-use llama_cpp_bindings::mtmd::MtmdContextParams;
+use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
+use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
 
 use crate::model_load_params::ModelLoadParams;
 use crate::phase_state::PhaseState;
@@ -61,14 +62,13 @@ mod tests {
     use std::sync::Arc;
     use std::sync::PoisonError;
 
-    use llama_cpp_bindings::LlamaModelLoadError;
+    use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
     use llama_cpp_bindings::llama_backend::LlamaBackend;
-    use llama_cpp_bindings::model::LlamaLoadMode;
-
-    use crate::model_load_params::ModelLoadParams;
-    use crate::test_backend_gate::BACKEND_INIT_GATE;
+    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 
     use super::PhaseModelFiles;
+    use crate::model_load_params::ModelLoadParams;
+    use crate::test_backend_gate::BACKEND_INIT_GATE;
 
     const NON_GGUF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
 

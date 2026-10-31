@@ -1,4 +1,8 @@
+use std::ffi::NulError;
 use std::ffi::{CStr, CString};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::str::Utf8Error;
 
 #[derive(Eq, PartialEq, Clone, PartialOrd, Ord, Hash)]
@@ -7,7 +11,7 @@ pub struct LlamaChatTemplate(pub CString);
 impl LlamaChatTemplate {
     /// # Errors
     /// Returns an error if the template string contains null bytes.
-    pub fn new(template: &str) -> Result<Self, std::ffi::NulError> {
+    pub fn new(template: &str) -> Result<Self, NulError> {
         Ok(Self(CString::new(template)?))
     }
 
@@ -29,18 +33,18 @@ impl LlamaChatTemplate {
     }
 }
 
-impl std::fmt::Debug for LlamaChatTemplate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for LlamaChatTemplate {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaChatTemplate;
+    use crate::model::llama_chat_template::LlamaChatTemplate;
 
     #[test]
-    fn valid_template_creation() {
+    fn a_template_keeps_its_name() {
         let template = LlamaChatTemplate::new("chatml").unwrap();
         let template_str = template.to_str().unwrap();
 
@@ -55,15 +59,15 @@ mod tests {
     }
 
     #[test]
-    fn debug_formatting() {
+    fn debug_formats_a_template_as_its_quoted_name() {
         let template = LlamaChatTemplate::new("chatml").unwrap();
         let debug_output = format!("{template:?}");
 
-        assert!(debug_output.contains("chatml"));
+        assert_eq!(debug_output, "\"chatml\"");
     }
 
     #[test]
-    fn to_string_returns_owned_string() {
+    fn to_string_copies_the_template_name() {
         let template = LlamaChatTemplate::new("llama3").unwrap();
         let owned = template.to_string().unwrap();
 
@@ -71,7 +75,7 @@ mod tests {
     }
 
     #[test]
-    fn as_c_str_returns_valid_cstr() {
+    fn as_c_str_views_the_template_name() {
         let template = LlamaChatTemplate::new("test").unwrap();
         let cstr = template.as_c_str();
 

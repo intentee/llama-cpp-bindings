@@ -1,4 +1,4 @@
-use std::os::raw::c_int;
+use std::ffi::c_int;
 use std::string::FromUtf8Error;
 
 use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;

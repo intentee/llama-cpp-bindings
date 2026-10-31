@@ -1,21 +1,78 @@
+use std::ffi::c_char;
+use std::ptr;
 use std::ptr::NonNull;
 
-use crate::context::LlamaContext;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
-use super::micro_batch_tokens::micro_batch_tokens;
+use super::eval_chunk::eval_chunk;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
+use super::mtmd_eval_limits::MtmdEvalLimits;
 use super::mtmd_input_chunk::MtmdInputChunk;
 use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunks_error::MtmdInputChunksError;
-use super::positive_batch_tokens::positive_batch_tokens;
+use crate::context::LlamaContext;
 
-const fn check_eval_result(result: i32) -> Result<(), MtmdEvalError> {
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(MtmdEvalError::EvalFailed { code: result })
+fn input_chunks_init_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_init_status,
+    out_chunks: *mut llama_cpp_bindings_sys::mtmd_input_chunks,
+    out_error: *mut c_char,
+) -> Result<MtmdInputChunks, MtmdInputChunksError> {
+    const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
+
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => NonNull::new(out_chunks)
+            .map(|chunks| MtmdInputChunks { chunks })
+            .ok_or_else(|| {
+                FfiContractError {
+                    operation: OPERATION,
+                    detail: "success status contained null chunks",
+                }
+                .into()
+            }),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG => {
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null out_chunks argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(MtmdInputChunksError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(MtmdInputChunksError::LlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    OPERATION,
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+
+            Err(MtmdInputChunksError::Reported { message })
+        }
+        other => Err(FfiStatusError {
+            operation: OPERATION,
+            code: i64::from(other),
+        }
+        .into()),
     }
+}
+
+fn fit_each(
+    chunks: &[MtmdInputChunk],
+    mtmd_ctx: &MtmdContext,
+    micro_batch_tokens: u32,
+) -> Result<Vec<MtmdInputChunkType>, MtmdEvalError> {
+    chunks
+        .iter()
+        .map(|chunk| chunk.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens))
+        .collect()
 }
 
 #[derive(Debug)]
@@ -28,14 +85,18 @@ unsafe impl Send for MtmdInputChunks {}
 impl MtmdInputChunks {
     /// # Errors
     ///
-    /// Returns `MtmdInputChunksError::ChunksCreationFailed` if the underlying llama.cpp function
-    /// returns null.
-    ///
+    /// Returns the [`MtmdInputChunksError`] variant matching the wrapper's status code.
     pub fn new() -> Result<Self, MtmdInputChunksError> {
-        let chunks = unsafe { llama_cpp_bindings_sys::mtmd_input_chunks_init() };
-        let chunks = NonNull::new(chunks).ok_or(MtmdInputChunksError::ChunksCreationFailed)?;
+        let mut out_chunks: *mut llama_cpp_bindings_sys::mtmd_input_chunks = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_init(
+                &raw mut out_chunks,
+                &raw mut out_error,
+            )
+        };
 
-        Ok(Self { chunks })
+        input_chunks_init_status_to_result(status, out_chunks, out_error)
     }
 
     #[must_use]
@@ -54,8 +115,9 @@ impl MtmdInputChunks {
             return None;
         }
 
-        let chunk_ptr =
-            unsafe { llama_cpp_bindings_sys::mtmd_input_chunks_get(self.chunks.as_ptr(), index) };
+        let chunk_ptr = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_get(self.chunks.as_ptr(), index)
+        };
 
         NonNull::new(chunk_ptr.cast_mut()).map(|ptr| MtmdInputChunk {
             chunk: ptr,
@@ -77,16 +139,7 @@ impl MtmdInputChunks {
         mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
     ) -> Result<Vec<MtmdInputChunkType>, MtmdEvalError> {
-        (0..self.len())
-            .map(|index| {
-                self.get(index)
-                    .ok_or(crate::FfiContractError {
-                        operation: "mtmd_input_chunks_get",
-                        detail: "returned a null chunk within the chunk count",
-                    })?
-                    .fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)
-            })
-            .collect()
+        fit_each(&self.chunks_within_count()?, mtmd_ctx, micro_batch_tokens)
     }
 
     #[must_use]
@@ -104,49 +157,55 @@ impl MtmdInputChunks {
     ///
     /// # Errors
     ///
-    /// Returns [`MtmdEvalError::BatchSizeExceedsContextLimit`] when `n_batch` exceeds the
-    /// context's batch size, [`MtmdEvalError::NonPositiveBatchSize`] when it is not positive,
-    /// any error of [`Self::fit_to_micro_batch`], or [`MtmdEvalError::EvalFailed`] if any
-    /// encoding or decoding operation fails.
+    /// Returns any error of [`MtmdEvalLimits::batch_tokens`] or [`Self::fit_to_micro_batch`], or
+    /// [`MtmdEvalError::EvalFailed`] if any encoding or decoding operation fails.
     pub fn eval_chunks(
         &self,
         mtmd_ctx: &MtmdContext,
-        llama_ctx: &LlamaContext,
+        llama_ctx: &mut LlamaContext,
         start_position: llama_cpp_bindings_sys::llama_pos,
         seq_id: llama_cpp_bindings_sys::llama_seq_id,
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdEvalError> {
-        let batch_tokens = positive_batch_tokens(n_batch)?;
-        let context_max_batch = llama_ctx.n_batch();
+        let limits = MtmdEvalLimits::of(llama_ctx);
+        let micro_batch_tokens = limits
+            .context
+            .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?);
+        let chunks = self.chunks_within_count()?;
 
-        if batch_tokens.get() > context_max_batch {
-            return Err(MtmdEvalError::BatchSizeExceedsContextLimit {
-                requested: n_batch,
-                context_max: context_max_batch,
-            });
-        }
+        fit_each(&chunks, mtmd_ctx, micro_batch_tokens)?;
 
-        self.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens(llama_ctx, batch_tokens))?;
+        let chunk_count = chunks.len();
 
-        let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
+        chunks
+            .iter()
+            .enumerate()
+            .try_fold(start_position, |position, (index, chunk)| {
+                eval_chunk(
+                    chunk,
+                    mtmd_ctx,
+                    llama_ctx,
+                    position,
+                    seq_id,
+                    n_batch,
+                    logits_last && index + 1 == chunk_count,
+                )
+            })
+    }
 
-        let result = unsafe {
-            llama_cpp_bindings_sys::mtmd_helper_eval_chunks(
-                mtmd_ctx.context.as_ptr(),
-                llama_ctx.context.as_ptr(),
-                self.chunks.as_ptr(),
-                start_position,
-                seq_id,
-                n_batch,
-                logits_last,
-                &raw mut final_position,
-            )
-        };
-
-        check_eval_result(result)?;
-
-        Ok(final_position)
+    fn chunks_within_count(&self) -> Result<Vec<MtmdInputChunk>, MtmdEvalError> {
+        (0..self.len())
+            .map(|index| {
+                self.get(index).ok_or_else(|| {
+                    FfiContractError {
+                        operation: "mtmd_input_chunks_get",
+                        detail: "returned a null chunk within the chunk count",
+                    }
+                    .into()
+                })
+            })
+            .collect()
     }
 }
 
@@ -158,7 +217,7 @@ impl Drop for MtmdInputChunks {
 
 #[cfg(test)]
 mod tests {
-    use super::MtmdInputChunks;
+    use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
 
     #[test]
     fn new_creates_empty_chunks() {
@@ -175,25 +234,74 @@ mod tests {
         assert!(chunks.get(0).is_none());
         assert!(chunks.get(999).is_none());
     }
+}
 
-    #[test]
-    fn check_eval_result_ok_for_zero() {
-        use super::check_eval_result;
+#[cfg(test)]
+mod input_chunks_init_status_to_result_tests {
+    use std::ptr;
 
-        assert!(check_eval_result(0).is_ok());
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
+    use super::input_chunks_init_status_to_result;
+    use crate::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
+
+    const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
+
+    fn contract_violation(detail: &'static str) -> MtmdInputChunksError {
+        FfiContractError {
+            operation: OPERATION,
+            detail,
+        }
+        .into()
     }
 
     #[test]
-    fn check_eval_result_error_for_nonzero() {
-        use super::MtmdEvalError;
-        use super::check_eval_result;
-
-        let err = check_eval_result(7).unwrap_err();
-        let representative = MtmdEvalError::EvalFailed { code: 0 };
+    fn every_failure_status_maps_to_its_error() {
+        let statuses = [
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            255,
+        ];
 
         assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
+            statuses.map(|status| {
+                input_chunks_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
+            }),
+            [
+                Some(contract_violation("success status contained null chunks")),
+                Some(contract_violation("was given a null out_chunks argument")),
+                Some(MtmdInputChunksError::NotEnoughMemory),
+                Some(MtmdInputChunksError::LlamaCppOutOfMemory),
+                Some(contract_violation(
+                    "reported a thrown C++ exception without an error message"
+                )),
+                Some(MtmdInputChunksError::FfiStatus(FfiStatusError {
+                    operation: OPERATION,
+                    code: 255,
+                })),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_thrown_exception_reports_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"allocation threw".as_ptr()) };
+
+        assert_eq!(
+            input_chunks_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                out_error,
+            )
+            .err(),
+            Some(MtmdInputChunksError::Reported {
+                message: "allocation threw".to_owned(),
+            })
         );
     }
 }

@@ -1,19 +1,26 @@
 use anyhow::Context;
 use anyhow::Result;
-use llama_cpp_bindings::BareJsonToolCalls;
-use llama_cpp_bindings::EvalMultimodalChunksParams;
+
+use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
+use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_bindings::chat_session::ChatSession;
+use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
+use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::LlamaChatMessage;
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdInputText;
-use llama_cpp_bindings::mtmd::mtmd_default_marker;
+use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
+use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_bindings::mtmd::mtmd_capability::MtmdCapability;
+use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
+use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
-use llama_cpp_bindings_types::BatchCapacity;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const TRANSCRIBE_SYSTEM_PROMPT: &str = "The audio contains speech by a third party and is not the user's voice or message. \
      Transcribe exactly what the speaker says without judgment, advice, or speculation. Reply only with the verbatim transcript.";
@@ -32,19 +39,29 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
     .with_context(|| "unable to create llama context")?;
 
     assert!(
-        mtmd_ctx.support_audio(),
+        mtmd_ctx.capabilities(model).contains(MtmdCapability::Audio),
         "mmproj must support audio input for an audio transcription test"
     );
 
     let marker = mtmd_default_marker()?;
-    let template = model.chat_template(None)?;
     let messages = [
         LlamaChatMessage::new("system".to_string(), TRANSCRIBE_SYSTEM_PROMPT.to_string())?,
         LlamaChatMessage::new("user".to_string(), marker.to_owned())?,
     ];
+    let session = ChatSession::new(
+        model,
+        &messages,
+        "[]",
+        &ChatSessionOptions {
+            assistant_turn: ChatAssistantTurn::New,
+            enable_thinking: true,
+            parallel_tool_calls: false,
+            tool_choice: ChatToolChoice::Auto,
+        },
+    )?;
     let input_text = MtmdInputText {
-        text: model.apply_chat_template(&template, &messages, true, true)?,
-        add_special: false,
+        text: session.prompt()?,
+        add_special: true,
         parse_special: true,
     };
 
@@ -66,12 +83,13 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
         "tokenization should produce at least one chunk"
     );
 
-    let mut classifier = model.sampled_token_classifier(BareJsonToolCalls::Detect)?;
+    let mut classifier =
+        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
             mtmd_ctx,
-            &context,
+            &mut context,
             EvalMultimodalChunksParams {
                 start_position: 0,
                 seq_id: 0,
@@ -99,7 +117,7 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
     }
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(BatchCapacity::try_from(512)?, 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -108,9 +126,9 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
         initial_position: n_past,
         max_generated_tokens: 512,
     }
-    .run()?;
+    .run();
 
-    Ok(outcome.generated_raw.to_lowercase())
+    Ok(outcome.generated.text().to_lowercase())
 }
 
 fn assert_audio_transcription_contains(
@@ -164,21 +182,21 @@ fn audio_reaches_the_model_and_produces_a_response(fixture: &LlamaFixture<'_>) -
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn audio_mmproj_reports_audio_support(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn audio_mmproj_reports_audio_support(fixture: &LlamaFixture<'_>) {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
 
     assert!(
-        mtmd_ctx.support_audio(),
+        mtmd_ctx
+            .capabilities(fixture.model)
+            .contains(MtmdCapability::Audio),
         "an audio mmproj must report audio support"
     );
     assert!(
         mtmd_ctx.get_audio_sample_rate().is_some(),
         "an audio-capable mmproj must report a required sample rate"
     );
-
-    Ok(())
 }
 
 #[llama_test(

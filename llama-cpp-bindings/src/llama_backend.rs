@@ -1,9 +1,8 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::SeqCst;
 
-use llama_cpp_bindings_sys::ggml_log_level;
-
-use crate::LlamaCppError;
+use crate::error::Result;
+use crate::error::llama_cpp_error::LlamaCppError;
 use crate::llama_backend_numa_strategy::NumaStrategy;
 
 #[derive(Eq, PartialEq, Debug)]
@@ -12,7 +11,7 @@ pub struct LlamaBackend {}
 static LLAMA_BACKEND_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 impl LlamaBackend {
-    fn mark_init() -> crate::Result<()> {
+    fn mark_init() -> Result<()> {
         match LLAMA_BACKEND_INITIALIZED.compare_exchange(false, true, SeqCst, SeqCst) {
             Ok(_was_uninitialized) => Ok(()),
             Err(_was_already_initialized) => Err(LlamaCppError::BackendAlreadyInitialized),
@@ -21,22 +20,27 @@ impl LlamaBackend {
 
     /// # Errors
     /// Returns an error if the backend was already initialized.
-    pub fn init() -> crate::Result<Self> {
+    pub fn init() -> Result<Self> {
         Self::mark_init()?;
         unsafe { llama_cpp_bindings_sys::llama_backend_init() }
         Ok(Self {})
     }
 
+    /// Initializes the backend, then llama.cpp's NUMA support, which needs the CPU backend the
+    /// backend initialization loads.
+    ///
     /// # Errors
     /// Returns an error if the backend was already initialized.
-    pub fn init_numa(strategy: NumaStrategy) -> crate::Result<Self> {
-        Self::mark_init()?;
+    pub fn init_numa(strategy: NumaStrategy) -> Result<Self> {
+        let backend = Self::init()?;
+
         unsafe {
             llama_cpp_bindings_sys::llama_numa_init(
                 llama_cpp_bindings_sys::ggml_numa_strategy::from(strategy),
             );
         }
-        Ok(Self {})
+
+        Ok(backend)
     }
 
     #[must_use]
@@ -53,19 +57,6 @@ impl LlamaBackend {
     pub fn supports_mlock(&self) -> bool {
         unsafe { llama_cpp_bindings_sys::llama_supports_mlock() }
     }
-
-    pub fn void_logs(&mut self) {
-        unsafe {
-            llama_cpp_bindings_sys::llama_log_set(Some(void_log), std::ptr::null_mut());
-        }
-    }
-}
-
-const unsafe extern "C" fn void_log(
-    _level: ggml_log_level,
-    _text: *const ::std::os::raw::c_char,
-    _user_data: *mut ::std::os::raw::c_void,
-) {
 }
 
 impl Drop for LlamaBackend {
@@ -77,27 +68,20 @@ impl Drop for LlamaBackend {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+
     use serial_test::serial;
 
     use super::LlamaBackend;
-    use crate::LlamaCppError;
-
-    #[test]
-    fn void_log_callback_accepts_a_log_record() {
-        unsafe {
-            super::void_log(
-                llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
-                c"test".as_ptr(),
-                std::ptr::null_mut(),
-            );
-        }
-    }
+    use crate::error::llama_cpp_error::LlamaCppError;
+    use crate::llama_backend_device::LlamaBackendDevice;
+    use crate::llama_backend_device_type::LlamaBackendDeviceType;
+    use crate::llama_backend_numa_strategy::NumaStrategy;
 
     #[test]
     #[serial]
-    fn init_succeeds() {
-        let backend = LlamaBackend::init();
-        assert!(backend.is_ok());
+    fn initializing_the_backend_returns_it() {
+        assert_eq!(LlamaBackend::init(), Ok(LlamaBackend {}));
     }
 
     #[test]
@@ -107,8 +91,8 @@ mod tests {
         let second_err = LlamaBackend::init().unwrap_err();
 
         assert_eq!(
-            std::mem::discriminant(&second_err),
-            std::mem::discriminant(&LlamaCppError::BackendAlreadyInitialized),
+            discriminant(&second_err),
+            discriminant(&LlamaCppError::BackendAlreadyInitialized),
             "expected BackendAlreadyInitialized, got {second_err:?}"
         );
     }
@@ -116,25 +100,40 @@ mod tests {
     #[test]
     #[serial]
     fn init_numa_returns_error_when_backend_already_initialized() {
-        use crate::llama_backend_numa_strategy::NumaStrategy;
-
         let _backend = LlamaBackend::init().unwrap();
         let second_err = LlamaBackend::init_numa(NumaStrategy::Disabled).unwrap_err();
 
         assert_eq!(
-            std::mem::discriminant(&second_err),
-            std::mem::discriminant(&LlamaCppError::BackendAlreadyInitialized),
+            discriminant(&second_err),
+            discriminant(&LlamaCppError::BackendAlreadyInitialized),
             "expected BackendAlreadyInitialized, got {second_err:?}"
         );
     }
 
     #[test]
     #[serial]
-    fn feature_queries_return_bools() {
+    fn the_backend_supports_mmap_and_mlock() {
         let backend = LlamaBackend::init().unwrap();
-        let _gpu = backend.supports_gpu_offload();
-        let _mmap = backend.supports_mmap();
-        let _mlock = backend.supports_mlock();
+
+        assert_eq!(
+            [backend.supports_mmap(), backend.supports_mlock()],
+            [true, true]
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn the_backend_offloads_to_a_gpu_exactly_when_one_is_registered() {
+        let backend = LlamaBackend::init().unwrap();
+        let offloads_to_a_gpu = backend.supports_gpu_offload();
+
+        assert_eq!(
+            offloads_to_a_gpu,
+            LlamaBackendDevice::list_all().iter().any(|device| matches!(
+                device.device_type,
+                LlamaBackendDeviceType::Gpu | LlamaBackendDeviceType::IntegratedGpu
+            ))
+        );
     }
 
     #[test]
@@ -148,10 +147,10 @@ mod tests {
 
     #[test]
     #[serial]
-    fn init_numa_succeeds() {
-        use crate::llama_backend_numa_strategy::NumaStrategy;
-
-        let backend = LlamaBackend::init_numa(NumaStrategy::Disabled);
-        assert!(backend.is_ok());
+    fn init_numa_with_a_numa_strategy_initializes_the_backend_numa_support_needs() {
+        assert_eq!(
+            LlamaBackend::init_numa(NumaStrategy::Distribute),
+            Ok(LlamaBackend {})
+        );
     }
 }

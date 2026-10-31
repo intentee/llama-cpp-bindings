@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 use crate::compile_command::CompileCommand;
 use crate::cpp_standard::CPP_STANDARD;
+use crate::fault_injection_define::FAULT_INJECTION_DEFINE;
+use crate::system_include_flags::system_include_flags;
 use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
 use crate::wrapper_source_paths::wrapper_source_paths;
 use crate::wrapper_sources_error::WrapperSourcesError;
@@ -25,11 +27,17 @@ impl CompileCommandsFile {
         wrapper_source_paths(&self.sys_dir)
             .into_iter()
             .map(|file| {
-                let mut arguments = vec![CPP_COMPILER.to_owned(), format!("-std={CPP_STANDARD}")];
+                let mut arguments = vec![
+                    CPP_COMPILER.to_owned(),
+                    format!("-std={CPP_STANDARD}"),
+                    format!("-D{FAULT_INJECTION_DEFINE}"),
+                ];
 
                 for include_dir in WRAPPER_INCLUDE_DIRS {
                     arguments.push(format!("-I{}", absolute_path(&self.sys_dir, include_dir)));
                 }
+
+                arguments.extend(system_include_flags(&self.sys_dir));
 
                 arguments.push("-c".to_owned());
                 arguments.push(file.display().to_string());
@@ -69,6 +77,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::CompileCommandsFile;
+    use crate::system_include_flags::system_include_flags;
     use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
     use crate::wrapper_source_paths::wrapper_source_paths;
     use crate::wrapper_sources_error::WrapperSourcesError;
@@ -122,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn the_compiler_and_standard_lead_the_command_line() {
+    fn every_command_includes_the_vendored_headers_as_system_headers() {
         let commands = database_for("/unused").commands();
 
         assert_eq!(
@@ -131,11 +140,33 @@ mod tests {
                 .map(|command| command
                     .arguments
                     .iter()
-                    .take(2)
+                    .filter(|argument| argument.starts_with("-isystem"))
                     .cloned()
                     .collect::<Vec<String>>())
                 .unwrap_or_default(),
-            vec!["c++".to_owned(), "-std=c++17".to_owned()]
+            system_include_flags(Path::new("/repo/llama-cpp-bindings-sys"))
+        );
+    }
+
+    #[test]
+    fn the_compiler_standard_and_fault_injection_lead_the_command_line() {
+        let commands = database_for("/unused").commands();
+
+        assert_eq!(
+            commands
+                .first()
+                .map(|command| command
+                    .arguments
+                    .iter()
+                    .take(3)
+                    .cloned()
+                    .collect::<Vec<String>>())
+                .unwrap_or_default(),
+            vec![
+                "c++".to_owned(),
+                "-std=c++17".to_owned(),
+                "-DLLAMA_RS_FAULT_INJECTION".to_owned()
+            ]
         );
     }
 

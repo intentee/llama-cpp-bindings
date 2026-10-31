@@ -22,10 +22,10 @@ impl DerefMut for LlamaTokenAttrs {
     }
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_token_type> for LlamaTokenAttrs {
+impl TryFrom<llama_cpp_bindings_sys::llama_token_attr> for LlamaTokenAttrs {
     type Error = LlamaTokenAttrsFromIntError;
 
-    fn try_from(value: llama_cpp_bindings_sys::llama_vocab_type) -> Result<Self, Self::Error> {
+    fn try_from(value: llama_cpp_bindings_sys::llama_token_attr) -> Result<Self, Self::Error> {
         Ok(Self(BitFlags::from_bits(value).map_err(
             |bit_flag_error| {
                 LlamaTokenAttrsFromIntError::UnknownValue(bit_flag_error.invalid_bits())
@@ -38,7 +38,9 @@ impl TryFrom<llama_cpp_bindings_sys::llama_token_type> for LlamaTokenAttrs {
 mod tests {
     use enumflags2::BitFlags;
 
-    use super::{LlamaTokenAttr, LlamaTokenAttrs, LlamaTokenAttrsFromIntError};
+    use super::LlamaTokenAttr;
+    use super::LlamaTokenAttrs;
+    use super::LlamaTokenAttrsFromIntError;
 
     #[test]
     fn try_from_valid_single_attribute() {

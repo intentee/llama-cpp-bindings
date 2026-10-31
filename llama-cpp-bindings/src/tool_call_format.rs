@@ -9,12 +9,11 @@ pub mod separator_split;
 pub mod tool_call_format_outcome;
 pub mod xml_function_tags;
 
-pub use self::tool_call_format_outcome::ToolCallFormatOutcome;
+use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 
-use llama_cpp_bindings_types::ToolCallArgsShape;
-use llama_cpp_bindings_types::ToolCallMarkers;
-
-use crate::error::ToolCallFormatFailure;
+use crate::error::tool_call_format_failure::ToolCallFormatFailure;
+use crate::tool_call_format::tool_call_format_outcome::ToolCallFormatOutcome;
 
 #[must_use]
 pub fn try_parse(body: &str, markers: &ToolCallMarkers) -> ToolCallFormatOutcome {
@@ -47,22 +46,24 @@ pub fn try_parse(body: &str, markers: &ToolCallMarkers) -> ToolCallFormatOutcome
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::BracketedJsonShape;
-    use llama_cpp_bindings_types::KeyValueXmlTagsShape;
-    use llama_cpp_bindings_types::PairedQuoteShape;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ParsedToolCallId;
-    use llama_cpp_bindings_types::ToolCallArgsShape;
-    use llama_cpp_bindings_types::ToolCallArguments;
-    use llama_cpp_bindings_types::ToolCallMarkers;
-    use llama_cpp_bindings_types::ToolCallValueQuote;
-    use llama_cpp_bindings_types::XmlTagsShape;
     use serde_json::json;
+
+    use llama_cpp_bindings_types::bracketed_json_shape::BracketedJsonShape;
+    use llama_cpp_bindings_types::key_value_xml_tags_shape::KeyValueXmlTagsShape;
+    use llama_cpp_bindings_types::paired_quote_shape::PairedQuoteShape;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+    use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+    use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
+    use llama_cpp_bindings_types::tool_call_value_quote::ToolCallValueQuote;
+    use llama_cpp_bindings_types::xml_tags_shape::XmlTagsShape;
 
     use super::ToolCallFormatOutcome;
     use super::try_parse;
-    use crate::error::BracketedArgsFailure;
-    use crate::error::ToolCallFormatFailure;
+    use crate::chat_template_tool_calls::known_marker_candidates::known_marker_candidates;
+    use crate::error::bracketed_args_failure::BracketedArgsFailure;
+    use crate::error::tool_call_format_failure::ToolCallFormatFailure;
 
     fn mistral3_markers() -> ToolCallMarkers {
         ToolCallMarkers {
@@ -235,8 +236,6 @@ mod tests {
 
     #[test]
     fn try_parse_returns_no_match_for_plain_content_under_every_known_shape() {
-        use crate::chat_template_tool_calls::known_marker_candidates;
-
         let plain_content = "Sorry, I cannot help with that request.";
 
         for candidate in known_marker_candidates() {
@@ -250,10 +249,6 @@ mod tests {
 
     #[test]
     fn duck_type_resolves_qwen_xml_input_via_xml_tags_shape_first() {
-        use llama_cpp_bindings_types::ToolCallArguments;
-
-        use crate::chat_template_tool_calls::known_marker_candidates;
-
         let qwen_input = "<tool_call>\n\
             <function=get_weather>\n\
             <parameter=location>\n\
@@ -293,10 +288,6 @@ mod tests {
 
     #[test]
     fn duck_type_resolves_glm_input_via_key_value_xml_tags_shape() {
-        use llama_cpp_bindings_types::ToolCallArguments;
-
-        use crate::chat_template_tool_calls::known_marker_candidates;
-
         let glm_input = "<tool_call>get_weather\
             <arg_key>location</arg_key>\
             <arg_value>Paris</arg_value>\
@@ -332,10 +323,6 @@ mod tests {
 
     #[test]
     fn duck_type_resolves_mistral_input_via_bracketed_json_shape() {
-        use llama_cpp_bindings_types::ToolCallArguments;
-
-        use crate::chat_template_tool_calls::known_marker_candidates;
-
         let mistral_input = r#"[TOOL_CALLS]get_weather[ARGS]{"location":"Paris"}"#;
 
         let mut resolved = None;
@@ -367,10 +354,6 @@ mod tests {
 
     #[test]
     fn duck_type_resolves_gemma_input_via_paired_quote_shape() {
-        use llama_cpp_bindings_types::ToolCallArguments;
-
-        use crate::chat_template_tool_calls::known_marker_candidates;
-
         let gemma_input = "<|tool_call>call:get_weather{location:<|\"|>Paris<|\"|>}";
 
         let mut resolved = None;

@@ -1,9 +1,10 @@
-use llama_cpp_bindings::error::LlamaCppError;
 use thiserror::Error;
+
+use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
 
 use crate::harness_arguments_error::HarnessArgumentsError;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Eq, Error, PartialEq)]
 pub enum HarnessRunError {
     #[error("failed to parse harness arguments: {0}")]
     ArgumentParsing(#[from] HarnessArgumentsError),

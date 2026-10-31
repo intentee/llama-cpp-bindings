@@ -23,7 +23,7 @@ vulkan = ["llama-cpp-bindings/vulkan"]
 rocm = ["llama-cpp-bindings/rocm"]
 
 [[test]]
-name = "harness_self_test"
+name = "phase_conclusions"
 harness = false
 
 [lints]
