@@ -21,8 +21,8 @@ use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),

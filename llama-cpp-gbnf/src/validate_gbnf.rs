@@ -10,9 +10,9 @@ use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
 use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
 use llama_cpp_bindings_sys::llama_rs_validate_gbnf;
 use llama_cpp_bindings_sys::llama_vocab;
-use llama_cpp_ffi_status::FfiContractError;
-use llama_cpp_ffi_status::FfiStatusError;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::gbnf_validation_error::GbnfValidationError;
 
@@ -109,8 +109,8 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
-    use llama_cpp_ffi_status::FfiContractError;
-    use llama_cpp_ffi_status::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::validate_gbnf;
     use super::validation_status_to_result;

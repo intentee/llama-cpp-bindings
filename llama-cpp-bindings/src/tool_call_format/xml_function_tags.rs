@@ -2,10 +2,10 @@ use nom::IResult;
 use nom::Parser;
 use nom::bytes::complete::take_until;
 
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
-use llama_cpp_bindings_types::XmlTagsShape;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+use llama_cpp_bindings_types::xml_tags_shape::XmlTagsShape;
 
 use crate::error::xml_function_tags_failure::XmlFunctionTagsFailure;
 use crate::tool_call_format::scalar_value_to_json::scalar_value_to_json;
@@ -177,9 +177,9 @@ pub fn parse(
 mod tests {
     use serde_json::json;
 
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ToolCallArguments;
-    use llama_cpp_bindings_types::XmlTagsShape;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+    use llama_cpp_bindings_types::xml_tags_shape::XmlTagsShape;
 
     use super::parse;
     use crate::error::xml_function_tags_failure::XmlFunctionTagsFailure;

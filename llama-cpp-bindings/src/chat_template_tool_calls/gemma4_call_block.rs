@@ -1,7 +1,7 @@
-use llama_cpp_bindings_types::PairedQuoteShape;
-use llama_cpp_bindings_types::ToolCallArgsShape;
-use llama_cpp_bindings_types::ToolCallMarkers;
-use llama_cpp_bindings_types::ToolCallValueQuote;
+use llama_cpp_bindings_types::paired_quote_shape::PairedQuoteShape;
+use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
+use llama_cpp_bindings_types::tool_call_value_quote::ToolCallValueQuote;
 
 pub struct Gemma4CallBlockFormat;
 

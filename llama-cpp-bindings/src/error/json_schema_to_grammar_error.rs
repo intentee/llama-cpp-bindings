@@ -1,12 +1,15 @@
 use std::ffi::NulError;
 use std::string::FromUtf8Error;
 
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum JsonSchemaToGrammarError {
     #[error(transparent)]
-    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
+    FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
+    FfiContract(#[from] FfiContractError),
     #[error("schema string contains an interior NUL byte: {0}")]
     SchemaContainsNulByte(#[from] NulError),
     #[error("JSON schema is invalid: {message}")]

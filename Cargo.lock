@@ -1213,6 +1213,7 @@ version = "0.26.0"
 dependencies = [
  "anyhow",
  "encoding_rs",
+ "inventory",
  "llama-cpp-bindings",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
@@ -1220,6 +1221,7 @@ dependencies = [
  "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
  "llama-cpp-test-harness",
+ "llama-cpp-test-harness-macros",
  "serde_json",
  "toktrie",
 ]

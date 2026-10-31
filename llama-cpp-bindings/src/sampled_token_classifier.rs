@@ -1,7 +1,7 @@
 use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_sys::llama_seq_id;
-use llama_cpp_bindings_types::TokenUsage;
-use llama_cpp_bindings_types::TokenUsageError;
+use llama_cpp_bindings_types::token_usage::TokenUsage;
+use llama_cpp_bindings_types::token_usage_error::TokenUsageError;
 
 use crate::bare_json_tool_call_probe::BareJsonToolCallProbe;
 use crate::bare_json_tool_calls::BareJsonToolCalls;

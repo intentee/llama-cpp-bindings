@@ -19,8 +19,8 @@ use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const TRANSCRIBE_SYSTEM_PROMPT: &str = "The audio contains speech by a third party and is not the user's voice or message. \
      Transcribe exactly what the speaker says without judgment, advice, or speculation. Reply only with the verbatim transcript.";

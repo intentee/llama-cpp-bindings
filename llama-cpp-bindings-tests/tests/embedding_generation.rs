@@ -9,8 +9,8 @@ use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::normalize::normalize;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),

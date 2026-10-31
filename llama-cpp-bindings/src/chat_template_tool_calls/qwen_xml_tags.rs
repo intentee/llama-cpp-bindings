@@ -1,6 +1,6 @@
-use llama_cpp_bindings_types::ToolCallArgsShape;
-use llama_cpp_bindings_types::ToolCallMarkers;
-use llama_cpp_bindings_types::XmlTagsShape;
+use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
+use llama_cpp_bindings_types::xml_tags_shape::XmlTagsShape;
 
 pub struct QwenXmlTagsFormat;
 

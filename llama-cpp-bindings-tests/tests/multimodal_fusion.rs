@@ -22,8 +22,8 @@ use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const RECOGNIZED_ANIMALS: [&str; 3] = ["llama", "alpaca", "sheep"];
 

@@ -9,8 +9,8 @@ use llama_cpp_bindings_tests::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const REASONING_BEFORE_THE_CALL: &str = "Let me check the weather.\n</think>\n\n";
 const QWEN_XML_PARIS_WEATHER_CALL: &str = "<tool_call>\n\

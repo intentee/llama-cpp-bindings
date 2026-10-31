@@ -1,3 +1,5 @@
+use inventory::collect;
+
 use crate::context_params::ContextParams;
 use crate::llama_test_fn::LlamaTestFn;
 use crate::load_key::LoadKey;
@@ -10,4 +12,4 @@ pub struct LlamaTestRegistration {
     pub func: LlamaTestFn,
 }
 
-inventory::collect!(LlamaTestRegistration);
+collect!(LlamaTestRegistration);

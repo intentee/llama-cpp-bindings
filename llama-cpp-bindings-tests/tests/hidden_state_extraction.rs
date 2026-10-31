@@ -9,8 +9,8 @@ use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token::LlamaToken;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const STATE: &str = "Shoes arrived two weeks late and in the wrong size.";
 const FIRST_BRANCH: &str = " Which team should handle this ticket?";

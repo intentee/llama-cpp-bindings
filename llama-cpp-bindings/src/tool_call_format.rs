@@ -9,8 +9,8 @@ pub mod separator_split;
 pub mod tool_call_format_outcome;
 pub mod xml_function_tags;
 
-use llama_cpp_bindings_types::ToolCallArgsShape;
-use llama_cpp_bindings_types::ToolCallMarkers;
+use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 
 use crate::error::tool_call_format_failure::ToolCallFormatFailure;
 use crate::tool_call_format::tool_call_format_outcome::ToolCallFormatOutcome;
@@ -48,16 +48,16 @@ pub fn try_parse(body: &str, markers: &ToolCallMarkers) -> ToolCallFormatOutcome
 mod tests {
     use serde_json::json;
 
-    use llama_cpp_bindings_types::BracketedJsonShape;
-    use llama_cpp_bindings_types::KeyValueXmlTagsShape;
-    use llama_cpp_bindings_types::PairedQuoteShape;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ParsedToolCallId;
-    use llama_cpp_bindings_types::ToolCallArgsShape;
-    use llama_cpp_bindings_types::ToolCallArguments;
-    use llama_cpp_bindings_types::ToolCallMarkers;
-    use llama_cpp_bindings_types::ToolCallValueQuote;
-    use llama_cpp_bindings_types::XmlTagsShape;
+    use llama_cpp_bindings_types::bracketed_json_shape::BracketedJsonShape;
+    use llama_cpp_bindings_types::key_value_xml_tags_shape::KeyValueXmlTagsShape;
+    use llama_cpp_bindings_types::paired_quote_shape::PairedQuoteShape;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+    use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+    use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
+    use llama_cpp_bindings_types::tool_call_value_quote::ToolCallValueQuote;
+    use llama_cpp_bindings_types::xml_tags_shape::XmlTagsShape;
 
     use super::ToolCallFormatOutcome;
     use super::try_parse;

@@ -14,6 +14,9 @@ use std::ffi::c_void;
 use std::sync::PoisonError;
 use std::sync::{Mutex, OnceLock};
 
+use log::log;
+use log::warn;
+
 use llama_cpp_log_decoder::decode_anomaly::DecodeAnomaly;
 use llama_cpp_log_decoder::decode_output::DecodeOutput;
 use llama_cpp_log_decoder::incoming_log_level::IncomingLogLevel;
@@ -89,7 +92,7 @@ fn resolve_record(line: LogLine, demote_info_to_debug: bool) -> LogRecord {
 
 fn dispatch_line(source: &LogSource, line: LogLine) {
     let LogRecord { level, text } = resolve_record(line, source.options.demote_info_to_debug);
-    log::log!(target: source.target, level, "{text}");
+    log!(target: source.target, level, "{text}");
 }
 
 fn dispatch_output(source: &LogSource, output: DecodeOutput) {
@@ -104,7 +107,7 @@ fn dispatch_output(source: &LogSource, output: DecodeOutput) {
 }
 
 fn dispatch_anomaly(source: &LogSource, anomaly: DecodeAnomaly) {
-    log::warn!(
+    warn!(
         target: source.target,
         "llama.cpp log decoder anomaly: {anomaly:?}",
     );
@@ -122,7 +125,7 @@ unsafe extern "C" fn logs_to_log(
     }
 
     if text_ptr.is_null() {
-        log::warn!(
+        warn!(
             target: source.target,
             "received NULL text pointer from llama.cpp log callback",
         );
@@ -261,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn test_logger_enabled_and_flush() {
+    fn the_capturing_logger_enables_every_record() {
         let metadata = Metadata::builder()
             .level(Level::Info)
             .target("test-logger-enabled")

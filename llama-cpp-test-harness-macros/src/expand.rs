@@ -73,13 +73,13 @@ fn split_fn_and_pass_through(items: Vec<Item>) -> syn::Result<(ItemFn, Vec<Item>
 fn build_model_source_literal(source: &ParsedSource) -> TokenStream {
     match source {
         ParsedSource::HuggingFace { repo, file } => quote! {
-            ::llama_cpp_test_harness::GgufSource::HuggingFace {
+            ::llama_cpp_test_harness::gguf_source::GgufSource::HuggingFace {
                 repo: #repo,
                 file: #file,
             }
         },
         ParsedSource::LocalPath(path) => quote! {
-            ::llama_cpp_test_harness::GgufSource::LocalPath(#path)
+            ::llama_cpp_test_harness::gguf_source::GgufSource::LocalPath(#path)
         },
     }
 }
@@ -88,13 +88,13 @@ fn build_mmproj_source_literal(source: Option<&ParsedSource>) -> TokenStream {
     match source {
         None => quote! { ::core::option::Option::None },
         Some(ParsedSource::HuggingFace { repo, file }) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_harness::GgufSource::HuggingFace {
+            ::core::option::Option::Some(::llama_cpp_test_harness::gguf_source::GgufSource::HuggingFace {
                 repo: #repo,
                 file: #file,
             })
         },
         Some(ParsedSource::LocalPath(path)) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_harness::GgufSource::LocalPath(#path))
+            ::core::option::Option::Some(::llama_cpp_test_harness::gguf_source::GgufSource::LocalPath(#path))
         },
     }
 }
@@ -104,10 +104,10 @@ fn build_test_fn_literal(signature: &Signature) -> TokenStream {
 
     match signature.output {
         ReturnType::Default => {
-            quote! { ::llama_cpp_test_harness::LlamaTestFn::Infallible(#fn_name) }
+            quote! { ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Infallible(#fn_name) }
         }
         ReturnType::Type(..) => {
-            quote! { ::llama_cpp_test_harness::LlamaTestFn::Fallible(#fn_name) }
+            quote! { ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Fallible(#fn_name) }
         }
     }
 }
@@ -135,18 +135,18 @@ fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
     );
 
     quote! {
-        ::llama_cpp_test_harness::inventory::submit! {
-            ::llama_cpp_test_harness::LlamaTestRegistration {
+        ::inventory::submit! {
+            ::llama_cpp_test_harness::llama_test_registration::LlamaTestRegistration {
                 name: #trial_name,
-                key: ::llama_cpp_test_harness::LoadKey {
+                key: ::llama_cpp_test_harness::load_key::LoadKey {
                     model_source: #model_source_literal,
                     mmproj_source: #mmproj_source_literal,
-                    model_load_params: ::llama_cpp_test_harness::ModelLoadParams {
+                    model_load_params: ::llama_cpp_test_harness::model_load_params::ModelLoadParams {
                         n_gpu_layers: #gpu_layers,
                         load_mode: #load_mode,
                     },
                 },
-                context_params: ::llama_cpp_test_harness::ContextParams {
+                context_params: ::llama_cpp_test_harness::context_params::ContextParams {
                     n_ctx: #context_size,
                     n_batch: #logical_batch,
                     n_ubatch: #physical_batch,
@@ -226,21 +226,21 @@ mod tests {
             .expect("well-formed input must expand");
         let expected = quote! {
             fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
-            ::llama_cpp_test_harness::inventory::submit! {
-                ::llama_cpp_test_harness::LlamaTestRegistration {
+            ::inventory::submit! {
+                ::llama_cpp_test_harness::llama_test_registration::LlamaTestRegistration {
                     name: "my_test[bar.gguf]",
-                    key: ::llama_cpp_test_harness::LoadKey {
-                        model_source: ::llama_cpp_test_harness::GgufSource::HuggingFace {
+                    key: ::llama_cpp_test_harness::load_key::LoadKey {
+                        model_source: ::llama_cpp_test_harness::gguf_source::GgufSource::HuggingFace {
                             repo: "foo",
                             file: "bar.gguf",
                         },
                         mmproj_source: ::core::option::Option::None,
-                        model_load_params: ::llama_cpp_test_harness::ModelLoadParams {
+                        model_load_params: ::llama_cpp_test_harness::model_load_params::ModelLoadParams {
                             n_gpu_layers: 0i32,
-                            load_mode: ::llama_cpp_test_harness::LlamaLoadMode::Mmap,
+                            load_mode: ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Mmap,
                         },
                     },
-                    context_params: ::llama_cpp_test_harness::ContextParams {
+                    context_params: ::llama_cpp_test_harness::context_params::ContextParams {
                         n_ctx: 1u32,
                         n_batch: 1u32,
                         n_ubatch: 1u32,
@@ -249,7 +249,7 @@ mod tests {
                         embeddings: false,
                     },
                     void_logs: false,
-                    func: ::llama_cpp_test_harness::LlamaTestFn::Fallible(my_test),
+                    func: ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Fallible(my_test),
                 }
             }
         };
@@ -261,7 +261,8 @@ mod tests {
     fn a_function_returning_a_result_registers_as_fallible() {
         assert_eq!(
             test_fn_literal_of(well_formed_function()),
-            quote! { ::llama_cpp_test_harness::LlamaTestFn::Fallible(my_test) }.to_string()
+            quote! { ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Fallible(my_test) }
+                .to_string()
         );
     }
 
@@ -269,7 +270,8 @@ mod tests {
     fn a_function_without_a_return_type_registers_as_infallible() {
         assert_eq!(
             test_fn_literal_of(quote! { fn my_test(fixture: &LlamaFixture<'_>) {} }),
-            quote! { ::llama_cpp_test_harness::LlamaTestFn::Infallible(my_test) }.to_string()
+            quote! { ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Infallible(my_test) }
+                .to_string()
         );
     }
 
@@ -278,7 +280,7 @@ mod tests {
         assert_eq!(
             build_model_source_literal(&ParsedSource::LocalPath("/abs/local.gguf".to_owned()))
                 .to_string(),
-            quote! { ::llama_cpp_test_harness::GgufSource::LocalPath("/abs/local.gguf") }
+            quote! { ::llama_cpp_test_harness::gguf_source::GgufSource::LocalPath("/abs/local.gguf") }
                 .to_string()
         );
     }
@@ -292,7 +294,7 @@ mod tests {
             }))
             .to_string(),
             quote! {
-                ::core::option::Option::Some(::llama_cpp_test_harness::GgufSource::HuggingFace {
+                ::core::option::Option::Some(::llama_cpp_test_harness::gguf_source::GgufSource::HuggingFace {
                     repo: "r",
                     file: "mmproj.gguf",
                 })
@@ -309,7 +311,7 @@ mod tests {
             )))
             .to_string(),
             quote! {
-                ::core::option::Option::Some(::llama_cpp_test_harness::GgufSource::LocalPath(
+                ::core::option::Option::Some(::llama_cpp_test_harness::gguf_source::GgufSource::LocalPath(
                     "/abs/mmproj.gguf"
                 ))
             }

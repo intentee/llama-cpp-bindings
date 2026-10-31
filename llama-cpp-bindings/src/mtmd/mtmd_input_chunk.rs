@@ -4,7 +4,9 @@ use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
@@ -64,21 +66,21 @@ fn input_chunk_copy_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK => NonNull::new(out_chunk)
             .map(|chunk| MtmdInputChunk { chunk, owned: true })
             .ok_or_else(|| {
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: OPERATION,
                     detail: "success status contained a null chunk",
                 }
                 .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: OPERATION,
                 detail: "was given a null chunk argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: OPERATION,
                 detail: "was given a null out_chunk argument",
             }
@@ -101,7 +103,7 @@ fn input_chunk_copy_status_to_result(
 
             Err(MtmdInputChunkError::Reported { message })
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -274,13 +276,16 @@ mod unit_tests {
 mod input_chunk_copy_status_to_result_tests {
     use std::ptr;
 
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::input_chunk_copy_status_to_result;
     use crate::mtmd::mtmd_input_chunk_error::MtmdInputChunkError;
 
     const OPERATION: &str = "llama_rs_mtmd_input_chunk_copy";
 
     fn contract_violation(detail: &'static str) -> MtmdInputChunkError {
-        llama_cpp_ffi_status::FfiContractError {
+        FfiContractError {
             operation: OPERATION,
             detail,
         }
@@ -312,12 +317,10 @@ mod input_chunk_copy_status_to_result_tests {
                 Some(contract_violation(
                     "reported a thrown C++ exception without an error message"
                 )),
-                Some(MtmdInputChunkError::FfiStatus(
-                    llama_cpp_ffi_status::FfiStatusError {
-                        operation: OPERATION,
-                        code: 255,
-                    }
-                )),
+                Some(MtmdInputChunkError::FfiStatus(FfiStatusError {
+                    operation: OPERATION,
+                    code: 255,
+                })),
             ]
         );
     }

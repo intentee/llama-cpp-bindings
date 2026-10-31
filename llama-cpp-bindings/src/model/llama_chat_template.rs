@@ -59,7 +59,7 @@ mod tests {
     }
 
     #[test]
-    fn debug_formatting() {
+    fn debug_formats_a_template_as_its_quoted_name() {
         let template = LlamaChatTemplate::new("chatml").unwrap();
         let debug_output = format!("{template:?}");
 

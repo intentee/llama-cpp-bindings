@@ -217,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn record_cached_equal_to_prompt_succeeds() {
+    fn caching_every_prompt_token_is_accepted() {
         let mut usage = TokenUsage::new();
         usage.record_prompt_tokens(5);
         usage

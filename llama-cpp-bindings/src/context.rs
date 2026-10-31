@@ -29,7 +29,11 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use log::debug;
+
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::context::context_limits::ContextLimits;
 use crate::context::decoded_output_rows::DecodedOutputRows;
@@ -71,21 +75,21 @@ fn nextn_hidden_state_probe_status_to_result(
             Ok(produces_nextn_hidden_state)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_CTX_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_PRODUCES_NEXTN_HIDDEN_STATE_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null out_produces_nextn_hidden_state argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_ERROR_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null out_error argument",
             }
@@ -110,7 +114,7 @@ fn nextn_hidden_state_probe_status_to_result(
             }?;
             Err(EmbeddingsError::NextnProbeReported { message })
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_context_graph_produces_nextn_hidden_state",
             code: i64::from(other),
         }
@@ -126,7 +130,7 @@ fn new_context_with_model_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK => NonNull::new(out_ctx)
             .ok_or_else(|| {
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "success status contained a null context",
                 }
@@ -152,27 +156,27 @@ fn new_context_with_model_status_to_result(
             Err(LlamaContextLoadError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null out_ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_new_context_with_model",
             code: i64::from(other),
         }
@@ -188,7 +192,7 @@ fn batch_ext_init_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_OK => {
             NonNull::new(out_batch).ok_or_else(|| {
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_batch_ext_init",
                     detail: "success status contained a null batch",
                 }
@@ -211,28 +215,26 @@ fn batch_ext_init_status_to_result(
             }?;
             Err(LlamaContextLoadError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
-                operation: "llama_rs_batch_ext_init",
-                detail: "was given a null ctx argument",
-            }
-            .into())
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => Err(FfiContractError {
+            operation: "llama_rs_batch_ext_init",
+            detail: "was given a null ctx argument",
         }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_BATCH_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_batch_ext_init",
                 detail: "was given a null out_batch argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_ERROR_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_batch_ext_init",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_batch_ext_init",
             code: i64::from(other),
         }
@@ -245,7 +247,7 @@ fn batch_ext_assign_entries_status_to_result(
     out_error: *mut c_char,
 ) -> Result<(), BatchTransferError> {
     let refused_validated_entry = |detail: &'static str| -> Result<(), BatchTransferError> {
-        Err(llama_cpp_ffi_status::FfiContractError {
+        Err(FfiContractError {
             operation: "llama_rs_batch_ext_assign_entries",
             detail,
         }
@@ -311,7 +313,7 @@ fn batch_ext_assign_entries_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_ERROR_ARG => {
             refused_validated_entry("was given a null out_error argument")
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_batch_ext_assign_entries",
             code: i64::from(other),
         }
@@ -330,7 +332,7 @@ where
     const OPERATION: &str = "llama_rs_process";
 
     let contract_violation = |detail: &'static str| {
-        ProcessFailure::from(llama_cpp_ffi_status::FfiContractError {
+        ProcessFailure::from(FfiContractError {
             operation: OPERATION,
             detail,
         })
@@ -375,7 +377,7 @@ where
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG => {
             Err(contract_violation("was given a null out_error argument").into())
         }
-        other => Err(ProcessFailure::from(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(ProcessFailure::from(FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         })
@@ -955,7 +957,7 @@ impl<'model> LlamaContext<'model> {
         };
         check_lora_adapters_result(err_code)?;
 
-        log::debug!("Updated lora adapters");
+        debug!("Updated lora adapters");
         Ok(())
     }
 }
@@ -975,12 +977,12 @@ mod check_lora_adapters_result_tests {
     use crate::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
 
     #[test]
-    fn check_lora_adapters_result_ok_for_zero() {
+    fn a_zero_set_adapters_return_code_is_success() {
         assert!(check_lora_adapters_result(0).is_ok());
     }
 
     #[test]
-    fn check_lora_adapters_result_error_for_nonzero() {
+    fn a_nonzero_set_adapters_return_code_is_an_error() {
         let result = check_lora_adapters_result(-1);
 
         assert_eq!(result, Err(LlamaLoraAdaptersError::ErrorResult(-1)));
@@ -991,8 +993,10 @@ mod check_lora_adapters_result_tests {
 mod nextn_hidden_state_probe_status_to_result_tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::read_and_free_cpp_string;
-    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
 
     use super::nextn_hidden_state_probe_status_to_result;
     use crate::error::embeddings_error::EmbeddingsError;
@@ -1017,7 +1021,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
                 false,
                 ptr::null_mut(),
             ),
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null ctx argument",
             }
@@ -1033,7 +1037,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
                 false,
                 ptr::null_mut(),
             ),
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null out_produces_nextn_hidden_state argument",
             }
@@ -1049,7 +1053,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
                 false,
                 ptr::null_mut(),
             ),
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "was given a null out_error argument",
             }
@@ -1125,7 +1129,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
                 false,
                 ptr::null_mut(),
             ),
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1137,7 +1141,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     fn nextn_hidden_state_probe_status_to_result_maps_an_unknown_status() {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(255, false, ptr::null_mut()),
-            Err(llama_cpp_ffi_status::FfiStatusError {
+            Err(FfiStatusError {
                 operation: "llama_rs_context_graph_produces_nextn_hidden_state",
                 code: 255,
             }
@@ -1149,6 +1153,9 @@ mod nextn_hidden_state_probe_status_to_result_tests {
 #[cfg(test)]
 mod new_context_with_model_status_to_result_tests {
     use std::ptr;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::new_context_with_model_status_to_result;
     use crate::error::llama_context_load_error::LlamaContextLoadError;
@@ -1163,12 +1170,10 @@ mod new_context_with_model_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(LlamaContextLoadError::FfiContract(
-                llama_cpp_ffi_status::FfiContractError {
-                    operation: "llama_rs_new_context_with_model",
-                    detail: "success status contained a null context",
-                }
-            ))
+            Err(LlamaContextLoadError::FfiContract(FfiContractError {
+                operation: "llama_rs_new_context_with_model",
+                detail: "success status contained a null context",
+            }))
         );
     }
 
@@ -1223,7 +1228,7 @@ mod new_context_with_model_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1237,12 +1242,10 @@ mod new_context_with_model_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(LlamaContextLoadError::FfiStatus(
-                llama_cpp_ffi_status::FfiStatusError {
-                    operation: "llama_rs_new_context_with_model",
-                    code: 255,
-                }
-            ))
+            Err(LlamaContextLoadError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_new_context_with_model",
+                code: 255,
+            }))
         );
     }
 
@@ -1256,7 +1259,7 @@ mod new_context_with_model_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null model argument",
                 }
@@ -1275,7 +1278,7 @@ mod new_context_with_model_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null out_ctx argument",
                 }
@@ -1294,7 +1297,7 @@ mod new_context_with_model_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null out_error argument",
                 }
@@ -1321,6 +1324,9 @@ mod new_context_with_model_status_to_result_tests {
 mod batch_ext_init_status_to_result_tests {
     use std::ptr;
 
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::batch_ext_init_status_to_result;
     use crate::error::llama_context_load_error::LlamaContextLoadError;
 
@@ -1346,12 +1352,10 @@ mod batch_ext_init_status_to_result_tests {
         ] {
             assert_eq!(
                 batch_ext_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err(),
-                Some(LlamaContextLoadError::FfiContract(
-                    llama_cpp_ffi_status::FfiContractError {
-                        operation: "llama_rs_batch_ext_init",
-                        detail,
-                    }
-                ))
+                Some(LlamaContextLoadError::FfiContract(FfiContractError {
+                    operation: "llama_rs_batch_ext_init",
+                    detail,
+                }))
             );
         }
     }
@@ -1404,12 +1408,10 @@ mod batch_ext_init_status_to_result_tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(LlamaContextLoadError::FfiContract(
-                llama_cpp_ffi_status::FfiContractError {
-                    operation: "llama_rs_batch_ext_init",
-                    detail: "reported a thrown C++ exception without an error message",
-                }
-            ))
+            Some(LlamaContextLoadError::FfiContract(FfiContractError {
+                operation: "llama_rs_batch_ext_init",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
         );
     }
 
@@ -1417,12 +1419,10 @@ mod batch_ext_init_status_to_result_tests {
     fn initializing_a_batch_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_init_status_to_result(255, ptr::null_mut(), ptr::null_mut()).err(),
-            Some(LlamaContextLoadError::FfiStatus(
-                llama_cpp_ffi_status::FfiStatusError {
-                    operation: "llama_rs_batch_ext_init",
-                    code: 255,
-                }
-            ))
+            Some(LlamaContextLoadError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_batch_ext_init",
+                code: 255,
+            }))
         );
     }
 }
@@ -1430,6 +1430,9 @@ mod batch_ext_init_status_to_result_tests {
 #[cfg(test)]
 mod batch_ext_assign_entries_status_to_result_tests {
     use std::ptr;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::batch_ext_assign_entries_status_to_result;
     use crate::error::batch_transfer_error::BatchTransferError;
@@ -1492,7 +1495,7 @@ mod batch_ext_assign_entries_status_to_result_tests {
         ] {
             assert_eq!(
                 batch_ext_assign_entries_status_to_result(status, ptr::null_mut()),
-                Err(BatchTransferError::FfiContract(llama_cpp_ffi_status::FfiContractError {
+                Err(BatchTransferError::FfiContract(FfiContractError {
                     operation: "llama_rs_batch_ext_assign_entries",
                     detail,
                 }))
@@ -1540,7 +1543,7 @@ mod batch_ext_assign_entries_status_to_result_tests {
                 ptr::null_mut(),
             ),
             Err(BatchTransferError::FfiContract(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_batch_ext_assign_entries",
                     detail: "reported a thrown C++ exception without an error message",
                 }
@@ -1552,12 +1555,10 @@ mod batch_ext_assign_entries_status_to_result_tests {
     fn adding_a_batch_entry_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_assign_entries_status_to_result(255, ptr::null_mut()),
-            Err(BatchTransferError::FfiStatus(
-                llama_cpp_ffi_status::FfiStatusError {
-                    operation: "llama_rs_batch_ext_assign_entries",
-                    code: 255,
-                }
-            ))
+            Err(BatchTransferError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_batch_ext_assign_entries",
+                code: 255,
+            }))
         );
     }
 }
@@ -1565,6 +1566,9 @@ mod batch_ext_assign_entries_status_to_result_tests {
 #[cfg(test)]
 mod process_status_to_result_tests {
     use std::ptr;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::process_status_to_result;
     use crate::error::decode_error::DecodeError;
@@ -1574,7 +1578,7 @@ mod process_status_to_result_tests {
     const OPERATION: &str = "llama_rs_process";
 
     fn contract_violation(detail: &'static str) -> DecodeError {
-        ProcessFailure::from(llama_cpp_ffi_status::FfiContractError {
+        ProcessFailure::from(FfiContractError {
             operation: OPERATION,
             detail,
         })
@@ -1618,7 +1622,7 @@ mod process_status_to_result_tests {
                     "was given a null out_llama_cpp_return_code argument"
                 )),
                 Err(contract_violation("was given a null out_error argument")),
-                Err(ProcessFailure::from(llama_cpp_ffi_status::FfiStatusError {
+                Err(ProcessFailure::from(FfiStatusError {
                     operation: OPERATION,
                     code: 255,
                 })

@@ -75,47 +75,26 @@ mod tests {
     use super::ParamOverrideValue;
 
     #[test]
-    fn tag_bool() {
-        let value = ParamOverrideValue::Bool(true);
-
+    fn each_override_value_is_tagged_with_its_llama_cpp_type() {
         assert_eq!(
-            value.tag(),
-            llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_BOOL
+            [
+                ParamOverrideValue::Bool(true),
+                ParamOverrideValue::Float(1.23),
+                ParamOverrideValue::Int(42),
+                ParamOverrideValue::Str([0; 128]),
+            ]
+            .map(|value| value.tag()),
+            [
+                llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_BOOL,
+                llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
+                llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_INT,
+                llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_STR,
+            ]
         );
     }
 
     #[test]
-    fn tag_float() {
-        let value = ParamOverrideValue::Float(1.23);
-
-        assert_eq!(
-            value.tag(),
-            llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_FLOAT
-        );
-    }
-
-    #[test]
-    fn tag_int() {
-        let value = ParamOverrideValue::Int(42);
-
-        assert_eq!(
-            value.tag(),
-            llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_INT
-        );
-    }
-
-    #[test]
-    fn tag_str() {
-        let value = ParamOverrideValue::Str([0; 128]);
-
-        assert_eq!(
-            value.tag(),
-            llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_STR
-        );
-    }
-
-    #[test]
-    fn value_bool_roundtrip() {
+    fn a_bool_override_stores_its_value_in_the_bool_field() {
         let value = ParamOverrideValue::Bool(true);
         let ffi_value = value.value();
         let result = unsafe { ffi_value.val_bool };
@@ -124,7 +103,7 @@ mod tests {
     }
 
     #[test]
-    fn value_float_roundtrip() {
+    fn a_float_override_stores_its_value_in_the_f64_field() {
         let value = ParamOverrideValue::Float(1.23);
         let ffi_value = value.value();
         let result = unsafe { ffi_value.val_f64 };
@@ -133,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn value_int_roundtrip() {
+    fn an_int_override_stores_its_value_in_the_i64_field() {
         let value = ParamOverrideValue::Int(99);
         let ffi_value = value.value();
         let result = unsafe { ffi_value.val_i64 };
@@ -187,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn value_str_roundtrip() {
+    fn a_str_override_stores_its_bytes_in_the_str_field() {
         let mut str_data = [0i8; 128];
         str_data[0] = b'h'.cast_signed();
         str_data[1] = b'i'.cast_signed();

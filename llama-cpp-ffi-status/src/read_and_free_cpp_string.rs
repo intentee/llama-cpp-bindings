@@ -41,7 +41,7 @@ pub unsafe fn read_and_free_cpp_string(
 mod tests {
     use std::ptr;
 
-    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer;
+    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
 
     use super::read_and_free_cpp_string;
     use crate::ffi_contract_error::FfiContractError;

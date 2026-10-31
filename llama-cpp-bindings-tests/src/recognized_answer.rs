@@ -1,7 +1,7 @@
 use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings_types::ParsedChatMessage;
+use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 
 /// Parses `answer` with the session's parser.
 ///

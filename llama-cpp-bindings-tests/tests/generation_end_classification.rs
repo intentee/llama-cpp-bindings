@@ -6,8 +6,8 @@ use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const END_OF_GENERATION_TOKENS: u64 = 1;
 

@@ -1,11 +1,14 @@
 use std::path::PathBuf;
 
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdBitmapError {
     #[error(transparent)]
-    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
+    FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
+    FfiContract(#[from] FfiContractError),
     #[error("Failed to create CString from bitmap-source path: {0}")]
     CStringError(#[from] std::ffi::NulError),
     #[error("Bitmap-source path is not valid UTF-8: {0:?}")]

@@ -7,8 +7,8 @@ use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
 use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
 use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
 use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),

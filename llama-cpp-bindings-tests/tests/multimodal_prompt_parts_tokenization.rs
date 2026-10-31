@@ -14,10 +14,10 @@ use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
 use llama_cpp_bindings::mtmd::mtmd_input_text_part::MtmdInputTextPart;
 use llama_cpp_bindings::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
 use llama_cpp_bindings::token::LlamaToken;
-use llama_cpp_fault_injection::ArmedFault;
-use llama_cpp_fault_injection::injected_fault_message;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const SPECIAL_TOKEN_TEXT: &str = "<|im_start|>";
 

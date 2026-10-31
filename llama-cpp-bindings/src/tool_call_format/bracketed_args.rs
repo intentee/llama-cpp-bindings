@@ -1,8 +1,8 @@
-use llama_cpp_bindings_types::BracketedJsonShape;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
-use llama_cpp_bindings_types::ToolCallMarkers;
+use llama_cpp_bindings_types::bracketed_json_shape::BracketedJsonShape;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 
 use crate::error::bracketed_args_failure::BracketedArgsFailure;
 use crate::tool_call_format::consume_optional_prefix::consume_optional_prefix;
@@ -102,11 +102,11 @@ mod tests {
 
     use serde_json::json;
 
-    use llama_cpp_bindings_types::BracketedJsonShape;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ToolCallArgsShape;
-    use llama_cpp_bindings_types::ToolCallArguments;
-    use llama_cpp_bindings_types::ToolCallMarkers;
+    use llama_cpp_bindings_types::bracketed_json_shape::BracketedJsonShape;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+    use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 
     use super::parse;
     use crate::error::bracketed_args_failure::BracketedArgsFailure;

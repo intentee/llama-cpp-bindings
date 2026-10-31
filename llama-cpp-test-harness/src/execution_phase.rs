@@ -26,9 +26,10 @@ impl ExecutionPhase {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+
     use super::ExecutionPhase;
-    use crate::GgufSource;
-    use crate::LlamaLoadMode;
+    use crate::gguf_source::GgufSource;
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
 

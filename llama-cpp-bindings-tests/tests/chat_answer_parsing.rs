@@ -9,10 +9,10 @@ use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_fault_injection::ArmedFault;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),

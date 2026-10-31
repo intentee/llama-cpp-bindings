@@ -3,7 +3,9 @@ use std::ffi::c_char;
 use std::num::NonZeroU32;
 use std::ptr;
 
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use super::mtmd_context_params::MtmdContextParams;
 use super::mtmd_image_token_limit::MtmdImageTokenLimit;
@@ -59,7 +61,7 @@ fn get_memory_usage_status_to_result(
 
             Err(MtmdMemoryUsageError::Reported { message })
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -68,7 +70,7 @@ fn get_memory_usage_status_to_result(
 }
 
 const fn contract_violation(detail: &'static str) -> MtmdMemoryUsageError {
-    MtmdMemoryUsageError::FfiContract(llama_cpp_ffi_status::FfiContractError {
+    MtmdMemoryUsageError::FfiContract(FfiContractError {
         operation: OPERATION,
         detail,
     })
@@ -179,8 +181,10 @@ mod tests {
     use std::num::NonZeroU32;
     use std::ptr;
 
-    use llama_cpp_fault_injection::ArmedFault;
-    use llama_cpp_fault_injection::injected_fault_message;
+    use llama_cpp_fault_injection::armed_fault::ArmedFault;
+    use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::get_memory_usage_status_to_result;
     use crate::mtmd::mtmd_context_params::MtmdContextParams;
@@ -218,7 +222,7 @@ mod tests {
     }
 
     fn contract_violation(detail: &'static str) -> MtmdMemoryUsageError {
-        llama_cpp_ffi_status::FfiContractError {
+        FfiContractError {
             operation: "llama_rs_mtmd_get_memory_usage",
             detail,
         }
@@ -426,12 +430,10 @@ mod tests {
     fn an_unknown_status_is_preserved() {
         assert_eq!(
             get_memory_usage_status_to_result(255, ptr::null_mut()),
-            Err(MtmdMemoryUsageError::FfiStatus(
-                llama_cpp_ffi_status::FfiStatusError {
-                    operation: "llama_rs_mtmd_get_memory_usage",
-                    code: 255,
-                }
-            ))
+            Err(MtmdMemoryUsageError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_mtmd_get_memory_usage",
+                code: 255,
+            }))
         );
     }
 }

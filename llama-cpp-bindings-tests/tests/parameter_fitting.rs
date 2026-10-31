@@ -10,9 +10,9 @@ use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::model::params::fit_extra_model::FitExtraModel;
 use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
 use llama_cpp_bindings::mtmd::mtmd_memory_usage::MtmdMemoryUsage;
-use llama_cpp_test_harness::GgufSource;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::gguf_source::GgufSource;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),

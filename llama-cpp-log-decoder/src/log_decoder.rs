@@ -414,7 +414,7 @@ mod tests {
     }
 
     #[test]
-    fn default_construction() {
+    fn a_default_decoder_decodes_like_a_new_one() {
         let mut default_decoder = LogDecoder::default();
         let new_decoder_result = LogDecoder::new().feed(IncomingLogLevel::Info, "compare\n");
         let default_result = default_decoder.feed(IncomingLogLevel::Info, "compare\n");

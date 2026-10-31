@@ -9,8 +9,8 @@ use llguidance::earley::SlicedBiasComputer;
 use toktrie::ApproximateTokEnv;
 use toktrie::InferenceCapabilities;
 
-use llama_cpp_error_recorder::RecordedError;
-use llama_cpp_error_recorder::record;
+use llama_cpp_error_recorder::record::record;
+use llama_cpp_error_recorder::recorded_error::RecordedError;
 
 use crate::error::grammar_error::GrammarError;
 use crate::grammar_matcher::GrammarMatcher;
@@ -200,7 +200,7 @@ mod tests {
     use toktrie::TokRxInfo;
     use toktrie::TokTrie;
 
-    use llama_cpp_fault_injection::ArmedFault;
+    use llama_cpp_fault_injection::armed_fault::ArmedFault;
 
     use super::UNCOMPILABLE_BIAS_SLICE;
     use super::create_llg_sampler_from_tok_env;

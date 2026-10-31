@@ -4,7 +4,7 @@ use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_test_harness::LlamaFixture;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 
 use crate::chat_answer::ChatAnswer;
 use crate::classify_sample_loop::ClassifySampleLoop;

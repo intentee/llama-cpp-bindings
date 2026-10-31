@@ -1,3 +1,1 @@
 pub mod wrapper_allocated_error_message_pointer;
-
-pub use wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;

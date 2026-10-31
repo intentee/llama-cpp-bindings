@@ -37,7 +37,9 @@ use toktrie::INVALID_TOKEN;
 use toktrie::TokRxInfo;
 use toktrie::TokTrie;
 
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::chat_templates::ChatTemplates;
 use crate::error::chat_template_error::ChatTemplateError;
@@ -141,7 +143,7 @@ unsafe fn load_model_from_file_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_OK => {
             let model = NonNull::new(out_model).ok_or_else(|| {
-                LlamaModelLoadError::from(llama_cpp_ffi_status::FfiContractError {
+                LlamaModelLoadError::from(FfiContractError {
                     operation: "llama_rs_load_model_from_file",
                     detail: "success status contained a null model",
                 })
@@ -180,27 +182,27 @@ unsafe fn load_model_from_file_status_to_result(
             Err(LlamaModelLoadError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "was given a null path argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "was given a null out_model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_load_model_from_file",
             code: i64::from(other),
         }
@@ -662,7 +664,7 @@ fn initialize_lora_adapter<'model>(
     initialize: impl FnOnce() -> *mut llama_cpp_bindings_sys::llama_adapter_lora,
 ) -> Result<LlamaLoraAdapter<'model>, LlamaLoraAdapterInitError> {
     let adapter = NonNull::new(initialize()).ok_or(LlamaLoraAdapterInitError::Unloadable)?;
-    Ok(LlamaLoraAdapter::new(adapter))
+    Ok(unsafe { LlamaLoraAdapter::new(adapter) })
 }
 
 impl LlamaModel {
@@ -767,7 +769,7 @@ unsafe fn tokenize_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "was given a null vocab argument",
             }
@@ -775,7 +777,7 @@ unsafe fn tokenize_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_TEXT_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "was given a null text argument",
             }
@@ -783,7 +785,7 @@ unsafe fn tokenize_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_RETURNED_COUNT_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "was given a null out_returned_count argument",
             }
@@ -791,7 +793,7 @@ unsafe fn tokenize_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_ERROR_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "was given a null out_error argument",
             }
@@ -799,7 +801,7 @@ unsafe fn tokenize_status_to_result(
         }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(llama_cpp_ffi_status::FfiStatusError {
+            Err(FfiStatusError {
                 operation: "llama_rs_tokenize",
                 code: i64::from(other),
             }
@@ -1191,6 +1193,9 @@ mod load_model_from_file_status_to_result_tests {
     use std::path::Path;
     use std::ptr;
 
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::load_model_from_file_status_to_result;
     use crate::error::llama_model_load_error::LlamaModelLoadError;
 
@@ -1207,7 +1212,7 @@ mod load_model_from_file_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            LlamaModelLoadError::FfiContract(llama_cpp_ffi_status::FfiContractError {
+            LlamaModelLoadError::FfiContract(FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "success status contained a null model",
             })
@@ -1281,7 +1286,7 @@ mod load_model_from_file_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            llama_cpp_ffi_status::FfiContractError {
+            FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1302,7 +1307,7 @@ mod load_model_from_file_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            LlamaModelLoadError::FfiStatus(llama_cpp_ffi_status::FfiStatusError {
+            LlamaModelLoadError::FfiStatus(FfiStatusError {
                 operation: "llama_rs_load_model_from_file",
                 code: 255,
             })
@@ -1322,7 +1327,7 @@ mod load_model_from_file_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_load_model_from_file",
                     detail: "was given a null path argument",
                 }
@@ -1344,7 +1349,7 @@ mod load_model_from_file_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_load_model_from_file",
                     detail: "was given a null out_model argument",
                 }
@@ -1366,7 +1371,7 @@ mod load_model_from_file_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_load_model_from_file",
                     detail: "was given a null out_error argument",
                 }
@@ -1395,6 +1400,9 @@ mod load_model_from_file_status_to_result_tests {
 #[cfg(test)]
 mod tokenize_status_to_result_tests {
     use std::ptr;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::tokenize_status_to_result;
     use crate::error::string_to_token_error::StringToTokenError;
@@ -1457,7 +1465,7 @@ mod tokenize_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1471,12 +1479,10 @@ mod tokenize_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(StringToTokenError::FfiStatus(
-                llama_cpp_ffi_status::FfiStatusError {
-                    operation: "llama_rs_tokenize",
-                    code: 255,
-                }
-            ))
+            Err(StringToTokenError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_tokenize",
+                code: 255,
+            }))
         );
     }
 
@@ -1492,7 +1498,7 @@ mod tokenize_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_tokenize",
                     detail: "was given a null vocab argument",
                 }
@@ -1513,7 +1519,7 @@ mod tokenize_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_tokenize",
                     detail: "was given a null text argument",
                 }
@@ -1534,7 +1540,7 @@ mod tokenize_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_tokenize",
                     detail: "was given a null out_returned_count argument",
                 }
@@ -1555,7 +1561,7 @@ mod tokenize_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_tokenize",
                     detail: "was given a null out_error argument",
                 }

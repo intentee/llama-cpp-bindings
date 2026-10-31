@@ -1,3 +1,6 @@
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum EmbeddingsError {
     #[error("Embeddings weren't enabled in the context options")]
@@ -41,9 +44,9 @@ pub enum EmbeddingsError {
     #[error("llama.cpp failed while checking for a NextN hidden state: {message}")]
     NextnProbeReported { message: String },
     #[error(transparent)]
-    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
+    FfiContract(#[from] FfiContractError),
     #[error(transparent)]
-    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
+    FfiStatus(#[from] FfiStatusError),
     #[error(
         "No NextN embedding exists for token {token_index}; it was not marked as an output of the last decoded batch"
     )]

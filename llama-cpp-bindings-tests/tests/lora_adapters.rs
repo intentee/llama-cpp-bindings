@@ -3,10 +3,10 @@ use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
 use llama_cpp_bindings::model::lora_adapter_scale::LoraAdapterScale;
-use llama_cpp_fault_injection::ArmedFault;
-use llama_cpp_test_harness::LlamaFixture;
+use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_test_harness::download_model::download_model;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace(

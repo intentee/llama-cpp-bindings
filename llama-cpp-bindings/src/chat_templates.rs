@@ -2,7 +2,9 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::error::chat_templates_error::ChatTemplatesError;
 use crate::model::LlamaModel;
@@ -15,7 +17,7 @@ fn chat_templates_init_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_OK => NonNull::new(out_templates)
             .ok_or_else(|| {
-                llama_cpp_ffi_status::FfiContractError {
+                FfiContractError {
                     operation: "llama_rs_chat_templates_init",
                     detail: "success status contained a null templates handle",
                 }
@@ -41,27 +43,27 @@ fn chat_templates_init_status_to_result(
             Err(ChatTemplatesError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_MODEL_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_chat_templates_init",
                 detail: "was given a null model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_TEMPLATES_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_chat_templates_init",
                 detail: "was given a null out_templates argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_ERROR_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_chat_templates_init",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_chat_templates_init",
             code: i64::from(other),
         }
@@ -128,6 +130,9 @@ mod tests {
     use std::ffi::c_char;
     use std::ptr;
 
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::chat_templates_init_status_to_result;
     use crate::error::chat_templates_error::ChatTemplatesError;
 
@@ -139,7 +144,7 @@ mod tests {
     }
 
     const fn contract(detail: &'static str) -> ChatTemplatesError {
-        ChatTemplatesError::FfiContract(llama_cpp_ffi_status::FfiContractError {
+        ChatTemplatesError::FfiContract(FfiContractError {
             operation: "llama_rs_chat_templates_init",
             detail,
         })
@@ -194,7 +199,7 @@ mod tests {
                 Some(contract("was given a null model argument")),
                 Some(contract("was given a null out_templates argument")),
                 Some(contract("was given a null out_error argument")),
-                Some(ChatTemplatesError::FfiStatus(llama_cpp_ffi_status::FfiStatusError {
+                Some(ChatTemplatesError::FfiStatus(FfiStatusError {
                     operation: "llama_rs_chat_templates_init",
                     code: 255,
                 })),

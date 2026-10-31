@@ -1,7 +1,9 @@
 use std::ffi::c_char;
 use std::ptr;
 
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::chat_grammar_trigger::ChatGrammarTrigger;
 use crate::error::grammar_error::GrammarError;
@@ -50,28 +52,24 @@ fn regex_escape_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(GrammarError::LlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_TEXT_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
-                operation: OPERATION,
-                detail: "was given a null text argument",
-            }
-            .into())
+        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_TEXT_ARG => Err(FfiContractError {
+            operation: OPERATION,
+            detail: "was given a null text argument",
         }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_OUT_STRING_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: OPERATION,
                 detail: "was given a null out_string argument",
             }
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_OUT_ERROR_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
-                operation: OPERATION,
-                detail: "was given a null out_error argument",
-            }
-            .into())
+        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_OUT_ERROR_ARG => Err(FfiContractError {
+            operation: OPERATION,
+            detail: "was given a null out_error argument",
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        .into()),
+        other => Err(FfiStatusError {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -129,8 +127,10 @@ impl LazyGrammarTriggers {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_fault_injection::ArmedFault;
-    use llama_cpp_fault_injection::injected_fault_message;
+    use llama_cpp_fault_injection::armed_fault::ArmedFault;
+    use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::LazyGrammarTriggers;
     use super::anchored_pattern;
@@ -145,12 +145,10 @@ mod tests {
             regex_escape_status_to_result(status, out_string, out_error)
         };
         let contract = |detail| {
-            Err(GrammarError::FfiContract(
-                llama_cpp_ffi_status::FfiContractError {
-                    operation: "llama_rs_regex_escape",
-                    detail,
-                },
-            ))
+            Err(GrammarError::FfiContract(FfiContractError {
+                operation: "llama_rs_regex_escape",
+                detail,
+            }))
         };
 
         assert_eq!(
@@ -210,12 +208,10 @@ mod tests {
                 contract("was given a null text argument"),
                 contract("was given a null out_string argument"),
                 contract("was given a null out_error argument"),
-                Err(GrammarError::FfiStatus(
-                    llama_cpp_ffi_status::FfiStatusError {
-                        operation: "llama_rs_regex_escape",
-                        code: 255
-                    }
-                )),
+                Err(GrammarError::FfiStatus(FfiStatusError {
+                    operation: "llama_rs_regex_escape",
+                    code: 255
+                })),
             ]
         );
     }
@@ -228,12 +224,10 @@ mod tests {
                 ptr::null_mut(),
                 ptr::null_mut()
             ),
-            Err(GrammarError::FfiContract(
-                llama_cpp_ffi_status::FfiContractError {
-                    operation: "llama_rs_regex_escape",
-                    detail: "reported a thrown C++ exception without an error message"
-                }
-            ))
+            Err(GrammarError::FfiContract(FfiContractError {
+                operation: "llama_rs_regex_escape",
+                detail: "reported a thrown C++ exception without an error message"
+            }))
         );
     }
 

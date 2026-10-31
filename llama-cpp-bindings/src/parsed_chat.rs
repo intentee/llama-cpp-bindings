@@ -1,12 +1,12 @@
 use std::ffi::c_char;
 use std::ptr::NonNull;
 
-use llama_cpp_bindings_types::ModelProvidedToolCallId;
-use llama_cpp_bindings_types::ModelProvidedToolCallIdError;
-use llama_cpp_bindings_types::ParsedChatMessage;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
+use llama_cpp_bindings_types::model_provided_tool_call_id::ModelProvidedToolCallId;
+use llama_cpp_bindings_types::model_provided_tool_call_id_error::ModelProvidedToolCallIdError;
+use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 
 use crate::cpp_text_view::cpp_text_view;
 use crate::error::parse_chat_message_error::ParseChatMessageError;
@@ -93,8 +93,8 @@ pub fn take_parsed_chat_message(
 #[cfg(test)]
 mod tests {
 
-    use llama_cpp_bindings_types::ModelProvidedToolCallId;
-    use llama_cpp_bindings_types::ParsedToolCallId;
+    use llama_cpp_bindings_types::model_provided_tool_call_id::ModelProvidedToolCallId;
+    use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
 
     use super::tool_call_id_reported_by_llama_cpp;
 

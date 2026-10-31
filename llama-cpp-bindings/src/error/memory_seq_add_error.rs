@@ -1,11 +1,14 @@
 use std::num::TryFromIntError;
 
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MemorySeqAddError {
     #[error(transparent)]
-    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
+    FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
+    FfiContract(#[from] FfiContractError),
     #[error("provided start position is too large for an i32")]
     P0TooLarge(#[source] TryFromIntError),
     #[error("provided end position is too large for an i32")]

@@ -23,11 +23,11 @@ use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_s
 use llama_cpp_bindings_tests::prime_memory_with::prime_memory_with;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_prompt_with_synthetic_image;
-use llama_cpp_fault_injection::ArmedFault;
-use llama_cpp_fault_injection::injected_fault_message;
-use llama_cpp_ffi_status::FfiContractError;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) -> Result<()> {
     let mtmd_ctx = fixture

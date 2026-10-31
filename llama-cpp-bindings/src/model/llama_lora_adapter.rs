@@ -14,7 +14,14 @@ pub struct LlamaLoraAdapter<'model> {
 }
 
 impl LlamaLoraAdapter<'_> {
-    pub(crate) const fn new(
+    /// Takes ownership of an adapter llama.cpp initialized, and frees it on drop.
+    ///
+    /// # Safety
+    ///
+    /// `lora_adapter` must come from `llama_adapter_lora_init` for the model this adapter
+    /// borrows, and no other [`LlamaLoraAdapter`] may own it.
+    #[must_use]
+    pub const unsafe fn new(
         lora_adapter: NonNull<llama_cpp_bindings_sys::llama_adapter_lora>,
     ) -> Self {
         Self {
@@ -23,7 +30,8 @@ impl LlamaLoraAdapter<'_> {
         }
     }
 
-    pub(crate) const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::llama_adapter_lora {
+    #[must_use]
+    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::llama_adapter_lora {
         self.lora_adapter
     }
 }
@@ -46,7 +54,7 @@ mod ownership_tests {
     #[test]
     fn adapter_preserves_the_owned_native_pointer() {
         let pointer = NonNull::dangling();
-        let adapter = ManuallyDrop::new(LlamaLoraAdapter::new(pointer));
+        let adapter = ManuallyDrop::new(unsafe { LlamaLoraAdapter::new(pointer) });
 
         assert_eq!(adapter.as_ptr(), pointer.as_ptr());
     }

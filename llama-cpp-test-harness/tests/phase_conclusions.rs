@@ -4,10 +4,10 @@ use anyhow::Result;
 use anyhow::bail;
 use libtest_mimic::Arguments;
 
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
-use llama_cpp_test_harness::no_op;
-use llama_cpp_test_harness::run_to_conclusions;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness::no_op::no_op;
+use llama_cpp_test_harness::run_to_conclusions::run_to_conclusions;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
@@ -142,7 +142,7 @@ fn main() -> ExitCode {
     let conclusions = match run_to_conclusions(Arguments::from_args()) {
         Ok(conclusions) => conclusions,
         Err(error) => {
-            eprintln!("harness_self_test: unexpected harness setup failure: {error}");
+            eprintln!("phase_conclusions: unexpected harness setup failure: {error}");
 
             return ExitCode::FAILURE;
         }
@@ -162,12 +162,12 @@ fn main() -> ExitCode {
         && total_failed == EXPECTED_FAILED
     {
         eprintln!(
-            "harness_self_test: as expected — phases={phases}, passed={total_passed}, failed={total_failed}"
+            "phase_conclusions: as expected — phases={phases}, passed={total_passed}, failed={total_failed}"
         );
         ExitCode::SUCCESS
     } else {
         eprintln!(
-            "harness_self_test: UNEXPECTED — phases={phases} (want {EXPECTED_PHASES}), \
+            "phase_conclusions: UNEXPECTED — phases={phases} (want {EXPECTED_PHASES}), \
              passed={total_passed} (want {EXPECTED_PASSED}), \
              failed={total_failed} (want {EXPECTED_FAILED})"
         );

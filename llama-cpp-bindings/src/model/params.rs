@@ -5,7 +5,9 @@ use std::pin::Pin;
 use std::ptr;
 use std::ptr::null;
 
-use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::backend_device_index::backend_device_index;
 use crate::context::params::LlamaContextParams;
@@ -67,63 +69,55 @@ fn fit_params_status_to_result(
             }?;
             Err(FitError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null path_model argument",
-            }
-            .into())
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => Err(FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail: "was given a null path_model argument",
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null mparams argument",
-            }
-            .into())
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => Err(FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail: "was given a null mparams argument",
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null cparams argument",
-            }
-            .into())
+        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => Err(FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail: "was given a null cparams argument",
         }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null out_unrecognized_status_code argument",
             }
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
-                operation: "llama_rs_fit_params",
-                detail: "was given a null out_error argument",
-            }
-            .into())
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => Err(FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail: "was given a null out_error argument",
         }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null path_model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null mparams argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG => {
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null cparams argument",
             }
             .into())
         }
-        other => Err(llama_cpp_ffi_status::FfiStatusError {
+        other => Err(FfiStatusError {
             operation: "llama_rs_fit_params",
             code: i64::from(other),
         }
@@ -495,7 +489,10 @@ mod tests {
     use std::ffi::CStr;
     use std::ffi::CString;
     use std::mem::discriminant;
+    use std::pin::pin;
     use std::ptr;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 
     use super::LLAMA_CPP_MAX_DEVICES;
     use super::LlamaModelParams;
@@ -521,7 +518,7 @@ mod tests {
     }
 
     fn contract_error_with(detail: &'static str) -> FitError {
-        llama_cpp_ffi_status::FfiContractError {
+        FfiContractError {
             operation: "llama_rs_fit_params",
             detail,
         }
@@ -724,7 +721,7 @@ mod tests {
     }
 
     #[test]
-    fn with_devices_empty_list_succeeds() {
+    fn with_devices_accepts_an_empty_device_list() {
         let params = LlamaModelParams::default().with_devices(&[]);
 
         assert!(params.is_ok());
@@ -732,8 +729,8 @@ mod tests {
     }
 
     #[test]
-    fn add_cpu_buft_override_succeeds() {
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+    fn add_cpu_buft_override_fills_an_empty_override_slot() {
+        let mut params = pin!(LlamaModelParams::default());
         let result = params.as_mut().add_cpu_buft_override(c"test_pattern");
 
         assert!(result.is_ok());
@@ -742,7 +739,7 @@ mod tests {
     #[test]
     fn a_buft_override_pattern_stays_valid_after_the_callers_buffer_changes() {
         let mut caller_buffer = b"blk\\.0\\.ffn\0".to_vec();
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
 
         params
             .as_mut()
@@ -758,7 +755,7 @@ mod tests {
 
     #[test]
     fn add_cpu_buft_override_twice_fails_with_slot_not_empty() {
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         params
             .as_mut()
             .add_cpu_buft_override(c"first_pattern")
@@ -769,8 +766,8 @@ mod tests {
     }
 
     #[test]
-    fn add_cpu_moe_override_succeeds() {
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+    fn add_cpu_moe_override_fills_an_empty_override_slot() {
+        let mut params = pin!(LlamaModelParams::default());
         let result = params.as_mut().add_cpu_moe_override();
 
         assert!(result.is_ok());
@@ -778,7 +775,7 @@ mod tests {
 
     #[test]
     fn append_kv_override_twice_fails_with_slot_not_empty() {
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         let key = CString::new("first_key").unwrap();
         params
             .as_mut()
@@ -840,7 +837,7 @@ mod tests {
     fn append_kv_override_with_high_byte_returns_invalid_character_error() {
         let key_bytes: &[u8] = b"\xff\0";
         let key = CStr::from_bytes_with_nul(key_bytes).unwrap();
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         let result = params
             .as_mut()
             .append_kv_override(key, ParamOverrideValue::Int(1));
@@ -858,7 +855,7 @@ mod tests {
     fn add_cpu_buft_override_with_high_byte_returns_invalid_character_error() {
         let key_bytes: &[u8] = b"\xff\0";
         let key = CStr::from_bytes_with_nul(key_bytes).unwrap();
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         let result = params.as_mut().add_cpu_buft_override(key);
 
         assert_eq!(
@@ -874,7 +871,7 @@ mod tests {
     fn append_kv_override_with_empty_slot_vector_returns_no_available_slot() {
         let mut params = LlamaModelParams::default();
         params.kv_overrides.clear();
-        let mut pinned = std::pin::pin!(params);
+        let mut pinned = pin!(params);
 
         let result = pinned
             .as_mut()
@@ -887,7 +884,7 @@ mod tests {
     fn add_cpu_buft_override_with_empty_slot_vector_returns_no_available_slot() {
         let mut params = LlamaModelParams::default();
         params.buft_overrides.clear();
-        let mut pinned = std::pin::pin!(params);
+        let mut pinned = pin!(params);
 
         let result = pinned.as_mut().add_cpu_buft_override(c"any_pattern");
 
@@ -898,7 +895,7 @@ mod tests {
     #[serial_test::serial]
     fn fit_params_invalid_model_path_returns_error() {
         let _backend = LlamaBackend::init();
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         let mut context_params = LlamaContextParams::default();
         let mut margins = vec![0usize; max_devices()];
 
@@ -917,7 +914,7 @@ mod tests {
 
     #[test]
     fn fit_params_refuses_margins_not_sized_to_the_device_count() {
-        let mut params = std::pin::pin!(LlamaModelParams::default());
+        let mut params = pin!(LlamaModelParams::default());
         let mut context_params = LlamaContextParams::default();
         let mut margins = vec![0usize; max_devices() + 1];
 
@@ -1032,6 +1029,9 @@ mod tests {
 mod fit_params_status_to_result_tests {
     use std::ptr;
 
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::fit_params_status_to_result;
     use crate::error::fit_error::FitError;
 
@@ -1118,7 +1118,7 @@ mod fit_params_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(llama_cpp_ffi_status::FfiContractError {
+            Err(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "reported a thrown C++ exception without an error message",
             }
@@ -1132,7 +1132,7 @@ mod fit_params_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FitError::FfiStatus(llama_cpp_ffi_status::FfiStatusError {
+            Err(FitError::FfiStatus(FfiStatusError {
                 operation: "llama_rs_fit_params",
                 code: 255,
             }))

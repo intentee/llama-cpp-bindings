@@ -11,11 +11,11 @@ use llama_cpp_bindings_tests::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
 use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const WEATHER_QUESTION: &str = "What is the weather in Paris?";
 const PLAIN_CONTENT_REFUSAL: &str = "Sorry, I cannot help with that.";

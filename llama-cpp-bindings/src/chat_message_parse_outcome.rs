@@ -1,5 +1,5 @@
-use llama_cpp_bindings_types::ParsedChatMessage;
-use llama_cpp_bindings_types::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
 
 use crate::raw_chat_message::RawChatMessage;
 
@@ -39,10 +39,10 @@ impl ChatMessageParseOutcome {
 mod tests {
     use serde_json::json;
 
-    use llama_cpp_bindings_types::ParsedChatMessage;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ParsedToolCallId;
-    use llama_cpp_bindings_types::ToolCallArguments;
+    use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 
     use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
     use crate::chat_output_completeness::ChatOutputCompleteness;

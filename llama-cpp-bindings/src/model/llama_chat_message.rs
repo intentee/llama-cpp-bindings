@@ -24,7 +24,7 @@ mod tests {
     use crate::model::llama_chat_message::LlamaChatMessage;
 
     #[test]
-    fn valid_construction() {
+    fn a_role_and_content_without_nul_bytes_form_a_message() {
         let message = LlamaChatMessage::new("user".to_string(), "hello".to_string());
 
         assert!(message.is_ok());

@@ -1,4 +1,4 @@
-use llama_cpp_bindings_types::ToolCallMarkers;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 
 use crate::chat_template_tool_calls::gemma4_call_block::Gemma4CallBlockFormat;
 use crate::chat_template_tool_calls::glm47_key_value_tags::Glm47KeyValueTagsFormat;

@@ -1,11 +1,14 @@
 use std::ffi::NulError;
 
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GbnfValidationError {
     #[error(transparent)]
-    FfiStatus(#[from] llama_cpp_ffi_status::FfiStatusError),
+    FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
-    FfiContract(#[from] llama_cpp_ffi_status::FfiContractError),
+    FfiContract(#[from] FfiContractError),
     #[error("grammar string contains an interior NUL byte")]
     GrammarContainsNul(#[source] NulError),
     #[error("grammar root name contains an interior NUL byte")]

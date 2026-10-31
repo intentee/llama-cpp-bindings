@@ -2,10 +2,10 @@ use std::num::NonZeroU32;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
-use llama_cpp_fault_injection::ArmedFault;
-use llama_cpp_fault_injection::injected_fault_message;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),

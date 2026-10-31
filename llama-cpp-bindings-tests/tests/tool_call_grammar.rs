@@ -10,8 +10,8 @@ use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const MAX_TOOL_CALL_TOKENS: i32 = 128;
 

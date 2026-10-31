@@ -2,11 +2,11 @@ use nom::IResult;
 use nom::Parser;
 use nom::bytes::complete::take_until;
 
-use llama_cpp_bindings_types::KeyValueXmlTagsShape;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
-use llama_cpp_bindings_types::ToolCallMarkers;
+use llama_cpp_bindings_types::key_value_xml_tags_shape::KeyValueXmlTagsShape;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 
 use crate::error::key_value_xml_tags_failure::KeyValueXmlTagsFailure;
 use crate::tool_call_format::parse_step::ParseStep;
@@ -171,11 +171,11 @@ pub fn parse(
 mod tests {
     use serde_json::json;
 
-    use llama_cpp_bindings_types::KeyValueXmlTagsShape;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ToolCallArgsShape;
-    use llama_cpp_bindings_types::ToolCallArguments;
-    use llama_cpp_bindings_types::ToolCallMarkers;
+    use llama_cpp_bindings_types::key_value_xml_tags_shape::KeyValueXmlTagsShape;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::tool_call_args_shape::ToolCallArgsShape;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+    use llama_cpp_bindings_types::tool_call_markers::ToolCallMarkers;
 
     use super::parse;
     use crate::error::key_value_xml_tags_failure::KeyValueXmlTagsFailure;

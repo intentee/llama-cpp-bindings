@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_exit_code_empty_input_succeeds() {
+    fn aggregate_exit_code_reports_success_when_no_phase_ran() {
         let code = aggregate_exit_code(&[]);
 
         assert_eq!(as_u8(code), 0);

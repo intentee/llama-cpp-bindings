@@ -18,9 +18,9 @@ use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
-use llama_cpp_fault_injection::ArmedFault;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const JSON_SCHEMA: &str =
     r#"{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}"#;

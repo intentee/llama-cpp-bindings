@@ -10,8 +10,8 @@ use llama_cpp_bindings_tests::chat_answer_generation::ChatAnswerGeneration;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::penalized_nucleus_sampler::penalized_nucleus_sampler;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 const ARITHMETIC_QUESTION: &str = "What is 2 + 2?";
 const SINGLE_WORD_INSTRUCTION: &str = "Reply with the single word: four. Do not explain.";

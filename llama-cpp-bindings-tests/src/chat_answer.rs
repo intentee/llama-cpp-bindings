@@ -1,6 +1,6 @@
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings_types::TokenUsage;
+use llama_cpp_bindings_types::token_usage::TokenUsage;
 
 use crate::classify_sample_loop_outcome::ClassifySampleLoopOutcome;
 use crate::recognized_answer::recognized_answer;

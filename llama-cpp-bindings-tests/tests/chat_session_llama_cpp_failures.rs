@@ -10,11 +10,11 @@ use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
-use llama_cpp_fault_injection::ArmedFault;
-use llama_cpp_fault_injection::injected_fault_message;
-use llama_cpp_ffi_status::FfiStatusError;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 fn not_utf8() -> Utf8Error {
     String::from_utf8(vec![0xff])

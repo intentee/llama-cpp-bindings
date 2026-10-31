@@ -82,4 +82,6 @@ mod vocabulary_bounds;
 mod vocabulary_enumeration;
 mod vocabulary_type;
 
-llama_cpp_test_harness::llama_tests_main!();
+use llama_cpp_test_harness::llama_tests_main;
+
+llama_tests_main!();

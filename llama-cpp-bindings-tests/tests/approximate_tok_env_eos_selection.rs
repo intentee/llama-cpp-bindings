@@ -11,8 +11,8 @@ use llama_cpp_bindings::gguf_context::GgufContext;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::token::LlamaToken;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),

@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn kv_cache_type_all_known_variants_roundtrip() {
+    fn every_kv_cache_type_converts_to_its_ggml_type_and_back() {
         let all_variants = [
             KvCacheType::F32,
             KvCacheType::F16,

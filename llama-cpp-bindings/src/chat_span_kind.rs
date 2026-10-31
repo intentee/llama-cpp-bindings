@@ -1,3 +1,5 @@
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
 use crate::chat_piece_role::ChatPieceRole;
 use crate::sampled_token_section::SampledTokenSection;
 
@@ -24,7 +26,7 @@ impl ChatSpanKind {
 }
 
 impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
-    type Error = llama_cpp_ffi_status::FfiStatusError;
+    type Error = FfiStatusError;
 
     fn try_from(
         kind: llama_cpp_bindings_sys::llama_rs_chat_span_kind,
@@ -39,7 +41,7 @@ impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER => {
                 Ok(Self::ToolCallMarker)
             }
-            other => Err(llama_cpp_ffi_status::FfiStatusError {
+            other => Err(FfiStatusError {
                 operation: "llama_rs_chat_spans_view_of",
                 code: i64::from(other),
             }),
@@ -49,6 +51,8 @@ impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::ChatSpanKind;
     use crate::chat_piece_role::ChatPieceRole;
     use crate::sampled_token_section::SampledTokenSection;
@@ -107,7 +111,7 @@ mod tests {
     fn an_unknown_wrapper_span_kind_is_a_status_error() {
         assert_eq!(
             ChatSpanKind::try_from(99),
-            Err(llama_cpp_ffi_status::FfiStatusError {
+            Err(FfiStatusError {
                 operation: "llama_rs_chat_spans_view_of",
                 code: 99,
             })

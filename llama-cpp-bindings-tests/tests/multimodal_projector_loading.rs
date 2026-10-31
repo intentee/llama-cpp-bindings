@@ -6,8 +6,8 @@ use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
 use llama_cpp_bindings::mtmd::mtmd_context_params_error::MtmdContextParamsError;
 use llama_cpp_bindings::mtmd::mtmd_image_token_limit::MtmdImageTokenLimit;
 use llama_cpp_bindings::mtmd::mtmd_init_error::MtmdInitError;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),

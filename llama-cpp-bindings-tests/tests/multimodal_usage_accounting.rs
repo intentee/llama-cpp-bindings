@@ -14,9 +14,9 @@ use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
-use llama_cpp_bindings_types::TokenUsage;
-use llama_cpp_test_harness::LlamaFixture;
-use llama_cpp_test_harness::llama_test;
+use llama_cpp_bindings_types::token_usage::TokenUsage;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
 
 fn build_multimodal_chunks_and_eval_into_usage(
     fixture: &LlamaFixture<'_>,
