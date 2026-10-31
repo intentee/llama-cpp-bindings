@@ -663,7 +663,7 @@ mod tests {
     }
 
     #[test]
-    fn find_key_returns_valid_index_for_known_key() {
+    fn find_key_finds_a_known_key_at_a_non_negative_index() {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let index = context.find_key("general.architecture");
 
@@ -745,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn typed_values_round_trip_through_synthetic_fixture() {
+    fn typed_getters_read_the_values_a_gguf_file_stores() {
         let fixture = SyntheticGgufBuilder::default()
             .value(
                 b"synthetic.i32_value",
