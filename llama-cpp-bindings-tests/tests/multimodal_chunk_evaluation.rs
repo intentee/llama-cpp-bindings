@@ -169,6 +169,44 @@ fn eval_chunks_reports_an_exception_llama_cpp_throws_while_evaluating_a_chunk(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
+fn eval_chunks_reports_a_chunk_llama_cpp_does_not_return_before_evaluating_any(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
+    let mut llama_ctx = fixture.build_context()?;
+    let n_batch = i32::try_from(llama_ctx.n_batch())?;
+    let evaluation = {
+        let _fault = ArmedFault::at(
+            llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_GET_RETURNS_NULL,
+        );
+
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true)
+    };
+
+    assert_eq!(
+        evaluation,
+        Err(MtmdEvalError::FfiContract(FfiContractError {
+            operation: "mtmd_input_chunks_get",
+            detail: "returned a null chunk within the chunk count",
+        }))
+    );
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
