@@ -365,7 +365,6 @@ unsafe fn logits_slice<'logits>(
 pub mod context_limits;
 pub mod decoded_output_rows;
 pub mod decoded_outputs;
-pub mod kv_cache;
 pub mod kv_cache_type;
 pub mod llama_attention_type;
 pub mod llama_pooling_type;
@@ -373,6 +372,7 @@ pub mod llama_state_seq_flags;
 pub mod load_seq_state_error;
 pub mod load_session_error;
 pub mod loaded_seq_state;
+pub mod memory;
 pub mod params;
 pub mod rope_scaling_type;
 pub mod save_seq_state_error;
@@ -497,8 +497,7 @@ impl<'model> LlamaContext<'model> {
     }
 
     fn decodes_batches_in_one_micro_batch(&self) -> bool {
-        let keeps_no_memory =
-            unsafe { llama_cpp_bindings_sys::llama_get_memory(self.context.as_ptr()) }.is_null();
+        let keeps_no_memory = !self.has_memory();
         let attends_causally =
             unsafe { llama_cpp_bindings_sys::llama_get_causal_attn(self.context.as_ptr()) };
 

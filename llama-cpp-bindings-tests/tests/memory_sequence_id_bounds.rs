@@ -1,5 +1,5 @@
 use anyhow::Result;
-use llama_cpp_bindings_tests::prime_kv_cache::prime_kv_cache;
+use llama_cpp_bindings::error::MemorySeqRmError;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -35,55 +35,15 @@ use llama_cpp_test_harness::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn clear_kv_cache_resets_positions(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
+fn memory_seq_pos_max_rejects_out_of_range_sequence(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    let result = context.memory_seq_pos_max(999);
 
-    context.clear_kv_cache();
-    assert_eq!(context.kv_cache_seq_pos_max(0)?, -1);
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-fn kv_cache_seq_pos_max_is_non_negative_after_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
-
-    prime_kv_cache(fixture, &mut context)?;
-
-    assert!(context.kv_cache_seq_pos_max(0)? >= 0);
+    assert_eq!(
+        result,
+        Err(llama_cpp_bindings::MemorySeqPosMaxError::SequenceIdOutOfRange { seq_id: 999 })
+    );
 
     Ok(())
 }
@@ -120,14 +80,17 @@ fn kv_cache_seq_pos_max_is_non_negative_after_decode(fixture: &LlamaFixture<'_>)
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_keep_retains_specified_sequence(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_rm_rejects_sequence_id_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    let result = context.memory_seq_rm(Some(u32::MAX), None, None);
 
-    context.kv_cache_seq_keep(0);
-
-    assert!(context.kv_cache_seq_pos_max(0)? >= 0);
+    assert_eq!(
+        result.unwrap_err(),
+        MemorySeqRmError::SeqIdTooLarge(
+            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
+        )
+    );
 
     Ok(())
 }

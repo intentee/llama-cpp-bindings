@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::ptr::null;
 
 use crate::LlamaCppError;
+use crate::backend_device_index::backend_device_index;
 use crate::context::params::LlamaContextParams;
 use crate::error::{FitError, ModelParamsError};
 use crate::model::llama_lazy_mode::LlamaLazyMode;
@@ -305,16 +306,10 @@ impl LlamaModelParams {
 
     #[must_use]
     pub fn devices(&self) -> Vec<usize> {
-        let device_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
-
         self.devices
             .iter()
             .take_while(|device| !device.is_null())
-            .filter_map(|device| {
-                (0..device_count).position(|device_index| {
-                    *device == unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) }
-                })
-            })
+            .filter_map(|device| backend_device_index(*device))
             .collect()
     }
 

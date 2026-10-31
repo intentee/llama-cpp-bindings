@@ -38,10 +38,10 @@ use llama_cpp_test_harness::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn get_state_size_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn state_get_size_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     let context = fixture.build_context()?;
 
-    assert!(context.get_state_size() > 0);
+    assert!(context.state_get_size() > 0);
 
     Ok(())
 }
@@ -78,7 +78,7 @@ fn get_state_size_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn set_state_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn state_set_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let tokens =
@@ -89,12 +89,12 @@ fn set_state_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let mut state_data = vec![0u8; context.get_state_size()];
-    let bytes_copied = unsafe { context.copy_state_data(&mut state_data) }?;
+    let mut state_data = vec![0u8; context.state_get_size()];
+    let bytes_copied = unsafe { context.state_get_data(&mut state_data) }?;
     state_data.truncate(bytes_copied / 2);
 
     assert_eq!(
-        unsafe { context.set_state_data(&state_data) },
+        unsafe { context.state_set_data(&state_data) },
         Err(
             llama_cpp_bindings::context::state_data_error::StateDataError::NothingRestored {
                 provided_bytes: state_data.len(),
@@ -114,7 +114,7 @@ fn set_state_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn copy_state_data_and_set_state_data_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn state_get_data_and_state_set_data_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let tokens =
@@ -125,12 +125,12 @@ fn copy_state_data_and_set_state_data_roundtrip(fixture: &LlamaFixture<'_>) -> R
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let state_size = context.get_state_size();
+    let state_size = context.state_get_size();
     let mut state_data = vec![0u8; state_size];
-    let bytes_copied = unsafe { context.copy_state_data(&mut state_data) }?;
+    let bytes_copied = unsafe { context.state_get_data(&mut state_data) }?;
     assert!(bytes_copied > 0);
 
-    let bytes_read = unsafe { context.set_state_data(&state_data) }?;
+    let bytes_read = unsafe { context.state_set_data(&state_data) }?;
     assert_eq!(
         bytes_read, bytes_copied,
         "restoring the state must consume exactly the bytes the snapshot produced"

@@ -39,32 +39,6 @@ fn accept_many_iterates_over_borrowed_tokens(fixture: &LlamaFixture<'_>) -> Resu
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn with_tokens_returns_self_after_accepting_each_token(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let sampler = LlamaSampler::chain([LlamaSampler::greedy()?])?;
-    let tokens = [
-        fixture
-            .model
-            .token_bos()
-            .context("model declares a BOS token")?,
-        fixture
-            .model
-            .token_eos()
-            .context("model declares an EOS token")?,
-    ];
-
-    let _consumed = sampler.with_tokens(tokens.iter().copied())?;
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 2048,
-    n_ubatch = 512,
-)]
 fn accept_consumes_a_single_token(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut sampler = LlamaSampler::chain([LlamaSampler::greedy()?])?;
 

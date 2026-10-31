@@ -265,7 +265,7 @@ impl LlamaContext<'_> {
     }
 
     #[must_use]
-    pub fn get_state_size(&self) -> usize {
+    pub fn state_get_size(&self) -> usize {
         unsafe { llama_cpp_bindings_sys::llama_state_get_size(self.context.as_ptr()) }
     }
 
@@ -277,7 +277,7 @@ impl LlamaContext<'_> {
     /// # Safety
     ///
     /// The `dest` buffer must be large enough to hold the complete state data.
-    pub unsafe fn copy_state_data(&self, dest: &mut [u8]) -> Result<usize, StateDataError> {
+    pub unsafe fn state_get_data(&self, dest: &mut [u8]) -> Result<usize, StateDataError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -295,14 +295,14 @@ impl LlamaContext<'_> {
 
     /// # Safety
     ///
-    /// The `src` buffer must contain data previously obtained from [`copy_state_data`](Self::copy_state_data)
+    /// The `src` buffer must contain data previously obtained from [`state_get_data`](Self::state_get_data)
     /// on a compatible context (same model and parameters). Passing arbitrary or corrupted bytes
     /// will lead to undefined behavior.
     ///
     /// # Errors
     ///
     /// Returns [`StateDataError`] when the llama.cpp deserializer rejects the buffer.
-    pub unsafe fn set_state_data(&mut self, src: &[u8]) -> Result<usize, StateDataError> {
+    pub unsafe fn state_set_data(&mut self, src: &[u8]) -> Result<usize, StateDataError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {

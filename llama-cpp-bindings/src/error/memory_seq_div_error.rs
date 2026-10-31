@@ -1,7 +1,7 @@
 use std::num::TryFromIntError;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
-pub enum KvCacheSeqDivError {
+pub enum MemorySeqDivError {
     #[error(transparent)]
     FfiStatus(#[from] crate::FfiStatusError),
     #[error(transparent)]

@@ -16,7 +16,7 @@ fn sampler_chain_applies_without_initialized_backend() -> Result<()> {
         false,
     );
 
-    candidates.apply_sampler(&sampler_chain)?;
+    sampler_chain.apply(&mut candidates)?;
 
     assert_eq!(candidates.selected_token(), Some(LlamaToken::new(1)));
 

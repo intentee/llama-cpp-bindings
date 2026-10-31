@@ -261,7 +261,7 @@ fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
 
     add_tokens(&mut state_batch, &state, 0, 0, false)?;
     context.decode(&state_batch)?;
-    context.copy_kv_cache_seq(0, 1, None, None)?;
+    context.memory_seq_cp(0, 1, None, None)?;
 
     let mut first_branch_batch = LlamaBatch::new(ContextLimits::of(&context));
 
@@ -278,7 +278,7 @@ fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
         .nextn_embeddings_ith(first_branch_batch.n_tokens() - 1)?
         .to_vec();
 
-    context.clear_kv_cache_seq(Some(1), None, None)?;
+    context.memory_seq_rm(Some(1), None, None)?;
 
     let mut second_branch_batch = LlamaBatch::new(ContextLimits::of(&context));
 

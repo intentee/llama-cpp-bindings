@@ -281,19 +281,6 @@ mod tests {
     }
 
     #[test]
-    fn a_sampler_with_a_rejected_token_is_not_built() {
-        assert_eq!(
-            letter_a_sampler()
-                .unwrap()
-                .with_tokens([OUT_OF_VOCABULARY])
-                .err(),
-            Some(SamplerAcceptError::GrammarCallbackFailed {
-                message: out_of_vocabulary_failure(),
-            })
-        );
-    }
-
-    #[test]
     fn reset_reports_a_grammar_in_an_error_state_as_a_callback_failure() {
         let mut sampler = letter_a_sampler().unwrap();
 

@@ -8,7 +8,7 @@ use llama_cpp_test_harness::LlamaFixture;
 
 /// # Errors
 /// Forwards tokenization, batch assembly, and [`LlamaContext::decode`] errors verbatim.
-pub fn prime_kv_cache_with(
+pub fn prime_memory_with(
     fixture: &LlamaFixture<'_>,
     context: &mut LlamaContext<'_>,
     text: &str,

@@ -88,7 +88,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert_eq!(classifier.pending_prompt_tokens(), total_token_count);
     assert_eq!(classifier.usage().prompt_tokens, 0);
 
-    ctx.clear_kv_cache();
+    ctx.memory_clear();
     ctx.decode(&batch)
         .with_context(|| "llama_decode() failed")?;
 

@@ -5,6 +5,8 @@ use std::ptr;
 
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
+use crate::backend_device_index::backend_device_index;
+
 use super::mtmd_context_params::MtmdContextParams;
 use super::mtmd_image_token_limit::MtmdImageTokenLimit;
 use super::mtmd_memory_usage_error::MtmdMemoryUsageError;
@@ -138,18 +140,10 @@ impl MtmdMemoryUsage {
     /// [`LlamaModelParams::fit_params`](crate::model::params::LlamaModelParams::fit_params);
     /// a device past its end has no margin to grow.
     pub fn add_to_fit_margins(&self, margins: &mut [usize]) {
-        let device_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
-
         for llama_cpp_bindings_sys::llama_rs_mtmd_device_memory { device, bytes } in
             &self.device_memory
         {
-            let margin = (0..device_count)
-                .position(|device_index| {
-                    let registered_device =
-                        unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
-
-                    registered_device == *device
-                })
+            let margin = backend_device_index(*device)
                 .and_then(|device_index| margins.get_mut(device_index));
 
             if let Some(margin) = margin {

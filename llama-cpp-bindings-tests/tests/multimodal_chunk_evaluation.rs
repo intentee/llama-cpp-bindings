@@ -20,7 +20,7 @@ use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
-use llama_cpp_bindings_tests::prime_kv_cache_with::prime_kv_cache_with;
+use llama_cpp_bindings_tests::prime_memory_with::prime_memory_with;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_fault_injection::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message;
@@ -193,7 +193,7 @@ fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true),
         Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
     );
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -273,7 +273,7 @@ fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
         first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true),
         Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
     );
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -311,7 +311,7 @@ fn eval_single_rejects_a_batch_larger_than_the_context_batch_before_evaluating(
             context_max,
         })
     );
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -344,7 +344,7 @@ fn eval_chunks_rejects_a_sequence_the_context_does_not_have_instead_of_aborting(
             n_seq_max,
         }))
     );
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -402,7 +402,7 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
             fitted_micro_batch_tokens,
         })
     );
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -454,7 +454,7 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
         ))
     ));
     assert_eq!(classifier.usage().prompt_tokens, 0);
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -617,7 +617,7 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
             }
         ))
     );
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -707,7 +707,7 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
         )) if micro_batch_tokens == llama_ctx.n_ubatch()
     ));
     assert_eq!(classifier.usage().prompt_tokens, 0);
-    assert_eq!(llama_ctx.kv_cache_seq_pos_max(0)?, -1);
+    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -735,9 +735,9 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    prime_kv_cache_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
+    prime_memory_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
 
-    let primed_positions = llama_ctx.kv_cache_seq_pos_max(0)? + 1;
+    let primed_positions = llama_ctx.memory_seq_pos_max(0)? + 1;
     let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
 
     assert!(
@@ -783,9 +783,9 @@ fn eval_chunks_reports_an_image_the_context_has_no_room_left_for(
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let mut llama_ctx = fixture.build_context()?;
 
-    prime_kv_cache_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
+    prime_memory_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
 
-    let primed_positions = llama_ctx.kv_cache_seq_pos_max(0)? + 1;
+    let primed_positions = llama_ctx.memory_seq_pos_max(0)? + 1;
 
     assert_eq!(
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, primed_positions, 0, 256, true),

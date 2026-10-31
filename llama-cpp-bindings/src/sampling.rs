@@ -8,6 +8,7 @@ use llama_cpp_error_recorder::RecordedError;
 
 use crate::context::LlamaContext;
 use crate::dry_sequence_breakers::dry_sequence_breakers;
+use crate::error::SamplerApplyError;
 use crate::model::LlamaModel;
 use crate::sanitized_grammar::SanitizedGrammar;
 use crate::token::LlamaToken;
@@ -56,6 +57,53 @@ fn check_sampler_accept_status(
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_sampler_accept",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
+fn sampler_apply_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_sampler_apply_status,
+    out_error: *mut std::os::raw::c_char,
+) -> Result<(), SamplerApplyError> {
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_OK => Ok(()),
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_SAMPLER_ARG => {
+            Err(SamplerApplyError::NullSampler)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(SamplerApplyError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(SamplerApplyError::LlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_sampler_apply",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(SamplerApplyError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_apply",
+                detail: "was given a null data_array argument",
+            }
+            .into())
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG => {
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_apply",
+                detail: "was given a null out_error argument",
+            }
+            .into())
+        }
+        other => Err(crate::FfiStatusError {
+            operation: "llama_rs_sampler_apply",
             code: i64::from(other),
         }
         .into()),
@@ -446,10 +494,34 @@ impl LlamaSampler {
     /// every candidate.
     pub fn apply(&self, data_array: &mut LlamaTokenDataArray) -> Result<(), SampleError> {
         let scope = ErrorScope::enter();
-        let applied = data_array.apply_sampler(self);
+        let applied = self.apply_to_candidates(data_array);
         grammar_callback_error_to_result(scope.take())?;
 
         Ok(applied?)
+    }
+
+    fn apply_to_candidates(
+        &self,
+        data_array: &mut LlamaTokenDataArray,
+    ) -> Result<(), SamplerApplyError> {
+        unsafe {
+            data_array.modify_as_c_llama_token_data_array(|c_llama_token_data_array| {
+                let mut out_error: *mut c_char = std::ptr::null_mut();
+                let status = llama_cpp_bindings_sys::llama_rs_sampler_apply(
+                    self.sampler.as_ptr(),
+                    c_llama_token_data_array,
+                    &raw mut out_error,
+                );
+
+                sampler_apply_status_to_result(status, out_error)
+            })
+        }??;
+
+        if data_array.has_selectable_candidate() {
+            Ok(())
+        } else {
+            Err(SamplerApplyError::EveryCandidateExcluded)
+        }
     }
 
     /// # Errors
@@ -482,17 +554,6 @@ impl LlamaSampler {
         }
 
         Ok(())
-    }
-
-    /// # Errors
-    /// Returns [`SamplerAcceptError`] if the underlying sampler rejects any token.
-    pub fn with_tokens(
-        mut self,
-        tokens: impl IntoIterator<Item = impl Borrow<LlamaToken>>,
-    ) -> Result<Self, SamplerAcceptError> {
-        self.accept_many(tokens)?;
-
-        Ok(self)
     }
 
     /// # Errors
@@ -1156,16 +1217,6 @@ mod tests {
         sampler
             .accept_many([LlamaToken::new(1), LlamaToken::new(2), LlamaToken::new(3)])
             .expect("test: accept_many should succeed");
-    }
-
-    #[test]
-    fn with_tokens_builder_pattern() {
-        use crate::token::LlamaToken;
-
-        let _sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
-            .expect("sampler chain must initialize")
-            .with_tokens([LlamaToken::new(10), LlamaToken::new(20)])
-            .expect("test: with_tokens should succeed");
     }
 
     #[test]
@@ -2123,6 +2174,226 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
                 operation: "llama_rs_sampler_init_grammar_lazy_patterns",
                 code: i64::from(unknown_status),
             }))
+        );
+    }
+}
+
+#[cfg(test)]
+mod sampler_application_tests {
+    use llama_cpp_fault_injection::ArmedFault;
+    use llama_cpp_fault_injection::injected_fault_message;
+
+    use super::LlamaSampler;
+    use crate::SampleError;
+    use crate::SamplingError;
+    use crate::error::SamplerApplyError;
+    use crate::token::LlamaToken;
+    use crate::token::data::LlamaTokenData;
+    use crate::token::data_array::LlamaTokenDataArray;
+
+    fn excluded_candidates() -> LlamaTokenDataArray {
+        LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LlamaToken::new(0), f32::NEG_INFINITY, 0.0),
+                LlamaTokenData::new(LlamaToken::new(1), f32::NEG_INFINITY, 0.0),
+            ],
+            false,
+        )
+    }
+
+    unsafe extern "C" fn claim_more_candidates_than_exist(
+        _sampler: *mut llama_cpp_bindings_sys::llama_sampler,
+        candidates: *mut llama_cpp_bindings_sys::llama_token_data_array,
+    ) {
+        unsafe { (*candidates).size = usize::MAX };
+    }
+
+    static mut OVERREPORTING_SAMPLER: llama_cpp_bindings_sys::llama_sampler_i =
+        llama_cpp_bindings_sys::llama_sampler_i {
+            name: None,
+            accept: None,
+            apply: Some(claim_more_candidates_than_exist),
+            reset: None,
+            clone: None,
+            free: None,
+            backend_init: None,
+            backend_accept: None,
+            backend_apply: None,
+            backend_set_input: None,
+            backend_reset: None,
+            copy_state: None,
+        };
+
+    #[test]
+    fn a_sampler_claiming_more_candidates_than_exist_is_a_contract_violation() {
+        let overreporting_sampler =
+            LlamaSampler::initialize("overreporting", |out_sampler, out_error| unsafe {
+                llama_cpp_bindings_sys::llama_rs_sampler_init(
+                    &raw mut OVERREPORTING_SAMPLER,
+                    std::ptr::null_mut(),
+                    out_sampler,
+                    out_error,
+                )
+            })
+            .unwrap();
+
+        assert_eq!(
+            overreporting_sampler.apply(&mut excluded_candidates()),
+            Err(SampleError::SamplerApply(SamplerApplyError::FfiContract(
+                crate::FfiContractError {
+                    operation: "modify_as_c_llama_token_data_array",
+                    detail: "the llama.cpp sampler grew the token data array beyond its capacity",
+                }
+            )))
+        );
+    }
+
+    #[test]
+    fn selecting_samplers_llama_cpp_cannot_build_are_reported() {
+        let distribution_failure = {
+            let _fault = ArmedFault::at(
+                llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_DIST_THROWS,
+            );
+
+            LlamaSampler::dist(7).err()
+        };
+        let greedy_failure = {
+            let _fault = ArmedFault::at(
+                llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GREEDY_THROWS,
+            );
+
+            LlamaSampler::greedy().err()
+        };
+
+        assert_eq!(
+            [distribution_failure, greedy_failure],
+            [
+                Some(SamplingError::Reported {
+                    sampler: "distribution",
+                    message: injected_fault_message(),
+                }),
+                Some(SamplingError::Reported {
+                    sampler: "greedy",
+                    message: injected_fault_message(),
+                }),
+            ]
+        );
+    }
+}
+
+#[cfg(test)]
+mod sampler_apply_status_to_result_tests {
+    use std::ptr;
+
+    use super::sampler_apply_status_to_result;
+    use crate::error::SamplerApplyError;
+
+    #[test]
+    fn sampler_apply_status_allocation_failed_returns_not_enough_memory() {
+        assert_eq!(
+            sampler_apply_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED,
+                ptr::null_mut(),
+            ),
+            Err(SamplerApplyError::NotEnoughMemory),
+        );
+    }
+
+    #[test]
+    fn sampler_apply_status_cxx_exception_without_a_message_is_a_contract_error() {
+        assert_eq!(
+            sampler_apply_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+            ),
+            Err(crate::FfiContractError {
+                operation: "llama_rs_sampler_apply",
+                detail: "reported a thrown C++ exception without an error message",
+            }
+            .into()),
+        );
+    }
+
+    #[test]
+    fn sampler_apply_unknown_status_is_preserved() {
+        let result = sampler_apply_status_to_result(255, ptr::null_mut());
+
+        assert_eq!(
+            result,
+            Err(SamplerApplyError::FfiStatus(crate::FfiStatusError {
+                operation: "llama_rs_sampler_apply",
+                code: 255,
+            }))
+        );
+    }
+
+    #[test]
+    fn sampler_apply_status_to_result_maps_null_sampler_arg() {
+        let outcome = sampler_apply_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_SAMPLER_ARG,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome.err(), Some(SamplerApplyError::NullSampler));
+    }
+
+    #[test]
+    fn sampler_apply_status_to_result_maps_null_data_array_arg() {
+        let outcome = sampler_apply_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_sampler_apply",
+                    detail: "was given a null data_array argument",
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
+    fn sampler_apply_status_to_result_maps_null_out_error_arg() {
+        let outcome = sampler_apply_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG,
+            ptr::null_mut(),
+        );
+        assert_eq!(
+            outcome.err(),
+            Some(
+                crate::FfiContractError {
+                    operation: "llama_rs_sampler_apply",
+                    detail: "was given a null out_error argument",
+                }
+                .into()
+            )
+        );
+    }
+
+    #[test]
+    fn sampler_apply_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = sampler_apply_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_OUT_OF_MEMORY,
+            ptr::null_mut(),
+        );
+        assert_eq!(outcome.err(), Some(SamplerApplyError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn sampler_apply_status_cxx_exception_carries_its_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"apply threw".as_ptr()) };
+
+        assert_eq!(
+            sampler_apply_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                out_error,
+            ),
+            Err(SamplerApplyError::Reported {
+                message: "apply threw".to_owned(),
+            })
         );
     }
 }

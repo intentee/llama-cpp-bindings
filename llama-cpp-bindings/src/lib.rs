@@ -3,6 +3,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+mod backend_device_index;
 pub mod bare_json_tool_call_probe;
 pub mod bare_json_tool_calls;
 pub mod batch_add_error;
@@ -31,7 +32,6 @@ pub mod dry_sequence_breakers;
 pub mod error;
 pub mod eval_multimodal_chunks_params;
 pub mod generation_progress;
-pub mod ggml_time_us;
 pub mod gguf_context;
 pub mod gguf_context_error;
 pub mod gguf_tensor_f32;
@@ -63,8 +63,6 @@ pub mod log_options;
 pub mod log_record;
 pub mod mask_outcome;
 pub mod max_devices;
-pub mod mlock_supported;
-pub mod mmap_supported;
 pub mod model;
 pub mod mtmd;
 pub mod parsed_chat;
@@ -81,14 +79,14 @@ pub mod token_piece;
 pub mod tool_call_format;
 
 pub use error::{
-    ChatSessionError, ChatTemplateError, ChatTemplatesError, ClearKvCacheSeqError,
-    CopyKvCacheSeqError, DecodeError, EmbeddingsError, EncodeError, EvalMultimodalChunksError,
-    FfiContractError, FfiStatusError, GrammarError, IngestError, JsonSchemaToGrammarError,
-    KvCacheSeqAddError, KvCacheSeqDivError, KvCacheSeqPosMaxError, LlamaContextLoadError,
-    LlamaCppError, LlamaLoraAdapterInitError, LlamaLoraAdaptersError, LlamaModelLoadError,
-    LogitsError, MetaValError, ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError,
+    ChatSessionError, ChatTemplateError, ChatTemplatesError, DecodeError, EmbeddingsError,
+    EncodeError, EvalMultimodalChunksError, FfiContractError, FfiStatusError, GrammarError,
+    IngestError, JsonSchemaToGrammarError, LlamaContextLoadError, LlamaCppError,
+    LlamaLoraAdapterInitError, LlamaLoraAdaptersError, LlamaModelLoadError, LogitsError,
+    MemorySeqAddError, MemorySeqCpError, MemorySeqDivError, MemorySeqPosMaxError, MemorySeqRmError,
+    MetaValError, ModelParamsError, NewLlamaChatMessageError, ParseChatMessageError,
     ProcessFailure, Result, SampleError, SamplerAcceptError, SamplingError, StringToTokenError,
-    TokenAttrError, TokenOutsideVocabulary, TokenSamplingError, TokenToStringError,
+    TokenAttrError, TokenOutsideVocabulary, TokenToStringError,
 };
 
 pub use bare_json_tool_calls::BareJsonToolCalls;
@@ -121,12 +119,9 @@ pub use sampled_token_classifier::SampledTokenClassifier;
 pub use sampled_token_section::SampledTokenSection;
 pub use token_piece::TokenPiece;
 
-pub use ggml_time_us::ggml_time_us;
 pub use json_schema_to_grammar::json_schema_to_grammar;
 pub use llama_time_us::llama_time_us;
 pub use max_devices::max_devices;
-pub use mlock_supported::mlock_supported;
-pub use mmap_supported::mmap_supported;
 
 pub use log_options::LogOptions;
 pub use send_logs_to_log::send_logs_to_log;

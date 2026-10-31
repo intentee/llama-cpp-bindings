@@ -5,28 +5,27 @@ use std::ptr;
 
 use crate::context::LlamaContext;
 use crate::error::{
-    ClearKvCacheSeqError, CopyKvCacheSeqError, KvCacheSeqAddError, KvCacheSeqDivError,
-    KvCacheSeqPosMaxError,
+    MemorySeqAddError, MemorySeqCpError, MemorySeqDivError, MemorySeqPosMaxError, MemorySeqRmError,
 };
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
-fn kv_cache_seq_add_status_to_result(
+fn memory_seq_add_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_memory_seq_add_status,
     out_error: *mut c_char,
-) -> Result<(), KvCacheSeqAddError> {
+) -> Result<(), MemorySeqAddError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_INCOMPATIBLE_ROPE_TYPE => {
-            Err(KvCacheSeqAddError::IncompatibleRopeType)
+            Err(MemorySeqAddError::IncompatibleRopeType)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM => {
-            Err(KvCacheSeqAddError::MemoryHandleUnavailable)
+            Err(MemorySeqAddError::MemoryHandleUnavailable)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(KvCacheSeqAddError::NotEnoughMemory)
+            Err(MemorySeqAddError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(KvCacheSeqAddError::LlamaCppOutOfMemory)
+            Err(MemorySeqAddError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -36,7 +35,7 @@ fn kv_cache_seq_add_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(KvCacheSeqAddError::Reported { message })
+            Err(MemorySeqAddError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG => {
             Err(crate::FfiContractError {
@@ -60,23 +59,23 @@ fn kv_cache_seq_add_status_to_result(
     }
 }
 
-fn kv_cache_seq_div_status_to_result(
+fn memory_seq_div_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_memory_seq_div_status,
     out_error: *mut c_char,
-) -> Result<(), KvCacheSeqDivError> {
+) -> Result<(), MemorySeqDivError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_INCOMPATIBLE_ROPE_TYPE => {
-            Err(KvCacheSeqDivError::IncompatibleRopeType)
+            Err(MemorySeqDivError::IncompatibleRopeType)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM => {
-            Err(KvCacheSeqDivError::MemoryHandleUnavailable)
+            Err(MemorySeqDivError::MemoryHandleUnavailable)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(KvCacheSeqDivError::NotEnoughMemory)
+            Err(MemorySeqDivError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(KvCacheSeqDivError::LlamaCppOutOfMemory)
+            Err(MemorySeqDivError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -86,7 +85,7 @@ fn kv_cache_seq_div_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(KvCacheSeqDivError::Reported { message })
+            Err(MemorySeqDivError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG => {
             Err(crate::FfiContractError {
@@ -110,12 +109,12 @@ fn kv_cache_seq_div_status_to_result(
     }
 }
 
-fn kv_cache_seq_pos_max_status_to_result(
+fn memory_seq_pos_max_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_memory_seq_pos_max_status,
     position: i32,
     seq_id: i32,
     out_error: *mut c_char,
-) -> Result<i32, KvCacheSeqPosMaxError> {
+) -> Result<i32, MemorySeqPosMaxError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK => Ok(position),
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG => {
@@ -140,16 +139,16 @@ fn kv_cache_seq_pos_max_status_to_result(
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM => {
-            Err(KvCacheSeqPosMaxError::MemoryHandleUnavailable)
+            Err(MemorySeqPosMaxError::MemoryHandleUnavailable)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_SEQ_ID_OUT_OF_RANGE => {
-            Err(KvCacheSeqPosMaxError::SequenceIdOutOfRange { seq_id })
+            Err(MemorySeqPosMaxError::SequenceIdOutOfRange { seq_id })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(KvCacheSeqPosMaxError::NotEnoughMemory)
+            Err(MemorySeqPosMaxError::NotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(KvCacheSeqPosMaxError::LlamaCppOutOfMemory)
+            Err(MemorySeqPosMaxError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -159,7 +158,7 @@ fn kv_cache_seq_pos_max_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(KvCacheSeqPosMaxError::Reported { message })
+            Err(MemorySeqPosMaxError::Reported { message })
         }
         other => Err(crate::FfiStatusError {
             operation: "llama_rs_memory_seq_pos_max",
@@ -183,26 +182,26 @@ impl LlamaContext<'_> {
 
     fn required_memory_handle(
         &self,
-    ) -> Result<llama_cpp_bindings_sys::llama_memory_t, CopyKvCacheSeqError> {
+    ) -> Result<llama_cpp_bindings_sys::llama_memory_t, MemorySeqCpError> {
         self.memory_handle()
-            .ok_or(CopyKvCacheSeqError::MemoryHandleUnavailable)
+            .ok_or(MemorySeqCpError::MemoryHandleUnavailable)
     }
 
     /// # Errors
     /// If either position exceeds [`i32::MAX`], or the context has no memory module.
-    pub fn copy_kv_cache_seq(
+    pub fn memory_seq_cp(
         &mut self,
         src: i32,
         dest: i32,
         p0: Option<u32>,
         p1: Option<u32>,
-    ) -> Result<(), CopyKvCacheSeqError> {
+    ) -> Result<(), MemorySeqCpError> {
         let p0 = p0
             .map_or(Ok(-1), i32::try_from)
-            .map_err(CopyKvCacheSeqError::P0TooLarge)?;
+            .map_err(MemorySeqCpError::P0TooLarge)?;
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
-            .map_err(CopyKvCacheSeqError::P1TooLarge)?;
+            .map_err(MemorySeqCpError::P1TooLarge)?;
         let mem = self.required_memory_handle()?;
         unsafe { llama_cpp_bindings_sys::llama_memory_seq_cp(mem, src, dest, p0, p1) };
 
@@ -213,21 +212,21 @@ impl LlamaContext<'_> {
     /// If the sequence id or either position exceeds [`i32::MAX`], or llama.cpp reports
     /// that the partial sequence could not be removed. A context without a memory module
     /// holds no KV cache, so the removal trivially succeeds.
-    pub fn clear_kv_cache_seq(
+    pub fn memory_seq_rm(
         &mut self,
         seq_id: Option<u32>,
         p0: Option<u32>,
         p1: Option<u32>,
-    ) -> Result<(), ClearKvCacheSeqError> {
+    ) -> Result<(), MemorySeqRmError> {
         let seq_id = seq_id
             .map_or(Ok(-1), i32::try_from)
-            .map_err(ClearKvCacheSeqError::SeqIdTooLarge)?;
+            .map_err(MemorySeqRmError::SeqIdTooLarge)?;
         let p0 = p0
             .map_or(Ok(-1), i32::try_from)
-            .map_err(ClearKvCacheSeqError::P0TooLarge)?;
+            .map_err(MemorySeqRmError::P0TooLarge)?;
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
-            .map_err(ClearKvCacheSeqError::P1TooLarge)?;
+            .map_err(MemorySeqRmError::P1TooLarge)?;
         let Some(mem) = self.memory_handle() else {
             return Ok(());
         };
@@ -236,10 +235,10 @@ impl LlamaContext<'_> {
             return Ok(());
         }
 
-        Err(ClearKvCacheSeqError::PartialSequenceNotRemoved { seq_id, p0, p1 })
+        Err(MemorySeqRmError::PartialSequenceNotRemoved { seq_id, p0, p1 })
     }
 
-    pub fn clear_kv_cache(&mut self) {
+    pub fn memory_clear(&mut self) {
         let Some(mem) = self.memory_handle() else {
             return;
         };
@@ -247,7 +246,7 @@ impl LlamaContext<'_> {
         unsafe { llama_cpp_bindings_sys::llama_memory_clear(mem, clear_data_buffers) };
     }
 
-    pub fn kv_cache_seq_keep(&mut self, seq_id: i32) {
+    pub fn memory_seq_keep(&mut self, seq_id: i32) {
         let Some(mem) = self.memory_handle() else {
             return;
         };
@@ -256,19 +255,19 @@ impl LlamaContext<'_> {
 
     /// # Errors
     /// If either position exceeds [`i32::MAX`], or the underlying memory operation reports a failure.
-    pub fn kv_cache_seq_add(
+    pub fn memory_seq_add(
         &mut self,
         seq_id: i32,
         p0: Option<u32>,
         p1: Option<u32>,
         delta: i32,
-    ) -> Result<(), KvCacheSeqAddError> {
+    ) -> Result<(), MemorySeqAddError> {
         let p0 = p0
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheSeqAddError::P0TooLarge)?;
+            .map_err(MemorySeqAddError::P0TooLarge)?;
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheSeqAddError::P1TooLarge)?;
+            .map_err(MemorySeqAddError::P1TooLarge)?;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_memory_seq_add(
@@ -280,24 +279,24 @@ impl LlamaContext<'_> {
                 &raw mut out_error,
             )
         };
-        kv_cache_seq_add_status_to_result(status, out_error)
+        memory_seq_add_status_to_result(status, out_error)
     }
 
     /// # Errors
     /// If either position exceeds [`i32::MAX`], or the underlying memory operation reports a failure.
-    pub fn kv_cache_seq_div(
+    pub fn memory_seq_div(
         &mut self,
         seq_id: i32,
         p0: Option<u32>,
         p1: Option<u32>,
         divisor: NonZeroU8,
-    ) -> Result<(), KvCacheSeqDivError> {
+    ) -> Result<(), MemorySeqDivError> {
         let p0 = p0
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheSeqDivError::P0TooLarge)?;
+            .map_err(MemorySeqDivError::P0TooLarge)?;
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
-            .map_err(KvCacheSeqDivError::P1TooLarge)?;
+            .map_err(MemorySeqDivError::P1TooLarge)?;
         let divisor = c_int::from(divisor.get());
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -310,13 +309,13 @@ impl LlamaContext<'_> {
                 &raw mut out_error,
             )
         };
-        kv_cache_seq_div_status_to_result(status, out_error)
+        memory_seq_div_status_to_result(status, out_error)
     }
 
     /// # Errors
     ///
-    /// Returns [`KvCacheSeqPosMaxError`] if the sequence does not exist or the memory lookup fails.
-    pub fn kv_cache_seq_pos_max(&self, seq_id: i32) -> Result<i32, KvCacheSeqPosMaxError> {
+    /// Returns [`MemorySeqPosMaxError`] if the sequence does not exist or the memory lookup fails.
+    pub fn memory_seq_pos_max(&self, seq_id: i32) -> Result<i32, MemorySeqPosMaxError> {
         let mut position = -1;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -328,20 +327,20 @@ impl LlamaContext<'_> {
             )
         };
 
-        kv_cache_seq_pos_max_status_to_result(status, position, seq_id, out_error)
+        memory_seq_pos_max_status_to_result(status, position, seq_id, out_error)
     }
 }
 
 #[cfg(test)]
-mod kv_cache_seq_add_status_to_result_tests {
+mod memory_seq_add_status_to_result_tests {
     use std::ptr;
 
-    use super::kv_cache_seq_add_status_to_result;
-    use crate::error::KvCacheSeqAddError;
+    use super::memory_seq_add_status_to_result;
+    use crate::error::MemorySeqAddError;
 
     #[test]
     fn add_ok_status_maps_to_ok() {
-        let result = kv_cache_seq_add_status_to_result(
+        let result = memory_seq_add_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_OK,
             ptr::null_mut(),
         );
@@ -352,40 +351,40 @@ mod kv_cache_seq_add_status_to_result_tests {
     #[test]
     fn add_incompatible_rope_type_status_maps_to_incompatible_rope_type() {
         assert_eq!(
-            kv_cache_seq_add_status_to_result(
+            memory_seq_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_INCOMPATIBLE_ROPE_TYPE,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqAddError::IncompatibleRopeType)
+            Err(MemorySeqAddError::IncompatibleRopeType)
         );
     }
 
     #[test]
     fn add_null_mem_status_maps_to_memory_handle_unavailable() {
         assert_eq!(
-            kv_cache_seq_add_status_to_result(
+            memory_seq_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqAddError::MemoryHandleUnavailable)
+            Err(MemorySeqAddError::MemoryHandleUnavailable)
         );
     }
 
     #[test]
     fn add_allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
-            kv_cache_seq_add_status_to_result(
+            memory_seq_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqAddError::NotEnoughMemory)
+            Err(MemorySeqAddError::NotEnoughMemory)
         );
     }
 
     #[test]
     fn add_llama_cpp_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
         assert_eq!(
-            kv_cache_seq_add_status_to_result(
+            memory_seq_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
@@ -403,11 +402,11 @@ mod kv_cache_seq_add_status_to_result_tests {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"shift threw".as_ptr()) };
 
         assert_eq!(
-            kv_cache_seq_add_status_to_result(
+            memory_seq_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 out_error,
             ),
-            Err(KvCacheSeqAddError::Reported {
+            Err(MemorySeqAddError::Reported {
                 message: "shift threw".to_owned()
             })
         );
@@ -415,11 +414,11 @@ mod kv_cache_seq_add_status_to_result_tests {
 
     #[test]
     fn add_unknown_status_is_preserved() {
-        let result = kv_cache_seq_add_status_to_result(255, ptr::null_mut());
+        let result = memory_seq_add_status_to_result(255, ptr::null_mut());
 
         assert_eq!(
             result,
-            Err(KvCacheSeqAddError::FfiStatus(crate::FfiStatusError {
+            Err(MemorySeqAddError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_memory_seq_add",
                 code: 255,
             }))
@@ -427,8 +426,8 @@ mod kv_cache_seq_add_status_to_result_tests {
     }
 
     #[test]
-    fn kv_cache_seq_add_status_to_result_maps_null_ctx_arg() {
-        let outcome = kv_cache_seq_add_status_to_result(
+    fn memory_seq_add_status_to_result_maps_null_ctx_arg() {
+        let outcome = memory_seq_add_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG,
             ptr::null_mut(),
         );
@@ -445,8 +444,8 @@ mod kv_cache_seq_add_status_to_result_tests {
     }
 
     #[test]
-    fn kv_cache_seq_add_status_to_result_maps_null_model() {
-        let outcome = kv_cache_seq_add_status_to_result(
+    fn memory_seq_add_status_to_result_maps_null_model() {
+        let outcome = memory_seq_add_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL,
             ptr::null_mut(),
         );
@@ -463,25 +462,25 @@ mod kv_cache_seq_add_status_to_result_tests {
     }
 
     #[test]
-    fn kv_cache_seq_add_status_to_result_maps_llama_cpp_out_of_memory() {
-        let outcome = kv_cache_seq_add_status_to_result(
+    fn memory_seq_add_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = memory_seq_add_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
         );
-        assert_eq!(outcome.err(), Some(KvCacheSeqAddError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(MemorySeqAddError::LlamaCppOutOfMemory));
     }
 }
 
 #[cfg(test)]
-mod kv_cache_seq_div_status_to_result_tests {
+mod memory_seq_div_status_to_result_tests {
     use std::ptr;
 
-    use super::kv_cache_seq_div_status_to_result;
-    use crate::error::KvCacheSeqDivError;
+    use super::memory_seq_div_status_to_result;
+    use crate::error::MemorySeqDivError;
 
     #[test]
     fn div_ok_status_maps_to_ok() {
-        let result = kv_cache_seq_div_status_to_result(
+        let result = memory_seq_div_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK,
             ptr::null_mut(),
         );
@@ -492,40 +491,40 @@ mod kv_cache_seq_div_status_to_result_tests {
     #[test]
     fn div_incompatible_rope_type_status_maps_to_incompatible_rope_type() {
         assert_eq!(
-            kv_cache_seq_div_status_to_result(
+            memory_seq_div_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_INCOMPATIBLE_ROPE_TYPE,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqDivError::IncompatibleRopeType)
+            Err(MemorySeqDivError::IncompatibleRopeType)
         );
     }
 
     #[test]
     fn div_null_mem_status_maps_to_memory_handle_unavailable() {
         assert_eq!(
-            kv_cache_seq_div_status_to_result(
+            memory_seq_div_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqDivError::MemoryHandleUnavailable)
+            Err(MemorySeqDivError::MemoryHandleUnavailable)
         );
     }
 
     #[test]
     fn div_allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
-            kv_cache_seq_div_status_to_result(
+            memory_seq_div_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqDivError::NotEnoughMemory)
+            Err(MemorySeqDivError::NotEnoughMemory)
         );
     }
 
     #[test]
     fn div_llama_cpp_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
         assert_eq!(
-            kv_cache_seq_div_status_to_result(
+            memory_seq_div_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
@@ -543,11 +542,11 @@ mod kv_cache_seq_div_status_to_result_tests {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"division threw".as_ptr()) };
 
         assert_eq!(
-            kv_cache_seq_div_status_to_result(
+            memory_seq_div_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 out_error,
             ),
-            Err(KvCacheSeqDivError::Reported {
+            Err(MemorySeqDivError::Reported {
                 message: "division threw".to_owned()
             })
         );
@@ -555,11 +554,11 @@ mod kv_cache_seq_div_status_to_result_tests {
 
     #[test]
     fn div_unknown_status_is_preserved() {
-        let result = kv_cache_seq_div_status_to_result(255, ptr::null_mut());
+        let result = memory_seq_div_status_to_result(255, ptr::null_mut());
 
         assert_eq!(
             result,
-            Err(KvCacheSeqDivError::FfiStatus(crate::FfiStatusError {
+            Err(MemorySeqDivError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_memory_seq_div",
                 code: 255,
             }))
@@ -567,8 +566,8 @@ mod kv_cache_seq_div_status_to_result_tests {
     }
 
     #[test]
-    fn kv_cache_seq_div_status_to_result_maps_null_ctx_arg() {
-        let outcome = kv_cache_seq_div_status_to_result(
+    fn memory_seq_div_status_to_result_maps_null_ctx_arg() {
+        let outcome = memory_seq_div_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG,
             ptr::null_mut(),
         );
@@ -585,8 +584,8 @@ mod kv_cache_seq_div_status_to_result_tests {
     }
 
     #[test]
-    fn kv_cache_seq_div_status_to_result_maps_null_model() {
-        let outcome = kv_cache_seq_div_status_to_result(
+    fn memory_seq_div_status_to_result_maps_null_model() {
+        let outcome = memory_seq_div_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL,
             ptr::null_mut(),
         );
@@ -603,26 +602,26 @@ mod kv_cache_seq_div_status_to_result_tests {
     }
 
     #[test]
-    fn kv_cache_seq_div_status_to_result_maps_llama_cpp_out_of_memory() {
-        let outcome = kv_cache_seq_div_status_to_result(
+    fn memory_seq_div_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = memory_seq_div_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
         );
-        assert_eq!(outcome.err(), Some(KvCacheSeqDivError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(MemorySeqDivError::LlamaCppOutOfMemory));
     }
 }
 
 #[cfg(test)]
-mod kv_cache_seq_pos_max_status_to_result_tests {
+mod memory_seq_pos_max_status_to_result_tests {
     use std::ptr;
 
-    use super::kv_cache_seq_pos_max_status_to_result;
-    use crate::error::KvCacheSeqPosMaxError;
+    use super::memory_seq_pos_max_status_to_result;
+    use crate::error::MemorySeqPosMaxError;
 
     #[test]
     fn seq_pos_max_ok_status_returns_position() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK,
                 17,
                 2,
@@ -635,100 +634,94 @@ mod kv_cache_seq_pos_max_status_to_result_tests {
     #[test]
     fn seq_pos_max_null_context_status_is_contract_error() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG,
                 -1,
                 2,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqPosMaxError::FfiContract(
-                crate::FfiContractError {
-                    operation: "llama_rs_memory_seq_pos_max",
-                    detail: "context pointer was null",
-                }
-            ))
+            Err(MemorySeqPosMaxError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_pos_max",
+                detail: "context pointer was null",
+            }))
         );
     }
 
     #[test]
     fn seq_pos_max_null_output_position_status_is_contract_error() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG,
                 -1,
                 2,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqPosMaxError::FfiContract(
-                crate::FfiContractError {
-                    operation: "llama_rs_memory_seq_pos_max",
-                    detail: "output position pointer was null",
-                }
-            ))
+            Err(MemorySeqPosMaxError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_pos_max",
+                detail: "output position pointer was null",
+            }))
         );
     }
 
     #[test]
     fn seq_pos_max_null_output_error_status_is_contract_error() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG,
                 -1,
                 2,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqPosMaxError::FfiContract(
-                crate::FfiContractError {
-                    operation: "llama_rs_memory_seq_pos_max",
-                    detail: "output error pointer was null",
-                }
-            ))
+            Err(MemorySeqPosMaxError::FfiContract(crate::FfiContractError {
+                operation: "llama_rs_memory_seq_pos_max",
+                detail: "output error pointer was null",
+            }))
         );
     }
 
     #[test]
     fn seq_pos_max_null_memory_status_maps_to_memory_handle_unavailable() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM,
                 -1,
                 2,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqPosMaxError::MemoryHandleUnavailable)
+            Err(MemorySeqPosMaxError::MemoryHandleUnavailable)
         );
     }
 
     #[test]
     fn seq_pos_max_out_of_range_status_preserves_sequence_id() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_SEQ_ID_OUT_OF_RANGE,
                 -1,
                 27,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqPosMaxError::SequenceIdOutOfRange { seq_id: 27 })
+            Err(MemorySeqPosMaxError::SequenceIdOutOfRange { seq_id: 27 })
         );
     }
 
     #[test]
     fn seq_pos_max_allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED,
                 -1,
                 2,
                 ptr::null_mut(),
             ),
-            Err(KvCacheSeqPosMaxError::NotEnoughMemory)
+            Err(MemorySeqPosMaxError::NotEnoughMemory)
         );
     }
 
     #[test]
     fn seq_pos_max_llama_cpp_exception_status_without_a_message_is_a_contract_error_error() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 -1,
                 2,
@@ -749,13 +742,13 @@ mod kv_cache_seq_pos_max_status_to_result_tests {
         };
 
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(
+            memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 -1,
                 2,
                 out_error,
             ),
-            Err(KvCacheSeqPosMaxError::Reported {
+            Err(MemorySeqPosMaxError::Reported {
                 message: "position lookup threw".to_owned()
             })
         );
@@ -764,8 +757,8 @@ mod kv_cache_seq_pos_max_status_to_result_tests {
     #[test]
     fn seq_pos_max_unknown_status_is_preserved() {
         assert_eq!(
-            kv_cache_seq_pos_max_status_to_result(255, -1, 2, ptr::null_mut(),),
-            Err(KvCacheSeqPosMaxError::FfiStatus(crate::FfiStatusError {
+            memory_seq_pos_max_status_to_result(255, -1, 2, ptr::null_mut(),),
+            Err(MemorySeqPosMaxError::FfiStatus(crate::FfiStatusError {
                 operation: "llama_rs_memory_seq_pos_max",
                 code: 255,
             }))
@@ -773,8 +766,8 @@ mod kv_cache_seq_pos_max_status_to_result_tests {
     }
 
     #[test]
-    fn kv_cache_seq_pos_max_status_to_result_maps_llama_cpp_out_of_memory() {
-        let outcome = kv_cache_seq_pos_max_status_to_result(
+    fn memory_seq_pos_max_status_to_result_maps_llama_cpp_out_of_memory() {
+        let outcome = memory_seq_pos_max_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             0,
@@ -782,7 +775,7 @@ mod kv_cache_seq_pos_max_status_to_result_tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(KvCacheSeqPosMaxError::LlamaCppOutOfMemory)
+            Some(MemorySeqPosMaxError::LlamaCppOutOfMemory)
         );
     }
 }

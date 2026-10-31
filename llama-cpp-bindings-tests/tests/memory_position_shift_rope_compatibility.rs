@@ -2,9 +2,9 @@ use std::num::NonZeroU8;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::error::KvCacheSeqAddError;
-use llama_cpp_bindings::error::KvCacheSeqDivError;
-use llama_cpp_bindings_tests::prime_kv_cache::prime_kv_cache;
+use llama_cpp_bindings::error::MemorySeqAddError;
+use llama_cpp_bindings::error::MemorySeqDivError;
+use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -24,17 +24,14 @@ use llama_cpp_test_harness::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_add_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_add_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    prime_memory(fixture, &mut context)?;
 
-    let result = context.kv_cache_seq_add(0, Some(0), None, 1);
+    let result = context.memory_seq_add(0, Some(0), None, 1);
 
-    assert_eq!(
-        result.unwrap_err(),
-        KvCacheSeqAddError::IncompatibleRopeType
-    );
+    assert_eq!(result.unwrap_err(), MemorySeqAddError::IncompatibleRopeType);
 
     Ok(())
 }
@@ -55,18 +52,15 @@ fn kv_cache_seq_add_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) ->
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_div_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_div_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    prime_memory(fixture, &mut context)?;
 
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
-    let result = context.kv_cache_seq_div(0, Some(0), None, divisor);
+    let result = context.memory_seq_div(0, Some(0), None, divisor);
 
-    assert_eq!(
-        result.unwrap_err(),
-        KvCacheSeqDivError::IncompatibleRopeType
-    );
+    assert_eq!(result.unwrap_err(), MemorySeqDivError::IncompatibleRopeType);
 
     Ok(())
 }
@@ -79,12 +73,12 @@ fn kv_cache_seq_div_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) ->
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_add_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_add_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    prime_memory(fixture, &mut context)?;
 
-    let result = context.kv_cache_seq_add(0, Some(0), None, 1);
+    let result = context.memory_seq_add(0, Some(0), None, 1);
 
     assert!(result.is_ok());
 
@@ -99,13 +93,13 @@ fn kv_cache_seq_add_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> R
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_div_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_div_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    prime_memory(fixture, &mut context)?;
 
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
-    let result = context.kv_cache_seq_div(0, Some(0), None, divisor);
+    let result = context.memory_seq_div(0, Some(0), None, divisor);
 
     assert!(result.is_ok());
 

@@ -1,8 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::SeqCst;
 
-use llama_cpp_bindings_sys::ggml_log_level;
-
 use crate::LlamaCppError;
 use crate::llama_backend_numa_strategy::NumaStrategy;
 
@@ -58,19 +56,6 @@ impl LlamaBackend {
     pub fn supports_mlock(&self) -> bool {
         unsafe { llama_cpp_bindings_sys::llama_supports_mlock() }
     }
-
-    pub fn void_logs(&mut self) {
-        unsafe {
-            llama_cpp_bindings_sys::llama_log_set(Some(void_log), std::ptr::null_mut());
-        }
-    }
-}
-
-const unsafe extern "C" fn void_log(
-    _level: ggml_log_level,
-    _text: *const ::std::os::raw::c_char,
-    _user_data: *mut ::std::os::raw::c_void,
-) {
 }
 
 impl Drop for LlamaBackend {
@@ -86,17 +71,6 @@ mod tests {
 
     use super::LlamaBackend;
     use crate::LlamaCppError;
-
-    #[test]
-    fn void_log_callback_accepts_a_log_record() {
-        unsafe {
-            super::void_log(
-                llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
-                c"test".as_ptr(),
-                std::ptr::null_mut(),
-            );
-        }
-    }
 
     #[test]
     #[serial]

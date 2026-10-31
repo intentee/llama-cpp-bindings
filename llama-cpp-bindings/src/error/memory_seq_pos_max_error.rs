@@ -1,5 +1,5 @@
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
-pub enum KvCacheSeqPosMaxError {
+pub enum MemorySeqPosMaxError {
     #[error(transparent)]
     FfiContract(#[from] crate::FfiContractError),
     #[error(transparent)]

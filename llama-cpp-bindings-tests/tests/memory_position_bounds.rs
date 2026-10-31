@@ -2,10 +2,10 @@ use std::num::NonZeroU8;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::error::ClearKvCacheSeqError;
-use llama_cpp_bindings::error::CopyKvCacheSeqError;
-use llama_cpp_bindings::error::KvCacheSeqAddError;
-use llama_cpp_bindings::error::KvCacheSeqDivError;
+use llama_cpp_bindings::error::MemorySeqAddError;
+use llama_cpp_bindings::error::MemorySeqCpError;
+use llama_cpp_bindings::error::MemorySeqDivError;
+use llama_cpp_bindings::error::MemorySeqRmError;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -41,14 +41,14 @@ use llama_cpp_test_harness::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn copy_kv_cache_seq_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_cp_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let result = context.copy_kv_cache_seq(0, 1, Some(u32::MAX), None);
+    let result = context.memory_seq_cp(0, 1, Some(u32::MAX), None);
 
     assert_eq!(
         result.unwrap_err(),
-        CopyKvCacheSeqError::P0TooLarge(
+        MemorySeqCpError::P0TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -88,14 +88,14 @@ fn copy_kv_cache_seq_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) ->
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn copy_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_cp_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let result = context.copy_kv_cache_seq(0, 1, Some(0), Some(u32::MAX));
+    let result = context.memory_seq_cp(0, 1, Some(0), Some(u32::MAX));
 
     assert_eq!(
         result.unwrap_err(),
-        CopyKvCacheSeqError::P1TooLarge(
+        MemorySeqCpError::P1TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -135,14 +135,14 @@ fn copy_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) ->
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn clear_kv_cache_seq_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_rm_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let result = context.clear_kv_cache_seq(Some(0), Some(u32::MAX), None);
+    let result = context.memory_seq_rm(Some(0), Some(u32::MAX), None);
 
     assert_eq!(
         result.unwrap_err(),
-        ClearKvCacheSeqError::P0TooLarge(
+        MemorySeqRmError::P0TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -182,14 +182,14 @@ fn clear_kv_cache_seq_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn clear_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_rm_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let result = context.clear_kv_cache_seq(Some(0), Some(0), Some(u32::MAX));
+    let result = context.memory_seq_rm(Some(0), Some(0), Some(u32::MAX));
 
     assert_eq!(
         result.unwrap_err(),
-        ClearKvCacheSeqError::P1TooLarge(
+        MemorySeqRmError::P1TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -229,14 +229,14 @@ fn clear_kv_cache_seq_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_add_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_add_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let result = context.kv_cache_seq_add(0, Some(u32::MAX), None, 1);
+    let result = context.memory_seq_add(0, Some(u32::MAX), None, 1);
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqAddError::P0TooLarge(
+        MemorySeqAddError::P0TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -276,14 +276,14 @@ fn kv_cache_seq_add_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_add_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_add_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    let result = context.kv_cache_seq_add(0, Some(0), Some(u32::MAX), 1);
+    let result = context.memory_seq_add(0, Some(0), Some(u32::MAX), 1);
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqAddError::P1TooLarge(
+        MemorySeqAddError::P1TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -323,15 +323,15 @@ fn kv_cache_seq_add_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
-    let result = context.kv_cache_seq_div(0, Some(u32::MAX), None, divisor);
+    let result = context.memory_seq_div(0, Some(u32::MAX), None, divisor);
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqDivError::P0TooLarge(
+        MemorySeqDivError::P0TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );
@@ -371,15 +371,15 @@ fn kv_cache_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> 
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn kv_cache_seq_div_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_div_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
-    let result = context.kv_cache_seq_div(0, Some(0), Some(u32::MAX), divisor);
+    let result = context.memory_seq_div(0, Some(0), Some(u32::MAX), divisor);
 
     assert_eq!(
         result.unwrap_err(),
-        KvCacheSeqDivError::P1TooLarge(
+        MemorySeqDivError::P1TooLarge(
             i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
         )
     );

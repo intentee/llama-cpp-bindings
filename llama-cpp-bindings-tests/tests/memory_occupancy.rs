@@ -1,6 +1,5 @@
 use anyhow::Result;
-use llama_cpp_bindings::ClearKvCacheSeqError;
-use llama_cpp_bindings_tests::prime_kv_cache::prime_kv_cache;
+use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -36,15 +35,13 @@ use llama_cpp_test_harness::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn clear_kv_cache_seq_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_clear_resets_positions(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    prime_memory(fixture, &mut context)?;
 
-    assert_eq!(
-        context.clear_kv_cache_seq(Some(0), Some(0), Some(1)),
-        Ok(())
-    );
+    context.memory_clear();
+    assert_eq!(context.memory_seq_pos_max(0)?, -1);
 
     Ok(())
 }
@@ -81,12 +78,12 @@ fn clear_kv_cache_seq_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> R
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn copy_kv_cache_seq_succeeds(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_pos_max_is_non_negative_after_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    prime_memory(fixture, &mut context)?;
 
-    assert_eq!(context.copy_kv_cache_seq(0, 1, None, None), Ok(()));
+    assert!(context.memory_seq_pos_max(0)? >= 0);
 
     Ok(())
 }
@@ -123,39 +120,14 @@ fn copy_kv_cache_seq_succeeds(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn copy_kv_cache_seq_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_keep_retains_specified_sequence(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    prime_kv_cache(fixture, &mut context)?;
+    prime_memory(fixture, &mut context)?;
 
-    assert_eq!(context.copy_kv_cache_seq(0, 2, Some(0), Some(1)), Ok(()));
+    context.memory_seq_keep(0);
 
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn qwen35_recurrent_memory_refuses_to_remove_part_of_a_sequence(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let mut context = fixture.build_context()?;
-
-    prime_kv_cache(fixture, &mut context)?;
-
-    assert_eq!(
-        context.clear_kv_cache_seq(Some(0), Some(1), Some(2)),
-        Err(ClearKvCacheSeqError::PartialSequenceNotRemoved {
-            seq_id: 0,
-            p0: 1,
-            p1: 2,
-        })
-    );
+    assert!(context.memory_seq_pos_max(0)? >= 0);
 
     Ok(())
 }

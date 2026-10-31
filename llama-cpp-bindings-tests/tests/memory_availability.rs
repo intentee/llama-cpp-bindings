@@ -2,11 +2,11 @@ use std::num::NonZeroU8;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::ClearKvCacheSeqError;
-use llama_cpp_bindings::CopyKvCacheSeqError;
-use llama_cpp_bindings::KvCacheSeqAddError;
-use llama_cpp_bindings::KvCacheSeqDivError;
-use llama_cpp_bindings::KvCacheSeqPosMaxError;
+use llama_cpp_bindings::MemorySeqAddError;
+use llama_cpp_bindings::MemorySeqCpError;
+use llama_cpp_bindings::MemorySeqDivError;
+use llama_cpp_bindings::MemorySeqPosMaxError;
+use llama_cpp_bindings::MemorySeqRmError;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -50,35 +50,35 @@ fn a_causal_embedding_context_keeps_memory(fixture: &LlamaFixture<'_>) -> Result
     n_threads_batch = 8,
     embeddings = true,
 )]
-fn kv_cache_operations_respect_an_embedding_context_without_memory(
+fn memory_operations_respect_an_embedding_context_without_memory(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    context.clear_kv_cache();
-    assert_eq!(context.clear_kv_cache_seq(Some(0), None, None), Ok(()));
-    context.kv_cache_seq_keep(0);
+    context.memory_clear();
+    assert_eq!(context.memory_seq_rm(Some(0), None, None), Ok(()));
+    context.memory_seq_keep(0);
 
     assert_eq!(
-        context.copy_kv_cache_seq(0, 1, None, None),
-        Err(CopyKvCacheSeqError::MemoryHandleUnavailable)
+        context.memory_seq_cp(0, 1, None, None),
+        Err(MemorySeqCpError::MemoryHandleUnavailable)
     );
     assert_eq!(
-        context.kv_cache_seq_add(0, None, None, 1),
-        Err(KvCacheSeqAddError::MemoryHandleUnavailable)
+        context.memory_seq_add(0, None, None, 1),
+        Err(MemorySeqAddError::MemoryHandleUnavailable)
     );
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     assert_eq!(
-        context.kv_cache_seq_div(0, None, None, divisor),
-        Err(KvCacheSeqDivError::MemoryHandleUnavailable)
+        context.memory_seq_div(0, None, None, divisor),
+        Err(MemorySeqDivError::MemoryHandleUnavailable)
     );
     assert_eq!(
-        context.kv_cache_seq_pos_max(0),
-        Err(KvCacheSeqPosMaxError::MemoryHandleUnavailable)
+        context.memory_seq_pos_max(0),
+        Err(MemorySeqPosMaxError::MemoryHandleUnavailable)
     );
     assert!(matches!(
-        context.clear_kv_cache_seq(Some(u32::MAX), None, None),
-        Err(ClearKvCacheSeqError::SeqIdTooLarge(_))
+        context.memory_seq_rm(Some(u32::MAX), None, None),
+        Err(MemorySeqRmError::SeqIdTooLarge(_))
     ));
 
     Ok(())
