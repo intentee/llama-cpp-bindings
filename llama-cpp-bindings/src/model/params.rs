@@ -1,13 +1,18 @@
 use std::ffi::{CStr, CString, c_char};
+use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
+use std::ptr;
 use std::ptr::null;
+
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::backend_device_index::backend_device_index;
 use crate::context::params::LlamaContextParams;
 use crate::error::fit_error::FitError;
 use crate::error::llama_cpp_error::LlamaCppError;
 use crate::error::model_params_error::ModelParamsError;
+use crate::max_devices::max_devices;
 use crate::model::llama_lazy_mode::LlamaLazyMode;
 use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 use crate::model::llama_load_mode::LlamaLoadMode;
@@ -17,7 +22,6 @@ use crate::model::params::fit_extra_model::FitExtraModel;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
 use crate::model::split_mode::LlamaSplitMode;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 pub mod fit_extra_model;
 pub mod fit_result;
@@ -137,7 +141,7 @@ pub struct LlamaModelParams {
 }
 
 impl Debug for LlamaModelParams {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LlamaModelParams")
             .field("n_gpu_layers", &self.params.n_gpu_layers)
             .field("main_gpu", &self.params.main_gpu)
@@ -259,7 +263,7 @@ impl LlamaModelParams {
         self.buft_overrides
             .push(llama_cpp_bindings_sys::llama_model_tensor_buft_override {
                 pattern: null(),
-                buft: std::ptr::null_mut(),
+                buft: ptr::null_mut(),
             });
 
         self.params.tensor_buft_overrides = self.buft_overrides.as_ptr();
@@ -371,9 +375,9 @@ impl LlamaModelParams {
     /// Returns `LlamaCppError::BackendDeviceNotFound` if any device index is invalid.
     pub fn with_devices(mut self, devices: &[usize]) -> Result<Self, LlamaCppError> {
         for dev in self.devices.iter_mut() {
-            *dev = std::ptr::null_mut();
+            *dev = ptr::null_mut();
         }
-        let max_devices = crate::max_devices::max_devices().min(LLAMA_CPP_MAX_DEVICES);
+        let max_devices = max_devices().min(LLAMA_CPP_MAX_DEVICES);
         if devices.len() > max_devices {
             return Err(LlamaCppError::MaxDevicesExceeded(max_devices));
         }
@@ -421,7 +425,7 @@ impl LlamaModelParams {
             max_buft + 1,
             llama_cpp_bindings_sys::llama_model_tensor_buft_override {
                 pattern: null(),
-                buft: std::ptr::null_mut(),
+                buft: ptr::null_mut(),
             },
         );
 
@@ -429,7 +433,7 @@ impl LlamaModelParams {
         self.params.tensor_buft_overrides = null();
 
         let mut out_unrecognized_status_code: i32 = 0;
-        let mut out_error: *mut c_char = std::ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
 
         let mut extra_ffi = extra.as_mut().map(|extra_model| extra_model.as_ffi());
         let extra_ptr = extra_ffi
@@ -477,10 +481,10 @@ impl Default for LlamaModelParams {
             }],
             buft_overrides: vec![llama_cpp_bindings_sys::llama_model_tensor_buft_override {
                 pattern: null(),
-                buft: std::ptr::null_mut(),
+                buft: ptr::null_mut(),
             }],
             buft_override_patterns: Vec::new(),
-            devices: Box::pin([std::ptr::null_mut(); 16]),
+            devices: Box::pin([ptr::null_mut(); 16]),
             tensor_split: Vec::new(),
         }
     }
@@ -488,16 +492,26 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CStr;
+    use std::ffi::CString;
+    use std::mem::discriminant;
     use std::ptr;
 
     use super::LLAMA_CPP_MAX_DEVICES;
     use super::LlamaModelParams;
     use super::fit_params_status_to_result;
+    use crate::context::params::LlamaContextParams;
     use crate::error::fit_error::FitError;
     use crate::error::llama_cpp_error::LlamaCppError;
+    use crate::error::model_params_error::ModelParamsError;
+    use crate::llama_backend::LlamaBackend;
+    #[cfg(feature = "dynamic-backends")]
+    use crate::load_backends::load_backends;
+    use crate::max_devices::max_devices;
     use crate::model::llama_lazy_mode::LlamaLazyMode;
     use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
     use crate::model::llama_load_mode::LlamaLoadMode;
+    use crate::model::params::param_override_value::ParamOverrideValue;
     use crate::model::split_mode::LlamaSplitMode;
 
     fn contract_error_reported_for(
@@ -516,7 +530,7 @@ mod tests {
 
     #[test]
     fn device_capacity_is_not_smaller_than_the_upstream_limit() {
-        let upstream_limit = crate::max_devices::max_devices();
+        let upstream_limit = max_devices();
         assert!(
             LLAMA_CPP_MAX_DEVICES >= upstream_limit,
             "LLAMA_CPP_MAX_DEVICES ({LLAMA_CPP_MAX_DEVICES}) backs a fixed-size device array and is \
@@ -732,12 +746,12 @@ mod tests {
 
         params
             .as_mut()
-            .add_cpu_buft_override(std::ffi::CStr::from_bytes_with_nul(&caller_buffer).unwrap())
+            .add_cpu_buft_override(CStr::from_bytes_with_nul(&caller_buffer).unwrap())
             .unwrap();
         caller_buffer.fill(b'x');
 
         assert_eq!(
-            unsafe { std::ffi::CStr::from_ptr(params.buft_overrides[0].pattern) },
+            unsafe { CStr::from_ptr(params.buft_overrides[0].pattern) },
             c"blk\\.0\\.ffn"
         );
     }
@@ -751,10 +765,7 @@ mod tests {
             .unwrap();
         let result = params.as_mut().add_cpu_buft_override(c"second_pattern");
 
-        assert_eq!(
-            result.unwrap_err(),
-            crate::error::model_params_error::ModelParamsError::SlotNotEmpty
-        );
+        assert_eq!(result.unwrap_err(), ModelParamsError::SlotNotEmpty);
     }
 
     #[test]
@@ -767,9 +778,6 @@ mod tests {
 
     #[test]
     fn append_kv_override_twice_fails_with_slot_not_empty() {
-        use crate::model::params::param_override_value::ParamOverrideValue;
-        use std::ffi::CString;
-
         let mut params = std::pin::pin!(LlamaModelParams::default());
         let key = CString::new("first_key").unwrap();
         params
@@ -782,17 +790,14 @@ mod tests {
             .as_mut()
             .append_kv_override(&key2, ParamOverrideValue::Int(2));
 
-        assert_eq!(
-            result.unwrap_err(),
-            crate::error::model_params_error::ModelParamsError::SlotNotEmpty
-        );
+        assert_eq!(result.unwrap_err(), ModelParamsError::SlotNotEmpty);
     }
 
     #[test]
     fn with_devices_too_many_returns_max_exceeded() {
         let too_many: Vec<usize> = (0..17).collect();
         let result = LlamaModelParams::default().with_devices(&too_many);
-        let device_limit = crate::max_devices::max_devices().min(LLAMA_CPP_MAX_DEVICES);
+        let device_limit = max_devices().min(LLAMA_CPP_MAX_DEVICES);
 
         assert!(
             matches!(
@@ -806,7 +811,7 @@ mod tests {
     #[test]
     fn with_devices_sets_devices_when_available() {
         #[cfg(feature = "dynamic-backends")]
-        crate::load_backends::load_backends().unwrap();
+        load_backends().unwrap();
 
         let dev_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
         assert!(dev_count > 0, "Test requires at least one backend device");
@@ -833,48 +838,40 @@ mod tests {
 
     #[test]
     fn append_kv_override_with_high_byte_returns_invalid_character_error() {
-        use crate::model::params::param_override_value::ParamOverrideValue;
-
         let key_bytes: &[u8] = b"\xff\0";
-        let key = std::ffi::CStr::from_bytes_with_nul(key_bytes).unwrap();
+        let key = CStr::from_bytes_with_nul(key_bytes).unwrap();
         let mut params = std::pin::pin!(LlamaModelParams::default());
         let result = params
             .as_mut()
             .append_kv_override(key, ParamOverrideValue::Int(1));
 
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(
-                &crate::error::model_params_error::ModelParamsError::InvalidCharacterInKey {
-                    byte: 0,
-                    reason: String::new(),
-                }
-            ),
+            discriminant(&result.unwrap_err()),
+            discriminant(&ModelParamsError::InvalidCharacterInKey {
+                byte: 0,
+                reason: String::new(),
+            }),
         );
     }
 
     #[test]
     fn add_cpu_buft_override_with_high_byte_returns_invalid_character_error() {
         let key_bytes: &[u8] = b"\xff\0";
-        let key = std::ffi::CStr::from_bytes_with_nul(key_bytes).unwrap();
+        let key = CStr::from_bytes_with_nul(key_bytes).unwrap();
         let mut params = std::pin::pin!(LlamaModelParams::default());
         let result = params.as_mut().add_cpu_buft_override(key);
 
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(
-                &crate::error::model_params_error::ModelParamsError::InvalidCharacterInKey {
-                    byte: 0,
-                    reason: String::new(),
-                }
-            ),
+            discriminant(&result.unwrap_err()),
+            discriminant(&ModelParamsError::InvalidCharacterInKey {
+                byte: 0,
+                reason: String::new(),
+            }),
         );
     }
 
     #[test]
     fn append_kv_override_with_empty_slot_vector_returns_no_available_slot() {
-        use crate::model::params::param_override_value::ParamOverrideValue;
-
         let mut params = LlamaModelParams::default();
         params.kv_overrides.clear();
         let mut pinned = std::pin::pin!(params);
@@ -883,10 +880,7 @@ mod tests {
             .as_mut()
             .append_kv_override(c"any_key", ParamOverrideValue::Int(1));
 
-        assert_eq!(
-            result.unwrap_err(),
-            crate::error::model_params_error::ModelParamsError::NoAvailableSlot
-        );
+        assert_eq!(result.unwrap_err(), ModelParamsError::NoAvailableSlot);
     }
 
     #[test]
@@ -897,23 +891,16 @@ mod tests {
 
         let result = pinned.as_mut().add_cpu_buft_override(c"any_pattern");
 
-        assert_eq!(
-            result.unwrap_err(),
-            crate::error::model_params_error::ModelParamsError::NoAvailableSlot
-        );
+        assert_eq!(result.unwrap_err(), ModelParamsError::NoAvailableSlot);
     }
 
     #[test]
     #[serial_test::serial]
     fn fit_params_invalid_model_path_returns_error() {
-        use crate::context::params::LlamaContextParams;
-        use crate::error::fit_error::FitError;
-        use crate::llama_backend::LlamaBackend;
-
         let _backend = LlamaBackend::init();
         let mut params = std::pin::pin!(LlamaModelParams::default());
         let mut context_params = LlamaContextParams::default();
-        let mut margins = vec![0usize; crate::max_devices::max_devices()];
+        let mut margins = vec![0usize; max_devices()];
 
         let bogus_path = c"/nonexistent/path/to/model.gguf";
         let result = params.as_mut().fit_params(
@@ -930,12 +917,9 @@ mod tests {
 
     #[test]
     fn fit_params_refuses_margins_not_sized_to_the_device_count() {
-        use crate::context::params::LlamaContextParams;
-        use crate::error::fit_error::FitError;
-
         let mut params = std::pin::pin!(LlamaModelParams::default());
         let mut context_params = LlamaContextParams::default();
-        let mut margins = vec![0usize; crate::max_devices::max_devices() + 1];
+        let mut margins = vec![0usize; max_devices() + 1];
 
         let result = params.as_mut().fit_params(
             c"/nonexistent/path/to/model.gguf",
@@ -949,8 +933,8 @@ mod tests {
         assert_eq!(
             result.err(),
             Some(FitError::MarginsDeviceCountMismatch {
-                expected: crate::max_devices::max_devices(),
-                actual: crate::max_devices::max_devices() + 1,
+                expected: max_devices(),
+                actual: max_devices() + 1,
             })
         );
     }

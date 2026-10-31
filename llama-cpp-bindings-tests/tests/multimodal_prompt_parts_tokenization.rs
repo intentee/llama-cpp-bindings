@@ -2,6 +2,7 @@ use std::ffi::CString;
 
 use anyhow::Context as _;
 use anyhow::Result;
+
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;

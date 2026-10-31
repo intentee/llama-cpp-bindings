@@ -1,13 +1,13 @@
 use std::ffi::c_char;
+use std::ptr;
 
 use llama_cpp_ffi_status::read_and_free_cpp_string;
-
-use crate::context::LlamaContext;
-use crate::context::decoded_output_rows::DecodedOutputRows;
 
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_input_chunk::MtmdInputChunk;
+use crate::context::LlamaContext;
+use crate::context::decoded_output_rows::DecodedOutputRows;
 
 fn eval_chunk_single_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status,
@@ -87,7 +87,7 @@ pub fn eval_chunk(
 ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdEvalError> {
     let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
     let mut out_llama_cpp_return_code: i32 = 0;
-    let mut out_error: *mut c_char = std::ptr::null_mut();
+    let mut out_error: *mut c_char = ptr::null_mut();
 
     let status = unsafe {
         llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single(

@@ -74,13 +74,12 @@ impl ChatSpans {
 
 #[cfg(test)]
 mod tests {
+    use super::ChatSpans;
     use crate::chat_output_completeness::ChatOutputCompleteness;
     use crate::chat_piece_role::ChatPieceRole;
     use crate::chat_span::ChatSpan;
     use crate::chat_span_kind::ChatSpanKind;
     use crate::sampled_token_section::SampledTokenSection;
-
-    use super::ChatSpans;
 
     fn span(kind: ChatSpanKind, start: usize, end: usize) -> ChatSpan {
         ChatSpan {

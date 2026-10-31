@@ -1,8 +1,7 @@
 use std::ptr;
 
-use crate::token::data::LlamaTokenData;
-
 use super::LlamaToken;
+use crate::token::data::LlamaTokenData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LlamaTokenDataArray {

@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::fmt::Display;
 use std::panic::AssertUnwindSafe;
 use std::panic::catch_unwind;
 
@@ -109,7 +110,7 @@ impl GrammarMatcher {
         }
     }
 
-    fn run<TValue, TError: std::fmt::Display>(
+    fn run<TValue, TError: Display>(
         &mut self,
         operation: &'static str,
         step: impl FnOnce(&mut TokenParser) -> Result<TValue, TError>,
@@ -131,6 +132,8 @@ impl GrammarMatcher {
 
 #[cfg(test)]
 mod tests {
+    use std::any::Any;
+
     use llguidance::ParserFactory;
     use llguidance::TokenParser;
     use llguidance::api::StopReason;
@@ -182,21 +185,21 @@ mod tests {
 
     #[test]
     fn a_static_str_panic_payload_is_preserved() {
-        let payload: Box<dyn std::any::Any + Send> = Box::new("parser exploded");
+        let payload: Box<dyn Any + Send> = Box::new("parser exploded");
 
         assert_eq!(panic_payload_message(payload.as_ref()), "parser exploded");
     }
 
     #[test]
     fn an_owned_string_panic_payload_is_preserved() {
-        let payload: Box<dyn std::any::Any + Send> = Box::new("lexer exploded".to_owned());
+        let payload: Box<dyn Any + Send> = Box::new("lexer exploded".to_owned());
 
         assert_eq!(panic_payload_message(payload.as_ref()), "lexer exploded");
     }
 
     #[test]
     fn a_payload_without_a_message_is_described() {
-        let payload: Box<dyn std::any::Any + Send> = Box::new(42_u32);
+        let payload: Box<dyn Any + Send> = Box::new(42_u32);
 
         assert_eq!(
             panic_payload_message(payload.as_ref()),

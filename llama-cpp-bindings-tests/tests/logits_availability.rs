@@ -1,14 +1,14 @@
 use anyhow::Result;
+
 use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_bindings::error::logits_error::LogitsError;
 use llama_cpp_bindings::error::sample_error::SampleError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
+use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
-
-use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
 
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),

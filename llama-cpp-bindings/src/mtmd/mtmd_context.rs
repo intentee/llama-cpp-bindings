@@ -5,9 +5,8 @@ use std::ptr;
 use std::ptr::NonNull;
 
 use enumflags2::BitFlags;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
 
-use crate::model::LlamaModel;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use super::mtmd_bitmap::MtmdBitmap;
 use super::mtmd_capability::MtmdCapability;
@@ -20,6 +19,7 @@ use super::mtmd_input_chunks::MtmdInputChunks;
 use super::mtmd_input_part::MtmdInputPart;
 use super::mtmd_input_text::MtmdInputText;
 use super::mtmd_tokenize_error::MtmdTokenizeError;
+use crate::model::LlamaModel;
 
 fn capability_flags(
     llama_cpp_bindings_sys::mtmd_helper_cap {

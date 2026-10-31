@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::Result;
+
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;

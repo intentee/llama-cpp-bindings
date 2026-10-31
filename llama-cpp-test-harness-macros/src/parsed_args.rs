@@ -263,6 +263,7 @@ mod tests {
     use syn::parse_str;
 
     use super::ParsedArgs;
+    use crate::parsed_load_mode::ParsedLoadMode;
     use crate::parsed_source::ParsedSource;
 
     const ALL_REQUIRED: &str = "\
@@ -289,10 +290,7 @@ mod tests {
             },
         );
         assert_eq!(parsed.model_load_params.n_gpu_layers, 0);
-        assert_eq!(
-            parsed.model_load_params.load_mode,
-            crate::parsed_load_mode::ParsedLoadMode::Mmap
-        );
+        assert_eq!(parsed.model_load_params.load_mode, ParsedLoadMode::Mmap);
         assert_eq!(parsed.context_params.n_ctx, 512);
         assert_eq!(parsed.context_params.n_batch, 128);
         assert_eq!(parsed.context_params.n_ubatch, 64);

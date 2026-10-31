@@ -1,9 +1,9 @@
 use anyhow::Result;
+
 use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
+use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
-
-use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
 
 const LFM2_COLBERT_OUTPUT_PROJECTION_WIDTH: usize = 128;
 const QWEN3_RERANKER_CLASSIFIER_LABELS: usize = 2;

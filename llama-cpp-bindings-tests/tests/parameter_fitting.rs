@@ -3,6 +3,7 @@ use std::num::NonZeroU32;
 use std::pin::pin;
 
 use anyhow::Result;
+
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::max_devices::max_devices;
 use llama_cpp_bindings::model::params::LlamaModelParams;

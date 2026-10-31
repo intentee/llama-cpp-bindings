@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
+
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 
 use crate::execution_phase::ExecutionPhase;
@@ -73,6 +74,7 @@ impl ExecutionPlan {
 
 #[cfg(test)]
 mod tests {
+    use super::ExecutionPlan;
     use crate::LlamaLoadMode;
     use crate::context_params::ContextParams;
     use crate::gguf_source::GgufSource;
@@ -81,8 +83,6 @@ mod tests {
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
     use crate::no_op::no_op;
-
-    use super::ExecutionPlan;
 
     const TRIVIAL_CONTEXT_PARAMS: ContextParams = ContextParams {
         n_ctx: 1,

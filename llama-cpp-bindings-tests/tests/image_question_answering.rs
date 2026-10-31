@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+
 use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;

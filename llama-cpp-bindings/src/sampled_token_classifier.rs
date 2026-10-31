@@ -1,6 +1,5 @@
 use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_sys::llama_seq_id;
-
 use llama_cpp_bindings_types::TokenUsage;
 use llama_cpp_bindings_types::TokenUsageError;
 

@@ -176,10 +176,13 @@ impl AndroidNdk {
 
 #[cfg(test)]
 pub mod tests {
+    use std::env;
     use std::ffi::OsString;
+    use std::fs;
     use std::os::unix::ffi::OsStringExt;
     use std::path::Path;
     use std::path::PathBuf;
+    use std::process;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
 
@@ -205,10 +208,7 @@ pub mod tests {
     fn temporary_directory(name: &str) -> PathBuf {
         let id = NEXT_DIRECTORY_ID.fetch_add(1, Ordering::Relaxed);
 
-        std::env::temp_dir().join(format!(
-            "llama-cpp-bindings-{name}-{}-{id}",
-            std::process::id()
-        ))
+        env::temp_dir().join(format!("llama-cpp-bindings-{name}-{}-{id}", process::id()))
     }
 
     fn ndk_at(root: &Path) -> BuildEnvironment {
@@ -352,7 +352,7 @@ pub mod tests {
     #[test]
     fn ndk_validation_rejects_a_root_without_a_cmake_toolchain() {
         let root = temporary_directory("ndk-without-toolchain");
-        std::fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&root).unwrap();
 
         assert_eq!(
             validate_ndk_installation(root.to_str().unwrap())
@@ -363,16 +363,16 @@ pub mod tests {
                 root.join("build/cmake/android.toolchain.cmake").display()
             ))
         );
-        std::fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn detection_rejects_a_toolchain_without_a_clang_directory() {
         let root = temporary_directory("ndk-without-clang");
         let toolchain = root.join("toolchains/llvm/prebuilt/linux-x86_64");
-        std::fs::create_dir_all(root.join("build/cmake")).unwrap();
-        std::fs::write(root.join("build/cmake/android.toolchain.cmake"), "").unwrap();
-        std::fs::create_dir_all(&toolchain).unwrap();
+        fs::create_dir_all(root.join("build/cmake")).unwrap();
+        fs::write(root.join("build/cmake/android.toolchain.cmake"), "").unwrap();
+        fs::create_dir_all(&toolchain).unwrap();
 
         assert_eq!(
             detection_failure(&ndk_at(&root), "aarch64", HostOs::Linux),
@@ -382,14 +382,14 @@ pub mod tests {
                 toolchain.join("lib/clang").display()
             ))
         );
-        std::fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn clang_builtin_include_resolution_requires_a_version_directory() {
         let toolchain = temporary_directory("clang-without-version");
-        std::fs::create_dir_all(toolchain.join("lib/clang")).unwrap();
-        std::fs::write(toolchain.join("lib/clang/21"), "").unwrap();
+        fs::create_dir_all(toolchain.join("lib/clang")).unwrap();
+        fs::write(toolchain.join("lib/clang/21"), "").unwrap();
 
         assert_eq!(
             find_clang_builtin_includes(toolchain.to_str().unwrap())
@@ -400,14 +400,14 @@ pub mod tests {
                 toolchain.join("lib/clang").display()
             ))
         );
-        std::fs::remove_dir_all(toolchain).unwrap();
+        fs::remove_dir_all(toolchain).unwrap();
     }
 
     #[test]
     fn clang_builtin_include_resolution_refuses_to_choose_between_version_directories() {
         let toolchain = temporary_directory("clang-with-two-versions");
-        std::fs::create_dir_all(toolchain.join("lib/clang/18/include")).unwrap();
-        std::fs::create_dir_all(toolchain.join("lib/clang/17/include")).unwrap();
+        fs::create_dir_all(toolchain.join("lib/clang/18/include")).unwrap();
+        fs::create_dir_all(toolchain.join("lib/clang/17/include")).unwrap();
 
         assert_eq!(
             find_clang_builtin_includes(toolchain.to_str().unwrap())
@@ -422,13 +422,13 @@ pub mod tests {
                 ]
             ))
         );
-        std::fs::remove_dir_all(toolchain).unwrap();
+        fs::remove_dir_all(toolchain).unwrap();
     }
 
     #[test]
     fn clang_builtin_include_resolution_requires_an_include_directory() {
         let toolchain = temporary_directory("clang-without-includes");
-        std::fs::create_dir_all(toolchain.join("lib/clang/20")).unwrap();
+        fs::create_dir_all(toolchain.join("lib/clang/20")).unwrap();
 
         assert_eq!(
             find_clang_builtin_includes(toolchain.to_str().unwrap())
@@ -439,6 +439,6 @@ pub mod tests {
                 toolchain.join("lib/clang/20/include").display()
             ))
         );
-        std::fs::remove_dir_all(toolchain).unwrap();
+        fs::remove_dir_all(toolchain).unwrap();
     }
 }

@@ -1,5 +1,25 @@
+pub mod context_limits;
+pub mod decoded_output_rows;
+pub mod decoded_outputs;
+pub mod kv_cache_type;
+pub mod llama_attention_type;
+pub mod llama_pooling_type;
+pub mod llama_state_seq_flags;
+pub mod load_seq_state_error;
+pub mod load_session_error;
+pub mod loaded_seq_state;
+pub mod memory;
+pub mod params;
+pub mod rope_scaling_type;
+pub mod save_seq_state_error;
+pub mod save_session_error;
+mod sequence_output_capacity;
+pub mod session;
+pub mod state_data_error;
+
 use std::ffi::c_char;
 use std::ffi::c_void;
+use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroI32;
 use std::ptr;
@@ -372,25 +392,6 @@ unsafe fn logits_slice<'logits>(
     Ok(unsafe { slice::from_raw_parts(logits.as_ptr(), len) })
 }
 
-pub mod context_limits;
-pub mod decoded_output_rows;
-pub mod decoded_outputs;
-pub mod kv_cache_type;
-pub mod llama_attention_type;
-pub mod llama_pooling_type;
-pub mod llama_state_seq_flags;
-pub mod load_seq_state_error;
-pub mod load_session_error;
-pub mod loaded_seq_state;
-pub mod memory;
-pub mod params;
-pub mod rope_scaling_type;
-pub mod save_seq_state_error;
-pub mod save_session_error;
-mod sequence_output_capacity;
-pub mod session;
-pub mod state_data_error;
-
 unsafe extern "C" fn abort_callback_trampoline(data: *mut c_void) -> bool {
     let flag = unsafe { &*(data as *const AtomicBool) };
 
@@ -408,7 +409,7 @@ pub struct LlamaContext<'model> {
 }
 
 impl Debug for LlamaContext<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LlamaContext")
             .field("context", &self.context)
             .finish()

@@ -154,6 +154,8 @@ impl<'usage> Sum<&'usage Self> for TokenUsage {
 
 #[cfg(test)]
 mod tests {
+    use std::iter;
+
     use super::TokenUsage;
     use super::TokenUsageError;
 
@@ -442,7 +444,7 @@ mod tests {
 
     #[test]
     fn sum_over_empty_iter_returns_default() {
-        let summed: TokenUsage = std::iter::empty::<TokenUsage>().sum();
+        let summed: TokenUsage = iter::empty::<TokenUsage>().sum();
 
         assert_eq!(summed, TokenUsage::default());
     }

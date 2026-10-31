@@ -1,7 +1,9 @@
 use std::ffi::{CStr, CString, c_char};
+use std::ptr;
+
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 /// # Safety
 ///
@@ -98,8 +100,8 @@ unsafe fn json_schema_to_grammar_status_to_result(
 /// the wrapper reports any non-OK status, or the returned grammar is not valid UTF-8.
 pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, JsonSchemaToGrammarError> {
     let schema_cstr = CString::new(schema_json)?;
-    let mut out: *mut c_char = std::ptr::null_mut();
-    let mut error_ptr: *mut c_char = std::ptr::null_mut();
+    let mut out: *mut c_char = ptr::null_mut();
+    let mut error_ptr: *mut c_char = ptr::null_mut();
 
     let status = unsafe {
         llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar(
@@ -114,6 +116,9 @@ pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, JsonSchemaToG
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CString;
+    use std::mem::discriminant;
+
     use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
     use crate::json_schema_to_grammar::json_schema_to_grammar;
 
@@ -127,18 +132,13 @@ mod tests {
 
     #[test]
     fn null_byte_returns_schema_contains_nul_byte_error() {
-        use std::ffi::CString;
-
         let schema = "{\x00}";
         let err = json_schema_to_grammar(schema).unwrap_err();
         let representative = JsonSchemaToGrammarError::SchemaContainsNulByte(
             CString::new(b"a\0b".to_vec()).unwrap_err(),
         );
 
-        assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
-        );
+        assert_eq!(discriminant(&err), discriminant(&representative));
     }
 
     #[test]
@@ -157,10 +157,7 @@ mod tests {
             message: String::new(),
         };
 
-        assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
-        );
+        assert_eq!(discriminant(&err), discriminant(&representative));
     }
 
     #[test]
@@ -171,16 +168,14 @@ mod tests {
             message: String::new(),
         };
 
-        assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
-        );
+        assert_eq!(discriminant(&err), discriminant(&representative));
     }
 }
 
 #[cfg(test)]
 mod json_schema_to_grammar_status_to_result_tests {
     use std::ffi::c_char;
+    use std::mem::discriminant;
     use std::ptr;
 
     use super::json_schema_to_grammar_status_to_result;
@@ -301,8 +296,8 @@ mod json_schema_to_grammar_status_to_result_tests {
             JsonSchemaToGrammarError::GrammarNotUtf8(String::from_utf8(vec![0xFF]).unwrap_err());
 
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
-            std::mem::discriminant(&representative),
+            discriminant(&result.unwrap_err()),
+            discriminant(&representative),
         );
     }
 

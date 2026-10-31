@@ -26,12 +26,11 @@ impl ExecutionPhase {
 
 #[cfg(test)]
 mod tests {
+    use super::ExecutionPhase;
     use crate::GgufSource;
     use crate::LlamaLoadMode;
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
-
-    use super::ExecutionPhase;
 
     fn phase_with_source(source: GgufSource) -> ExecutionPhase {
         ExecutionPhase {

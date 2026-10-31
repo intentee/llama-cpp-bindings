@@ -27,6 +27,7 @@ mod tests {
     use std::path::PathBuf;
 
     use enumflags2::BitFlags;
+
     use llama_cpp_wrapper_sources::wrapper_headers::WRAPPER_HEADERS;
     use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
 

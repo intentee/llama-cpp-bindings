@@ -142,14 +142,13 @@ impl LlamaBatch {
 mod tests {
     use llama_cpp_bindings_sys::llama_rs_batch_entry;
 
+    use super::LlamaBatch;
     use crate::batch_add_error::BatchAddError;
     use crate::context::context_limits::ContextLimits;
     use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
     use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
     use crate::sampled_token::SampledToken;
     use crate::token::LlamaToken;
-
-    use super::LlamaBatch;
 
     const LIMITS: ContextLimits = ContextLimits {
         n_batch: 4,

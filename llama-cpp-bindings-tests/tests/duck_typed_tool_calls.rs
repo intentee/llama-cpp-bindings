@@ -1,4 +1,5 @@
 use anyhow::Result;
+
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings_tests::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
 use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;

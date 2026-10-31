@@ -1,9 +1,8 @@
 use std::num::NonZeroU32;
 
+use super::mtmd_eval_error::MtmdEvalError;
 use crate::context::LlamaContext;
 use crate::context::context_limits::ContextLimits;
-
-use super::mtmd_eval_error::MtmdEvalError;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MtmdEvalLimits {

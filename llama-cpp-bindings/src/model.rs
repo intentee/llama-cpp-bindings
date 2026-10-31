@@ -16,8 +16,13 @@ pub mod tokenizer_input;
 pub mod vocab_type;
 pub mod vocab_type_from_int_error;
 
+use std::cmp;
 use std::ffi::{CStr, CString, c_char};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::num::NonZeroU16;
+use std::num::TryFromIntError;
 use std::os::raw::c_int;
 use std::path::Path;
 use std::ptr;
@@ -26,10 +31,13 @@ use std::sync::Arc;
 
 use encoding_rs::CoderResult;
 use once_cell::sync::OnceCell;
+use params::LlamaModelParams;
 use toktrie::ApproximateTokEnv;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokRxInfo;
 use toktrie::TokTrie;
+
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::chat_templates::ChatTemplates;
 use crate::error::chat_template_error::ChatTemplateError;
@@ -43,19 +51,16 @@ use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
 use crate::error::token_to_string_error::TokenToStringError;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
-use crate::model::tokenizer_input::TokenizerInput;
-use crate::sampled_token::SampledToken;
-use crate::token::LlamaToken;
-
 use crate::model::add_bos::AddBos;
 use crate::model::llama_chat_template::LlamaChatTemplate;
 use crate::model::llama_lora_adapter::LlamaLoraAdapter;
 use crate::model::parse_special_tokens::ParseSpecialTokens;
 use crate::model::rope_type::RopeType;
+use crate::model::tokenizer_input::TokenizerInput;
 use crate::model::vocab_type::VocabType;
 use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
-use params::LlamaModelParams;
+use crate::sampled_token::SampledToken;
+use crate::token::LlamaToken;
 
 const PIECE_PROBE_LEN: c_int = 32;
 
@@ -110,8 +115,8 @@ pub struct LlamaModel {
     chat_templates: OnceCell<ChatTemplates>,
 }
 
-impl std::fmt::Debug for LlamaModel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for LlamaModel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LlamaModel")
             .field("model", &self.model)
             .finish_non_exhaustive()
@@ -219,7 +224,7 @@ impl LlamaModel {
     /// # Errors
     ///
     /// Returns an error if the value returned by llama.cpp does not fit into a `u32`.
-    pub fn n_ctx_train(&self) -> Result<u32, std::num::TryFromIntError> {
+    pub fn n_ctx_train(&self) -> Result<u32, TryFromIntError> {
         let n_ctx_train =
             unsafe { llama_cpp_bindings_sys::llama_model_n_ctx_train(self.model.as_ptr()) };
 
@@ -307,7 +312,7 @@ impl LlamaModel {
             ParseSpecialTokens::Never => false,
         };
 
-        let tokens_estimation = std::cmp::max(8, (str.len() / 2) + usize::from(add_bos));
+        let tokens_estimation = cmp::max(8, (str.len() / 2) + usize::from(add_bos));
         let TokenizerInput {
             text: c_string,
             length: c_string_len,
@@ -491,21 +496,21 @@ impl LlamaModel {
     /// # Errors
     ///
     /// Returns an error if the layer count returned by llama.cpp does not fit into a `u32`.
-    pub fn n_layer(&self) -> Result<u32, std::num::TryFromIntError> {
+    pub fn n_layer(&self) -> Result<u32, TryFromIntError> {
         u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_layer(self.model.as_ptr()) })
     }
 
     /// # Errors
     ///
     /// Returns an error if the head count returned by llama.cpp does not fit into a `u32`.
-    pub fn n_head(&self) -> Result<u32, std::num::TryFromIntError> {
+    pub fn n_head(&self) -> Result<u32, TryFromIntError> {
         u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_head(self.model.as_ptr()) })
     }
 
     /// # Errors
     ///
     /// Returns an error if the KV head count returned by llama.cpp does not fit into a `u32`.
-    pub fn n_head_kv(&self) -> Result<u32, std::num::TryFromIntError> {
+    pub fn n_head_kv(&self) -> Result<u32, TryFromIntError> {
         u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_head_kv(self.model.as_ptr()) })
     }
 
@@ -955,14 +960,13 @@ mod cstring_with_validated_len_tests {
 #[cfg(test)]
 mod validate_string_length_for_tokenizer_tests {
     use super::validate_string_length_for_tokenizer;
+    use crate::error::string_to_token_error::StringToTokenError;
 
     #[test]
     fn validate_string_length_overflow_returns_error() {
         assert_eq!(
             validate_string_length_for_tokenizer(usize::MAX),
-            i32::try_from(usize::MAX).map_err(
-                crate::error::string_to_token_error::StringToTokenError::CIntConversionError
-            )
+            i32::try_from(usize::MAX).map_err(StringToTokenError::CIntConversionError)
         );
     }
 }
@@ -1000,7 +1004,10 @@ mod checked_token_count_tests {
 #[cfg(test)]
 mod tokenize_into_buffer_tests {
 
+    use std::cell::Cell;
+
     use super::tokenize_into_buffer;
+    use crate::error::string_to_token_error::StringToTokenError;
 
     #[test]
     fn tokenize_into_buffer_single_pass_sets_length() {
@@ -1011,7 +1018,7 @@ mod tokenize_into_buffer_tests {
 
     #[test]
     fn tokenize_into_buffer_grows_buffer_when_first_pass_reports_negative_size() {
-        let call_count = std::cell::Cell::new(0);
+        let call_count = Cell::new(0);
         let buffer = tokenize_into_buffer(8, |_tokens, _n_tokens_max| {
             let count = call_count.get();
             call_count.set(count + 1);
@@ -1026,32 +1033,26 @@ mod tokenize_into_buffer_tests {
     #[test]
     fn tokenize_into_buffer_propagates_invocation_error() {
         let result = tokenize_into_buffer(8, |_tokens, _n_tokens_max| {
-            Err(crate::error::string_to_token_error::StringToTokenError::NotEnoughMemory)
+            Err(StringToTokenError::NotEnoughMemory)
         });
 
-        assert_eq!(
-            result,
-            Err(crate::error::string_to_token_error::StringToTokenError::NotEnoughMemory)
-        );
+        assert_eq!(result, Err(StringToTokenError::NotEnoughMemory));
     }
 
     #[test]
     fn tokenize_into_buffer_propagates_second_invocation_error() {
-        let call_count = std::cell::Cell::new(0);
+        let call_count = Cell::new(0);
         let result = tokenize_into_buffer(8, |_tokens, _n_tokens_max| {
             let count = call_count.get();
             call_count.set(count + 1);
             if count == 0 {
                 Ok(-20)
             } else {
-                Err(crate::error::string_to_token_error::StringToTokenError::NotEnoughMemory)
+                Err(StringToTokenError::NotEnoughMemory)
             }
         });
 
-        assert_eq!(
-            result,
-            Err(crate::error::string_to_token_error::StringToTokenError::NotEnoughMemory)
-        );
+        assert_eq!(result, Err(StringToTokenError::NotEnoughMemory));
         assert_eq!(call_count.get(), 2);
     }
 
@@ -1059,11 +1060,9 @@ mod tokenize_into_buffer_tests {
     fn tokenize_into_buffer_refuses_a_capacity_beyond_a_c_int_before_allocating() {
         assert_eq!(
             tokenize_into_buffer(usize::MAX, |_tokens, _n_tokens_max| Ok(0)),
-            Err(
-                crate::error::string_to_token_error::StringToTokenError::CIntConversionError(
-                    i32::try_from(usize::MAX).unwrap_err()
-                )
-            )
+            Err(StringToTokenError::CIntConversionError(
+                i32::try_from(usize::MAX).unwrap_err()
+            ))
         );
     }
 
@@ -1071,17 +1070,15 @@ mod tokenize_into_buffer_tests {
     fn tokenize_into_buffer_refuses_a_required_size_it_cannot_negate() {
         assert_eq!(
             tokenize_into_buffer(8, |_tokens, _n_tokens_max| Ok(i32::MIN)),
-            Err(
-                crate::error::string_to_token_error::StringToTokenError::CIntConversionError(
-                    usize::try_from(i32::MIN).unwrap_err()
-                )
-            )
+            Err(StringToTokenError::CIntConversionError(
+                usize::try_from(i32::MIN).unwrap_err()
+            ))
         );
     }
 
     #[test]
     fn tokenize_into_buffer_negative_final_size_returns_conversion_error() {
-        let call_count = std::cell::Cell::new(0);
+        let call_count = Cell::new(0);
         let result = tokenize_into_buffer(8, |_tokens, _n_tokens_max| {
             let count = call_count.get();
             call_count.set(count + 1);
@@ -1090,15 +1087,16 @@ mod tokenize_into_buffer_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::error::string_to_token_error::StringToTokenError::CIntConversionError(
-                usize::try_from(-5i32).unwrap_err()
-            )
+            StringToTokenError::CIntConversionError(usize::try_from(-5i32).unwrap_err())
         );
     }
 }
 
 #[cfg(test)]
 mod extract_meta_string_tests {
+    use std::cell::Cell;
+    use std::slice;
+
     use super::extract_meta_string;
     use crate::error::meta_val_error::MetaValError;
 
@@ -1106,8 +1104,7 @@ mod extract_meta_string_tests {
     fn returns_error_when_null_terminator_missing() {
         let result = extract_meta_string(
             |buf_ptr, buf_len| {
-                let buffer =
-                    unsafe { std::slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
+                let buffer = unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
                 buffer[0] = b'a';
                 buffer[1] = b'b';
                 buffer[2] = b'c';
@@ -1130,8 +1127,7 @@ mod extract_meta_string_tests {
     fn returns_error_for_invalid_utf8_data() {
         let result = extract_meta_string(
             |buf_ptr, buf_len| {
-                let buffer =
-                    unsafe { std::slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
+                let buffer = unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
                 buffer[0] = 0xFF;
                 buffer[1] = 0xFE;
                 buffer[2] = 0;
@@ -1150,7 +1146,7 @@ mod extract_meta_string_tests {
         let initial_capacity: usize = 4;
         let length_exceeding_initial_capacity = 10;
         let written_length = 2;
-        let call_count = std::cell::Cell::new(0);
+        let call_count = Cell::new(0);
         let result = extract_meta_string(
             |buf_ptr, buf_len| {
                 let count = call_count.get();
@@ -1159,7 +1155,7 @@ mod extract_meta_string_tests {
                     length_exceeding_initial_capacity
                 } else {
                     let buffer =
-                        unsafe { std::slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
+                        unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
                     buffer[0] = b'h';
                     buffer[1] = b'i';
                     buffer[2] = 0;
@@ -1175,6 +1171,7 @@ mod extract_meta_string_tests {
 
 #[cfg(test)]
 mod initialize_lora_adapter_tests {
+    use std::mem::ManuallyDrop;
     use std::ptr;
 
     use super::initialize_lora_adapter;
@@ -1190,7 +1187,7 @@ mod initialize_lora_adapter_tests {
     #[test]
     fn lora_adapter_initialization_owns_a_valid_pointer() {
         let pointer = ptr::NonNull::dangling();
-        let adapter = std::mem::ManuallyDrop::new(
+        let adapter = ManuallyDrop::new(
             initialize_lora_adapter(|| pointer.as_ptr())
                 .expect("a non-null adapter pointer must initialize"),
         );

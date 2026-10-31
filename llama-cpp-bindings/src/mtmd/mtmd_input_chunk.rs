@@ -6,14 +6,13 @@ use std::slice;
 
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
-use crate::token::LlamaToken;
-
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_input_chunk_error::MtmdInputChunkError;
 use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 use super::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
+use crate::token::LlamaToken;
 
 /// # Safety
 ///
@@ -220,6 +219,8 @@ impl Drop for MtmdInputChunk {
 
 #[cfg(test)]
 mod unit_tests {
+    use std::ptr;
+
     use super::non_causal_chunk_micro_batch_error;
     use super::tokens_from_raw_ptr;
     use crate::mtmd::mtmd_eval_error::MtmdEvalError;
@@ -227,7 +228,7 @@ mod unit_tests {
 
     #[test]
     fn tokens_from_raw_ptr_returns_none_for_null() {
-        assert!(unsafe { tokens_from_raw_ptr(std::ptr::null(), 5) }.is_none());
+        assert!(unsafe { tokens_from_raw_ptr(ptr::null(), 5) }.is_none());
     }
 
     #[test]

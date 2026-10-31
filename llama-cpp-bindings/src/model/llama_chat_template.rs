@@ -1,4 +1,8 @@
+use std::ffi::NulError;
 use std::ffi::{CStr, CString};
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::str::Utf8Error;
 
 #[derive(Eq, PartialEq, Clone, PartialOrd, Ord, Hash)]
@@ -7,7 +11,7 @@ pub struct LlamaChatTemplate(pub CString);
 impl LlamaChatTemplate {
     /// # Errors
     /// Returns an error if the template string contains null bytes.
-    pub fn new(template: &str) -> Result<Self, std::ffi::NulError> {
+    pub fn new(template: &str) -> Result<Self, NulError> {
         Ok(Self(CString::new(template)?))
     }
 
@@ -29,8 +33,8 @@ impl LlamaChatTemplate {
     }
 }
 
-impl std::fmt::Debug for LlamaChatTemplate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for LlamaChatTemplate {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }

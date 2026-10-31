@@ -1,5 +1,8 @@
 use anyhow::Result;
+
 use llama_cpp_bindings::context::context_limits::ContextLimits;
+use llama_cpp_bindings::context::llama_state_seq_flags::LlamaStateSeqFlags;
+use llama_cpp_bindings::context::state_data_error::StateDataError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
@@ -95,11 +98,9 @@ fn state_set_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
 
     assert_eq!(
         unsafe { context.state_set_data(&state_data) },
-        Err(
-            llama_cpp_bindings::context::state_data_error::StateDataError::NothingRestored {
-                provided_bytes: state_data.len(),
-            }
-        ),
+        Err(StateDataError::NothingRestored {
+            provided_bytes: state_data.len(),
+        }),
         "a truncated snapshot restores nothing, and that must not be reported as success"
     );
 
@@ -174,8 +175,6 @@ fn state_get_data_and_state_set_data_roundtrip(fixture: &LlamaFixture<'_>) -> Re
 fn state_seq_get_size_ext_returns_size_for_decoded_sequence(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    use llama_cpp_bindings::context::llama_state_seq_flags::LlamaStateSeqFlags;
-
     let mut context = fixture.build_context()?;
 
     let tokens =
@@ -227,8 +226,6 @@ fn state_seq_get_size_ext_returns_size_for_decoded_sequence(
     n_ubatch = 128,
 )]
 fn state_seq_get_data_ext_and_set_data_ext_round_trip(fixture: &LlamaFixture<'_>) -> Result<()> {
-    use llama_cpp_bindings::context::llama_state_seq_flags::LlamaStateSeqFlags;
-
     let mut context = fixture.build_context()?;
 
     let tokens =

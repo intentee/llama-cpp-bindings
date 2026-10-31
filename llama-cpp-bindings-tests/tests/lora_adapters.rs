@@ -1,4 +1,5 @@
 use anyhow::Result;
+
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
 use llama_cpp_bindings::model::lora_adapter_scale::LoraAdapterScale;

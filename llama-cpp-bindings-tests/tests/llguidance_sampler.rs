@@ -2,6 +2,7 @@ use std::ffi::CStr;
 
 use anyhow::Context as _;
 use anyhow::Result;
+
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::grammar_error::GrammarError;

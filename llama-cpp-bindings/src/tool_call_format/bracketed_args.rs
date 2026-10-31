@@ -98,12 +98,15 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+
+    use serde_json::json;
+
     use llama_cpp_bindings_types::BracketedJsonShape;
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ToolCallArgsShape;
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::ToolCallMarkers;
-    use serde_json::json;
 
     use super::parse;
     use crate::error::bracketed_args_failure::BracketedArgsFailure;
@@ -191,8 +194,8 @@ mod tests {
         let failure = result.expect_err("malformed JSON must produce a typed failure");
 
         assert_eq!(
-            std::mem::discriminant(&failure),
-            std::mem::discriminant(&BracketedArgsFailure::InvalidJsonArguments {
+            discriminant(&failure),
+            discriminant(&BracketedArgsFailure::InvalidJsonArguments {
                 tool_name: String::new(),
                 message: String::new(),
             }),

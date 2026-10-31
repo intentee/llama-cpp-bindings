@@ -1,13 +1,18 @@
+use std::env;
+use std::fs;
+use std::process;
+
 use anyhow::Context;
 use anyhow::Result;
+use toktrie::INVALID_TOKEN;
+use toktrie::TokenizerEnv as _;
+
 use llama_cpp_bindings::gguf_context::GgufContext;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
-use toktrie::INVALID_TOKEN;
-use toktrie::TokenizerEnv as _;
 
 #[llama_test(
     model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
@@ -46,9 +51,9 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
 fn approximate_tok_env_of_a_model_without_eot_and_eos_has_no_eos(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model_without_eos_path = std::env::temp_dir().join(format!(
+    let model_without_eos_path = env::temp_dir().join(format!(
         "llama_cpp_bindings_{}_model_without_eos.gguf",
-        std::process::id()
+        process::id()
     ));
     let mut gguf_context = GgufContext::from_file(fixture.model_path)?;
 
@@ -61,7 +66,7 @@ fn approximate_tok_env_of_a_model_without_eot_and_eos_has_no_eos(
         &LlamaModelParams::default(),
     )?;
 
-    std::fs::remove_file(&model_without_eos_path)?;
+    fs::remove_file(&model_without_eos_path)?;
 
     assert_eq!(
         model_without_eos

@@ -100,6 +100,7 @@ mod tests {
     use std::path::PathBuf;
 
     use enumflags2::BitFlags;
+
     use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
     use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
     use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;

@@ -2,6 +2,7 @@ use std::num::NonZeroU16;
 
 use anyhow::Context as _;
 use anyhow::Result;
+
 use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;

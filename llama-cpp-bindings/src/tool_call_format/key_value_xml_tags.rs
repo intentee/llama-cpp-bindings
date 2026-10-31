@@ -1,11 +1,12 @@
+use nom::IResult;
+use nom::Parser;
+use nom::bytes::complete::take_until;
+
 use llama_cpp_bindings_types::KeyValueXmlTagsShape;
 use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::ParsedToolCallId;
 use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_bindings_types::ToolCallMarkers;
-use nom::IResult;
-use nom::Parser;
-use nom::bytes::complete::take_until;
 
 use crate::error::key_value_xml_tags_failure::KeyValueXmlTagsFailure;
 use crate::tool_call_format::parse_step::ParseStep;
@@ -168,12 +169,13 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use llama_cpp_bindings_types::KeyValueXmlTagsShape;
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ToolCallArgsShape;
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::ToolCallMarkers;
-    use serde_json::json;
 
     use super::parse;
     use crate::error::key_value_xml_tags_failure::KeyValueXmlTagsFailure;

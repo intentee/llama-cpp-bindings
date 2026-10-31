@@ -1,4 +1,5 @@
 use anyhow::Result;
+
 use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 use llama_cpp_bindings_tests::prime_memory_with::prime_memory_with;

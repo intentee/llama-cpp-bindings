@@ -37,11 +37,12 @@ impl ChatMessageParseOutcome {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use llama_cpp_bindings_types::ParsedChatMessage;
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ParsedToolCallId;
     use llama_cpp_bindings_types::ToolCallArguments;
-    use serde_json::json;
 
     use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
     use crate::chat_output_completeness::ChatOutputCompleteness;

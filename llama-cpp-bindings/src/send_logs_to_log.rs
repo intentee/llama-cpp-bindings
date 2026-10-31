@@ -8,6 +8,10 @@
     )
 )]
 
+use std::ffi::CStr;
+use std::ffi::c_char;
+use std::ffi::c_void;
+use std::sync::PoisonError;
 use std::sync::{Mutex, OnceLock};
 
 use llama_cpp_log_decoder::decode_anomaly::DecodeAnomaly;
@@ -108,8 +112,8 @@ fn dispatch_anomaly(source: &LogSource, anomaly: DecodeAnomaly) {
 
 unsafe extern "C" fn logs_to_log(
     raw_level: llama_cpp_bindings_sys::ggml_log_level,
-    text_ptr: *const std::os::raw::c_char,
-    data_ptr: *mut std::os::raw::c_void,
+    text_ptr: *const c_char,
+    data_ptr: *mut c_void,
 ) {
     let source: &LogSource = unsafe { &*data_ptr.cast::<LogSource>() };
 
@@ -125,7 +129,7 @@ unsafe extern "C" fn logs_to_log(
         return;
     }
 
-    let text_cstr = unsafe { std::ffi::CStr::from_ptr(text_ptr) };
+    let text_cstr = unsafe { CStr::from_ptr(text_ptr) };
     let text = text_cstr.to_string_lossy();
 
     let incoming = ggml_level_to_incoming(raw_level);
@@ -134,7 +138,7 @@ unsafe extern "C" fn logs_to_log(
         let mut decoder = source
             .decoder
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         decoder.feed(incoming, &text)
     };
 
@@ -153,26 +157,31 @@ pub fn send_logs_to_log(options: LogOptions) {
     unsafe {
         llama_cpp_bindings_sys::llama_log_set(
             Some(logs_to_log),
-            llama_source.cast::<std::os::raw::c_void>().cast_mut(),
+            llama_source.cast::<c_void>().cast_mut(),
         );
         llama_cpp_bindings_sys::ggml_log_set(
             Some(logs_to_log),
-            ggml_source.cast::<std::os::raw::c_void>().cast_mut(),
+            ggml_source.cast::<c_void>().cast_mut(),
         );
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::log_record::LogRecord;
+    use std::ffi::CStr;
+    use std::ffi::c_void;
+    use std::ptr;
+    use std::sync::PoisonError;
     use std::sync::{Mutex, Once};
+    use std::thread;
+
+    use log::{Level, Log, Metadata, Record};
+    use serial_test::serial;
 
     use llama_cpp_log_decoder::decode_output::DecodeOutput;
     use llama_cpp_log_decoder::incoming_log_level::IncomingLogLevel;
     use llama_cpp_log_decoder::log_level::LogLevel;
     use llama_cpp_log_decoder::log_line::LogLine;
-    use log::{Level, Log, Metadata, Record};
-    use serial_test::serial;
 
     use super::GGML_SOURCE;
     use super::LLAMA_SOURCE;
@@ -182,6 +191,7 @@ mod tests {
     use super::logs_to_log;
     use super::resolve_record;
     use crate::log_options::LogOptions;
+    use crate::log_record::LogRecord;
     use crate::send_logs_to_log::send_logs_to_log;
 
     #[derive(Debug)]
@@ -201,10 +211,7 @@ mod tests {
         }
 
         fn log(&self, record: &Record) {
-            let mut guard = self
-                .records
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut guard = self.records.lock().unwrap_or_else(PoisonError::into_inner);
             guard.push(CapturedRecord {
                 level: record.level(),
                 target: record.target().to_owned(),
@@ -231,7 +238,7 @@ mod tests {
         let guard = TEST_LOGGER
             .records
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         guard
             .iter()
             .filter(|record| record.target == target)
@@ -244,12 +251,10 @@ mod tests {
 
     fn invoke_callback(
         level: llama_cpp_bindings_sys::ggml_log_level,
-        text: &std::ffi::CStr,
+        text: &CStr,
         source: &LogSource,
     ) {
-        let ptr = std::ptr::from_ref(source)
-            .cast::<std::os::raw::c_void>()
-            .cast_mut();
+        let ptr = ptr::from_ref(source).cast::<c_void>().cast_mut();
         unsafe {
             logs_to_log(level, text.as_ptr(), ptr);
         }
@@ -488,13 +493,11 @@ mod tests {
 
         let target = "test-null-text-pointer";
         let source = LogSource::new(target, LogOptions::default());
-        let source_ptr = std::ptr::from_ref(&source)
-            .cast::<std::os::raw::c_void>()
-            .cast_mut();
+        let source_ptr = ptr::from_ref(&source).cast::<c_void>().cast_mut();
         unsafe {
             logs_to_log(
                 llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
-                std::ptr::null(),
+                ptr::null(),
                 source_ptr,
             );
         }
@@ -515,12 +518,12 @@ mod tests {
         let target = "test-decoder-mutex-poison";
         let source = LogSource::new(target, LogOptions::default());
 
-        std::thread::scope(|scope| {
+        thread::scope(|scope| {
             let handle = scope.spawn(|| {
                 let _guard = source
                     .decoder
                     .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    .unwrap_or_else(PoisonError::into_inner);
                 panic!("intentional poison");
             });
             let _ = handle.join();

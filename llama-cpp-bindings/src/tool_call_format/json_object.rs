@@ -79,10 +79,11 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use llama_cpp_bindings_types::JsonObjectShape;
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ToolCallArguments;
-    use serde_json::json;
 
     use super::parse;
     use crate::error::json_object_failure::JsonObjectFailure;

@@ -1,4 +1,6 @@
 use anyhow::Result;
+use serde_json::json;
+
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_session::ChatSession;
@@ -14,7 +16,6 @@ use llama_cpp_bindings_types::ParsedToolCallId;
 use llama_cpp_bindings_types::ToolCallArguments;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
-use serde_json::json;
 
 const WEATHER_QUESTION: &str = "What is the weather in Paris?";
 const PLAIN_CONTENT_REFUSAL: &str = "Sorry, I cannot help with that.";

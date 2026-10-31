@@ -1,4 +1,8 @@
+use std::env;
+use std::fs;
+
 use anyhow::Result;
+
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::add_bos::AddBos;
@@ -49,13 +53,13 @@ fn state_save_and_load_file_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> 
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let session_path = std::env::temp_dir().join("llama_test_session.bin");
+    let session_path = env::temp_dir().join("llama_test_session.bin");
     context.state_save_file(&session_path, &tokens)?;
 
     let loaded_tokens = context.state_load_file(&session_path, 512)?;
     assert_eq!(loaded_tokens, tokens);
 
-    std::fs::remove_file(&session_path)?;
+    fs::remove_file(&session_path)?;
 
     Ok(())
 }
@@ -103,7 +107,7 @@ fn state_seq_save_and_load_file_roundtrip(fixture: &LlamaFixture<'_>) -> Result<
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let session_path = std::env::temp_dir().join("llama_test_seq_state.bin");
+    let session_path = env::temp_dir().join("llama_test_seq_state.bin");
     let bytes_written = context.state_seq_save_file(&session_path, 0, &tokens)?;
     assert!(bytes_written > 0);
 
@@ -115,7 +119,7 @@ fn state_seq_save_and_load_file_roundtrip(fixture: &LlamaFixture<'_>) -> Result<
         "loading must consume exactly the bytes the save produced"
     );
 
-    std::fs::remove_file(&session_path)?;
+    fs::remove_file(&session_path)?;
 
     Ok(())
 }

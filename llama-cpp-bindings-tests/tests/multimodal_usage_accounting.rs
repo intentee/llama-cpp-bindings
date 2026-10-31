@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
+
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;

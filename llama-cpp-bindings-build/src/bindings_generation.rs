@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use bindgen::Builder;
+
 use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
 
 use crate::binding_callbacks::BindingCallbacks;
@@ -194,6 +195,7 @@ mod tests {
     use std::path::PathBuf;
 
     use enumflags2::BitFlags;
+
     use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
 
     use super::BindingsGeneration;

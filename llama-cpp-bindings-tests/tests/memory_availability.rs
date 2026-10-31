@@ -2,6 +2,7 @@ use std::num::NonZeroU8;
 
 use anyhow::Context as _;
 use anyhow::Result;
+
 use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
 use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
 use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;

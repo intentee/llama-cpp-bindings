@@ -1,6 +1,7 @@
 use std::ffi::CString;
 
 use anyhow::Result;
+
 use llama_cpp_bindings::error::grammar_error::GrammarError;
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;

@@ -4,10 +4,11 @@ use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
-use llama_cpp_bindings_types::ParsedChatMessage;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
 use serde_json::Value;
 use serde_json::json;
+
+use llama_cpp_bindings_types::ParsedChatMessage;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::chat_assistant_prefill::ChatAssistantPrefill;
 use crate::chat_assistant_turn::ChatAssistantTurn;

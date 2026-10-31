@@ -206,6 +206,8 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use llama_cpp_bindings_types::PairedQuoteShape;
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::ParsedToolCallId;
@@ -213,7 +215,6 @@ mod tests {
     use llama_cpp_bindings_types::ToolCallArguments;
     use llama_cpp_bindings_types::ToolCallMarkers;
     use llama_cpp_bindings_types::ToolCallValueQuote;
-    use serde_json::json;
 
     use super::parse;
     use crate::error::paired_quote_failure::PairedQuoteFailure;

@@ -1,4 +1,7 @@
+use std::fs;
+
 use anyhow::Result;
+
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_test_harness::LlamaFixture;
@@ -29,7 +32,7 @@ fn from_buffer_creates_bitmap_from_image_bytes(fixture: &LlamaFixture<'_>) -> Re
 
     let fixtures = fixtures_dir();
     let image_path = fixtures.join("llamas.jpg");
-    let image_bytes = std::fs::read(&image_path)?;
+    let image_bytes = fs::read(&image_path)?;
     let bitmap = MtmdBitmap::from_buffer(mtmd_ctx, &image_bytes)?;
 
     assert!(bitmap.nx() > 0);

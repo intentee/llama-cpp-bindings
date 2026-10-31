@@ -32,10 +32,9 @@ mod tests {
 
     use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 
+    use super::LoadKey;
     use crate::gguf_source::GgufSource;
     use crate::model_load_params::ModelLoadParams;
-
-    use super::LoadKey;
 
     fn baseline() -> LoadKey {
         LoadKey {

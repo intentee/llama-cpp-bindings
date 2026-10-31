@@ -25,9 +25,8 @@ pub fn parse_harness_arguments(arguments: Arguments) -> Result<Arguments, Harnes
 mod tests {
     use libtest_mimic::Arguments;
 
-    use crate::harness_arguments_error::HarnessArgumentsError;
-
     use super::validate;
+    use crate::harness_arguments_error::HarnessArgumentsError;
 
     #[test]
     fn validate_accepts_unset_test_threads_and_defaults_to_one() {

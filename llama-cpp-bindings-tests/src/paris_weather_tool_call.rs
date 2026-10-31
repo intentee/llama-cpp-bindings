@@ -1,7 +1,8 @@
+use serde_json::json;
+
 use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::ParsedToolCallId;
 use llama_cpp_bindings_types::ToolCallArguments;
-use serde_json::json;
 
 /// The `get_weather` call for Paris that the tool-call fixtures of every format encode.
 #[must_use]

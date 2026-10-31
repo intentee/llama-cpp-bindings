@@ -1,3 +1,5 @@
+use std::ffi::c_char;
+
 use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -5,7 +7,7 @@ pub enum ParamOverrideValue {
     Bool(bool),
     Float(f64),
     Int(i64),
-    Str([std::os::raw::c_char; 128]),
+    Str([c_char; 128]),
 }
 
 impl ParamOverrideValue {
@@ -68,6 +70,8 @@ impl TryFrom<&llama_cpp_bindings_sys::llama_model_kv_override> for ParamOverride
 
 #[cfg(test)]
 mod tests {
+    use std::mem;
+
     use super::ParamOverrideValue;
 
     #[test]
@@ -220,7 +224,7 @@ mod tests {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
             key: [0; 128],
             tag: 9999,
-            __bindgen_anon_1: unsafe { std::mem::zeroed() },
+            __bindgen_anon_1: unsafe { mem::zeroed() },
         };
 
         let result = ParamOverrideValue::try_from(&ffi_override);

@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 
 use anyhow::Error;
 use anyhow::Result;
+
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 
 use crate::load_key::LoadKey;
@@ -59,12 +60,11 @@ mod tests {
     use llama_cpp_bindings::llama_backend::LlamaBackend;
     use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 
+    use super::PhaseSetup;
     use crate::gguf_source::GgufSource;
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
     use crate::test_backend_gate::BACKEND_INIT_GATE;
-
-    use super::PhaseSetup;
 
     const NON_GGUF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
 

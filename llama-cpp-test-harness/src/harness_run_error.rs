@@ -1,5 +1,6 @@
-use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
 use thiserror::Error;
+
+use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
 
 use crate::harness_arguments_error::HarnessArgumentsError;
 

@@ -1,10 +1,16 @@
 use std::borrow::Borrow;
 use std::ffi::{CString, c_char};
+use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::mem;
+use std::ptr;
 use std::ptr::NonNull;
 
 use llama_cpp_error_recorder::ErrorScope;
 use llama_cpp_error_recorder::RecordedError;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
+use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
+use llama_cpp_gbnf::validate_gbnf::validate_gbnf;
 
 use crate::context::LlamaContext;
 use crate::dry_sequence_breakers::dry_sequence_breakers;
@@ -13,14 +19,12 @@ use crate::error::sample_error::SampleError;
 use crate::error::sampler_accept_error::SamplerAcceptError;
 use crate::error::sampler_apply_error::SamplerApplyError;
 use crate::error::sampling_error::SamplingError;
+use crate::llguidance_sampler::create_llg_sampler;
 use crate::model::LlamaModel;
 use crate::sanitized_grammar::SanitizedGrammar;
 use crate::token::LlamaToken;
 use crate::token::data_array::LlamaTokenDataArray;
 use crate::token::logit_bias::LlamaLogitBias;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
-use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
-use llama_cpp_gbnf::validate_gbnf::validate_gbnf;
 
 fn check_sampler_accept_status(
     status: llama_cpp_bindings_sys::llama_rs_sampler_accept_status,
@@ -68,7 +72,7 @@ fn check_sampler_accept_status(
 
 fn sampler_apply_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_sampler_apply_status,
-    out_error: *mut std::os::raw::c_char,
+    out_error: *mut c_char,
 ) -> Result<(), SamplerApplyError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_OK => Ok(()),
@@ -407,7 +411,7 @@ fn grammar_callback_error_to_accept_result(
 }
 
 impl Debug for LlamaSampler {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LlamaSampler").finish_non_exhaustive()
     }
 }
@@ -437,15 +441,15 @@ impl LlamaSampler {
             *mut *mut c_char,
         ) -> llama_cpp_bindings_sys::llama_rs_sampler_init_status,
     ) -> Result<Self, SamplingError> {
-        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = std::ptr::null_mut();
-        let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = ptr::null_mut();
+        let mut error_ptr: *mut c_char = ptr::null_mut();
         let status = initialize_sampler(&raw mut sampler, &raw mut error_ptr);
 
         sampler_init_status_to_result(status, sampler, error_ptr, sampler_name)
     }
 
     fn take_into_chain(&self, sampler: Self) -> Result<(), SamplingError> {
-        let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let mut error_ptr: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_sampler_chain_add(
                 self.sampler.as_ptr(),
@@ -454,7 +458,7 @@ impl LlamaSampler {
             )
         };
 
-        sampler_chain_add_status_to_result(status, error_ptr).map(|()| std::mem::forget(sampler))
+        sampler_chain_add_status_to_result(status, error_ptr).map(|()| mem::forget(sampler))
     }
 
     #[must_use]
@@ -471,7 +475,7 @@ impl LlamaSampler {
         ctx.get_logits_ith(idx)?;
 
         let mut token: i32 = -1;
-        let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let mut error_ptr: *mut c_char = ptr::null_mut();
 
         let scope = ErrorScope::enter();
         let status = unsafe {
@@ -509,7 +513,7 @@ impl LlamaSampler {
     ) -> Result<(), SamplerApplyError> {
         unsafe {
             data_array.modify_as_c_llama_token_data_array(|c_llama_token_data_array| {
-                let mut out_error: *mut c_char = std::ptr::null_mut();
+                let mut out_error: *mut c_char = ptr::null_mut();
                 let status = llama_cpp_bindings_sys::llama_rs_sampler_apply(
                     self.sampler.as_ptr(),
                     c_llama_token_data_array,
@@ -530,7 +534,7 @@ impl LlamaSampler {
     /// # Errors
     /// Returns [`SamplerAcceptError`] if the underlying sampler rejects the token.
     pub fn accept(&mut self, token: LlamaToken) -> Result<(), SamplerAcceptError> {
-        let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let mut error_ptr: *mut c_char = ptr::null_mut();
 
         let scope = ErrorScope::enter();
         let status = unsafe {
@@ -715,8 +719,8 @@ impl LlamaSampler {
             grammar: grammar_cstring,
             root: root_cstring,
         } = Self::sanitize_grammar_strings(grammar_str, grammar_root)?;
-        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = std::ptr::null_mut();
-        let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = ptr::null_mut();
+        let mut error_ptr: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_sampler_init_grammar(
@@ -747,8 +751,8 @@ impl LlamaSampler {
             root: root_cstring,
         } = Self::sanitize_grammar_strings(grammar_str, grammar_root)?;
         let trigger_patterns = Self::sanitize_trigger_patterns(trigger_patterns)?;
-        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = std::ptr::null_mut();
-        let mut error_ptr: *mut c_char = std::ptr::null_mut();
+        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = ptr::null_mut();
+        let mut error_ptr: *mut c_char = ptr::null_mut();
 
         let mut trigger_pattern_ptrs: Vec<*const c_char> =
             trigger_patterns.iter().map(|cs| cs.as_ptr()).collect();
@@ -782,7 +786,7 @@ impl LlamaSampler {
         grammar_kind: &str,
         grammar_data: &str,
     ) -> Result<Self, GrammarError> {
-        crate::llguidance_sampler::create_llg_sampler(model, grammar_kind, grammar_data)
+        create_llg_sampler(model, grammar_kind, grammar_data)
     }
 
     fn sanitize_grammar_strings(
@@ -972,6 +976,7 @@ impl Drop for LlamaSampler {
 mod tests {
     use std::ffi::CString;
     use std::ptr;
+    use std::slice;
 
     use llama_cpp_error_recorder::RecordedError;
     use llama_cpp_error_recorder::record;
@@ -979,7 +984,13 @@ mod tests {
     use super::LlamaSampler;
     use crate::error::grammar_error::GrammarError;
     use crate::error::sample_error::SampleError;
+    use crate::error::sampler_apply_error::SamplerApplyError;
+    use crate::error::sampling_error::SamplingError;
     use crate::sanitized_grammar::SanitizedGrammar;
+    use crate::token::LlamaToken;
+    use crate::token::data::LlamaTokenData;
+    use crate::token::data_array::LlamaTokenDataArray;
+    use crate::token::logit_bias::LlamaLogitBias;
 
     unsafe extern "C" fn record_a_failure_and_exclude_every_candidate(
         _sampler: *mut llama_cpp_bindings_sys::llama_sampler,
@@ -988,8 +999,7 @@ mod tests {
         record(RecordedError::new("mask failed".to_string()));
 
         let candidates = unsafe { &mut *candidates };
-        let candidate_data =
-            unsafe { std::slice::from_raw_parts_mut(candidates.data, candidates.size) };
+        let candidate_data = unsafe { slice::from_raw_parts_mut(candidates.data, candidates.size) };
         for candidate in candidate_data {
             candidate.logit = f32::NEG_INFINITY;
         }
@@ -1034,10 +1044,6 @@ mod tests {
 
     #[test]
     fn a_grammar_callback_failure_takes_precedence_over_a_failed_application() {
-        use crate::token::LlamaToken;
-        use crate::token::data::LlamaTokenData;
-        use crate::token::data_array::LlamaTokenDataArray;
-
         let mut data_array = LlamaTokenDataArray::new(
             vec![
                 LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0),
@@ -1060,7 +1066,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            crate::error::sampling_error::SamplingError::SamplerUnavailable { sampler: "test" }
+            SamplingError::SamplerUnavailable { sampler: "test" }
         );
     }
 
@@ -1140,10 +1146,6 @@ mod tests {
 
     #[test]
     fn apply_modifies_data_array() {
-        use crate::token::LlamaToken;
-        use crate::token::data::LlamaTokenData;
-        use crate::token::data_array::LlamaTokenDataArray;
-
         let sampler = greedy_sampler();
         let mut data_array = LlamaTokenDataArray::new(
             vec![
@@ -1160,12 +1162,6 @@ mod tests {
 
     #[test]
     fn apply_surfaces_a_sampler_that_excludes_every_candidate() {
-        use crate::error::sampler_apply_error::SamplerApplyError;
-        use crate::token::LlamaToken;
-        use crate::token::data::LlamaTokenData;
-        use crate::token::data_array::LlamaTokenDataArray;
-        use crate::token::logit_bias::LlamaLogitBias;
-
         let excluding_sampler = LlamaSampler::logit_bias(
             2,
             &[
@@ -1196,7 +1192,7 @@ mod tests {
             .expect("sampler chain must initialize");
 
         sampler
-            .accept(crate::token::LlamaToken::new(1))
+            .accept(LlamaToken::new(1))
             .expect("test: accept should succeed");
     }
 
@@ -1205,15 +1201,13 @@ mod tests {
         let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize");
 
-        let result = sampler.accept(crate::token::LlamaToken::new(42));
+        let result = sampler.accept(LlamaToken::new(42));
 
         assert!(result.is_ok());
     }
 
     #[test]
     fn accept_many_multiple_tokens() {
-        use crate::token::LlamaToken;
-
         let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize");
 
@@ -1224,9 +1218,6 @@ mod tests {
 
     #[test]
     fn all_sampler_constructors() {
-        use crate::token::LlamaToken;
-        use crate::token::logit_bias::LlamaLogitBias;
-
         let _temp = LlamaSampler::temp(0.8).expect("temperature sampler must initialize");
         let _temp_ext = LlamaSampler::temp_ext(0.8, 0.1, 1.0)
             .expect("extended temperature sampler must initialize");
@@ -1351,10 +1342,11 @@ mod grammar_callback_error_to_accept_result_tests {
 mod check_sampler_accept_status_tests {
     use std::ptr;
 
-    use super::check_sampler_accept_status;
-    use crate::error::sampler_accept_error::SamplerAcceptError;
     use llama_cpp_ffi_status::FfiContractError;
     use llama_cpp_ffi_status::FfiStatusError;
+
+    use super::check_sampler_accept_status;
+    use crate::error::sampler_accept_error::SamplerAcceptError;
 
     #[test]
     fn check_sampler_accept_status_ok() {
@@ -1470,9 +1462,10 @@ mod check_sampler_accept_status_tests {
 mod sampler_sample_status_to_result_tests {
     use std::ptr;
 
+    use llama_cpp_ffi_status::FfiStatusError;
+
     use super::sampler_sample_status_to_result;
     use crate::error::sample_error::SampleError;
-    use llama_cpp_ffi_status::FfiStatusError;
 
     #[test]
     fn sampler_sample_status_allocation_failure_maps_to_not_enough_memory() {
@@ -1627,6 +1620,7 @@ mod sampler_init_status_to_result_tests {
     use std::ptr;
 
     use super::sampler_init_status_to_result;
+    use crate::error::sampling_error::SamplingError;
 
     #[test]
     fn sampler_init_status_null_maps_to_sampler_unavailable() {
@@ -1638,11 +1632,9 @@ mod sampler_init_status_to_result_tests {
                 "penalties",
             )
             .err(),
-            Some(
-                crate::error::sampling_error::SamplingError::SamplerUnavailable {
-                    sampler: "penalties"
-                }
-            )
+            Some(SamplingError::SamplerUnavailable {
+                sampler: "penalties"
+            })
         );
     }
 
@@ -1656,7 +1648,7 @@ mod sampler_init_status_to_result_tests {
                 "penalties",
             )
             .err(),
-            Some(crate::error::sampling_error::SamplingError::NotEnoughMemory)
+            Some(SamplingError::NotEnoughMemory)
         );
     }
 
@@ -1670,11 +1662,9 @@ mod sampler_init_status_to_result_tests {
                 "penalties",
             )
             .err(),
-            Some(
-                crate::error::sampling_error::SamplingError::LlamaCppOutOfMemory {
-                    sampler: "penalties"
-                }
-            )
+            Some(SamplingError::LlamaCppOutOfMemory {
+                sampler: "penalties"
+            })
         );
     }
 
@@ -1691,7 +1681,7 @@ mod sampler_init_status_to_result_tests {
                 "penalties",
             )
             .err(),
-            Some(crate::error::sampling_error::SamplingError::Reported {
+            Some(SamplingError::Reported {
                 sampler: "penalties",
                 message: "vector too long".to_owned(),
             })
@@ -1787,6 +1777,7 @@ mod sampler_chain_add_status_to_result_tests {
     use std::ptr;
 
     use super::sampler_chain_add_status_to_result;
+    use crate::error::sampling_error::SamplingError;
 
     #[test]
     fn sampler_chain_add_status_allocation_failure_maps_to_not_enough_memory() {
@@ -1795,7 +1786,7 @@ mod sampler_chain_add_status_to_result_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_ERROR_STRING_ALLOCATION_FAILED,
                 ptr::null_mut(),
             ),
-            Err(crate::error::sampling_error::SamplingError::NotEnoughMemory)
+            Err(SamplingError::NotEnoughMemory)
         );
     }
 
@@ -1806,11 +1797,7 @@ mod sampler_chain_add_status_to_result_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
             ),
-            Err(
-                crate::error::sampling_error::SamplingError::LlamaCppOutOfMemory {
-                    sampler: "chain"
-                }
-            )
+            Err(SamplingError::LlamaCppOutOfMemory { sampler: "chain" })
         );
     }
 
@@ -1824,7 +1811,7 @@ mod sampler_chain_add_status_to_result_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 out_error,
             ),
-            Err(crate::error::sampling_error::SamplingError::Reported {
+            Err(SamplingError::Reported {
                 sampler: "chain",
                 message: "vector too long".to_owned(),
             })
@@ -1915,9 +1902,10 @@ mod sampler_chain_add_status_to_result_tests {
 mod sampler_init_grammar_status_to_result_tests {
     use std::ptr;
 
+    use llama_cpp_ffi_status::FfiStatusError;
+
     use super::sampler_init_grammar_status_to_result;
     use crate::error::grammar_error::GrammarError;
-    use llama_cpp_ffi_status::FfiStatusError;
 
     #[test]
     fn sampler_init_grammar_status_null_maps_to_grammar_malformed() {
@@ -2046,9 +2034,10 @@ mod sampler_init_grammar_status_to_result_tests {
 mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
     use std::ptr;
 
+    use llama_cpp_ffi_status::FfiStatusError;
+
     use super::sampler_init_grammar_lazy_patterns_status_to_result;
     use crate::error::grammar_error::GrammarError;
-    use llama_cpp_ffi_status::FfiStatusError;
 
     #[test]
     fn sampler_init_grammar_lazy_patterns_status_null_maps_to_lazy_patterns_grammar_malformed() {
@@ -2193,6 +2182,8 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
 
 #[cfg(test)]
 mod sampler_application_tests {
+    use std::ptr;
+
     use llama_cpp_fault_injection::ArmedFault;
     use llama_cpp_fault_injection::injected_fault_message;
 
@@ -2243,7 +2234,7 @@ mod sampler_application_tests {
             LlamaSampler::initialize("overreporting", |out_sampler, out_error| unsafe {
                 llama_cpp_bindings_sys::llama_rs_sampler_init(
                     &raw mut OVERREPORTING_SAMPLER,
-                    std::ptr::null_mut(),
+                    ptr::null_mut(),
                     out_sampler,
                     out_error,
                 )

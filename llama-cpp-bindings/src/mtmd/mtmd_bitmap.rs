@@ -1,5 +1,7 @@
+use std::ffi::NulError;
 use std::ffi::{CStr, CString, c_char};
 use std::path::PathBuf;
+use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
@@ -284,8 +286,8 @@ impl MtmdBitmap {
             return Err(MtmdBitmapError::InvalidDataSize);
         }
 
-        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = std::ptr::null_mut();
-        let mut out_error: *mut c_char = std::ptr::null_mut();
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init(
                 nx,
@@ -303,8 +305,8 @@ impl MtmdBitmap {
     ///
     /// Returns the [`MtmdBitmapError`] variant matching the wrapper's status code.
     pub fn from_audio_data(data: &[f32]) -> Result<Self, MtmdBitmapError> {
-        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = std::ptr::null_mut();
-        let mut out_error: *mut c_char = std::ptr::null_mut();
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_audio(
                 data.len(),
@@ -322,8 +324,8 @@ impl MtmdBitmap {
     /// Returns an [`MtmdBitmapError`] variant matching the wrapper's status code.
     pub fn from_file(ctx: &MtmdContext, path: &str) -> Result<Self, MtmdBitmapError> {
         let path_cstr = CString::new(path)?;
-        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = std::ptr::null_mut();
-        let mut out_error: *mut c_char = std::ptr::null_mut();
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_file(
@@ -341,8 +343,8 @@ impl MtmdBitmap {
     ///
     /// Returns an [`MtmdBitmapError`] variant matching the wrapper's status code.
     pub fn from_buffer(ctx: &MtmdContext, data: &[u8]) -> Result<Self, MtmdBitmapError> {
-        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = std::ptr::null_mut();
-        let mut out_error: *mut c_char = std::ptr::null_mut();
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_buf(
@@ -390,7 +392,7 @@ impl MtmdBitmap {
     ///
     /// Returns an error if the ID string contains null bytes.
     ///
-    pub fn set_id(&self, id: &str) -> Result<(), std::ffi::NulError> {
+    pub fn set_id(&self, id: &str) -> Result<(), NulError> {
         let id_cstr = CString::new(id)?;
         unsafe {
             llama_cpp_bindings_sys::mtmd_bitmap_set_id(self.bitmap.as_ptr(), id_cstr.as_ptr());
@@ -524,6 +526,7 @@ mod tests {
 
 #[cfg(test)]
 mod cstr_ptr_to_optional_string_tests {
+    use std::ffi::CString;
     use std::ptr;
 
     use super::cstr_ptr_to_optional_string;
@@ -535,7 +538,7 @@ mod cstr_ptr_to_optional_string_tests {
 
     #[test]
     fn cstr_ptr_to_optional_string_returns_some_for_valid() {
-        let cstr = std::ffi::CString::new("hello").unwrap();
+        let cstr = CString::new("hello").unwrap();
         let result = cstr_ptr_to_optional_string(cstr.as_ptr());
 
         assert_eq!(result, Some("hello".to_string()));
@@ -547,9 +550,10 @@ mod from_file_status_to_result_tests {
     use std::path::PathBuf;
     use std::ptr;
 
+    use llama_cpp_ffi_status::FfiStatusError;
+
     use super::from_file_status_to_result;
     use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
-    use llama_cpp_ffi_status::FfiStatusError;
 
     #[test]
     fn from_file_success_with_null_bitmap_is_contract_error() {

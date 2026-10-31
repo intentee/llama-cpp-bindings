@@ -1,11 +1,16 @@
+use std::ffi::c_char;
 use std::ffi::c_void;
+use std::ptr;
+use std::slice;
 use std::sync::Arc;
 
-use llama_cpp_error_recorder::RecordedError;
-use llama_cpp_error_recorder::record;
+use llguidance::api::TopLevelGrammar;
 use llguidance::earley::SlicedBiasComputer;
 use toktrie::ApproximateTokEnv;
 use toktrie::InferenceCapabilities;
+
+use llama_cpp_error_recorder::RecordedError;
+use llama_cpp_error_recorder::record;
 
 use crate::error::grammar_error::GrammarError;
 use crate::grammar_matcher::GrammarMatcher;
@@ -22,7 +27,7 @@ struct LlgContext {
 
 const unsafe extern "C" fn llg_name(
     _smpl: *const llama_cpp_bindings_sys::llama_sampler,
-) -> *const std::os::raw::c_char {
+) -> *const c_char {
     c"llguidance".as_ptr()
 }
 
@@ -54,7 +59,7 @@ unsafe extern "C" fn llg_apply(
         }
     };
 
-    let data = unsafe { std::slice::from_raw_parts_mut(cur_p.data, cur_p.size) };
+    let data = unsafe { slice::from_raw_parts_mut(cur_p.data, cur_p.size) };
     for item in data.iter_mut() {
         if !mask.is_allowed(item.id.cast_unsigned()) {
             item.logit = f32::NEG_INFINITY;
@@ -140,9 +145,11 @@ fn create_llg_sampler_from_tok_env(
         message: factory_error.to_string(),
     })?;
 
-    let grammar = llguidance::api::TopLevelGrammar::from_tagged_str(grammar_kind, grammar_data)
-        .map_err(|parse_error| GrammarError::LlguidanceGrammarInvalid {
-            message: parse_error.to_string(),
+    let grammar =
+        TopLevelGrammar::from_tagged_str(grammar_kind, grammar_data).map_err(|parse_error| {
+            GrammarError::LlguidanceGrammarInvalid {
+                message: parse_error.to_string(),
+            }
         })?;
 
     let parser = factory.create_parser(grammar).map_err(|parser_error| {
@@ -161,7 +168,7 @@ fn create_llg_sampler_from_tok_env(
     LlamaSampler::initialize("llguidance", |out_sampler, out_error| unsafe {
         llama_cpp_bindings_sys::llama_rs_sampler_init(
             &raw mut LLG_SAMPLER_I,
-            std::ptr::null_mut(),
+            ptr::null_mut(),
             out_sampler,
             out_error,
         )
@@ -189,11 +196,11 @@ mod tests {
 
     use toktrie::ApproximateTokEnv;
     use toktrie::INVALID_TOKEN;
+    use toktrie::InferenceCapabilities;
     use toktrie::TokRxInfo;
     use toktrie::TokTrie;
 
     use llama_cpp_fault_injection::ArmedFault;
-    use toktrie::InferenceCapabilities;
 
     use super::UNCOMPILABLE_BIAS_SLICE;
     use super::create_llg_sampler_from_tok_env;

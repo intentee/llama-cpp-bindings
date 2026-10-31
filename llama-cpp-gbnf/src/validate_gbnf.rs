@@ -1,10 +1,6 @@
 use std::ffi::{CString, c_char};
 use std::ptr;
 
-use llama_cpp_ffi_status::FfiContractError;
-use llama_cpp_ffi_status::FfiStatusError;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
-
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_EMPTY_RULE_SET;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_OK;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ROOT_SYMBOL_MISSING;
@@ -14,6 +10,9 @@ use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
 use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
 use llama_cpp_bindings_sys::llama_rs_validate_gbnf;
 use llama_cpp_bindings_sys::llama_vocab;
+use llama_cpp_ffi_status::FfiContractError;
+use llama_cpp_ffi_status::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 use crate::gbnf_validation_error::GbnfValidationError;
 
@@ -107,14 +106,15 @@ pub fn validate_gbnf(
 mod tests {
     use std::ffi::CString;
     use std::fmt::Write;
+    use std::ptr;
 
+    use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
     use llama_cpp_ffi_status::FfiContractError;
     use llama_cpp_ffi_status::FfiStatusError;
 
     use super::validate_gbnf;
     use super::validation_status_to_result;
     use crate::gbnf_validation_error::GbnfValidationError;
-    use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
 
     #[test]
     fn valid_grammar_is_accepted() {
@@ -202,7 +202,7 @@ mod tests {
             validation_status_to_result(
                 LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::FfiContract(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -236,7 +236,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::FfiContract(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -251,7 +251,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::FfiContract(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -266,7 +266,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::FfiContract(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -281,7 +281,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::LlamaCppOutOfMemory)
         );
@@ -293,7 +293,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::NotEnoughMemory)
         );
@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn unknown_status_is_preserved() {
         assert_eq!(
-            validation_status_to_result(255, "root", std::ptr::null_mut(),),
+            validation_status_to_result(255, "root", ptr::null_mut(),),
             Err(GbnfValidationError::FfiStatus(FfiStatusError {
                 operation: "llama_rs_validate_gbnf",
                 code: 255,

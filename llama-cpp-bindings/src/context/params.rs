@@ -1,9 +1,11 @@
+use std::ffi::c_void;
+use std::fmt::Debug;
+use std::num::NonZeroU32;
+
 use crate::context::kv_cache_type::KvCacheType;
 use crate::context::llama_attention_type::LlamaAttentionType;
 use crate::context::llama_pooling_type::LlamaPoolingType;
 use crate::context::rope_scaling_type::RopeScalingType;
-use std::fmt::Debug;
-use std::num::NonZeroU32;
 
 #[derive(Debug, Clone, Copy)]
 pub struct LlamaContextParams {
@@ -148,10 +150,7 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn with_cb_eval_user_data(
-        mut self,
-        cb_eval_user_data: *mut std::ffi::c_void,
-    ) -> Self {
+    pub const fn with_cb_eval_user_data(mut self, cb_eval_user_data: *mut c_void) -> Self {
         self.context_params.cb_eval_user_data = cb_eval_user_data;
         self
     }
@@ -332,6 +331,10 @@ impl Default for LlamaContextParams {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::c_void;
+    use std::num::NonZeroU32;
+    use std::ptr;
+
     use super::KvCacheType;
     use super::LlamaAttentionType;
     use super::LlamaPoolingType;
@@ -341,7 +344,7 @@ mod tests {
     fn default_params_have_expected_values() {
         let params = super::LlamaContextParams::default();
 
-        assert_eq!(params.n_ctx(), std::num::NonZeroU32::new(512));
+        assert_eq!(params.n_ctx(), NonZeroU32::new(512));
         assert_eq!(params.n_batch(), 2048);
         assert_eq!(params.n_ubatch(), 512);
         assert_eq!(params.rope_scaling_type(), RopeScalingType::Unspecified);
@@ -350,10 +353,9 @@ mod tests {
 
     #[test]
     fn with_n_ctx_sets_value() {
-        let params =
-            super::LlamaContextParams::default().with_n_ctx(std::num::NonZeroU32::new(2048));
+        let params = super::LlamaContextParams::default().with_n_ctx(NonZeroU32::new(2048));
 
-        assert_eq!(params.n_ctx(), std::num::NonZeroU32::new(2048));
+        assert_eq!(params.n_ctx(), NonZeroU32::new(2048));
     }
 
     #[test]
@@ -548,7 +550,7 @@ mod tests {
     #[test]
     fn builder_chaining_preserves_all_values() {
         let params = super::LlamaContextParams::default()
-            .with_n_ctx(std::num::NonZeroU32::new(1024))
+            .with_n_ctx(NonZeroU32::new(1024))
             .with_n_batch(4096)
             .with_n_ubatch(256)
             .with_n_threads(8)
@@ -559,7 +561,7 @@ mod tests {
             .with_rope_freq_base(5000.0)
             .with_rope_freq_scale(0.25);
 
-        assert_eq!(params.n_ctx(), std::num::NonZeroU32::new(1024));
+        assert_eq!(params.n_ctx(), NonZeroU32::new(1024));
         assert_eq!(params.n_batch(), 4096);
         assert_eq!(params.n_ubatch(), 256);
         assert_eq!(params.n_threads(), 8);
@@ -576,12 +578,12 @@ mod tests {
         extern "C" fn test_cb_eval(
             _tensor: *mut llama_cpp_bindings_sys::ggml_tensor,
             _ask: bool,
-            _user_data: *mut std::ffi::c_void,
+            _user_data: *mut c_void,
         ) -> bool {
             false
         }
 
-        let result = test_cb_eval(std::ptr::null_mut(), false, std::ptr::null_mut());
+        let result = test_cb_eval(ptr::null_mut(), false, ptr::null_mut());
 
         assert!(!result);
 
@@ -593,7 +595,7 @@ mod tests {
     #[test]
     fn with_cb_eval_user_data_sets_pointer() {
         let mut value: i32 = 42;
-        let user_data = (&raw mut value).cast::<std::ffi::c_void>();
+        let user_data = (&raw mut value).cast::<c_void>();
         let params = super::LlamaContextParams::default().with_cb_eval_user_data(user_data);
 
         assert_eq!(params.context_params.cb_eval_user_data, user_data);

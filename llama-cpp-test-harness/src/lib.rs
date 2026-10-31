@@ -27,6 +27,12 @@ pub mod scheduled_phase;
 #[cfg(test)]
 mod test_backend_gate;
 
+#[doc(hidden)]
+pub use inventory;
+
+pub use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+pub use llama_cpp_test_harness_macros::llama_test;
+
 pub use crate::context_params::ContextParams;
 pub use crate::execution_phase::ExecutionPhase;
 pub use crate::execution_plan::ExecutionPlan;
@@ -43,8 +49,3 @@ pub use crate::phase_state::PhaseState;
 pub use crate::run::run;
 pub use crate::run_to_conclusions::run_to_conclusions;
 pub use crate::scheduled_phase::ScheduledPhase;
-pub use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
-pub use llama_cpp_test_harness_macros::llama_test;
-
-#[doc(hidden)]
-pub use inventory;

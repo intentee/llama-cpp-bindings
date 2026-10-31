@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
+
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -61,7 +62,7 @@ fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
     let tokens_lines_list = prompt_lines
         .iter()
         .map(|line| model.str_to_token(line, AddBos::Always, ParseSpecialTokens::Always))
-        .collect::<std::result::Result<Vec<_>, _>>()
+        .collect::<Result<Vec<_>, _>>()
         .with_context(|| "failed to tokenize prompts")?;
 
     let n_ctx = usize::try_from(ctx.n_ctx())?;

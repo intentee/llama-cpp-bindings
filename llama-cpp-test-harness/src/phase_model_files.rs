@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
+
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
@@ -65,10 +66,9 @@ mod tests {
     use llama_cpp_bindings::llama_backend::LlamaBackend;
     use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 
+    use super::PhaseModelFiles;
     use crate::model_load_params::ModelLoadParams;
     use crate::test_backend_gate::BACKEND_INIT_GATE;
-
-    use super::PhaseModelFiles;
 
     const NON_GGUF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
 

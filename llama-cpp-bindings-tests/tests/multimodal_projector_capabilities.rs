@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
+
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_capability::MtmdCapability;
 use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;

@@ -5,11 +5,10 @@ use std::ptr;
 
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 
-use crate::backend_device_index::backend_device_index;
-
 use super::mtmd_context_params::MtmdContextParams;
 use super::mtmd_image_token_limit::MtmdImageTokenLimit;
 use super::mtmd_memory_usage_error::MtmdMemoryUsageError;
+use crate::backend_device_index::backend_device_index;
 
 const OPERATION: &str = "llama_rs_mtmd_get_memory_usage";
 

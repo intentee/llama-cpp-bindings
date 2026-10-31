@@ -1,4 +1,6 @@
 use anyhow::Result;
+
+use llama_cpp_bindings::model::vocab_type::VocabType;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -35,8 +37,6 @@ use llama_cpp_test_harness::llama_test;
     n_ubatch = 64,
 )]
 fn default_models_use_a_byte_pair_encoding_vocabulary(fixture: &LlamaFixture<'_>) -> Result<()> {
-    use llama_cpp_bindings::model::vocab_type::VocabType;
-
     assert_eq!(fixture.model.vocab_type()?, VocabType::Bpe);
 
     Ok(())

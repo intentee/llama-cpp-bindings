@@ -80,8 +80,11 @@ impl NativeBuild {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use std::fs;
     use std::path::Path;
     use std::path::PathBuf;
+    use std::process;
 
     use super::NativeBuild;
     use crate::bindings_generation::BindingsGeneration;
@@ -148,12 +151,10 @@ mod tests {
     }
 
     fn build_root(name: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!(
-            "llama-cpp-bindings-build-{name}-{}",
-            std::process::id()
-        ));
+        let root =
+            env::temp_dir().join(format!("llama-cpp-bindings-build-{name}-{}", process::id()));
 
-        std::fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&root).unwrap();
 
         root
     }
@@ -191,7 +192,7 @@ mod tests {
                 ],
                 [true; 4]
             );
-            std::fs::remove_dir_all(root).unwrap();
+            fs::remove_dir_all(root).unwrap();
         }
     }
 
@@ -216,7 +217,7 @@ mod tests {
             [output.is_empty(), root.join("cmake").exists()],
             [true, false]
         );
-        std::fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -238,6 +239,6 @@ mod tests {
             ))
         );
         assert_eq!(output, Vec::<u8>::new());
-        std::fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(root).unwrap();
     }
 }

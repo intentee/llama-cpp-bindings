@@ -1,4 +1,5 @@
 use anyhow::Result;
+
 use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;

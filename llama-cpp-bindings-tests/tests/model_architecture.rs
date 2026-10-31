@@ -1,3 +1,4 @@
+use llama_cpp_bindings::model::rope_type::RopeType;
 use llama_cpp_test_harness::LlamaFixture;
 use llama_cpp_test_harness::llama_test;
 
@@ -100,7 +101,6 @@ fn is_hybrid_returns_true_for_qwen_default_models(fixture: &LlamaFixture<'_>) {
     n_ubatch = 64,
 )]
 fn rope_type_returns_a_known_variant_for_rope_carrying_default_models(fixture: &LlamaFixture<'_>) {
-    use llama_cpp_bindings::model::rope_type::RopeType;
     let rope = fixture.model.rope_type();
     assert!(
         matches!(
@@ -128,7 +128,5 @@ fn rope_type_returns_a_known_variant_for_rope_carrying_default_models(fixture: &
     n_ubatch = 64,
 )]
 fn rope_type_reports_interleaved_mrope_for_qwen_default_models(fixture: &LlamaFixture<'_>) {
-    use llama_cpp_bindings::model::rope_type::RopeType;
-
     assert_eq!(fixture.model.rope_type(), Some(RopeType::IMRope));
 }

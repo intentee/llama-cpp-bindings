@@ -1,4 +1,7 @@
+use std::fmt::Write;
+
 use anyhow::Result;
+
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token::SampledToken;
@@ -180,8 +183,6 @@ fn str_to_token_without_bos_yields_no_more_tokens_than_with_bos(
     n_ubatch = 64,
 )]
 fn str_to_token_with_many_tokens_triggers_buffer_resize(fixture: &LlamaFixture<'_>) -> Result<()> {
-    use std::fmt::Write;
-
     let many_numbers = (0..2000).fold(String::new(), |mut accumulator, number| {
         let _ = write!(accumulator, "{number} ");
         accumulator

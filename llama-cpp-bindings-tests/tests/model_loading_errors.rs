@@ -1,8 +1,13 @@
+use std::env;
 use std::ffi::CString;
+use std::ffi::OsStr;
+use std::fs;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Result;
+
 use llama_cpp_bindings::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
 use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
 use llama_cpp_bindings::model::LlamaModel;
@@ -41,8 +46,8 @@ fn load_model_with_invalid_file_content_returns_unloadable_or_reported(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model_params = LlamaModelParams::default();
-    let dummy_path = std::env::temp_dir().join("llama_test_invalid_model.gguf");
-    std::fs::write(&dummy_path, b"not a valid gguf model file")?;
+    let dummy_path = env::temp_dir().join("llama_test_invalid_model.gguf");
+    fs::write(&dummy_path, b"not a valid gguf model file")?;
 
     let result = LlamaModel::load_from_file(fixture.backend, &dummy_path, &model_params);
 
@@ -50,7 +55,7 @@ fn load_model_with_invalid_file_content_returns_unloadable_or_reported(
         result.unwrap_err(),
         LlamaModelLoadError::Unloadable | LlamaModelLoadError::Reported { .. },
     ));
-    let _ = std::fs::remove_file(&dummy_path);
+    let _ = fs::remove_file(&dummy_path);
     Ok(())
 }
 
@@ -63,9 +68,6 @@ fn load_model_with_invalid_file_content_returns_unloadable_or_reported(
     n_ubatch = 64,
 )]
 fn load_model_with_non_utf8_path_returns_path_to_str_error(fixture: &LlamaFixture<'_>) {
-    use std::ffi::OsStr;
-    use std::os::unix::ffi::OsStrExt;
-
     let model_params = LlamaModelParams::default();
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
 
@@ -106,13 +108,13 @@ fn lora_adapter_init_with_invalid_path_returns_error(fixture: &LlamaFixture<'_>)
 fn lora_adapter_init_with_invalid_gguf_returns_unloadable(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let dummy_path = std::env::temp_dir().join("llama_test_dummy_lora.gguf");
-    std::fs::write(&dummy_path, b"not a valid gguf")?;
+    let dummy_path = env::temp_dir().join("llama_test_dummy_lora.gguf");
+    fs::write(&dummy_path, b"not a valid gguf")?;
 
     let result = fixture.model.lora_adapter_init(&dummy_path);
 
     assert_eq!(result.unwrap_err(), LlamaLoraAdapterInitError::Unloadable);
-    let _ = std::fs::remove_file(&dummy_path);
+    let _ = fs::remove_file(&dummy_path);
     Ok(())
 }
 
@@ -125,9 +127,6 @@ fn lora_adapter_init_with_invalid_gguf_returns_unloadable(
     n_ubatch = 64,
 )]
 fn lora_adapter_init_with_non_utf8_path_returns_error(fixture: &LlamaFixture<'_>) {
-    use std::ffi::OsStr;
-    use std::os::unix::ffi::OsStrExt;
-
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
     let result = fixture.model.lora_adapter_init(non_utf8_path);
 

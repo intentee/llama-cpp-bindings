@@ -1,4 +1,8 @@
+use std::env;
+use std::fs;
+
 use anyhow::Result;
+
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::add_bos::AddBos;
@@ -49,13 +53,13 @@ fn state_load_file_with_zero_max_tokens_returns_error(fixture: &LlamaFixture<'_>
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let session_path = std::env::temp_dir().join("llama_test_session_zero_max.bin");
+    let session_path = env::temp_dir().join("llama_test_session_zero_max.bin");
     context.state_save_file(&session_path, &tokens)?;
 
     let result = context.state_load_file(&session_path, 0);
 
     assert!(result.is_err());
-    let _ = std::fs::remove_file(&session_path);
+    let _ = fs::remove_file(&session_path);
 
     Ok(())
 }
@@ -105,13 +109,13 @@ fn state_seq_load_file_with_zero_max_tokens_returns_error(
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let session_path = std::env::temp_dir().join("llama_test_seq_state_zero_max.bin");
+    let session_path = env::temp_dir().join("llama_test_seq_state_zero_max.bin");
     context.state_seq_save_file(&session_path, 0, &tokens)?;
 
     let result = context.state_seq_load_file(&session_path, 0, 0);
 
     assert!(result.is_err());
-    let _ = std::fs::remove_file(&session_path);
+    let _ = fs::remove_file(&session_path);
 
     Ok(())
 }
@@ -162,13 +166,13 @@ fn state_load_file_with_insufficient_max_tokens_returns_length_error(
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let session_path = std::env::temp_dir().join("llama_test_session_insuf.bin");
+    let session_path = env::temp_dir().join("llama_test_session_insuf.bin");
     context.state_save_file(&session_path, &tokens)?;
 
     let result = context.state_load_file(&session_path, 1);
 
     assert!(result.is_err());
-    let _ = std::fs::remove_file(&session_path);
+    let _ = fs::remove_file(&session_path);
 
     Ok(())
 }
@@ -219,13 +223,13 @@ fn state_seq_load_file_with_insufficient_max_tokens_returns_length_error(
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let session_path = std::env::temp_dir().join("llama_test_seq_state_insuf.bin");
+    let session_path = env::temp_dir().join("llama_test_seq_state_insuf.bin");
     context.state_seq_save_file(&session_path, 0, &tokens)?;
 
     let result = context.state_seq_load_file(&session_path, 0, 1);
 
     assert!(result.is_err());
-    let _ = std::fs::remove_file(&session_path);
+    let _ = fs::remove_file(&session_path);
 
     Ok(())
 }

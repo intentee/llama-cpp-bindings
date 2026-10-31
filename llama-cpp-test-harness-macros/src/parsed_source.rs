@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use syn::Expr;
 use syn::ExprCall;
 use syn::ExprLit;
@@ -58,7 +60,7 @@ impl ParsedSource {
     pub fn display_suffix(&self) -> String {
         match self {
             Self::HuggingFace { file, .. } => file.clone(),
-            Self::LocalPath(path) => std::path::Path::new(path)
+            Self::LocalPath(path) => Path::new(path)
                 .file_name()
                 .and_then(|name| name.to_str())
                 .map_or_else(|| path.clone(), str::to_owned),

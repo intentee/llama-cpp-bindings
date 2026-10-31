@@ -3,13 +3,14 @@ use std::num::NonZeroU8;
 use std::os::raw::c_char;
 use std::ptr;
 
+use llama_cpp_ffi_status::read_and_free_cpp_string;
+
 use crate::context::LlamaContext;
 use crate::error::memory_seq_add_error::MemorySeqAddError;
 use crate::error::memory_seq_cp_error::MemorySeqCpError;
 use crate::error::memory_seq_div_error::MemorySeqDivError;
 use crate::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
 use crate::error::memory_seq_rm_error::MemorySeqRmError;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
 
 fn memory_seq_add_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_memory_seq_add_status,

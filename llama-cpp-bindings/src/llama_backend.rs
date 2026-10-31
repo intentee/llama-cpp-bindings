@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::SeqCst;
 
+use crate::error::Result;
 use crate::error::llama_cpp_error::LlamaCppError;
 use crate::llama_backend_numa_strategy::NumaStrategy;
 
@@ -10,7 +11,7 @@ pub struct LlamaBackend {}
 static LLAMA_BACKEND_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 impl LlamaBackend {
-    fn mark_init() -> crate::error::Result<()> {
+    fn mark_init() -> Result<()> {
         match LLAMA_BACKEND_INITIALIZED.compare_exchange(false, true, SeqCst, SeqCst) {
             Ok(_was_uninitialized) => Ok(()),
             Err(_was_already_initialized) => Err(LlamaCppError::BackendAlreadyInitialized),
@@ -19,7 +20,7 @@ impl LlamaBackend {
 
     /// # Errors
     /// Returns an error if the backend was already initialized.
-    pub fn init() -> crate::error::Result<Self> {
+    pub fn init() -> Result<Self> {
         Self::mark_init()?;
         unsafe { llama_cpp_bindings_sys::llama_backend_init() }
         Ok(Self {})
@@ -30,7 +31,7 @@ impl LlamaBackend {
     ///
     /// # Errors
     /// Returns an error if the backend was already initialized.
-    pub fn init_numa(strategy: NumaStrategy) -> crate::error::Result<Self> {
+    pub fn init_numa(strategy: NumaStrategy) -> Result<Self> {
         let backend = Self::init()?;
 
         unsafe {
@@ -67,10 +68,13 @@ impl Drop for LlamaBackend {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+
     use serial_test::serial;
 
     use super::LlamaBackend;
     use crate::error::llama_cpp_error::LlamaCppError;
+    use crate::llama_backend_numa_strategy::NumaStrategy;
 
     #[test]
     #[serial]
@@ -86,8 +90,8 @@ mod tests {
         let second_err = LlamaBackend::init().unwrap_err();
 
         assert_eq!(
-            std::mem::discriminant(&second_err),
-            std::mem::discriminant(&LlamaCppError::BackendAlreadyInitialized),
+            discriminant(&second_err),
+            discriminant(&LlamaCppError::BackendAlreadyInitialized),
             "expected BackendAlreadyInitialized, got {second_err:?}"
         );
     }
@@ -95,14 +99,12 @@ mod tests {
     #[test]
     #[serial]
     fn init_numa_returns_error_when_backend_already_initialized() {
-        use crate::llama_backend_numa_strategy::NumaStrategy;
-
         let _backend = LlamaBackend::init().unwrap();
         let second_err = LlamaBackend::init_numa(NumaStrategy::Disabled).unwrap_err();
 
         assert_eq!(
-            std::mem::discriminant(&second_err),
-            std::mem::discriminant(&LlamaCppError::BackendAlreadyInitialized),
+            discriminant(&second_err),
+            discriminant(&LlamaCppError::BackendAlreadyInitialized),
             "expected BackendAlreadyInitialized, got {second_err:?}"
         );
     }
@@ -128,8 +130,6 @@ mod tests {
     #[test]
     #[serial]
     fn init_numa_with_a_numa_strategy_initializes_the_backend_numa_support_needs() {
-        use crate::llama_backend_numa_strategy::NumaStrategy;
-
         assert_eq!(
             LlamaBackend::init_numa(NumaStrategy::Distribute),
             Ok(LlamaBackend {})

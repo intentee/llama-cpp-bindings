@@ -259,8 +259,11 @@ pub fn link_directives(
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use std::fs;
     use std::path::Path;
     use std::path::PathBuf;
+    use std::process;
 
     use enumflags2::BitFlags;
 
@@ -411,11 +414,9 @@ mod tests {
 
     #[test]
     fn static_gpu_backends_link_their_archives_and_the_vendor_runtimes() {
-        let rocm_root = std::env::temp_dir().join(format!(
-            "llama-cpp-bindings-build-rocm-{}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(rocm_root.join("lib")).unwrap();
+        let rocm_root =
+            env::temp_dir().join(format!("llama-cpp-bindings-build-rocm-{}", process::id()));
+        fs::create_dir_all(rocm_root.join("lib")).unwrap();
         let environment = BuildEnvironment {
             cuda_library_dirs: vec![PathBuf::from("/cuda/lib64")],
             ..cargo_environment(
@@ -472,7 +473,7 @@ mod tests {
             ]
             .concat()
         );
-        std::fs::remove_dir_all(rocm_root).unwrap();
+        fs::remove_dir_all(rocm_root).unwrap();
     }
 
     #[test]
@@ -613,9 +614,9 @@ mod tests {
 
     #[test]
     fn library_directories_an_enabled_feature_needs_must_exist() {
-        let missing_directory = std::env::temp_dir().join(format!(
+        let missing_directory = env::temp_dir().join(format!(
             "llama-cpp-bindings-build-missing-{}",
-            std::process::id()
+            process::id()
         ));
         let refusal = |features: BitFlags<BuildFeature>, overrides: &[(&str, &str)]| {
             let environment = cargo_environment(features, overrides);
