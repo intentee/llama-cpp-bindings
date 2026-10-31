@@ -62,6 +62,17 @@ fn input_chunks_init_status_to_result(
     }
 }
 
+fn fit_each(
+    chunks: &[MtmdInputChunk],
+    mtmd_ctx: &MtmdContext,
+    micro_batch_tokens: u32,
+) -> Result<Vec<MtmdInputChunkType>, MtmdEvalError> {
+    chunks
+        .iter()
+        .map(|chunk| chunk.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens))
+        .collect()
+}
+
 #[derive(Debug)]
 pub struct MtmdInputChunks {
     pub chunks: NonNull<llama_cpp_bindings_sys::mtmd_input_chunks>,
@@ -126,12 +137,7 @@ impl MtmdInputChunks {
         mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
     ) -> Result<Vec<MtmdInputChunkType>, MtmdEvalError> {
-        (0..self.len())
-            .map(|index| {
-                self.chunk_within_count(index)?
-                    .fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)
-            })
-            .collect()
+        fit_each(&self.chunks_within_count()?, mtmd_ctx, micro_batch_tokens)
     }
 
     #[must_use]
@@ -161,37 +167,43 @@ impl MtmdInputChunks {
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdEvalError> {
         let limits = MtmdEvalLimits::of(llama_ctx);
+        let micro_batch_tokens = limits
+            .context
+            .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?);
+        let chunks = self.chunks_within_count()?;
 
-        self.fit_to_micro_batch(
-            mtmd_ctx,
-            limits
-                .context
-                .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?),
-        )?;
+        fit_each(&chunks, mtmd_ctx, micro_batch_tokens)?;
 
-        let chunk_count = self.len();
+        let chunk_count = chunks.len();
 
-        (0..chunk_count).try_fold(start_position, |position, index| {
-            eval_chunk(
-                &self.chunk_within_count(index)?,
-                mtmd_ctx,
-                llama_ctx,
-                position,
-                seq_id,
-                n_batch,
-                logits_last && index + 1 == chunk_count,
-            )
-        })
+        chunks
+            .iter()
+            .enumerate()
+            .try_fold(start_position, |position, (index, chunk)| {
+                eval_chunk(
+                    chunk,
+                    mtmd_ctx,
+                    llama_ctx,
+                    position,
+                    seq_id,
+                    n_batch,
+                    logits_last && index + 1 == chunk_count,
+                )
+            })
     }
 
-    fn chunk_within_count(&self, index: usize) -> Result<MtmdInputChunk, MtmdEvalError> {
-        self.get(index).ok_or_else(|| {
-            llama_cpp_ffi_status::FfiContractError {
-                operation: "mtmd_input_chunks_get",
-                detail: "returned a null chunk within the chunk count",
-            }
-            .into()
-        })
+    fn chunks_within_count(&self) -> Result<Vec<MtmdInputChunk>, MtmdEvalError> {
+        (0..self.len())
+            .map(|index| {
+                self.get(index).ok_or_else(|| {
+                    llama_cpp_ffi_status::FfiContractError {
+                        operation: "mtmd_input_chunks_get",
+                        detail: "returned a null chunk within the chunk count",
+                    }
+                    .into()
+                })
+            })
+            .collect()
     }
 }
 

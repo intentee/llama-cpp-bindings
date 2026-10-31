@@ -501,6 +501,7 @@ extern "C" auto llama_rs_sampler_apply(
         return LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG;
     }
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_APPLY_THROWS);
         llama_sampler_apply(sampler, data_array);
         return LLAMA_RS_SAMPLER_APPLY_OK;
     } catch (...) {

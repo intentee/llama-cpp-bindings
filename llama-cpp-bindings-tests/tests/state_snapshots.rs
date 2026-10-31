@@ -41,7 +41,7 @@ use llama_cpp_test_harness::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn state_get_size_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_fresh_context_reports_a_nonempty_state_size(fixture: &LlamaFixture<'_>) -> Result<()> {
     let context = fixture.build_context()?;
 
     assert!(context.state_get_size() > 0);
@@ -115,7 +115,9 @@ fn state_set_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn state_get_data_and_state_set_data_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn state_set_data_consumes_exactly_the_bytes_state_get_data_wrote(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let tokens =

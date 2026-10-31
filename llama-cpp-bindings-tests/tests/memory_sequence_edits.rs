@@ -79,7 +79,7 @@ fn memory_seq_rm_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> Result
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn memory_seq_cp_succeeds(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_cp_copies_a_whole_primed_sequence(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     prime_memory(fixture, &mut context)?;

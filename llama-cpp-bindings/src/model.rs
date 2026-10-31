@@ -361,23 +361,7 @@ impl LlamaModel {
         | SampledToken::Reasoning(inner)
         | SampledToken::ToolCall(inner)
         | SampledToken::Undeterminable(inner)) = *token;
-        let token = self.require_vocabulary_token(inner)?;
-        let mut probe = [0_u8; PIECE_PROBE_SIZE];
-
-        match self.write_piece(token, &mut probe, PIECE_PROBE_LEN, special, lstrip) {
-            Ok(written) => Ok(decode_piece(decoder, probe.split_at(written).0)),
-            Err(TokenToStringError::InsufficientBufferSpace(required_size)) => {
-                let bytes = self.token_to_piece_bytes(
-                    token,
-                    required_size.unsigned_abs() as usize,
-                    special,
-                    lstrip,
-                )?;
-
-                Ok(decode_piece(decoder, &bytes))
-            }
-            Err(probe_error) => Err(probe_error),
-        }
+        self.read_piece(inner, special, lstrip, |piece| decode_piece(decoder, piece))
     }
 
     /// # Errors
@@ -431,21 +415,27 @@ impl LlamaModel {
         }
     }
 
-    fn token_to_piece_bytes_fitted(
+    fn read_piece<TOutput>(
         &self,
         token: LlamaToken,
         special: bool,
         lstrip: Option<NonZeroU16>,
-    ) -> Result<Vec<u8>, TokenToStringError> {
-        match self.token_to_piece_bytes(token, PIECE_PROBE_SIZE, special, lstrip) {
+        read: impl FnOnce(&[u8]) -> TOutput,
+    ) -> Result<TOutput, TokenToStringError> {
+        let token = self.require_vocabulary_token(token)?;
+        let mut probe = [0_u8; PIECE_PROBE_SIZE];
+
+        match self.write_piece(token, &mut probe, PIECE_PROBE_LEN, special, lstrip) {
+            Ok(written) => Ok(read(probe.split_at(written).0)),
             Err(TokenToStringError::InsufficientBufferSpace(required_size)) => self
                 .token_to_piece_bytes(
                     token,
                     required_size.unsigned_abs() as usize,
                     special,
                     lstrip,
-                ),
-            probe_result => probe_result,
+                )
+                .map(|piece| read(&piece)),
+            Err(probe_error) => Err(probe_error),
         }
     }
 
@@ -704,7 +694,7 @@ fn token_piece_bytes_for_tok_env(
     token: LlamaToken,
     special: bool,
 ) -> Result<Vec<u8>, TokenToStringError> {
-    match model.token_to_piece_bytes_fitted(token, special, None) {
+    match model.read_piece(token, special, None, <[u8]>::to_vec) {
         Err(TokenToStringError::UnknownTokenType) => Ok(Vec::new()),
         piece_result => piece_result,
     }

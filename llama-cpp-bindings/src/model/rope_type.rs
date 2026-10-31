@@ -26,55 +26,27 @@ mod tests {
     use crate::model::rope_type::RopeType;
 
     #[test]
-    fn rope_type_none() {
+    fn llama_cpp_rope_types_map_to_their_variants_and_the_rest_to_none() {
         assert_eq!(
-            RopeType::from_raw(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NONE),
-            None
+            [
+                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NORM,
+                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NEOX,
+                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_MROPE,
+                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE,
+                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_VISION,
+                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NONE,
+                9999,
+            ]
+            .map(RopeType::from_raw),
+            [
+                Some(RopeType::Norm),
+                Some(RopeType::NeoX),
+                Some(RopeType::MRope),
+                Some(RopeType::IMRope),
+                Some(RopeType::Vision),
+                None,
+                None,
+            ]
         );
-    }
-
-    #[test]
-    fn rope_type_norm() {
-        assert_eq!(
-            RopeType::from_raw(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NORM),
-            Some(RopeType::Norm)
-        );
-    }
-
-    #[test]
-    fn rope_type_neox() {
-        assert_eq!(
-            RopeType::from_raw(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NEOX),
-            Some(RopeType::NeoX)
-        );
-    }
-
-    #[test]
-    fn rope_type_mrope() {
-        assert_eq!(
-            RopeType::from_raw(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_MROPE),
-            Some(RopeType::MRope)
-        );
-    }
-
-    #[test]
-    fn rope_type_interleaved_mrope() {
-        assert_eq!(
-            RopeType::from_raw(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE),
-            Some(RopeType::IMRope)
-        );
-    }
-
-    #[test]
-    fn rope_type_vision() {
-        assert_eq!(
-            RopeType::from_raw(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_VISION),
-            Some(RopeType::Vision)
-        );
-    }
-
-    #[test]
-    fn rope_type_unknown_returns_none() {
-        assert_eq!(RopeType::from_raw(9999), None);
     }
 }

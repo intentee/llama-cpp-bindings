@@ -2253,6 +2253,20 @@ mod sampler_application_tests {
     }
 
     #[test]
+    fn an_exception_llama_cpp_throws_while_applying_a_sampler_is_reported() {
+        let greedy_sampler = LlamaSampler::greedy().unwrap();
+        let _fault =
+            ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_APPLY_THROWS);
+
+        assert_eq!(
+            greedy_sampler.apply(&mut excluded_candidates()),
+            Err(SampleError::SamplerApply(SamplerApplyError::Reported {
+                message: injected_fault_message(),
+            }))
+        );
+    }
+
+    #[test]
     fn selecting_samplers_llama_cpp_cannot_build_are_reported() {
         let distribution_failure = {
             let _fault = ArmedFault::at(
