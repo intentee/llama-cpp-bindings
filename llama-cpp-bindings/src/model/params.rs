@@ -537,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn default_params_have_expected_values() {
+    fn default_params_match_the_llama_cpp_model_defaults() {
         let params = LlamaModelParams::default();
 
         assert_eq!(params.n_gpu_layers(), -1);
@@ -583,13 +583,6 @@ mod tests {
         let params = LlamaModelParams::default().with_n_gpu_layers(999);
 
         assert_eq!(params.n_gpu_layers(), 999);
-    }
-
-    #[test]
-    fn with_n_gpu_layers_sets_value() {
-        let params = LlamaModelParams::default().with_n_gpu_layers(32);
-
-        assert_eq!(params.n_gpu_layers(), 32);
     }
 
     #[test]

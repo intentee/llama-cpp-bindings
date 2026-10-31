@@ -16,61 +16,6 @@ use llama_cpp_test_harness_macros::llama_test;
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
     load_mode = Mmap,
-    n_ctx = 256,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 256,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 256,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 256,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn sample_returns_result_and_succeeds_with_valid_index(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let mut context = LlamaContext::from_model(
-        model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-
-    let tokens = model.str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
-
-    batch.add_sequence(&tokens, 0, false)?;
-
-    context.decode(&batch)?;
-
-    let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
-
-    let result = sampler.sample(&context, batch.n_tokens() - 1);
-
-    assert!(result.is_ok());
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,
     n_ubatch = 128,
@@ -163,7 +108,7 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn apply_runs_sampler_over_token_data_array(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_greedy_sampler_selects_a_candidate_of_a_decoded_row(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -180,6 +125,8 @@ fn apply_runs_sampler_over_token_data_array(fixture: &LlamaFixture<'_>) -> Resul
     let sampler = LlamaSampler::greedy()?;
     sampler.apply(&mut data_array)?;
 
+    assert_ne!(data_array.selected_token(), None);
+
     Ok(())
 }
 
@@ -191,7 +138,7 @@ fn apply_runs_sampler_over_token_data_array(fixture: &LlamaFixture<'_>) -> Resul
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn sample_returns_token_after_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn sampling_the_last_decoded_row_yields_a_token(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,

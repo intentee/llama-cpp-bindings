@@ -4,38 +4,91 @@ use std::ops::Range;
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_piece_role::ChatPieceRole;
 use crate::chat_span::ChatSpan;
+use crate::chat_span_segment::ChatSpanSegment;
 use crate::sampled_token_section::SampledTokenSection;
+
+fn innermost_role_at(spans: &[ChatSpan], byte: usize) -> Option<ChatPieceRole> {
+    spans
+        .iter()
+        .enumerate()
+        .filter(|(_order, span)| span.bytes.contains(&byte))
+        .min_by_key(|(order, span)| (span.bytes.len(), Reverse(*order)))
+        .map(|(_order, span)| span.kind.piece_role())
+}
+
+fn segments_of(spans: &[ChatSpan]) -> Vec<ChatSpanSegment> {
+    let mut boundaries = spans
+        .iter()
+        .flat_map(|span| [span.bytes.start, span.bytes.end])
+        .collect::<Vec<usize>>();
+
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    boundaries
+        .iter()
+        .zip(boundaries.iter().skip(1))
+        .filter_map(|(&start, &end)| {
+            innermost_role_at(spans, start).map(|role| ChatSpanSegment {
+                bytes: start..end,
+                role,
+            })
+        })
+        .collect()
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChatSpans {
-    pub parsed_length: usize,
-    pub spans: Vec<ChatSpan>,
-    pub completeness: ChatOutputCompleteness,
+    parsed_length: usize,
+    segments: Vec<ChatSpanSegment>,
+    completeness: ChatOutputCompleteness,
 }
 
 impl ChatSpans {
+    /// Splits the nested `spans` of llama.cpp's parse once into ordered segments, each carrying
+    /// the role of the innermost span over it, so roles are looked up by binary search.
+    #[must_use]
+    pub fn new(
+        parsed_length: usize,
+        spans: &[ChatSpan],
+        completeness: ChatOutputCompleteness,
+    ) -> Self {
+        Self {
+            parsed_length,
+            segments: segments_of(spans),
+            completeness,
+        }
+    }
+
+    fn first_segment_ending_after(&self, byte: usize) -> usize {
+        self.segments
+            .partition_point(|segment| segment.bytes.end <= byte)
+    }
+
     fn tagged_role_at(&self, byte: usize) -> Option<ChatPieceRole> {
-        self.spans
-            .iter()
-            .enumerate()
-            .filter(|(_order, span)| span.bytes.contains(&byte))
-            .min_by_key(|(order, span)| (span.bytes.len(), Reverse(*order)))
-            .map(|(_order, span)| span.kind.piece_role())
+        self.segments
+            .get(self.first_segment_ending_after(byte))
+            .filter(|segment| segment.bytes.contains(&byte))
+            .map(|segment| segment.role)
     }
 
     fn untagged_marker_section(&self, byte: usize) -> Option<SampledTokenSection> {
-        let next = (byte..self.parsed_length)
-            .find_map(|later| self.tagged_role_at(later))
-            .map(ChatPieceRole::section);
+        let next = self
+            .segments
+            .get(self.first_segment_ending_after(byte))
+            .filter(|segment| segment.bytes.start.max(byte) < self.parsed_length)
+            .map(|segment| segment.role.section());
 
         if next.is_none() && self.completeness == ChatOutputCompleteness::Partial {
             return None;
         }
 
-        let previous = (0..byte)
-            .rev()
-            .find_map(|earlier| self.tagged_role_at(earlier))
-            .map(ChatPieceRole::section);
+        let previous = self
+            .segments
+            .partition_point(|segment| segment.bytes.start < byte)
+            .checked_sub(1)
+            .and_then(|index| self.segments.get(index))
+            .map(|segment| segment.role.section());
 
         Some(match (previous, next) {
             (Some(SampledTokenSection::Reasoning), _)
@@ -55,9 +108,11 @@ impl ChatSpans {
             return None;
         }
 
-        bytes
-            .clone()
-            .filter_map(|byte| self.tagged_role_at(byte))
+        self.segments
+            .iter()
+            .skip(self.first_segment_ending_after(bytes.start))
+            .take_while(|segment| segment.bytes.start < bytes.end)
+            .map(|segment| segment.role)
             .find(|role| matches!(role, ChatPieceRole::Text(_)))
             .or_else(|| {
                 bytes
@@ -89,14 +144,14 @@ mod tests {
     }
 
     fn reasoning_then_content(completeness: ChatOutputCompleteness) -> ChatSpans {
-        ChatSpans {
-            parsed_length: 30,
-            spans: vec![
+        ChatSpans::new(
+            30,
+            &[
                 span(ChatSpanKind::Reasoning, 7, 12),
                 span(ChatSpanKind::Content, 22, 30),
             ],
             completeness,
-        }
+        )
     }
 
     #[test]
@@ -141,14 +196,14 @@ mod tests {
 
     #[test]
     fn the_innermost_span_decides_a_byte_inside_nested_spans() {
-        let spans = ChatSpans {
-            parsed_length: 20,
-            spans: vec![
+        let spans = ChatSpans::new(
+            20,
+            &[
                 span(ChatSpanKind::ToolCall, 0, 20),
                 span(ChatSpanKind::ToolCallMarker, 0, 6),
             ],
-            completeness: ChatOutputCompleteness::Partial,
-        };
+            ChatOutputCompleteness::Partial,
+        );
 
         assert_eq!(
             [
@@ -164,14 +219,14 @@ mod tests {
 
     #[test]
     fn an_untagged_token_beside_a_tool_call_marks_the_tool_call() {
-        let spans = ChatSpans {
-            parsed_length: 20,
-            spans: vec![
+        let spans = ChatSpans::new(
+            20,
+            &[
                 span(ChatSpanKind::Content, 0, 5),
                 span(ChatSpanKind::ToolCall, 10, 20),
             ],
-            completeness: ChatOutputCompleteness::Partial,
-        };
+            ChatOutputCompleteness::Partial,
+        );
 
         assert_eq!(
             spans.classify_token(&(5..10)),
@@ -181,33 +236,33 @@ mod tests {
 
     #[test]
     fn an_untagged_partial_tail_after_content_waits_for_what_follows() {
-        let spans = ChatSpans {
-            parsed_length: 8,
-            spans: vec![span(ChatSpanKind::Content, 0, 5)],
-            completeness: ChatOutputCompleteness::Partial,
-        };
+        let spans = ChatSpans::new(
+            8,
+            &[span(ChatSpanKind::Content, 0, 5)],
+            ChatOutputCompleteness::Partial,
+        );
 
         assert_eq!(spans.classify_token(&(5..8)), None);
     }
 
     #[test]
     fn an_untagged_partial_tail_after_reasoning_waits_for_what_follows() {
-        let spans = ChatSpans {
-            parsed_length: 13,
-            spans: vec![span(ChatSpanKind::Reasoning, 0, 12)],
-            completeness: ChatOutputCompleteness::Partial,
-        };
+        let spans = ChatSpans::new(
+            13,
+            &[span(ChatSpanKind::Reasoning, 0, 12)],
+            ChatOutputCompleteness::Partial,
+        );
 
         assert_eq!(spans.classify_token(&(12..13)), None);
     }
 
     #[test]
     fn an_untagged_tail_of_a_finished_parse_after_content_is_a_content_marker() {
-        let spans = ChatSpans {
-            parsed_length: 8,
-            spans: vec![span(ChatSpanKind::Content, 0, 5)],
-            completeness: ChatOutputCompleteness::Finished,
-        };
+        let spans = ChatSpans::new(
+            8,
+            &[span(ChatSpanKind::Content, 0, 5)],
+            ChatOutputCompleteness::Finished,
+        );
 
         assert_eq!(
             spans.classify_token(&(5..8)),
@@ -225,14 +280,14 @@ mod tests {
 
     #[test]
     fn a_reasoning_block_byte_outside_reasoning_text_is_a_reasoning_marker() {
-        let spans = ChatSpans {
-            parsed_length: 20,
-            spans: vec![
+        let spans = ChatSpans::new(
+            20,
+            &[
                 span(ChatSpanKind::ReasoningBlock, 0, 20),
                 span(ChatSpanKind::Reasoning, 7, 12),
             ],
-            completeness: ChatOutputCompleteness::Partial,
-        };
+            ChatOutputCompleteness::Partial,
+        );
 
         assert_eq!(
             spans.classify_token(&(12..20)),

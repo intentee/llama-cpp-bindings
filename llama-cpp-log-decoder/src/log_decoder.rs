@@ -163,7 +163,7 @@ mod tests {
     use crate::log_line::LogLine;
 
     #[test]
-    fn feed_complete_info_line() {
+    fn a_complete_line_is_decoded_without_its_newline() {
         let mut decoder = LogDecoder::new();
         let result = decoder.feed(IncomingLogLevel::Info, "hello\n");
 
@@ -180,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn feed_partial_without_newline() {
+    fn a_line_without_a_newline_is_held_back() {
         let mut decoder = LogDecoder::new();
         let result = decoder.feed(IncomingLogLevel::Info, "hello");
 
@@ -194,7 +194,7 @@ mod tests {
     }
 
     #[test]
-    fn feed_cont_completion() {
+    fn a_continuation_completes_the_held_line() {
         let mut decoder = LogDecoder::new();
         decoder.feed(IncomingLogLevel::Info, "hello ");
         let result = decoder.feed(IncomingLogLevel::Cont, "world\n");
@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn feed_multi_part_cont() {
+    fn continuations_join_until_the_newline() {
         let mut decoder = LogDecoder::new();
         decoder.feed(IncomingLogLevel::Info, "part1 ");
         decoder.feed(IncomingLogLevel::Cont, "part2 ");
@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn feed_non_cont_while_buffering() {
+    fn a_new_complete_line_flushes_the_held_line_as_stale() {
         let mut decoder = LogDecoder::new();
         decoder.feed(IncomingLogLevel::Info, "stale");
         let result = decoder.feed(IncomingLogLevel::Warn, "fresh\n");
@@ -255,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    fn feed_buffer_replacement() {
+    fn a_new_partial_line_flushes_the_held_line_and_is_held_in_its_place() {
         let mut decoder = LogDecoder::new();
         decoder.feed(IncomingLogLevel::Info, "first");
         let result = decoder.feed(IncomingLogLevel::Warn, "second");
@@ -285,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn feed_orphan_cont() {
+    fn a_continuation_without_any_earlier_line_is_an_orphan_anomaly() {
         let mut decoder = LogDecoder::new();
         let result = decoder.feed(IncomingLogLevel::Cont, "ghost\n");
 
@@ -302,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn feed_orphan_cont_previous_level() {
+    fn an_orphan_continuation_takes_the_previous_line_level() {
         let mut decoder = LogDecoder::new();
         decoder.feed(IncomingLogLevel::Warn, "complete\n");
         let result = decoder.feed(IncomingLogLevel::Cont, "ghost\n");
@@ -320,70 +320,31 @@ mod tests {
     }
 
     #[test]
-    fn feed_none_level() {
-        let mut decoder = LogDecoder::new();
-        let result = decoder.feed(IncomingLogLevel::None, "no-level\n");
+    fn a_complete_line_keeps_the_level_it_arrived_with() {
+        let incoming_levels = [
+            IncomingLogLevel::None,
+            IncomingLogLevel::Unknown(9999),
+            IncomingLogLevel::Debug,
+            IncomingLogLevel::Error,
+        ];
 
         assert_eq!(
-            result,
-            DecodeResult {
-                output: DecodeOutput::Line(LogLine {
-                    level: LogLevel::None,
-                    text: "no-level".to_owned(),
-                }),
-                anomaly: None,
-            }
-        );
-    }
-
-    #[test]
-    fn feed_unknown_level() {
-        let mut decoder = LogDecoder::new();
-        let result = decoder.feed(IncomingLogLevel::Unknown(9999), "weird\n");
-
-        assert_eq!(
-            result,
-            DecodeResult {
-                output: DecodeOutput::Line(LogLine {
-                    level: LogLevel::Unknown(9999),
-                    text: "weird".to_owned(),
-                }),
-                anomaly: None,
-            }
-        );
-    }
-
-    #[test]
-    fn feed_debug_level() {
-        let mut decoder = LogDecoder::new();
-        let result = decoder.feed(IncomingLogLevel::Debug, "trace\n");
-
-        assert_eq!(
-            result,
-            DecodeResult {
-                output: DecodeOutput::Line(LogLine {
-                    level: LogLevel::Debug,
-                    text: "trace".to_owned(),
-                }),
-                anomaly: None,
-            }
-        );
-    }
-
-    #[test]
-    fn feed_error_level() {
-        let mut decoder = LogDecoder::new();
-        let result = decoder.feed(IncomingLogLevel::Error, "boom\n");
-
-        assert_eq!(
-            result,
-            DecodeResult {
-                output: DecodeOutput::Line(LogLine {
-                    level: LogLevel::Error,
-                    text: "boom".to_owned(),
-                }),
-                anomaly: None,
-            }
+            incoming_levels.map(|incoming_level| LogDecoder::new().feed(incoming_level, "line\n")),
+            [
+                LogLevel::None,
+                LogLevel::Unknown(9999),
+                LogLevel::Debug,
+                LogLevel::Error
+            ]
+            .map(|level| {
+                DecodeResult {
+                    output: DecodeOutput::Line(LogLine {
+                        level,
+                        text: "line".to_owned(),
+                    }),
+                    anomaly: None,
+                }
+            })
         );
     }
 

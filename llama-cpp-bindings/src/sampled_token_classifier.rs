@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_sys::llama_seq_id;
 use llama_cpp_bindings_types::token_usage::TokenUsage;
@@ -26,6 +28,7 @@ use crate::mtmd::mtmd_context::MtmdContext;
 use crate::mtmd::mtmd_eval_limits::MtmdEvalLimits;
 use crate::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
+use crate::pending_chat_piece::PendingChatPiece;
 use crate::sampled_token::SampledToken;
 use crate::sampled_token_section::SampledTokenSection;
 use crate::sampling::LlamaSampler;
@@ -57,7 +60,7 @@ struct ChatSessionAttribution<'session, 'model> {
     session: &'session ChatSession<'model>,
     preserved_tokens: Vec<LlamaToken>,
     output: ChatOutput,
-    attributed_tokens: usize,
+    pending_pieces: VecDeque<PendingChatPiece>,
     content_probe: ContentProbe,
 }
 
@@ -125,7 +128,7 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
                 session,
                 preserved_tokens: session.preserved_tokens(),
                 output: ChatOutput::default(),
-                attributed_tokens: 0,
+                pending_pieces: VecDeque::new(),
                 content_probe,
             }),
             decoder: encoding_rs::UTF_8.new_decoder(),
@@ -181,7 +184,13 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
             None,
         )?;
 
-        attribution.output.push(token, &piece);
+        let bytes = attribution.output.push(token, &piece);
+
+        attribution.pending_pieces.push_back(PendingChatPiece {
+            token,
+            bytes,
+            piece,
+        });
         self.attribute(ChatOutputCompleteness::Partial, outcomes)?;
 
         Ok(GenerationProgress::Continues)
@@ -200,20 +209,16 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
             .classify(&attribution.output, completeness)?;
         let mut released = Vec::new();
 
-        while let Some(output_token) = attribution
-            .output
-            .tokens()
-            .get(attribution.attributed_tokens)
-        {
-            let Some(role) = classification.classify_token(&output_token.bytes) else {
+        while let Some(pending_piece) = attribution.pending_pieces.pop_front() {
+            let Some(role) = classification.classify_token(&pending_piece.bytes) else {
+                attribution.pending_pieces.push_front(pending_piece);
                 break;
             };
-            let piece = attribution.output.text()[output_token.bytes.clone()].to_owned();
 
-            attribution
-                .content_probe
-                .pass(outcome_of(output_token.token, role, piece), &mut released);
-            attribution.attributed_tokens += 1;
+            attribution.content_probe.pass(
+                outcome_of(pending_piece.token, role, pending_piece.piece),
+                &mut released,
+            );
         }
 
         if completeness == ChatOutputCompleteness::Finished {

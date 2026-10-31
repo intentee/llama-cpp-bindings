@@ -45,7 +45,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_strings_are_valid() {
+    fn an_empty_role_and_content_form_a_message() {
         let message = LlamaChatMessage::new(String::new(), String::new());
 
         assert!(message.is_ok());

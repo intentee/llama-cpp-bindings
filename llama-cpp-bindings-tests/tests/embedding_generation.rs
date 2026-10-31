@@ -91,7 +91,7 @@ fn embedding_generation_produces_vectors(fixture: &LlamaFixture<'_>) -> Result<(
     n_ubatch = 512,
     embeddings = true,
 )]
-fn decoding_with_embeddings_enabled_succeeds(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn an_embeddings_context_decodes_a_prompt(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -119,7 +119,9 @@ fn decoding_with_embeddings_enabled_succeeds(fixture: &LlamaFixture<'_>) -> Resu
     n_ubatch = 512,
     embeddings = true,
 )]
-fn embeddings_seq_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -297,7 +299,7 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
     n_ubatch = 512,
     embeddings = true,
 )]
-fn embeddings_ith_returns_valid_embeddings(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_token_embedding_is_as_wide_as_the_model_embedding(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,

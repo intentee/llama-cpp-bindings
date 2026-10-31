@@ -174,7 +174,9 @@ fn token_to_piece_bytes_insufficient_buffer_returns_error(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_to_piece_with_lstrip_succeeds(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn token_to_piece_accepts_a_count_of_leading_spaces_to_strip(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;

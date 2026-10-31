@@ -45,7 +45,7 @@ fn encode_on_non_encoder_model_returns_error(fixture: &LlamaFixture<'_>) -> Resu
     n_ubatch = 512,
     embeddings = true,
 )]
-fn encode_succeeds_with_encoder_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn an_encoder_model_encodes_a_prompt(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,

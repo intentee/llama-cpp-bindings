@@ -46,7 +46,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn fit_params_succeeds_with_test_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn fit_params_fits_a_nonzero_context_for_the_model(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model_path_c = CString::new(fixture.model_path.as_os_str().as_encoded_bytes())?;
 
     let mut params = pin!(LlamaModelParams::default());

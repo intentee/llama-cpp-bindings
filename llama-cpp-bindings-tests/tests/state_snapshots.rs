@@ -227,7 +227,9 @@ fn state_seq_get_size_ext_returns_size_for_decoded_sequence(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn state_seq_get_data_ext_and_set_data_ext_round_trip(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn state_seq_set_data_ext_consumes_exactly_the_bytes_state_seq_get_data_ext_wrote(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let tokens =

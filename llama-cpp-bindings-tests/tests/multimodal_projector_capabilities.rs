@@ -27,7 +27,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn decode_use_non_causal_returns_bool_for_image_chunk(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn qwen_image_chunks_decode_causally(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
@@ -44,12 +44,8 @@ fn decode_use_non_causal_returns_bool_for_image_chunk(fixture: &LlamaFixture<'_>
             .get(chunk_index)
             .context(format!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
-            let value = mtmd_ctx.decode_use_non_causal(&chunk);
-            let printed = format!("{value:?}");
-            assert!(
-                !printed.is_empty(),
-                "decode_use_non_causal must return a Debug-printable bool"
-            );
+            assert!(!mtmd_ctx.decode_use_non_causal(&chunk));
+
             return Ok(());
         }
     }

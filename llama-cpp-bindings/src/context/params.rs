@@ -341,7 +341,7 @@ mod tests {
     use super::RopeScalingType;
 
     #[test]
-    fn default_params_have_expected_values() {
+    fn default_params_match_the_llama_cpp_context_defaults() {
         let params = super::LlamaContextParams::default();
 
         assert_eq!(params.n_ctx(), NonZeroU32::new(512));

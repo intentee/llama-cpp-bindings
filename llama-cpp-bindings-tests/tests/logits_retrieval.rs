@@ -18,7 +18,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn get_logits_ith_returns_valid_slice(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_logits_row_holds_one_logit_per_vocabulary_token(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,

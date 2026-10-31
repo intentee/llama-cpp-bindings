@@ -74,13 +74,14 @@ mod tests {
 
     use super::LlamaBackend;
     use crate::error::llama_cpp_error::LlamaCppError;
+    use crate::llama_backend_device::LlamaBackendDevice;
+    use crate::llama_backend_device_type::LlamaBackendDeviceType;
     use crate::llama_backend_numa_strategy::NumaStrategy;
 
     #[test]
     #[serial]
-    fn init_succeeds() {
-        let backend = LlamaBackend::init();
-        assert!(backend.is_ok());
+    fn initializing_the_backend_returns_it() {
+        assert_eq!(LlamaBackend::init(), Ok(LlamaBackend {}));
     }
 
     #[test]
@@ -111,11 +112,28 @@ mod tests {
 
     #[test]
     #[serial]
-    fn feature_queries_return_bools() {
+    fn the_backend_supports_mmap_and_mlock() {
         let backend = LlamaBackend::init().unwrap();
-        let _gpu = backend.supports_gpu_offload();
-        let _mmap = backend.supports_mmap();
-        let _mlock = backend.supports_mlock();
+
+        assert_eq!(
+            [backend.supports_mmap(), backend.supports_mlock()],
+            [true, true]
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn the_backend_offloads_to_a_gpu_exactly_when_one_is_registered() {
+        let backend = LlamaBackend::init().unwrap();
+        let offloads_to_a_gpu = backend.supports_gpu_offload();
+
+        assert_eq!(
+            offloads_to_a_gpu,
+            LlamaBackendDevice::list_all().iter().any(|device| matches!(
+                device.device_type,
+                LlamaBackendDeviceType::Gpu | LlamaBackendDeviceType::IntegratedGpu
+            ))
+        );
     }
 
     #[test]

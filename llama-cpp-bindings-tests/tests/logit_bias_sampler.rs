@@ -10,7 +10,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn logit_bias_with_empty_biases_succeeds(_fixture: &LlamaFixture<'_>) {
+fn a_logit_bias_sampler_accepts_an_empty_bias_list(_fixture: &LlamaFixture<'_>) {
     let result = LlamaSampler::logit_bias(0, &[]);
 
     assert!(result.is_ok());

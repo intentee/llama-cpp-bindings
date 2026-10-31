@@ -136,7 +136,9 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn json_schema_constrains_output(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn an_llguidance_json_schema_constrains_the_answer_to_the_schema(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let backend = fixture.backend;
 

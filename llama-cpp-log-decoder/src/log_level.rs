@@ -13,7 +13,7 @@ mod tests {
     use super::LogLevel;
 
     #[test]
-    fn unknown_variant_equality() {
+    fn unknown_levels_are_equal_only_with_the_same_raw_value() {
         assert_eq!(LogLevel::Unknown(42), LogLevel::Unknown(42));
         assert_ne!(LogLevel::Unknown(42), LogLevel::Unknown(43));
     }

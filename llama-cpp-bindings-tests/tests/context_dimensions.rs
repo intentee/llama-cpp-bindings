@@ -36,17 +36,6 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn new_context_returns_valid_context(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-
-    assert!(context.n_ctx() > 0);
-    Ok(())
-}
-
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,

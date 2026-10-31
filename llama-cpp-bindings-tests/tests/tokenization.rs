@@ -41,7 +41,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn str_to_token_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_first_token_of_tokenized_text_decodes_to_a_nonempty_piece(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let tokens = model.str_to_token("hello world", AddBos::Never, ParseSpecialTokens::Always)?;
     assert_ne!(tokens, Vec::<LlamaToken>::new());

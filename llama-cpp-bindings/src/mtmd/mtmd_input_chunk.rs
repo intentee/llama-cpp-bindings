@@ -227,6 +227,7 @@ mod unit_tests {
     use super::tokens_from_raw_ptr;
     use crate::mtmd::mtmd_eval_error::MtmdEvalError;
     use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
+    use crate::token::LlamaToken;
 
     #[test]
     fn tokens_from_raw_ptr_returns_none_for_null() {
@@ -240,12 +241,11 @@ mod unit_tests {
     }
 
     #[test]
-    fn tokens_from_raw_ptr_returns_some_for_valid() {
+    fn tokens_from_raw_ptr_views_every_token() {
         let tokens: [llama_cpp_bindings_sys::llama_token; 2] = [1, 2];
         let result = unsafe { tokens_from_raw_ptr(tokens.as_ptr(), 2) };
 
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().len(), 2);
+        assert_eq!(result, Some(&[LlamaToken::new(1), LlamaToken::new(2)][..]));
     }
 
     #[test]

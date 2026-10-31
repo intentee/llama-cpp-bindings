@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn ggml_level_to_incoming_known_constants() {
+    fn every_ggml_log_level_maps_to_its_incoming_level() {
         assert_eq!(
             ggml_level_to_incoming(llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE),
             IncomingLogLevel::None,
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn ggml_level_to_incoming_unknown_value() {
+    fn an_unknown_ggml_log_level_keeps_its_raw_value() {
         assert_eq!(
             ggml_level_to_incoming(9999),
             IncomingLogLevel::Unknown(9999)
@@ -311,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_when_disabled() {
+    fn disabled_logs_emit_no_record() {
         ensure_test_logger_installed();
 
         let target = "test-dispatch-when-disabled";
@@ -326,7 +326,7 @@ mod tests {
     }
 
     #[test]
-    fn demote_info_to_debug_on_info() {
+    fn demoting_info_logs_emits_info_as_debug() {
         ensure_test_logger_installed();
 
         let target = "test-demote-info-on-info";
@@ -350,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn demote_info_to_debug_on_warn() {
+    fn demoting_info_logs_keeps_warnings_as_warnings() {
         ensure_test_logger_installed();
 
         let target = "test-demote-info-on-warn";
@@ -374,7 +374,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_unknown_level() {
+    fn an_unknown_level_is_logged_as_a_warning_naming_it() {
         ensure_test_logger_installed();
 
         let target = "test-dispatch-unknown-level";
@@ -391,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_orphan_cont_anomaly() {
+    fn an_orphan_continuation_is_logged_with_an_anomaly_warning() {
         ensure_test_logger_installed();
 
         let target = "test-dispatch-orphan-cont";
@@ -482,7 +482,7 @@ mod tests {
 
     #[test]
     #[serial]
-    fn send_logs_to_log_initialization() {
+    fn sending_logs_to_log_installs_both_log_sources() {
         ensure_test_logger_installed();
         send_logs_to_log(LogOptions::default());
 
@@ -491,7 +491,7 @@ mod tests {
     }
 
     #[test]
-    fn null_text_pointer() {
+    fn a_null_text_pointer_is_logged_as_a_warning() {
         ensure_test_logger_installed();
 
         let target = "test-null-text-pointer";
@@ -515,7 +515,7 @@ mod tests {
     }
 
     #[test]
-    fn decoder_mutex_poison() {
+    fn a_poisoned_decoder_still_decodes_logs() {
         ensure_test_logger_installed();
 
         let target = "test-decoder-mutex-poison";

@@ -35,7 +35,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn tokens_iterator_produces_valid_entries(fixture: &LlamaFixture<'_>) {
+fn the_vocabulary_iterator_yields_non_negative_token_ids(fixture: &LlamaFixture<'_>) {
     let model = fixture.model;
     let mut count = 0;
 

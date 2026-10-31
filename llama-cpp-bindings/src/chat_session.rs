@@ -257,11 +257,7 @@ fn read_chat_spans(
             })
         })
         .collect::<Result<Vec<ChatSpan>, FfiStatusError>>()
-        .map(|spans_read| ChatSpans {
-            parsed_length: view.parsed_length,
-            spans: spans_read,
-            completeness,
-        })
+        .map(|spans_read| ChatSpans::new(view.parsed_length, &spans_read, completeness))
         .map_err(ParseChatMessageError::from);
 
     unsafe { llama_cpp_bindings_sys::llama_rs_chat_spans_free(spans.as_ptr()) };

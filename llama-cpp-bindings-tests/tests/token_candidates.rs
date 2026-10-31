@@ -19,7 +19,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn token_data_array_ith_returns_valid_data(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,

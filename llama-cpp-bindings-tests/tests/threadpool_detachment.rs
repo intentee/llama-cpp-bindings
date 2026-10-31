@@ -12,7 +12,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn detach_threadpool_completes_without_panic(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_context_detaches_its_threadpool(fixture: &LlamaFixture<'_>) -> Result<()> {
     let context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,

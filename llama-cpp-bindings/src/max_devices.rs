@@ -8,7 +8,7 @@ mod tests {
     use crate::max_devices::max_devices;
 
     #[test]
-    fn returns_at_least_one() {
+    fn at_least_one_device_is_supported() {
         let device_count = max_devices();
 
         assert!(device_count >= 1);

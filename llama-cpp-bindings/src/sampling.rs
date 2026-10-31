@@ -1075,7 +1075,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_grammar_strings_valid() {
+    fn sanitize_grammar_strings_converts_a_grammar_and_root_without_nul_bytes() {
         assert_eq!(
             LlamaSampler::sanitize_grammar_strings("root ::= \"hello\"", "root"),
             Ok(SanitizedGrammar {
@@ -1117,7 +1117,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_trigger_patterns_valid() {
+    fn sanitize_trigger_patterns_converts_every_pattern() {
         let patterns = vec!["^hello$".to_string(), "world.*".to_string()];
         let result = LlamaSampler::sanitize_trigger_patterns(&patterns);
 
@@ -1149,7 +1149,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_modifies_data_array() {
+    fn a_greedy_sampler_selects_the_highest_logit() {
         let sampler = greedy_sampler();
         let mut data_array = LlamaTokenDataArray::new(
             vec![
@@ -1201,17 +1201,7 @@ mod tests {
     }
 
     #[test]
-    fn accept_succeeds_on_penalties_sampler() {
-        let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
-            .expect("sampler chain must initialize");
-
-        let result = sampler.accept(LlamaToken::new(42));
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn accept_many_multiple_tokens() {
+    fn a_penalties_chain_accepts_many_tokens() {
         let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize");
 
@@ -1221,7 +1211,7 @@ mod tests {
     }
 
     #[test]
-    fn all_sampler_constructors() {
+    fn every_sampler_constructor_initializes_its_sampler() {
         let _temp = LlamaSampler::temp(0.8).expect("temperature sampler must initialize");
         let _temp_ext = LlamaSampler::temp_ext(0.8, 0.1, 1.0)
             .expect("extended temperature sampler must initialize");
@@ -1244,10 +1234,11 @@ mod tests {
     }
 
     #[test]
-    fn reset_and_get_seed() {
+    fn a_distribution_sampler_resets_and_reports_its_seed() {
         let mut sampler = LlamaSampler::dist(42).expect("distribution sampler must initialize");
-        assert!(sampler.reset().is_ok());
-        let _seed = sampler.get_seed();
+
+        assert_eq!(sampler.reset(), Ok(()));
+        assert_eq!(sampler.get_seed(), 42);
     }
 
     #[test]
@@ -1267,7 +1258,7 @@ mod checked_usize_as_i32_sampling_tests {
     use crate::token::logit_bias::LlamaLogitBias;
 
     #[test]
-    fn checked_usize_as_i32_sampling_overflow() {
+    fn a_count_beyond_an_i32_is_an_integer_overflow() {
         assert_eq!(
             checked_usize_as_i32_sampling(usize::MAX),
             i32::try_from(usize::MAX).map_err(SamplingError::IntegerOverflow)

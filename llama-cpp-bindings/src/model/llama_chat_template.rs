@@ -44,7 +44,7 @@ mod tests {
     use crate::model::llama_chat_template::LlamaChatTemplate;
 
     #[test]
-    fn valid_template_creation() {
+    fn a_template_keeps_its_name() {
         let template = LlamaChatTemplate::new("chatml").unwrap();
         let template_str = template.to_str().unwrap();
 
@@ -67,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn to_string_returns_owned_string() {
+    fn to_string_copies_the_template_name() {
         let template = LlamaChatTemplate::new("llama3").unwrap();
         let owned = template.to_string().unwrap();
 
@@ -75,7 +75,7 @@ mod tests {
     }
 
     #[test]
-    fn as_c_str_returns_valid_cstr() {
+    fn as_c_str_views_the_template_name() {
         let template = LlamaChatTemplate::new("test").unwrap();
         let cstr = template.as_c_str();
 

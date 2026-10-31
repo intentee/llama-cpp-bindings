@@ -121,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn from_ffi_override_int() {
+    fn an_int_kv_override_reads_as_an_int_value() {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
             key: [0; 128],
             tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_INT,
@@ -136,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn from_ffi_override_float() {
+    fn a_float_kv_override_reads_as_a_float_value() {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
             key: [0; 128],
             tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn from_ffi_override_bool() {
+    fn a_bool_kv_override_reads_as_a_bool_value() {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
             key: [0; 128],
             tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_BOOL,
@@ -180,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn from_ffi_override_str() {
+    fn a_str_kv_override_reads_as_a_str_value() {
         let mut str_data = [0i8; 128];
         str_data[0] = b'a'.cast_signed();
         str_data[1] = b'b'.cast_signed();

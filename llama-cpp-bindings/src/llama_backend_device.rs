@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    fn cstr_to_string_with_valid_ptr() {
+    fn cstr_to_string_copies_a_non_null_string() {
         let result = cstr_to_string(c"hello".as_ptr());
 
         assert_eq!(result, "hello");

@@ -66,15 +66,6 @@ mod tests {
     }
 
     #[test]
-    fn kv_overrides_new_creates_view() {
-        let params = LlamaModelParams::default();
-        let overrides = super::KvOverrides::new(&params);
-        let count = overrides.into_iter().count();
-
-        assert_eq!(count, 0);
-    }
-
-    #[test]
     fn kv_overrides_preserves_unknown_tag_error() {
         let mut params = pin!(LlamaModelParams::default());
         let key = CString::new("valid_key").unwrap();

@@ -1,14 +1,14 @@
+use std::ops::Range;
+
 use llama_cpp_bindings_sys::LLAMA_TOKEN_NULL;
 use llama_cpp_bindings_sys::llama_token;
 
-use crate::chat_output_token::ChatOutputToken;
 use crate::token::LlamaToken;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ChatOutput {
     text: String,
     byte_tokens: Vec<llama_token>,
-    tokens: Vec<ChatOutputToken>,
 }
 
 impl From<&str> for ChatOutput {
@@ -17,15 +17,15 @@ impl From<&str> for ChatOutput {
         Self {
             text: text.to_owned(),
             byte_tokens: vec![LLAMA_TOKEN_NULL; text.len()],
-            tokens: Vec::new(),
         }
     }
 }
 
 impl ChatOutput {
     /// Appends the text `token` decoded to, recording the token at the first byte of its piece
-    /// the way `common_chat_input` lays tokens over the text.
-    pub fn push(&mut self, token: LlamaToken, piece: &str) {
+    /// the way `common_chat_input` lays tokens over the text, and returns the bytes the piece
+    /// occupies.
+    pub fn push(&mut self, token: LlamaToken, piece: &str) -> Range<usize> {
         let start = self.text.len();
 
         self.text.push_str(piece);
@@ -36,10 +36,8 @@ impl ChatOutput {
                 LLAMA_TOKEN_NULL
             }
         }));
-        self.tokens.push(ChatOutputToken {
-            token,
-            bytes: start..self.text.len(),
-        });
+
+        start..self.text.len()
     }
 
     #[must_use]
@@ -51,11 +49,6 @@ impl ChatOutput {
     pub fn byte_tokens(&self) -> &[llama_token] {
         &self.byte_tokens
     }
-
-    #[must_use]
-    pub fn tokens(&self) -> &[ChatOutputToken] {
-        &self.tokens
-    }
 }
 
 #[cfg(test)]
@@ -63,46 +56,30 @@ mod tests {
     use llama_cpp_bindings_sys::LLAMA_TOKEN_NULL;
 
     use crate::chat_output::ChatOutput;
-    use crate::chat_output_token::ChatOutputToken;
     use crate::token::LlamaToken;
 
     #[test]
     fn each_token_owns_the_bytes_of_its_piece_and_marks_its_first_byte() {
         let mut output = ChatOutput::default();
 
-        output.push(LlamaToken::new(7), "<a>");
-        output.push(LlamaToken::new(9), "");
-        output.push(LlamaToken::new(11), "hi");
+        let pieces = [
+            output.push(LlamaToken::new(7), "<a>"),
+            output.push(LlamaToken::new(9), ""),
+            output.push(LlamaToken::new(11), "hi"),
+        ];
 
+        assert_eq!(pieces, [0..3, 3..3, 3..5]);
         assert_eq!(output.text(), "<a>hi");
         assert_eq!(
             output.byte_tokens(),
             [7, LLAMA_TOKEN_NULL, LLAMA_TOKEN_NULL, 11, LLAMA_TOKEN_NULL]
         );
-        assert_eq!(
-            output.tokens(),
-            [
-                ChatOutputToken {
-                    token: LlamaToken::new(7),
-                    bytes: 0..3,
-                },
-                ChatOutputToken {
-                    token: LlamaToken::new(9),
-                    bytes: 3..3,
-                },
-                ChatOutputToken {
-                    token: LlamaToken::new(11),
-                    bytes: 3..5,
-                },
-            ]
-        );
     }
 
     #[test]
-    fn plain_text_carries_no_tokens() {
+    fn plain_text_marks_no_byte_with_a_token() {
         let output = ChatOutput::from("ab");
 
         assert_eq!(output.byte_tokens(), [LLAMA_TOKEN_NULL, LLAMA_TOKEN_NULL]);
-        assert_eq!(output.tokens(), []);
     }
 }

@@ -42,7 +42,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn state_save_and_load_file_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_loaded_state_file_restores_the_tokens_it_was_saved_with(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let tokens =
@@ -96,7 +98,9 @@ fn state_save_and_load_file_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> 
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn state_seq_save_and_load_file_roundtrip(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_loaded_sequence_state_file_restores_its_tokens_and_bytes(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     let tokens =

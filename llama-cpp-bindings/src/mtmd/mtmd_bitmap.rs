@@ -414,7 +414,7 @@ mod tests {
     use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
 
     #[test]
-    fn from_image_data_creates_valid_bitmap() {
+    fn image_data_makes_an_image_bitmap_of_its_dimensions() {
         let red_pixel: [u8; 3] = [255, 0, 0];
         let image_data: Vec<u8> = red_pixel.repeat(4);
         let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
@@ -479,7 +479,7 @@ mod tests {
     }
 
     #[test]
-    fn from_audio_data_creates_valid_bitmap() {
+    fn audio_samples_make_an_audio_bitmap() {
         let audio_samples: Vec<f32> = (0u8..100)
             .map(|index| (f32::from(index) * 0.1).sin())
             .collect();
@@ -537,7 +537,7 @@ mod cstr_ptr_to_optional_string_tests {
     }
 
     #[test]
-    fn cstr_ptr_to_optional_string_returns_some_for_valid() {
+    fn cstr_ptr_to_optional_string_copies_a_non_null_string() {
         let cstr = CString::new("hello").unwrap();
         let result = cstr_ptr_to_optional_string(cstr.as_ptr());
 

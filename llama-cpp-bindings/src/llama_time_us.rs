@@ -8,7 +8,7 @@ mod tests {
     use crate::llama_time_us::llama_time_us;
 
     #[test]
-    fn returns_positive_value() {
+    fn llama_time_is_positive() {
         let time_microseconds = llama_time_us();
 
         assert!(time_microseconds > 0);
