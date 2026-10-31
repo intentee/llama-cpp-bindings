@@ -1,196 +1,25 @@
 use std::mem;
 
-use serde::Deserialize;
-use serde::de::IgnoredAny;
-
+use crate::bare_json_tool_call::BareJsonToolCall;
 use crate::json_probe_outcome::JsonProbeOutcome;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct BareJsonToolCall {
-    name: String,
-    #[serde(rename = "arguments")]
-    _arguments: Option<IgnoredAny>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ToolCallField {
-    Arguments,
-    Name,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum ProbeState {
-    AwaitingObjectOpen,
-    AwaitingFirstKeyOrClose,
-    AwaitingKey,
-    InKey {
-        quoted_key: String,
-        escaped: bool,
-    },
-    AwaitingColon(ToolCallField),
-    AwaitingValue(ToolCallField),
-    InName {
-        escaped: bool,
-    },
-    InArguments {
-        depth: usize,
-        in_string: bool,
-        escaped: bool,
-    },
-    AwaitingCommaOrClose,
-    Closed,
-    Failed,
-}
-
-const fn is_json_whitespace(character: char) -> bool {
-    matches!(character, ' ' | '\t' | '\n' | '\r')
-}
-
-fn field_named(quoted_key: &str) -> Option<ToolCallField> {
-    match serde_json::from_str::<String>(quoted_key).ok()?.as_str() {
-        "arguments" => Some(ToolCallField::Arguments),
-        "name" => Some(ToolCallField::Name),
-        _ => None,
-    }
-}
+use crate::streaming_json_probe_state::StreamingJsonProbeState;
 
 fn is_named_tool_call(held_text: &str) -> bool {
     serde_json::from_str::<BareJsonToolCall>(held_text)
         .is_ok_and(|tool_call| !tool_call.name.is_empty())
 }
 
-impl ProbeState {
-    fn advance(self, character: char) -> Self {
-        match self {
-            Self::AwaitingObjectOpen => match character {
-                '{' => Self::AwaitingFirstKeyOrClose,
-                _ if is_json_whitespace(character) => Self::AwaitingObjectOpen,
-                _ => Self::Failed,
-            },
-            Self::AwaitingFirstKeyOrClose => match character {
-                '"' => Self::InKey {
-                    quoted_key: String::from('"'),
-                    escaped: false,
-                },
-                '}' => Self::Closed,
-                _ if is_json_whitespace(character) => Self::AwaitingFirstKeyOrClose,
-                _ => Self::Failed,
-            },
-            Self::AwaitingKey => match character {
-                '"' => Self::InKey {
-                    quoted_key: String::from('"'),
-                    escaped: false,
-                },
-                _ if is_json_whitespace(character) => Self::AwaitingKey,
-                _ => Self::Failed,
-            },
-            Self::InKey {
-                mut quoted_key,
-                escaped,
-            } => {
-                quoted_key.push(character);
-
-                if escaped || character != '"' {
-                    Self::InKey {
-                        quoted_key,
-                        escaped: !escaped && character == '\\',
-                    }
-                } else {
-                    field_named(&quoted_key).map_or(Self::Failed, Self::AwaitingColon)
-                }
-            }
-            Self::AwaitingColon(field) => match character {
-                ':' => Self::AwaitingValue(field),
-                _ if is_json_whitespace(character) => Self::AwaitingColon(field),
-                _ => Self::Failed,
-            },
-            Self::AwaitingValue(field) => match (field, character) {
-                (ToolCallField::Name, '"') => Self::InName { escaped: false },
-                (ToolCallField::Arguments, '{') => Self::InArguments {
-                    depth: 1,
-                    in_string: false,
-                    escaped: false,
-                },
-                _ if is_json_whitespace(character) => Self::AwaitingValue(field),
-                _ => Self::Failed,
-            },
-            Self::InName { escaped } => {
-                if !escaped && character == '"' {
-                    Self::AwaitingCommaOrClose
-                } else {
-                    Self::InName {
-                        escaped: !escaped && character == '\\',
-                    }
-                }
-            }
-            Self::InArguments {
-                depth,
-                in_string,
-                escaped,
-            } => Self::advance_arguments(depth, in_string, escaped, character),
-            Self::AwaitingCommaOrClose => match character {
-                ',' => Self::AwaitingKey,
-                '}' => Self::Closed,
-                _ if is_json_whitespace(character) => Self::AwaitingCommaOrClose,
-                _ => Self::Failed,
-            },
-            Self::Closed if is_json_whitespace(character) => Self::Closed,
-            Self::Closed | Self::Failed => Self::Failed,
-        }
-    }
-
-    const fn advance_arguments(
-        depth: usize,
-        in_string: bool,
-        escaped: bool,
-        character: char,
-    ) -> Self {
-        if in_string {
-            return Self::InArguments {
-                depth,
-                in_string: escaped || character != '"',
-                escaped: !escaped && character == '\\',
-            };
-        }
-
-        match character {
-            '"' => Self::InArguments {
-                depth,
-                in_string: true,
-                escaped: false,
-            },
-            '{' | '[' => Self::InArguments {
-                depth: depth + 1,
-                in_string: false,
-                escaped: false,
-            },
-            '}' | ']' if depth == 1 => Self::AwaitingCommaOrClose,
-            '}' | ']' => Self::InArguments {
-                depth: depth - 1,
-                in_string: false,
-                escaped: false,
-            },
-            _ => Self::InArguments {
-                depth,
-                in_string: false,
-                escaped: false,
-            },
-        }
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StreamingJsonProbe {
     held_text: String,
-    state: ProbeState,
+    state: StreamingJsonProbeState,
 }
 
 impl Default for StreamingJsonProbe {
     fn default() -> Self {
         Self {
             held_text: String::new(),
-            state: ProbeState::AwaitingObjectOpen,
+            state: StreamingJsonProbeState::AwaitingObjectOpen,
         }
     }
 }
@@ -200,20 +29,22 @@ impl StreamingJsonProbe {
         self.held_text.push_str(piece);
 
         for character in piece.chars() {
-            let state = mem::replace(&mut self.state, ProbeState::Failed);
+            let state = mem::replace(&mut self.state, StreamingJsonProbeState::Failed);
 
             self.state = state.advance(character);
 
-            if self.state == ProbeState::Failed {
+            if self.state == StreamingJsonProbeState::Failed {
                 return JsonProbeOutcome::Failed;
             }
         }
 
         match self.state {
-            ProbeState::Closed if is_named_tool_call(&self.held_text) => {
+            StreamingJsonProbeState::Closed if is_named_tool_call(&self.held_text) => {
                 JsonProbeOutcome::CompletedValid
             }
-            ProbeState::Closed | ProbeState::Failed => JsonProbeOutcome::Failed,
+            StreamingJsonProbeState::Closed | StreamingJsonProbeState::Failed => {
+                JsonProbeOutcome::Failed
+            }
             _ => JsonProbeOutcome::StillPossiblyValid,
         }
     }

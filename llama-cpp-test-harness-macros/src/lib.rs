@@ -3,6 +3,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+mod attribute_accumulator;
 mod expand;
 mod parsed_args;
 mod parsed_context_params;

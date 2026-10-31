@@ -11,6 +11,7 @@ use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 
+use crate::attribute_accumulator::AttributeAccumulator;
 use crate::parsed_context_params::ParsedContextParams;
 use crate::parsed_load_mode::ParsedLoadMode;
 use crate::parsed_model_load_params::ParsedModelLoadParams;
@@ -91,21 +92,6 @@ fn require_bool_lit(literal: &Lit, field: &str) -> syn::Result<bool> {
 
 fn require<TValue>(value: Option<TValue>, field: &str, span: Span) -> syn::Result<TValue> {
     value.ok_or_else(|| syn::Error::new(span, format!("missing required field `{field}`")))
-}
-
-#[derive(Default)]
-struct AttributeAccumulator {
-    model_source: Option<ParsedSource>,
-    mmproj_source: Option<ParsedSource>,
-    n_gpu_layers: Option<i32>,
-    load_mode: Option<ParsedLoadMode>,
-    n_ctx: Option<u32>,
-    n_batch: Option<u32>,
-    n_ubatch: Option<u32>,
-    embeddings: Option<bool>,
-    n_seq_max: Option<u32>,
-    n_threads_batch: Option<i32>,
-    void_logs: Option<bool>,
 }
 
 fn dispatch_field(

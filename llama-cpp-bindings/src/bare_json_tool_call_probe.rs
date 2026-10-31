@@ -1,19 +1,11 @@
 use std::mem;
 
+use crate::bare_json_tool_call_probe_state::BareJsonToolCallProbeState;
 use crate::ingest_outcome::IngestOutcome;
 use crate::json_probe_outcome::JsonProbeOutcome;
 use crate::sampled_token::SampledToken;
 use crate::streaming_json_probe::StreamingJsonProbe;
 use crate::token_piece::TokenPiece;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum ProbeState {
-    Idle,
-    Holding {
-        probe: StreamingJsonProbe,
-        held: Vec<IngestOutcome>,
-    },
-}
 
 const fn is_visible_content(outcome: &IngestOutcome) -> bool {
     matches!(outcome.sampled_token, SampledToken::Content(_))
@@ -26,13 +18,13 @@ const fn is_visible_content(outcome: &IngestOutcome) -> bool {
 /// else is released as the content it was.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BareJsonToolCallProbe {
-    state: ProbeState,
+    state: BareJsonToolCallProbeState,
 }
 
 impl Default for BareJsonToolCallProbe {
     fn default() -> Self {
         Self {
-            state: ProbeState::Idle,
+            state: BareJsonToolCallProbeState::Idle,
         }
     }
 }
@@ -41,12 +33,12 @@ impl BareJsonToolCallProbe {
     pub fn pass(&mut self, outcome: IngestOutcome, released: &mut Vec<IngestOutcome>) {
         let is_content = is_visible_content(&outcome);
 
-        match mem::replace(&mut self.state, ProbeState::Idle) {
-            ProbeState::Holding { held, .. } if !is_content => {
+        match mem::replace(&mut self.state, BareJsonToolCallProbeState::Idle) {
+            BareJsonToolCallProbeState::Holding { held, .. } if !is_content => {
                 released.extend(held);
                 released.push(outcome);
             }
-            ProbeState::Holding {
+            BareJsonToolCallProbeState::Holding {
                 mut probe,
                 mut held,
             } => {
@@ -55,13 +47,15 @@ impl BareJsonToolCallProbe {
                 held.push(outcome);
                 self.settle(probe_outcome, probe, held, released);
             }
-            ProbeState::Idle if is_content && outcome.piece.raw().trim_start().starts_with('{') => {
+            BareJsonToolCallProbeState::Idle
+                if is_content && outcome.piece.raw().trim_start().starts_with('{') =>
+            {
                 let mut probe = StreamingJsonProbe::default();
                 let probe_outcome = probe.feed(outcome.piece.raw());
 
                 self.settle(probe_outcome, probe, vec![outcome], released);
             }
-            ProbeState::Idle => released.push(outcome),
+            BareJsonToolCallProbeState::Idle => released.push(outcome),
         }
     }
 
@@ -74,7 +68,7 @@ impl BareJsonToolCallProbe {
     ) {
         match probe_outcome {
             JsonProbeOutcome::StillPossiblyValid => {
-                self.state = ProbeState::Holding { probe, held };
+                self.state = BareJsonToolCallProbeState::Holding { probe, held };
             }
             JsonProbeOutcome::CompletedValid => {
                 released.extend(held.into_iter().map(|outcome| IngestOutcome {
@@ -88,7 +82,9 @@ impl BareJsonToolCallProbe {
 
     /// Releases every held token as the content it was.
     pub fn release(&mut self, released: &mut Vec<IngestOutcome>) {
-        if let ProbeState::Holding { held, .. } = mem::replace(&mut self.state, ProbeState::Idle) {
+        if let BareJsonToolCallProbeState::Holding { held, .. } =
+            mem::replace(&mut self.state, BareJsonToolCallProbeState::Idle)
+        {
             released.extend(held);
         }
     }

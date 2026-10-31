@@ -7,12 +7,8 @@ use llguidance::TokenParser;
 use llguidance::api::StopReason;
 
 use crate::error::grammar_runtime_error::GrammarRuntimeError;
+use crate::grammar_matcher_step_outcome::GrammarMatcherStepOutcome;
 use crate::mask_outcome::MaskOutcome;
-
-enum StepOutcome<TValue> {
-    Produced(TValue),
-    BenignStop,
-}
 
 fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
     if let Some(message) = payload.downcast_ref::<&'static str>() {
@@ -87,8 +83,8 @@ impl GrammarMatcher {
     /// state (distinct from a benign grammar completion).
     pub fn compute_mask(&mut self) -> Result<MaskOutcome, GrammarRuntimeError> {
         match self.run("compute_mask", TokenParser::compute_mask)? {
-            StepOutcome::Produced(mask) => Ok(MaskOutcome::Constrained(mask)),
-            StepOutcome::BenignStop => Ok(MaskOutcome::GrammarComplete),
+            GrammarMatcherStepOutcome::Produced(mask) => Ok(MaskOutcome::Constrained(mask)),
+            GrammarMatcherStepOutcome::BenignStop => Ok(MaskOutcome::GrammarComplete),
         }
     }
 
@@ -98,7 +94,9 @@ impl GrammarMatcher {
     /// benign stop and yields `Ok(())`.
     pub fn consume_token(&mut self, token: u32) -> Result<(), GrammarRuntimeError> {
         match self.run("consume_token", |parser| parser.consume_token(token))? {
-            StepOutcome::Produced(_) | StepOutcome::BenignStop => Ok(()),
+            GrammarMatcherStepOutcome::Produced(_) | GrammarMatcherStepOutcome::BenignStop => {
+                Ok(())
+            }
         }
     }
 
@@ -106,7 +104,9 @@ impl GrammarMatcher {
     /// Returns [`GrammarRuntimeError`] when the parser cannot be reset.
     pub fn reset(&mut self) -> Result<(), GrammarRuntimeError> {
         match self.run("reset", TokenParser::reset)? {
-            StepOutcome::Produced(()) | StepOutcome::BenignStop => Ok(()),
+            GrammarMatcherStepOutcome::Produced(()) | GrammarMatcherStepOutcome::BenignStop => {
+                Ok(())
+            }
         }
     }
 
@@ -114,9 +114,9 @@ impl GrammarMatcher {
         &mut self,
         operation: &'static str,
         step: impl FnOnce(&mut TokenParser) -> Result<TValue, TError>,
-    ) -> Result<StepOutcome<TValue>, GrammarRuntimeError> {
+    ) -> Result<GrammarMatcherStepOutcome<TValue>, GrammarRuntimeError> {
         match catch_step_panic(operation, || step(&mut self.parser))? {
-            Ok(value) => Ok(StepOutcome::Produced(value)),
+            Ok(value) => Ok(GrammarMatcherStepOutcome::Produced(value)),
             Err(step_error) => {
                 let detail = self
                     .parser
@@ -124,7 +124,7 @@ impl GrammarMatcher {
                     .unwrap_or_else(|| step_error.to_string());
                 stop_reason_to_result(self.parser.stop_reason(), detail)?;
 
-                Ok(StepOutcome::BenignStop)
+                Ok(GrammarMatcherStepOutcome::BenignStop)
             }
         }
     }

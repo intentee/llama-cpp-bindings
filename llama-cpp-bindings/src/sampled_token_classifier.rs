@@ -12,7 +12,9 @@ use crate::chat_output::ChatOutput;
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_piece_role::ChatPieceRole;
 use crate::chat_session::ChatSession;
+use crate::chat_session_attribution::ChatSessionAttribution;
 use crate::classified_sample::ClassifiedSample;
+use crate::content_probe::ContentProbe;
 use crate::context::LlamaContext;
 use crate::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use crate::error::ingest_error::IngestError;
@@ -33,41 +35,8 @@ use crate::sampled_token::SampledToken;
 use crate::sampled_token_section::SampledTokenSection;
 use crate::sampling::LlamaSampler;
 use crate::token::LlamaToken;
+use crate::token_attribution::TokenAttribution;
 use crate::token_piece::TokenPiece;
-
-enum ContentProbe {
-    Disabled,
-    BareJson(BareJsonToolCallProbe),
-}
-
-impl ContentProbe {
-    fn pass(&mut self, outcome: IngestOutcome, released: &mut Vec<IngestOutcome>) {
-        match self {
-            Self::Disabled => released.push(outcome),
-            Self::BareJson(probe) => probe.pass(outcome, released),
-        }
-    }
-
-    fn release(&mut self, released: &mut Vec<IngestOutcome>) {
-        match self {
-            Self::Disabled => {}
-            Self::BareJson(probe) => probe.release(released),
-        }
-    }
-}
-
-struct ChatSessionAttribution<'session, 'model> {
-    session: &'session ChatSession<'model>,
-    preserved_tokens: Vec<LlamaToken>,
-    output: ChatOutput,
-    pending_pieces: VecDeque<PendingChatPiece>,
-    content_probe: ContentProbe,
-}
-
-enum TokenAttribution<'session, 'model> {
-    Undeterminable,
-    ChatSession(ChatSessionAttribution<'session, 'model>),
-}
 
 const fn outcome_of(token: LlamaToken, role: ChatPieceRole, piece: String) -> IngestOutcome {
     IngestOutcome {
