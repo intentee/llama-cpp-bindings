@@ -150,6 +150,18 @@ typedef enum llama_rs_chat_span_kind {
     LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER,
 } llama_rs_chat_span_kind;
 
+typedef struct llama_rs_chat_span {
+    llama_rs_chat_span_kind kind;
+    size_t start;
+    size_t end;
+} llama_rs_chat_span;
+
+typedef struct llama_rs_chat_spans_view {
+    const llama_rs_chat_span * spans;
+    size_t spans_count;
+    size_t parsed_length;
+} llama_rs_chat_spans_view;
+
 typedef enum llama_rs_chat_session_classify_status {
     LLAMA_RS_CHAT_SESSION_CLASSIFY_OK = 0,
     LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_SESSION_ARG,
@@ -172,15 +184,7 @@ llama_rs_chat_session_classify_status llama_rs_chat_session_classify(
     llama_rs_chat_spans_handle * out_spans,
     char ** out_error);
 
-size_t llama_rs_chat_spans_parsed_length(llama_rs_chat_spans_handle spans);
-
-size_t llama_rs_chat_spans_count(llama_rs_chat_spans_handle spans);
-
-llama_rs_chat_span_kind llama_rs_chat_spans_kind(llama_rs_chat_spans_handle spans, size_t index);
-
-size_t llama_rs_chat_spans_start(llama_rs_chat_spans_handle spans, size_t index);
-
-size_t llama_rs_chat_spans_end(llama_rs_chat_spans_handle spans, size_t index);
+llama_rs_chat_spans_view llama_rs_chat_spans_view_of(llama_rs_chat_spans_handle spans);
 
 void llama_rs_chat_spans_free(llama_rs_chat_spans_handle spans);
 

@@ -43,15 +43,65 @@ extern "C" auto llama_rs_batch_ext_init(
     }
 }
 
-extern "C" auto llama_rs_batch_ext_add_entry(
+namespace {
+
+auto add_entry(
     struct llama_batch_ext * batch,
-    llama_token token,
-    llama_pos pos,
+    const llama_rs_batch_entry & entry,
+    const gsl::span<const llama_seq_id> seq_ids,
+    int32_t & out_llama_cpp_return_code) -> llama_rs_batch_ext_assign_entries_status {
+    if (seq_ids.empty()) {
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_EMPTY_SEQ_IDS;
+    }
+
+    const int32_t index = llama_batch_ext_add_token(batch, seq_ids[0], entry.token);
+
+    if (index < 0) {
+        out_llama_cpp_return_code = index;
+
+        switch (index) {
+            case -1:
+                return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_BATCH_FULL;
+            case -2:
+                return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_INVALID_TOKEN;
+            case -3:
+                return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_INVALID_SEQUENCE_ID;
+            default:
+                return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_RETURNED_UNKNOWN_CODE;
+        }
+    }
+
+    const gsl::span<const llama_seq_id> additional_seq_ids = seq_ids.subspan(1);
+    const bool every_seq_id_added = std::all_of(
+        additional_seq_ids.begin(), additional_seq_ids.end(), [&](const llama_seq_id seq_id) -> bool {
+            return llama_batch_ext_add_seq(batch, index, seq_id);
+        });
+
+    if (!every_seq_id_added) {
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_INVALID_SEQUENCE_ID;
+    }
+
+    if (!llama_batch_ext_set_pos(batch, index, &entry.pos)) {
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_POSITION_REJECTED;
+    }
+
+    if (!llama_batch_ext_set_output_logits(batch, index, entry.output)) {
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED;
+    }
+
+    return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OK;
+}
+
+}  // namespace
+
+extern "C" auto llama_rs_batch_ext_assign_entries(
+    struct llama_batch_ext * batch,
+    const llama_rs_batch_entry * entries,
+    size_t entries_count,
     const llama_seq_id * seq_ids,
-    size_t n_seq_ids,
-    bool output,
+    size_t seq_ids_count,
     int32_t * out_llama_cpp_return_code,
-    char ** out_error) -> llama_rs_batch_ext_add_entry_status {
+    char ** out_error) -> llama_rs_batch_ext_assign_entries_status {
     if (out_llama_cpp_return_code != nullptr) {
         *out_llama_cpp_return_code = 0;
     }
@@ -59,65 +109,51 @@ extern "C" auto llama_rs_batch_ext_add_entry(
         *out_error = nullptr;
     }
     if (batch == nullptr) {
-        return LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_BATCH_ARG;
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_BATCH_ARG;
+    }
+    if (entries == nullptr) {
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_ENTRIES_ARG;
     }
     if (seq_ids == nullptr) {
-        return LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_SEQ_IDS_ARG;
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_SEQ_IDS_ARG;
     }
     if (out_llama_cpp_return_code == nullptr) {
-        return LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG;
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG;
     }
     if (out_error == nullptr) {
-        return LLAMA_RS_BATCH_EXT_ADD_ENTRY_NULL_OUT_ERROR_ARG;
-    }
-    if (n_seq_ids == 0) {
-        return LLAMA_RS_BATCH_EXT_ADD_ENTRY_EMPTY_SEQ_IDS;
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_ERROR_ARG;
     }
 
     try {
-        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_BATCH_EXT_ADD_ENTRY_THROWS);
-        const gsl::span<const llama_seq_id> seq_id_span(seq_ids, n_seq_ids);
-        const int32_t index = llama_batch_ext_add_token(batch, seq_id_span[0], token);
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS);
+        llama_batch_ext_clear(batch);
 
-        if (index < 0) {
-            *out_llama_cpp_return_code = index;
+        const gsl::span<const llama_rs_batch_entry> entry_span(entries, entries_count);
+        const gsl::span<const llama_seq_id> seq_id_span(seq_ids, seq_ids_count);
 
-            switch (index) {
-                case -1:
-                    return LLAMA_RS_BATCH_EXT_ADD_ENTRY_BATCH_FULL;
-                case -2:
-                    return LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_TOKEN;
-                case -3:
-                    return LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_SEQUENCE_ID;
-                default:
-                    return LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_RETURNED_UNKNOWN_CODE;
+        for (const llama_rs_batch_entry & entry : entry_span) {
+            if (entry.seq_ids_offset > seq_id_span.size() ||
+                entry.seq_ids_count > seq_id_span.size() - entry.seq_ids_offset) {
+                return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_SEQ_IDS_OUT_OF_RANGE;
+            }
+
+            const llama_rs_batch_ext_assign_entries_status status = add_entry(
+                batch,
+                entry,
+                seq_id_span.subspan(entry.seq_ids_offset, entry.seq_ids_count),
+                *out_llama_cpp_return_code);
+
+            if (status != LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OK) {
+                return status;
             }
         }
 
-        const gsl::span<const llama_seq_id> additional_seq_ids = seq_id_span.subspan(1);
-        const bool every_seq_id_added = std::all_of(
-            additional_seq_ids.begin(), additional_seq_ids.end(), [&](const llama_seq_id seq_id) -> bool {
-                return llama_batch_ext_add_seq(batch, index, seq_id);
-            });
-
-        if (!every_seq_id_added) {
-            return LLAMA_RS_BATCH_EXT_ADD_ENTRY_INVALID_SEQUENCE_ID;
-        }
-
-        if (!llama_batch_ext_set_pos(batch, index, &pos)) {
-            return LLAMA_RS_BATCH_EXT_ADD_ENTRY_POSITION_REJECTED;
-        }
-
-        if (!llama_batch_ext_set_output_logits(batch, index, output)) {
-            return LLAMA_RS_BATCH_EXT_ADD_ENTRY_OUTPUT_REJECTED;
-        }
-
-        return LLAMA_RS_BATCH_EXT_ADD_ENTRY_OK;
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OK;
     } catch (...) {
         return llama_rs_report_current_exception(
             out_error,
-            LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_BATCH_EXT_ADD_ENTRY_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            LLAMA_RS_BATCH_EXT_ADD_ENTRY_ERROR_STRING_ALLOCATION_FAILED);
+            LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_ERROR_STRING_ALLOCATION_FAILED);
     }
 }

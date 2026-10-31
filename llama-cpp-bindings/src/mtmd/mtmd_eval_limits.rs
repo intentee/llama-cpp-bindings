@@ -12,7 +12,7 @@ pub struct MtmdEvalLimits {
 
 impl MtmdEvalLimits {
     #[must_use]
-    pub fn of(llama_ctx: &LlamaContext) -> Self {
+    pub const fn of(llama_ctx: &LlamaContext) -> Self {
         Self {
             context: ContextLimits::of(llama_ctx),
         }

@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
+use std::slice;
 
 use llama_cpp_bindings_types::ParsedChatMessage;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
@@ -243,24 +244,21 @@ fn read_chat_spans(
     spans: NonNull<llama_cpp_bindings_sys::llama_rs_chat_spans>,
     completeness: ChatOutputCompleteness,
 ) -> Result<ChatSpans, ParseChatMessageError> {
-    let count = unsafe { llama_cpp_bindings_sys::llama_rs_chat_spans_count(spans.as_ptr()) };
-    let read = (0..count)
-        .map(|index| {
-            let bytes = unsafe {
-                llama_cpp_bindings_sys::llama_rs_chat_spans_start(spans.as_ptr(), index)
-                    ..llama_cpp_bindings_sys::llama_rs_chat_spans_end(spans.as_ptr(), index)
-            };
-
-            ChatSpanKind::try_from(unsafe {
-                llama_cpp_bindings_sys::llama_rs_chat_spans_kind(spans.as_ptr(), index)
+    let view = unsafe { llama_cpp_bindings_sys::llama_rs_chat_spans_view_of(spans.as_ptr()) };
+    let wrapper_spans = NonNull::new(view.spans.cast_mut()).map_or(&[][..], |first_span| unsafe {
+        slice::from_raw_parts(first_span.as_ptr(), view.spans_count)
+    });
+    let read = wrapper_spans
+        .iter()
+        .map(|wrapper_span| {
+            ChatSpanKind::try_from(wrapper_span.kind).map(|kind| ChatSpan {
+                kind,
+                bytes: wrapper_span.start..wrapper_span.end,
             })
-            .map(|kind| ChatSpan { kind, bytes })
         })
         .collect::<Result<Vec<ChatSpan>, llama_cpp_ffi_status::FfiStatusError>>()
         .map(|spans_read| ChatSpans {
-            parsed_length: unsafe {
-                llama_cpp_bindings_sys::llama_rs_chat_spans_parsed_length(spans.as_ptr())
-            },
+            parsed_length: view.parsed_length,
             spans: spans_read,
             completeness,
         })

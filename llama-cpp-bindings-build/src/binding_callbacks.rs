@@ -14,12 +14,16 @@ use crate::build_error::BuildError;
 use crate::cargo_directive::CargoDirective;
 use crate::privatized_field::PrivatizedField;
 
-const COMPARED_STRUCTS: &[&str] = &["llama_logit_bias", "llama_token_data"];
+const COMPARED_STRUCTS_WITH_FLOATS: &[&str] = &["llama_logit_bias", "llama_token_data"];
+
+const COMPARED_STRUCTS_WITHOUT_FLOATS: &[&str] = &["llama_rs_batch_entry"];
 
 const SUPERSEDED_ENUM_VARIANTS: &[&str] = &["GGML_PREC_DEFAULT"];
 
 fn derives_for(type_name: &str) -> Vec<String> {
-    if COMPARED_STRUCTS.contains(&type_name) {
+    if COMPARED_STRUCTS_WITHOUT_FLOATS.contains(&type_name) {
+        vec!["PartialEq".to_owned(), "Eq".to_owned()]
+    } else if COMPARED_STRUCTS_WITH_FLOATS.contains(&type_name) {
         vec!["PartialEq".to_owned()]
     } else {
         Vec::new()
@@ -33,8 +37,8 @@ fn variant_behavior_for(variant_name: &str) -> Option<EnumVariantCustomBehavior>
 }
 
 /// Observes bindgen while it parses: keeps the [`PrivatizedField::ALL`] fields private, hides
-/// enum variants llama.cpp superseded, derives `PartialEq` for the structs the bindings compare,
-/// and records what the bindings depend on.
+/// enum variants llama.cpp superseded, derives the equality the fields of each struct the bindings
+/// compare allow, and records what the bindings depend on.
 #[derive(Clone, Debug)]
 pub struct BindingCallbacks {
     privatized_field_hits: Rc<[Cell<bool>]>,
@@ -141,12 +145,19 @@ mod tests {
     }
 
     #[test]
-    fn only_the_structs_the_bindings_compare_derive_partial_eq() {
+    fn the_structs_the_bindings_compare_derive_equality_their_fields_allow() {
         assert_eq!(
-            ["llama_token_data", "llama_logit_bias", "llama_sampler_i"].map(derives_for),
+            [
+                "llama_token_data",
+                "llama_logit_bias",
+                "llama_rs_batch_entry",
+                "llama_sampler_i"
+            ]
+            .map(derives_for),
             [
                 vec!["PartialEq".to_owned()],
                 vec!["PartialEq".to_owned()],
+                vec!["PartialEq".to_owned(), "Eq".to_owned()],
                 Vec::new()
             ]
         );

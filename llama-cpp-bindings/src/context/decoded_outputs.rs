@@ -19,7 +19,7 @@ impl DecodedOutputs {
     pub fn ensure_output(&self, token_index: i32) -> Result<(), LogitsError> {
         let names_an_output = match &self.rows {
             DecodedOutputRows::BatchIndices(output_token_indices) if token_index >= 0 => {
-                output_token_indices.contains(&token_index)
+                output_token_indices.binary_search(&token_index).is_ok()
             }
             DecodedOutputRows::BatchIndices(output_token_indices) => {
                 token_index.unsigned_abs() as usize <= output_token_indices.len()

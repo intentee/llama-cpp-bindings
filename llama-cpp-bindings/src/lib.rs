@@ -47,7 +47,6 @@ pub mod llama_backend_device;
 pub mod llama_backend_device_type;
 pub mod llama_backend_numa_strategy;
 pub mod llama_batch;
-pub mod llama_batch_entry;
 pub mod llama_time_us;
 pub mod llama_token_attr;
 pub mod llama_token_attrs;

@@ -24,6 +24,7 @@ use std::ptr;
 use std::ptr::NonNull;
 use std::sync::Arc;
 
+use encoding_rs::CoderResult;
 use once_cell::sync::OnceCell;
 use toktrie::ApproximateTokEnv;
 use toktrie::INVALID_TOKEN;
@@ -56,7 +57,9 @@ use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
 use llama_cpp_ffi_status::read_and_free_cpp_string;
 use params::LlamaModelParams;
 
-const PIECE_PROBE_SIZE: usize = 32;
+const PIECE_PROBE_LEN: c_int = 32;
+
+const PIECE_PROBE_SIZE: usize = PIECE_PROBE_LEN.unsigned_abs() as usize;
 
 fn validate_string_length_for_tokenizer(length: usize) -> Result<c_int, StringToTokenError> {
     Ok(c_int::try_from(length)?)
@@ -82,8 +85,27 @@ const fn present_special_token(
     }
 }
 
+fn decode_piece(decoder: &mut encoding_rs::Decoder, bytes: &[u8]) -> String {
+    let mut piece = String::with_capacity(bytes.len());
+    let mut undecoded = bytes;
+
+    loop {
+        let (result, read, _had_replacements) =
+            decoder.decode_to_string(undecoded, &mut piece, false);
+
+        undecoded = undecoded.split_at(read).1;
+
+        match result {
+            CoderResult::InputEmpty => return piece,
+            CoderResult::OutputFull => piece.reserve(char::MAX_LEN_UTF8),
+        }
+    }
+}
+
 pub struct LlamaModel {
     pub model: NonNull<llama_cpp_bindings_sys::llama_model>,
+    vocab: *const llama_cpp_bindings_sys::llama_vocab,
+    n_vocab: i32,
     tok_env: OnceCell<Arc<ApproximateTokEnv>>,
     chat_templates: OnceCell<ChatTemplates>,
 }
@@ -119,8 +141,12 @@ unsafe fn load_model_from_file_status_to_result(
                     detail: "success status contained a null model",
                 })
             })?;
+            let vocab = unsafe { llama_cpp_bindings_sys::llama_model_get_vocab(model.as_ptr()) };
+
             Ok(LlamaModel {
                 model,
+                vocab,
+                n_vocab: unsafe { llama_cpp_bindings_sys::llama_vocab_n_tokens(vocab) },
                 tok_env: OnceCell::new(),
                 chat_templates: OnceCell::new(),
             })
@@ -186,8 +212,8 @@ impl LlamaModel {
     }
 
     #[must_use]
-    pub fn vocab_ptr(&self) -> *const llama_cpp_bindings_sys::llama_vocab {
-        unsafe { llama_cpp_bindings_sys::llama_model_get_vocab(self.model.as_ptr()) }
+    pub const fn vocab_ptr(&self) -> *const llama_cpp_bindings_sys::llama_vocab {
+        self.vocab
     }
 
     /// # Errors
@@ -330,13 +356,23 @@ impl LlamaModel {
         | SampledToken::Reasoning(inner)
         | SampledToken::ToolCall(inner)
         | SampledToken::Undeterminable(inner)) = *token;
-        let bytes = self.token_to_piece_bytes_fitted(inner, special, lstrip)?;
+        let token = self.require_vocabulary_token(inner)?;
+        let mut probe = [0_u8; PIECE_PROBE_SIZE];
 
-        let mut output_piece = String::with_capacity(bytes.len());
-        let (_result, _decoded_size, _had_replacements) =
-            decoder.decode_to_string(&bytes, &mut output_piece, false);
+        match self.write_piece(token, &mut probe, PIECE_PROBE_LEN, special, lstrip) {
+            Ok(written) => Ok(decode_piece(decoder, probe.split_at(written).0)),
+            Err(TokenToStringError::InsufficientBufferSpace(required_size)) => {
+                let bytes = self.token_to_piece_bytes(
+                    token,
+                    required_size.unsigned_abs() as usize,
+                    special,
+                    lstrip,
+                )?;
 
-        Ok(output_piece)
+                Ok(decode_piece(decoder, &bytes))
+            }
+            Err(probe_error) => Err(probe_error),
+        }
     }
 
     /// # Errors
@@ -355,14 +391,28 @@ impl LlamaModel {
         let token = self.require_vocabulary_token(token)?;
         let buffer_len = c_int::try_from(buffer_size)?;
         let mut buffer: Vec<u8> = vec![0u8; buffer_size];
-        let lstrip = lstrip.map_or(0, |strip_count| i32::from(strip_count.get()));
+        let written = self.write_piece(token, &mut buffer, buffer_len, special, lstrip)?;
+
+        buffer.truncate(written);
+
+        Ok(buffer)
+    }
+
+    fn write_piece(
+        &self,
+        token: LlamaToken,
+        buffer: &mut [u8],
+        buffer_len: c_int,
+        special: bool,
+        lstrip: Option<NonZeroU16>,
+    ) -> Result<usize, TokenToStringError> {
         let size = unsafe {
             llama_cpp_bindings_sys::llama_rs_token_to_piece(
-                self.vocab_ptr(),
+                self.vocab,
                 token.0,
                 buffer.as_mut_ptr().cast::<c_char>(),
                 buffer_len,
-                lstrip,
+                lstrip.map_or(0, |strip_count| i32::from(strip_count.get())),
                 special,
             )
         };
@@ -372,11 +422,7 @@ impl LlamaModel {
             error_code if error_code.is_negative() => {
                 Err(TokenToStringError::InsufficientBufferSpace(error_code))
             }
-            size => {
-                buffer.truncate(size.unsigned_abs() as usize);
-
-                Ok(buffer)
-            }
+            size => Ok(size.unsigned_abs() as usize),
         }
     }
 
@@ -399,8 +445,8 @@ impl LlamaModel {
     }
 
     #[must_use]
-    pub fn n_vocab(&self) -> i32 {
-        unsafe { llama_cpp_bindings_sys::llama_vocab_n_tokens(self.vocab_ptr()) }
+    pub const fn n_vocab(&self) -> i32 {
+        self.n_vocab
     }
 
     /// # Errors

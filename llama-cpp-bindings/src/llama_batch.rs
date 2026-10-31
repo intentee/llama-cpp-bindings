@@ -1,15 +1,17 @@
-use llama_cpp_bindings_sys::{llama_pos, llama_seq_id};
+use llama_cpp_bindings_sys::{llama_pos, llama_rs_batch_entry, llama_seq_id};
 
 use crate::batch_add_error::BatchAddError;
 use crate::context::context_limits::ContextLimits;
-use crate::llama_batch_entry::LlamaBatchEntry;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
 
+/// Tokens to decode together. Each entry names its sequences by a range of `seq_ids`, the layout
+/// llama.cpp receives the whole batch in, in one call.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LlamaBatch {
     limits: ContextLimits,
-    entries: Vec<LlamaBatchEntry>,
+    entries: Vec<llama_rs_batch_entry>,
+    seq_ids: Vec<llama_seq_id>,
     output_token_indices: Vec<i32>,
     n_tokens: i32,
 }
@@ -20,6 +22,7 @@ impl LlamaBatch {
         Self {
             limits,
             entries: Vec::new(),
+            seq_ids: Vec::new(),
             output_token_indices: Vec::new(),
             n_tokens: 0,
         }
@@ -27,6 +30,7 @@ impl LlamaBatch {
 
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.seq_ids.clear();
         self.output_token_indices.clear();
         self.n_tokens = 0;
     }
@@ -72,12 +76,14 @@ impl LlamaBatch {
             self.output_token_indices.push(token_index);
         }
 
-        self.entries.push(LlamaBatchEntry {
-            token,
+        self.entries.push(llama_rs_batch_entry {
+            token: token.0,
             pos,
-            seq_ids: seq_ids.to_vec(),
+            seq_ids_offset: self.seq_ids.len(),
+            seq_ids_count: seq_ids.len(),
             output: logits,
         });
+        self.seq_ids.extend_from_slice(seq_ids);
 
         Ok(())
     }
@@ -117,8 +123,13 @@ impl LlamaBatch {
     }
 
     #[must_use]
-    pub fn entries(&self) -> &[LlamaBatchEntry] {
+    pub fn entries(&self) -> &[llama_rs_batch_entry] {
         &self.entries
+    }
+
+    #[must_use]
+    pub fn seq_ids(&self) -> &[llama_seq_id] {
+        &self.seq_ids
     }
 
     #[must_use]
@@ -129,11 +140,12 @@ impl LlamaBatch {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings_sys::llama_rs_batch_entry;
+
     use crate::batch_add_error::BatchAddError;
     use crate::context::context_limits::ContextLimits;
     use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
     use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
-    use crate::llama_batch_entry::LlamaBatchEntry;
     use crate::sampled_token::SampledToken;
     use crate::token::LlamaToken;
 
@@ -176,20 +188,23 @@ mod tests {
         assert_eq!(
             batch.entries(),
             [
-                LlamaBatchEntry {
-                    token: LlamaToken::new(1),
+                llama_rs_batch_entry {
+                    token: 1,
                     pos: 0,
-                    seq_ids: vec![0],
+                    seq_ids_offset: 0,
+                    seq_ids_count: 1,
                     output: false,
                 },
-                LlamaBatchEntry {
-                    token: LlamaToken::new(2),
+                llama_rs_batch_entry {
+                    token: 2,
                     pos: 1,
-                    seq_ids: vec![0, 1],
+                    seq_ids_offset: 1,
+                    seq_ids_count: 2,
                     output: true,
                 },
             ]
         );
+        assert_eq!(batch.seq_ids(), [0, 0, 1]);
         assert_eq!(batch.output_token_indices(), [1]);
         assert_eq!(batch.n_tokens(), 2);
     }
@@ -267,10 +282,11 @@ mod tests {
         assert_eq!(batch.output_token_indices(), [2]);
         assert_eq!(
             batch.entries().last(),
-            Some(&LlamaBatchEntry {
-                token: LlamaToken::new(30),
+            Some(&llama_rs_batch_entry {
+                token: 30,
                 pos: 2,
-                seq_ids: vec![1],
+                seq_ids_offset: 2,
+                seq_ids_count: 1,
                 output: true,
             })
         );

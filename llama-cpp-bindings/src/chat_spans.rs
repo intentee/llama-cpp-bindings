@@ -55,25 +55,20 @@ impl ChatSpans {
             return None;
         }
 
-        let roles = bytes
+        bytes
             .clone()
-            .map(|byte| self.tagged_role_at(byte))
-            .collect::<Vec<Option<ChatPieceRole>>>();
-
-        if let Some(text_role) = roles
-            .iter()
-            .flatten()
+            .filter_map(|byte| self.tagged_role_at(byte))
             .find(|role| matches!(role, ChatPieceRole::Text(_)))
-        {
-            return Some(*text_role);
-        }
-
-        match roles.first() {
-            Some(Some(marker_role)) => Some(*marker_role),
-            Some(None) | None => self
-                .untagged_marker_section(bytes.start)
-                .map(ChatPieceRole::Marker),
-        }
+            .or_else(|| {
+                bytes
+                    .clone()
+                    .next()
+                    .and_then(|first_byte| self.tagged_role_at(first_byte))
+            })
+            .or_else(|| {
+                self.untagged_marker_section(bytes.start)
+                    .map(ChatPieceRole::Marker)
+            })
     }
 }
 

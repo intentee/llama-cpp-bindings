@@ -123,8 +123,9 @@ fn decoding_reports_a_token_llama_cpp_cannot_add_to_its_batch(
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_ADD_ENTRY_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS,
+    );
 
     assert_eq!(
         context.decode(&batch),

@@ -23,6 +23,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -33,12 +34,7 @@ struct llama_rs_chat_session {
     std::vector<llama_token> generation_prompt_tokens;
     common_params_sampling sampling;
     std::vector<llama_token> preserved_tokens;
-};
-
-struct llama_rs_chat_span {
-    llama_rs_chat_span_kind kind;
-    size_t start;
-    size_t end;
+    std::unordered_set<std::string> trigger_rules;
 };
 
 struct llama_rs_chat_spans {
@@ -100,33 +96,44 @@ auto span_kind_of_tag(const std::string & tag) -> std::optional<llama_rs_chat_sp
     return std::nullopt;
 }
 
-auto is_trigger_rule(const common_peg_arena & parser, const std::string & rule) -> bool {
-    if (rule.empty() || !parser.has_rule(rule)) {
-        return false;
+auto trigger_rules_of(const common_peg_arena & parser) -> std::unordered_set<std::string> {
+    std::unordered_set<std::string> trigger_rules;
+
+    for (common_peg_parser_id parser_id = 0; parser_id < parser.size(); ++parser_id) {
+        const auto * rule_parser = std::get_if<common_peg_rule_parser>(&parser.get(parser_id));
+        if (rule_parser != nullptr && rule_parser->trigger && !rule_parser->name.empty() &&
+            parser.get_rule(rule_parser->name) == parser_id) {
+            trigger_rules.insert(rule_parser->name);
+        }
     }
 
-    const auto * rule_parser = std::get_if<common_peg_rule_parser>(&parser.get(parser.get_rule(rule)));
-
-    return rule_parser != nullptr && rule_parser->trigger;
+    return trigger_rules;
 }
 
-auto span_kind_of_node(const common_peg_arena & parser, const common_peg_ast_node & node)
+auto span_kind_of_node(const std::unordered_set<std::string> & trigger_rules, const common_peg_ast_node & node)
     -> std::optional<llama_rs_chat_span_kind> {
     if (const auto kind = span_kind_of_tag(node.tag)) {
         return kind;
     }
-    if (is_trigger_rule(parser, node.rule)) {
+    if (trigger_rules.find(node.rule) != trigger_rules.end()) {
         return LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER;
     }
 
     return std::nullopt;
 }
 
-auto chat_input_of(const char * text, size_t text_length, const llama_token * byte_tokens) -> common_chat_input {
-    common_chat_input input;
-    input.text.assign(text, text_length);
+auto chat_input_of(
+    const common_chat_input & prefix,
+    const char * text,
+    size_t text_length,
+    const llama_token * byte_tokens) -> common_chat_input {
     const gsl::span<const llama_token> tokens(byte_tokens, text_length);
-    input.tokens.assign(tokens.begin(), tokens.end());
+    common_chat_input input;
+    input.text.reserve(prefix.text.size() + text_length);
+    input.text.append(prefix.text).append(text, text_length);
+    input.tokens.reserve(prefix.tokens.size() + text_length);
+    input.tokens.insert(input.tokens.end(), prefix.tokens.begin(), prefix.tokens.end());
+    input.tokens.insert(input.tokens.end(), tokens.begin(), tokens.end());
 
     return input;
 }
@@ -229,6 +236,7 @@ extern "C" auto llama_rs_chat_session_create(
         chat_session->session.apply_sampling(chat_session->sampling);
         chat_session->preserved_tokens.assign(
             chat_session->sampling.preserved_tokens.begin(), chat_session->sampling.preserved_tokens.end());
+        chat_session->trigger_rules = trigger_rules_of(session_parser(chat_session->session));
 
         *out_session = chat_session.release();
 
@@ -394,7 +402,10 @@ extern "C" auto llama_rs_chat_session_parse(
 
         try {
             parsed->message = common_chat_peg_parse(
-                session->session.parser(), chat_input_of(text, text_length, byte_tokens), is_partial, parser_params);
+                session->session.parser(),
+                chat_input_of(common_chat_input(), text, text_length, byte_tokens),
+                is_partial,
+                parser_params);
         } catch (const std::bad_alloc &) {
             throw;
         } catch (const std::runtime_error & err) {
@@ -448,9 +459,7 @@ extern "C" auto llama_rs_chat_session_classify(
     try {
         llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_SESSION_CLASSIFY_THROWS);
 
-        common_chat_input parse_input = chat_input_of(text, text_length, byte_tokens);
-        parse_input.prepend(session->generation_prompt);
-
+        common_chat_input parse_input = chat_input_of(session->generation_prompt, text, text_length, byte_tokens);
         const size_t generation_prompt_length = session->generation_prompt.size();
 
         common_peg_parse_flags flags = COMMON_PEG_PARSE_FLAG_LENIENT;
@@ -470,7 +479,7 @@ extern "C" auto llama_rs_chat_session_classify(
         spans->parsed_length = result.end > generation_prompt_length ? result.end - generation_prompt_length : 0;
 
         context.ast.visit(result, [&](const common_peg_ast_node & node) -> void {
-            const auto kind = span_kind_of_node(parser, node);
+            const auto kind = span_kind_of_node(session->trigger_rules, node);
             if (!kind || node.end <= generation_prompt_length) {
                 return;
             }
@@ -493,24 +502,8 @@ extern "C" auto llama_rs_chat_session_classify(
     }
 }
 
-extern "C" auto llama_rs_chat_spans_parsed_length(llama_rs_chat_spans_handle spans) -> size_t {
-    return spans->parsed_length;
-}
-
-extern "C" auto llama_rs_chat_spans_count(llama_rs_chat_spans_handle spans) -> size_t {
-    return spans->spans.size();
-}
-
-extern "C" auto llama_rs_chat_spans_kind(llama_rs_chat_spans_handle spans, size_t index) -> llama_rs_chat_span_kind {
-    return spans->spans.at(index).kind;
-}
-
-extern "C" auto llama_rs_chat_spans_start(llama_rs_chat_spans_handle spans, size_t index) -> size_t {
-    return spans->spans.at(index).start;
-}
-
-extern "C" auto llama_rs_chat_spans_end(llama_rs_chat_spans_handle spans, size_t index) -> size_t {
-    return spans->spans.at(index).end;
+extern "C" auto llama_rs_chat_spans_view_of(llama_rs_chat_spans_handle spans) -> llama_rs_chat_spans_view {
+    return {spans->spans.data(), spans->spans.size(), spans->parsed_length};
 }
 
 extern "C" auto llama_rs_chat_spans_free(llama_rs_chat_spans_handle spans) -> void {

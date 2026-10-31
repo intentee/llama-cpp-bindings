@@ -17,13 +17,8 @@ pub struct ContextLimits {
 
 impl ContextLimits {
     #[must_use]
-    pub fn of(context: &LlamaContext) -> Self {
-        Self {
-            n_batch: context.n_batch(),
-            n_ubatch: context.n_ubatch(),
-            n_seq_max: context.n_seq_max(),
-            n_vocab: context.model.n_vocab(),
-        }
+    pub const fn of(context: &LlamaContext) -> Self {
+        context.limits
     }
 
     /// # Errors

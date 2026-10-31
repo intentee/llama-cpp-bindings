@@ -1,5 +1,6 @@
 use std::num::NonZeroU16;
 
+use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
 use llama_cpp_bindings::model::add_bos::AddBos;
@@ -347,4 +348,39 @@ fn token_to_piece_bytes_refuses_a_buffer_beyond_a_c_int_before_allocating(
             .err()
             .map(TokenToStringError::IntConversionError)
     );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn token_to_piece_replaces_a_lone_continuation_byte_with_the_replacement_character(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let continuation_byte_token = (0..model.n_vocab())
+        .map(LlamaToken::new)
+        .find(|token| {
+            model
+                .token_to_piece_bytes(*token, 8, true, None)
+                .is_ok_and(|bytes| bytes == [0x80])
+        })
+        .context("the byte-level vocabulary has a token for the byte 0x80")?;
+    let mut decoder = encoding_rs::UTF_8.new_decoder();
+
+    assert_eq!(
+        model.token_to_piece(
+            &SampledToken::Content(continuation_byte_token),
+            &mut decoder,
+            true,
+            None
+        )?,
+        "\u{FFFD}"
+    );
+
+    Ok(())
 }
