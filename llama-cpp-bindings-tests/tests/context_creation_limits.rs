@@ -41,12 +41,7 @@ use llama_cpp_test_harness_macros::llama_test;
 )]
 fn a_context_size_overflowing_llama_cpp_padding_is_unconstructible(fixture: &LlamaFixture<'_>) {
     assert_eq!(
-        LlamaContext::from_model(
-            fixture.model,
-            fixture.backend,
-            (*fixture.context_params).into_llama_context_params(),
-        )
-        .err(),
+        fixture.build_context().err(),
         Some(LlamaContextLoadError::Unconstructible)
     );
 }

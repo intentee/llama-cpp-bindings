@@ -261,11 +261,9 @@ fn token_to_piece_strips_the_requested_count_of_leading_spaces(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_to_piece_decodes_a_token_alike_in_every_non_content_section(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
+fn token_to_piece_decodes_a_token_alike_in_every_non_content_section(fixture: &LlamaFixture<'_>) {
     let model = fixture.model;
-    let hi_token = single_token(model, "hi")?;
+    let hi_token = single_token(model, "hi");
 
     assert_eq!(
         [
@@ -287,7 +285,6 @@ fn token_to_piece_decodes_a_token_alike_in_every_non_content_section(
             Ok("hi".to_owned())
         ]
     );
-    Ok(())
 }
 
 #[llama_test(

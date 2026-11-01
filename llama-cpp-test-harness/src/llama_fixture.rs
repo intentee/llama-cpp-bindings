@@ -1,8 +1,7 @@
 use std::path::Path;
 
-use anyhow::Result;
-
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
@@ -20,11 +19,11 @@ pub struct LlamaFixture<'fixture> {
 impl LlamaFixture<'_> {
     /// # Errors
     /// Forwards [`LlamaContext::from_model`] errors verbatim.
-    pub fn build_context(&self) -> Result<LlamaContext<'_>> {
-        Ok(LlamaContext::from_model(
+    pub fn build_context(&self) -> Result<LlamaContext<'_>, LlamaContextLoadError> {
+        LlamaContext::from_model(
             self.model,
             self.backend,
             (*self.context_params).into_llama_context_params(),
-        )?)
+        )
     }
 }

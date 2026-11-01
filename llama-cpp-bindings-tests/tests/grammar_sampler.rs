@@ -216,8 +216,8 @@ fn a_grammar_sampler_masks_tokens_that_cannot_start_the_grammar(
     assert_eq!(
         logits_left_by(
             &sampler,
-            &[single_token(model, "hello")?, single_token(model, "yes")?]
-        )?,
+            &[single_token(model, "hello"), single_token(model, "yes")]
+        ),
         [0.0, f32::NEG_INFINITY]
     );
 
@@ -236,7 +236,7 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let think_token = single_token(model, "<think>")?;
+    let think_token = single_token(model, "<think>");
     let mut context = LlamaContext::from_model(
         model,
         fixture.backend,

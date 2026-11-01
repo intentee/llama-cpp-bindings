@@ -40,12 +40,12 @@ fn out_of_vocabulary_failure() -> String {
     .to_string()
 }
 
-fn yes_no_and_hello(model: &LlamaModel) -> Result<Vec<LlamaToken>> {
-    Ok(vec![
-        single_token(model, "yes")?,
-        single_token(model, "no")?,
-        single_token(model, "hello")?,
-    ])
+fn yes_no_and_hello(model: &LlamaModel) -> [LlamaToken; 3] {
+    [
+        single_token(model, "yes"),
+        single_token(model, "no"),
+        single_token(model, "hello"),
+    ]
 }
 
 #[llama_test(
@@ -89,8 +89,8 @@ fn a_json_schema_sampler_masks_tokens_that_cannot_start_the_schema(
     assert_eq!(
         logits_left_by(
             &sampler,
-            &[single_token(model, "{")?, single_token(model, "hello")?]
-        )?,
+            &[single_token(model, "{"), single_token(model, "hello")]
+        ),
         [0.0, f32::NEG_INFINITY]
     );
 
@@ -144,7 +144,7 @@ fn a_regex_sampler_masks_tokens_that_cannot_start_a_match(
     let sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
     assert_eq!(
-        logits_left_by(&sampler, &yes_no_and_hello(model)?)?,
+        logits_left_by(&sampler, &yes_no_and_hello(model)),
         [0.0, 0.0, f32::NEG_INFINITY]
     );
 
@@ -190,7 +190,7 @@ fn a_lark_sampler_masks_tokens_that_cannot_start_the_grammar(
     let sampler = create_llg_sampler(model, "lark", LARK_GRAMMAR)?;
 
     assert_eq!(
-        logits_left_by(&sampler, &yes_no_and_hello(model)?)?,
+        logits_left_by(&sampler, &yes_no_and_hello(model)),
         [0.0, 0.0, f32::NEG_INFINITY]
     );
 
@@ -409,8 +409,8 @@ fn a_sampler_cloned_through_ffi_keeps_its_own_grammar_state(
         )
     }?;
 
-    assert_eq!(cloned.accept(single_token(model, "yes")?), Ok(()));
-    assert_eq!(sampler.accept(single_token(model, "no")?), Ok(()));
+    assert_eq!(cloned.accept(single_token(model, "yes")), Ok(()));
+    assert_eq!(sampler.accept(single_token(model, "no")), Ok(()));
 
     Ok(())
 }
@@ -600,13 +600,13 @@ fn samplers_sharing_the_cached_tokenizer_environment_mask_alike(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let candidates = yes_no_and_hello(model)?;
+    let candidates = yes_no_and_hello(model);
     let first = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
     let second = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
 
     assert_eq!(
-        logits_left_by(&first, &candidates)?,
-        logits_left_by(&second, &candidates)?
+        logits_left_by(&first, &candidates),
+        logits_left_by(&second, &candidates)
     );
 
     Ok(())

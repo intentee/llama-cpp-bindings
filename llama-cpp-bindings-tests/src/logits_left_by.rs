@@ -1,13 +1,12 @@
-use anyhow::Result;
-
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings::token::data::LlamaTokenData;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 
-/// # Errors
-/// Forwards [`LlamaSampler::apply`] errors verbatim.
-pub fn logits_left_by(sampler: &LlamaSampler, candidates: &[LlamaToken]) -> Result<Vec<f32>> {
+/// # Panics
+/// Panics when `sampler` cannot be applied to the candidates.
+#[must_use]
+pub fn logits_left_by(sampler: &LlamaSampler, candidates: &[LlamaToken]) -> Vec<f32> {
     let mut token_data_array = LlamaTokenDataArray::new(
         candidates
             .iter()
@@ -16,11 +15,13 @@ pub fn logits_left_by(sampler: &LlamaSampler, candidates: &[LlamaToken]) -> Resu
         false,
     );
 
-    sampler.apply(&mut token_data_array)?;
+    sampler
+        .apply(&mut token_data_array)
+        .expect("the sampler must apply to the candidates");
 
-    Ok(token_data_array
+    token_data_array
         .data
         .iter()
         .map(LlamaTokenData::logit)
-        .collect())
+        .collect()
 }

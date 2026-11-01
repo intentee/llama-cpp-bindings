@@ -18,7 +18,7 @@ fn a_logit_bias_sampler_with_an_empty_bias_list_leaves_candidates_unchanged(
     _fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     assert_eq!(
-        logits_left_by(&LlamaSampler::logit_bias(0, &[])?, &[LlamaToken::new(0)])?,
+        logits_left_by(&LlamaSampler::logit_bias(0, &[])?, &[LlamaToken::new(0)]),
         [0.0]
     );
 

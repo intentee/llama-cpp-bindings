@@ -106,7 +106,8 @@ mod tests {
     use super::ParsedSource;
 
     fn parse(source: &str) -> syn::Result<ParsedSource> {
-        let expression: syn::Expr = parse_str(source)?;
+        let expression: syn::Expr =
+            parse_str(source).expect("the test source must be an expression");
         ParsedSource::parse(&expression, "model_source")
     }
 

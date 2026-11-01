@@ -27,8 +27,8 @@ fn a_lazy_grammar_awaiting_its_trigger_pattern_leaves_candidates_unconstrained(
     assert_eq!(
         logits_left_by(
             &sampler,
-            &[single_token(model, "hello")?, single_token(model, "yes")?]
-        )?,
+            &[single_token(model, "hello"), single_token(model, "yes")]
+        ),
         [0.0, 0.0]
     );
 
@@ -89,14 +89,14 @@ fn a_lazy_grammar_awaiting_its_trigger_token_leaves_candidates_unconstrained(
         "root ::= \"hello\"",
         "root",
         &[],
-        &[single_token(model, "{")?],
+        &[single_token(model, "{")],
     )?;
 
     assert_eq!(
         logits_left_by(
             &sampler,
-            &[single_token(model, "hello")?, single_token(model, "yes")?]
-        )?,
+            &[single_token(model, "hello"), single_token(model, "yes")]
+        ),
         [0.0, 0.0]
     );
 
