@@ -106,28 +106,30 @@ mod tests {
     }
 
     #[test]
-    fn an_unsupported_or_unusable_target_is_refused() {
+    fn an_unsupported_target_os_is_refused() {
         assert_eq!(
-            [
-                detected("freebsd"),
-                TargetOs::detect(
-                    &environment_of(
-                        BitFlags::empty(),
-                        [("CARGO_CFG_TARGET_OS", "android".into())]
-                    ),
-                    "aarch64-linux-android",
-                    "aarch64",
-                    HostOs::Linux
-                )
-                .map_err(|error| error.to_string()),
-            ],
-            [
-                Err("unsupported target operating system: freebsd".to_owned()),
-                Err(
-                    "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME."
-                        .to_owned()
+            detected("freebsd"),
+            Err("unsupported target operating system: freebsd".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_android_target_without_an_ndk_is_refused() {
+        assert_eq!(
+            TargetOs::detect(
+                &environment_of(
+                    BitFlags::empty(),
+                    [("CARGO_CFG_TARGET_OS", "android".into())]
                 ),
-            ]
+                "aarch64-linux-android",
+                "aarch64",
+                HostOs::Linux
+            )
+            .map_err(|error| error.to_string()),
+            Err(
+                "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME."
+                    .to_owned()
+            )
         );
     }
 }

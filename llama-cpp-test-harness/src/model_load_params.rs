@@ -27,7 +27,7 @@ mod tests {
     use super::ModelLoadParams;
 
     #[test]
-    fn into_llama_model_params_carries_all_three_fields() {
+    fn into_llama_model_params_carries_both_fields() {
         let params = ModelLoadParams {
             n_gpu_layers: 7,
             load_mode: LlamaLoadMode::Mlock,

@@ -7,12 +7,18 @@ use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
+use llama_cpp_bindings_tests::prompted_reasoning::prompted_reasoning;
+use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
+use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
+
+const GENERATED_REASONING: &str = "step one, step two";
+const GENERATED_CONTENT: &str = "actual response";
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
@@ -94,20 +100,21 @@ fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parses_reasoning_section_into_reasoning_content(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let input = "<think>step one, step two</think>\n\nactual response";
-    let outcome = user_turn_chat_session(fixture.model, "hello", "[]", false)?
-        .parse(&ChatOutput::from(input), ChatOutputCompleteness::Finished)?;
-
-    let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
-        bail!("expected Recognized for reasoning section; got Unrecognized");
-    };
-    assert!(
-        parsed.reasoning_content.contains("step") || parsed.content.contains("step"),
-        "neither content nor reasoning contains 'step'; content={:?} reasoning={:?}",
-        parsed.content,
-        parsed.reasoning_content
+fn parses_the_reasoning_before_the_end_tag_apart_from_the_content(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = user_turn_chat_session(fixture.model, "hello", "[]", true)?;
+    let parsed = recognized_answer(
+        &session,
+        &format!("{GENERATED_REASONING}</think>{GENERATED_CONTENT}"),
+        ChatOutputCompleteness::Finished,
     );
+
+    assert_eq!(
+        parsed.reasoning_content,
+        format!("{}{GENERATED_REASONING}", prompted_reasoning(&session))
+    );
+    assert_eq!(parsed.content, GENERATED_CONTENT);
 
     Ok(())
 }
@@ -144,14 +151,14 @@ fn parses_reasoning_section_into_reasoning_content(fixture: &LlamaFixture<'_>) -
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parses_empty_input_yields_empty_message(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn parses_an_empty_answer_into_an_empty_message(fixture: &LlamaFixture<'_>) -> Result<()> {
     let outcome = user_turn_chat_session(fixture.model, "hello", "[]", false)?
         .parse(&ChatOutput::from(""), ChatOutputCompleteness::Finished)?;
 
     let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
         bail!("expected Recognized for empty input; got Unrecognized");
     };
-    assert_eq!(parsed.tool_calls, Vec::<ParsedToolCall>::new());
+    assert_eq!(parsed, ParsedChatMessage::default());
 
     Ok(())
 }

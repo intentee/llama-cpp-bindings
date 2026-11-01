@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use anyhow::Result;
 
 use llama_cpp_bindings::context::LlamaContext;
@@ -9,8 +10,23 @@ use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
+
+fn most_likely_token(context: &LlamaContext<'_>, token_index: i32) -> Result<LlamaToken> {
+    Ok(context
+        .candidates_ith(token_index)?
+        .reduce(|most_likely, candidate| {
+            if candidate.logit() > most_likely.logit() {
+                candidate
+            } else {
+                most_likely
+            }
+        })
+        .context("a decoded row holds a candidate for every vocabulary token")?
+        .id())
+}
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
@@ -44,7 +60,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let mut context = LlamaContext::from_model(
         model,
@@ -66,11 +84,14 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut outcomes = Vec::new();
     let mut sampled_count: u64 = 0;
+    let mut ended = false;
 
     for (position, _) in (batch.n_tokens()..).zip(0..5) {
         let turn = classifier.sample(&mut sampler, &context, -1, &mut outcomes)?;
 
         if turn.progress == GenerationProgress::Ended {
+            ended = true;
+
             break;
         }
 
@@ -90,11 +111,10 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
         sampled_count > 0,
         "Should produce at least one token without grammar"
     );
-    let usage = classifier.into_usage();
-    assert!(
-        usage.completion_tokens() >= sampled_count,
-        "completion_tokens ({}) must include the {sampled_count} non-EOG samples",
-        usage.completion_tokens()
+    assert_eq!(
+        classifier.into_usage().completion_tokens(),
+        sampled_count + u64::from(ended),
+        "completion_tokens must count every sample, the end of generation included"
     );
 
     Ok(())
@@ -108,7 +128,9 @@ fn sample_without_grammar_produces_multiple_tokens(fixture: &LlamaFixture<'_>) -
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn a_greedy_sampler_selects_a_candidate_of_a_decoded_row(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_greedy_sampler_selects_the_most_likely_candidate_of_a_decoded_row(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -121,11 +143,15 @@ fn a_greedy_sampler_selects_a_candidate_of_a_decoded_row(fixture: &LlamaFixture<
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let mut data_array = context.token_data_array_ith(batch.n_tokens() - 1)?;
+    let last_index = batch.n_tokens() - 1;
+    let mut data_array = context.token_data_array_ith(last_index)?;
     let sampler = LlamaSampler::greedy()?;
     sampler.apply(&mut data_array)?;
 
-    assert_ne!(data_array.selected_token(), None);
+    assert_eq!(
+        data_array.selected_token(),
+        Some(most_likely_token(&context, last_index)?)
+    );
 
     Ok(())
 }
@@ -170,7 +196,9 @@ fn a_greedy_sampler_selects_a_candidate_of_a_decoded_row(fixture: &LlamaFixture<
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn sampling_the_last_decoded_row_yields_a_token(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn sampling_the_last_decoded_row_with_a_greedy_chain_yields_its_most_likely_token(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -183,9 +211,12 @@ fn sampling_the_last_decoded_row_yields_a_token(fixture: &LlamaFixture<'_>) -> R
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
     let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
-    let token = sampler.sample(&context, batch.n_tokens() - 1)?;
+    let last_index = batch.n_tokens() - 1;
 
-    assert!((0..fixture.model.n_vocab()).contains(&token.0));
+    assert_eq!(
+        sampler.sample(&context, last_index)?,
+        most_likely_token(&context, last_index)?
+    );
 
     Ok(())
 }

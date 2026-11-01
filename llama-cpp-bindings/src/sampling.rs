@@ -978,7 +978,7 @@ impl Drop for LlamaSampler {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::CString;
+    use std::ffi::{CStr, CString};
     use std::ptr;
     use std::slice;
 
@@ -1065,7 +1065,7 @@ mod tests {
     }
 
     #[test]
-    fn null_native_sampler_is_initialization_error() {
+    fn from_raw_reports_a_null_native_sampler_as_unavailable() {
         let result = unsafe { LlamaSampler::from_raw(ptr::null_mut(), "test") };
 
         assert_eq!(
@@ -1086,7 +1086,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_grammar_strings_null_byte_in_root_only() {
+    fn sanitize_grammar_strings_reports_a_nul_byte_in_the_root() {
         assert_eq!(
             LlamaSampler::sanitize_grammar_strings("root ::= \"hello\"", "ro\0ot"),
             Err(GrammarError::RootContainsNul(
@@ -1096,7 +1096,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_grammar_strings_null_byte_in_grammar() {
+    fn sanitize_grammar_strings_reports_a_nul_byte_in_the_grammar() {
         assert_eq!(
             LlamaSampler::sanitize_grammar_strings("root ::= \"\0\"", "root"),
             Err(GrammarError::GrammarContainsNul(
@@ -1106,7 +1106,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_grammar_strings_null_byte_in_root() {
+    fn sanitize_grammar_strings_reports_a_nul_byte_in_the_grammar_before_one_in_the_root() {
         assert_eq!(
             LlamaSampler::sanitize_grammar_strings("ro\0ot ::= \"hello\"", "ro\0ot"),
             Err(GrammarError::GrammarContainsNul(
@@ -1119,26 +1119,25 @@ mod tests {
     #[test]
     fn sanitize_trigger_patterns_converts_every_pattern() {
         let patterns = vec!["^hello$".to_string(), "world.*".to_string()];
-        let result = LlamaSampler::sanitize_trigger_patterns(&patterns);
 
-        assert!(result.is_ok());
-        assert_eq!(result.expect("valid trigger patterns").len(), 2);
-    }
-
-    #[test]
-    fn sanitize_trigger_patterns_empty_list() {
-        let patterns: Vec<String> = vec![];
-        let result = LlamaSampler::sanitize_trigger_patterns(&patterns);
-
-        assert!(result.is_ok());
         assert_eq!(
-            result.expect("valid trigger patterns"),
-            Vec::<CString>::new()
+            LlamaSampler::sanitize_trigger_patterns(&patterns),
+            Ok(vec![c"^hello$".to_owned(), c"world.*".to_owned()])
         );
     }
 
     #[test]
-    fn sanitize_trigger_patterns_null_byte() {
+    fn sanitize_trigger_patterns_converts_an_empty_list_to_no_patterns() {
+        let patterns: Vec<String> = vec![];
+
+        assert_eq!(
+            LlamaSampler::sanitize_trigger_patterns(&patterns),
+            Ok(Vec::<CString>::new())
+        );
+    }
+
+    #[test]
+    fn sanitize_trigger_patterns_reports_a_nul_byte_in_a_pattern() {
         let patterns = vec!["hel\0lo".to_string()];
         assert_eq!(
             LlamaSampler::sanitize_trigger_patterns(&patterns),
@@ -1159,8 +1158,7 @@ mod tests {
             false,
         );
 
-        assert!(sampler.apply(&mut data_array).is_ok());
-
+        assert_eq!(sampler.apply(&mut data_array), Ok(()));
         assert_eq!(data_array.selected_token(), Some(LlamaToken::new(1)));
     }
 
@@ -1195,9 +1193,7 @@ mod tests {
         let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize");
 
-        sampler
-            .accept(LlamaToken::new(1))
-            .expect("test: accept should succeed");
+        assert_eq!(sampler.accept(LlamaToken::new(1)), Ok(()));
     }
 
     #[test]
@@ -1205,39 +1201,73 @@ mod tests {
         let mut sampler = LlamaSampler::chain([penalties_sampler(), greedy_sampler()])
             .expect("sampler chain must initialize");
 
-        sampler
-            .accept_many([LlamaToken::new(1), LlamaToken::new(2), LlamaToken::new(3)])
-            .expect("test: accept_many should succeed");
+        assert_eq!(
+            sampler.accept_many([LlamaToken::new(1), LlamaToken::new(2), LlamaToken::new(3)]),
+            Ok(())
+        );
     }
 
     #[test]
-    fn every_sampler_constructor_initializes_its_sampler() {
-        let _temp = LlamaSampler::temp(0.8).expect("temperature sampler must initialize");
-        let _temp_ext = LlamaSampler::temp_ext(0.8, 0.1, 1.0)
-            .expect("extended temperature sampler must initialize");
-        let _top_k = LlamaSampler::top_k(40).expect("top-k sampler must initialize");
-        let _top_n_sigma =
-            LlamaSampler::top_n_sigma(2.0).expect("top-n-sigma sampler must initialize");
-        let _top_p = LlamaSampler::top_p(0.9, 1).expect("top-p sampler must initialize");
-        let _min_p = LlamaSampler::min_p(0.05, 1).expect("min-p sampler must initialize");
-        let _typical = LlamaSampler::typical(0.9, 1).expect("typical sampler must initialize");
-        let _xtc = LlamaSampler::xtc(0.1, 0.5, 1, 42).expect("XTC sampler must initialize");
-        let _dist = LlamaSampler::dist(42).expect("distribution sampler must initialize");
-        let _mirostat = LlamaSampler::mirostat(32000, 42, 5.0, 0.1, 100)
-            .expect("Mirostat sampler must initialize");
-        let _mirostat_v2 =
-            LlamaSampler::mirostat_v2(42, 5.0, 0.1).expect("Mirostat v2 sampler must initialize");
+    fn every_model_free_sampler_constructor_builds_the_matching_llama_cpp_sampler() {
         let biases = vec![LlamaLogitBias::new(LlamaToken::new(0), -100.0)];
-        let _logit_bias = LlamaSampler::logit_bias(32000, &biases);
-        let _chain =
-            LlamaSampler::chain([greedy_sampler()]).expect("sampler chain must initialize");
+        let samplers = [
+            LlamaSampler::temp(0.8),
+            LlamaSampler::temp_ext(0.8, 0.1, 1.0),
+            LlamaSampler::top_k(40),
+            LlamaSampler::top_n_sigma(2.0),
+            LlamaSampler::top_p(0.9, 1),
+            LlamaSampler::min_p(0.05, 1),
+            LlamaSampler::typical(0.9, 1),
+            LlamaSampler::xtc(0.1, 0.5, 1, 42),
+            LlamaSampler::dist(42),
+            LlamaSampler::mirostat(32000, 42, 5.0, 0.1, 100),
+            LlamaSampler::mirostat_v2(42, 5.0, 0.1),
+            LlamaSampler::penalties(32_000, 64, 1.1, 0.0, 0.0),
+            LlamaSampler::logit_bias(32000, &biases),
+            LlamaSampler::greedy(),
+            LlamaSampler::chain([greedy_sampler()]),
+        ];
+
+        assert_eq!(
+            samplers.map(|initialized_sampler| {
+                initialized_sampler.map(|sampler| {
+                    unsafe {
+                        CStr::from_ptr(llama_cpp_bindings_sys::llama_sampler_name(sampler.as_ptr()))
+                    }
+                    .to_owned()
+                })
+            }),
+            [
+                Ok(c"temp".to_owned()),
+                Ok(c"temp-ext".to_owned()),
+                Ok(c"top-k".to_owned()),
+                Ok(c"top-n-sigma".to_owned()),
+                Ok(c"top-p".to_owned()),
+                Ok(c"min-p".to_owned()),
+                Ok(c"typical".to_owned()),
+                Ok(c"xtc".to_owned()),
+                Ok(c"dist".to_owned()),
+                Ok(c"mirostat".to_owned()),
+                Ok(c"mirostat-v2".to_owned()),
+                Ok(c"penalties".to_owned()),
+                Ok(c"logit-bias".to_owned()),
+                Ok(c"greedy".to_owned()),
+                Ok(c"chain".to_owned()),
+            ]
+        );
     }
 
     #[test]
-    fn a_distribution_sampler_resets_and_reports_its_seed() {
+    fn resetting_a_sampler_succeeds_without_a_grammar_callback_failure() {
         let mut sampler = LlamaSampler::dist(42).expect("distribution sampler must initialize");
 
         assert_eq!(sampler.reset(), Ok(()));
+    }
+
+    #[test]
+    fn a_distribution_sampler_reports_the_seed_it_was_built_with() {
+        let sampler = LlamaSampler::dist(42).expect("distribution sampler must initialize");
+
         assert_eq!(sampler.get_seed(), 42);
     }
 
@@ -1246,23 +1276,6 @@ mod tests {
         let sampler = greedy_sampler();
         let debug_output = format!("{sampler:?}");
         assert_eq!(debug_output, "LlamaSampler { .. }");
-    }
-}
-
-#[cfg(test)]
-mod checked_usize_as_i32_sampling_tests {
-
-    use super::LlamaSampler;
-    use super::checked_usize_as_i32_sampling;
-    use crate::error::sampling_error::SamplingError;
-    use crate::token::logit_bias::LlamaLogitBias;
-
-    #[test]
-    fn a_count_beyond_an_i32_is_an_integer_overflow() {
-        assert_eq!(
-            checked_usize_as_i32_sampling(usize::MAX),
-            i32::try_from(usize::MAX).map_err(SamplingError::IntegerOverflow)
-        );
     }
 
     #[test]
@@ -1288,7 +1301,7 @@ mod grammar_callback_error_to_result_tests {
     use crate::error::sample_error::SampleError;
 
     #[test]
-    fn grammar_callback_error_to_result_maps_recorded_error() {
+    fn grammar_callback_error_to_result_reports_the_recorded_grammar_callback_failure() {
         let result =
             grammar_callback_error_to_result(Some(RecordedError::new("mask failed".to_string())));
 
@@ -1301,8 +1314,8 @@ mod grammar_callback_error_to_result_tests {
     }
 
     #[test]
-    fn grammar_callback_error_to_result_maps_absence_to_ok() {
-        assert!(grammar_callback_error_to_result(None).is_ok());
+    fn grammar_callback_error_to_result_succeeds_without_a_recorded_error() {
+        assert_eq!(grammar_callback_error_to_result(None), Ok(()));
     }
 }
 
@@ -1314,7 +1327,7 @@ mod grammar_callback_error_to_accept_result_tests {
     use crate::error::sampler_accept_error::SamplerAcceptError;
 
     #[test]
-    fn grammar_callback_error_to_accept_result_maps_recorded_error() {
+    fn grammar_callback_error_to_accept_result_reports_the_recorded_grammar_callback_failure() {
         let result = grammar_callback_error_to_accept_result(Some(RecordedError::new(
             "consume failed".to_string(),
         )));
@@ -1328,8 +1341,8 @@ mod grammar_callback_error_to_accept_result_tests {
     }
 
     #[test]
-    fn grammar_callback_error_to_accept_result_maps_absence_to_ok() {
-        assert!(grammar_callback_error_to_accept_result(None).is_ok());
+    fn grammar_callback_error_to_accept_result_succeeds_without_a_recorded_error() {
+        assert_eq!(grammar_callback_error_to_accept_result(None), Ok(()));
     }
 }
 
@@ -1345,16 +1358,17 @@ mod check_sampler_accept_status_tests {
 
     #[test]
     fn check_sampler_accept_status_maps_ok_to_success() {
-        let result = check_sampler_accept_status(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_OK,
-            ptr::null_mut(),
+        assert_eq!(
+            check_sampler_accept_status(
+                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_OK,
+                ptr::null_mut(),
+            ),
+            Ok(())
         );
-
-        assert!(result.is_ok());
     }
 
     #[test]
-    fn check_sampler_accept_status_exception_maps_to_typed_variant() {
+    fn check_sampler_accept_status_reports_an_exception_as_a_corrupted_grammar_state() {
         let out_error = unsafe {
             llama_cpp_bindings_sys::llama_rs_string_dup(c"grammar state corrupted".as_ptr())
         };
@@ -1395,7 +1409,7 @@ mod check_sampler_accept_status_tests {
     }
 
     #[test]
-    fn check_sampler_accept_status_maps_null_out_error_arg() {
+    fn check_sampler_accept_status_reports_a_null_out_error_arg_as_a_contract_violation() {
         let outcome = check_sampler_accept_status(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
@@ -1413,7 +1427,7 @@ mod check_sampler_accept_status_tests {
     }
 
     #[test]
-    fn check_sampler_accept_status_maps_llama_cpp_out_of_memory() {
+    fn check_sampler_accept_status_reports_llama_cpp_running_out_of_memory() {
         let outcome = check_sampler_accept_status(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
@@ -1436,7 +1450,7 @@ mod check_sampler_accept_status_tests {
     }
 
     #[test]
-    fn check_sampler_accept_status_maps_an_unknown_status() {
+    fn check_sampler_accept_status_preserves_an_unknown_status() {
         assert_eq!(
             check_sampler_accept_status(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION + 1,
@@ -1507,7 +1521,7 @@ mod sampler_sample_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_sample_status_to_result_maps_null_sampler_arg() {
+    fn sampler_sample_status_to_result_reports_a_null_sampler_arg_as_a_contract_violation() {
         let outcome = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_SAMPLER_ARG,
             0,
@@ -1526,7 +1540,7 @@ mod sampler_sample_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_sample_status_to_result_maps_null_out_token_arg() {
+    fn sampler_sample_status_to_result_reports_a_null_out_token_arg_as_a_contract_violation() {
         let outcome = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_OUT_TOKEN_ARG,
             0,
@@ -1545,7 +1559,7 @@ mod sampler_sample_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_sample_status_to_result_maps_null_out_error_arg() {
+    fn sampler_sample_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation() {
         let outcome = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_OUT_ERROR_ARG,
             0,
@@ -1564,7 +1578,7 @@ mod sampler_sample_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_sample_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn sampler_sample_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
@@ -1591,7 +1605,7 @@ mod sampler_sample_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_sample_status_to_result_maps_an_unknown_status() {
+    fn sampler_sample_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             sampler_sample_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION + 1,
@@ -1613,9 +1627,12 @@ mod sampler_sample_status_to_result_tests {
 mod sampler_init_status_to_result_tests {
     use std::ptr;
 
+    use llama_cpp_fault_injection::armed_fault::ArmedFault;
+    use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
     use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
+    use super::LlamaSampler;
     use super::sampler_init_status_to_result;
     use crate::error::sampling_error::SamplingError;
 
@@ -1686,7 +1703,7 @@ mod sampler_init_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_status_to_result_maps_null_out_sampler_arg() {
+    fn sampler_init_status_to_result_reports_a_null_out_sampler_arg_as_a_contract_violation() {
         assert_eq!(
             sampler_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_SAMPLER_ARG,
@@ -1706,7 +1723,7 @@ mod sampler_init_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_status_to_result_maps_null_out_error_arg() {
+    fn sampler_init_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation() {
         assert_eq!(
             sampler_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_ERROR_ARG,
@@ -1726,7 +1743,8 @@ mod sampler_init_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_status_to_result_maps_llama_cpp_threw_cxx_exception_without_a_message() {
+    fn sampler_init_status_to_result_reports_an_exception_without_a_message_as_a_contract_violation()
+     {
         assert_eq!(
             sampler_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1746,7 +1764,7 @@ mod sampler_init_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_status_to_result_maps_an_unknown_status() {
+    fn sampler_init_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             sampler_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION + 1,
@@ -1765,6 +1783,38 @@ mod sampler_init_status_to_result_tests {
                 }
                 .into()
             )
+        );
+    }
+
+    #[test]
+    fn initializing_a_selecting_sampler_reports_the_exception_llama_cpp_throws() {
+        let distribution_failure = {
+            let _fault = ArmedFault::at(
+                llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_DIST_THROWS,
+            );
+
+            LlamaSampler::dist(7).err()
+        };
+        let greedy_failure = {
+            let _fault = ArmedFault::at(
+                llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GREEDY_THROWS,
+            );
+
+            LlamaSampler::greedy().err()
+        };
+
+        assert_eq!(
+            [distribution_failure, greedy_failure],
+            [
+                Some(SamplingError::Reported {
+                    sampler: "distribution",
+                    message: injected_fault_message(),
+                }),
+                Some(SamplingError::Reported {
+                    sampler: "greedy",
+                    message: injected_fault_message(),
+                }),
+            ]
         );
     }
 }
@@ -1819,7 +1869,7 @@ mod sampler_chain_add_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_chain_add_status_to_result_maps_null_chain_arg() {
+    fn sampler_chain_add_status_to_result_reports_a_null_chain_arg_as_a_contract_violation() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_CHAIN_ARG,
@@ -1834,7 +1884,7 @@ mod sampler_chain_add_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_chain_add_status_to_result_maps_null_sampler_arg() {
+    fn sampler_chain_add_status_to_result_reports_a_null_sampler_arg_as_a_contract_violation() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_SAMPLER_ARG,
@@ -1849,7 +1899,7 @@ mod sampler_chain_add_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_chain_add_status_to_result_maps_null_out_error_arg() {
+    fn sampler_chain_add_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_OUT_ERROR_ARG,
@@ -1864,7 +1914,8 @@ mod sampler_chain_add_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_chain_add_status_to_result_maps_llama_cpp_threw_cxx_exception_without_a_message() {
+    fn sampler_chain_add_status_to_result_reports_an_exception_without_a_message_as_a_contract_violation()
+     {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1879,7 +1930,7 @@ mod sampler_chain_add_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_chain_add_status_to_result_maps_an_unknown_status() {
+    fn sampler_chain_add_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             sampler_chain_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION
@@ -1964,7 +2015,8 @@ mod sampler_init_grammar_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_grammar_status_to_result_maps_null_out_error_arg() {
+    fn sampler_init_grammar_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
+    {
         let outcome = sampler_init_grammar_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
@@ -1983,7 +2035,7 @@ mod sampler_init_grammar_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_grammar_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn sampler_init_grammar_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = sampler_init_grammar_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
@@ -2011,7 +2063,7 @@ mod sampler_init_grammar_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_grammar_status_to_result_maps_an_unknown_status() {
+    fn sampler_init_grammar_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             sampler_init_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION
@@ -2119,7 +2171,8 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_grammar_lazy_patterns_status_to_result_maps_null_out_error_arg() {
+    fn sampler_init_grammar_lazy_patterns_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
+     {
         let outcome = sampler_init_grammar_lazy_patterns_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
@@ -2138,7 +2191,8 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_grammar_lazy_patterns_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn sampler_init_grammar_lazy_patterns_status_to_result_reports_llama_cpp_running_out_of_memory()
+    {
         let outcome = sampler_init_grammar_lazy_patterns_status_to_result(llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_OUT_OF_MEMORY, ptr::null_mut(), ptr::null_mut());
         assert_eq!(outcome.err(), Some(GrammarError::LlamaCppOutOfMemory));
     }
@@ -2162,7 +2216,7 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_init_grammar_lazy_patterns_status_to_result_maps_an_unknown_status() {
+    fn sampler_init_grammar_lazy_patterns_status_to_result_preserves_an_unknown_status() {
         let unknown_status =
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_THREW_CXX_EXCEPTION
                 + 1;
@@ -2193,7 +2247,6 @@ mod sampler_application_tests {
     use super::LlamaSampler;
     use crate::error::sample_error::SampleError;
     use crate::error::sampler_apply_error::SamplerApplyError;
-    use crate::error::sampling_error::SamplingError;
     use crate::token::LlamaToken;
     use crate::token::data::LlamaTokenData;
     use crate::token::data_array::LlamaTokenDataArray;
@@ -2268,38 +2321,6 @@ mod sampler_application_tests {
             }))
         );
     }
-
-    #[test]
-    fn selecting_samplers_llama_cpp_cannot_build_are_reported() {
-        let distribution_failure = {
-            let _fault = ArmedFault::at(
-                llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_DIST_THROWS,
-            );
-
-            LlamaSampler::dist(7).err()
-        };
-        let greedy_failure = {
-            let _fault = ArmedFault::at(
-                llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GREEDY_THROWS,
-            );
-
-            LlamaSampler::greedy().err()
-        };
-
-        assert_eq!(
-            [distribution_failure, greedy_failure],
-            [
-                Some(SamplingError::Reported {
-                    sampler: "distribution",
-                    message: injected_fault_message(),
-                }),
-                Some(SamplingError::Reported {
-                    sampler: "greedy",
-                    message: injected_fault_message(),
-                }),
-            ]
-        );
-    }
 }
 
 #[cfg(test)]
@@ -2352,7 +2373,7 @@ mod sampler_apply_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_apply_status_to_result_maps_null_sampler_arg() {
+    fn sampler_apply_status_to_result_reports_a_null_sampler_arg_as_a_null_sampler() {
         let outcome = sampler_apply_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_SAMPLER_ARG,
             ptr::null_mut(),
@@ -2361,7 +2382,7 @@ mod sampler_apply_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_apply_status_to_result_maps_null_data_array_arg() {
+    fn sampler_apply_status_to_result_reports_a_null_data_array_arg_as_a_contract_violation() {
         let outcome = sampler_apply_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG,
             ptr::null_mut(),
@@ -2379,7 +2400,7 @@ mod sampler_apply_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_apply_status_to_result_maps_null_out_error_arg() {
+    fn sampler_apply_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation() {
         let outcome = sampler_apply_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
@@ -2397,7 +2418,7 @@ mod sampler_apply_status_to_result_tests {
     }
 
     #[test]
-    fn sampler_apply_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn sampler_apply_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = sampler_apply_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),

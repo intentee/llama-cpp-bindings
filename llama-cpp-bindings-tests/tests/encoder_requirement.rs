@@ -17,7 +17,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn encode_on_non_encoder_model_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn encoding_with_a_decoder_only_model_reports_it_has_no_encoder(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,

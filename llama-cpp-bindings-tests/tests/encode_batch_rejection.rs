@@ -20,9 +20,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     embeddings = true,
 )]
-fn encoding_more_tokens_than_the_micro_batch_returns_an_error(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
+fn encoding_more_tokens_than_the_micro_batch_is_refused(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
     let tokens = fixture.model.str_to_token(
         &"hello ".repeat(100),
@@ -53,7 +51,7 @@ fn encoding_more_tokens_than_the_micro_batch_returns_an_error(
     n_ubatch = 64,
     embeddings = true,
 )]
-fn encoding_reports_a_token_llama_cpp_cannot_add_to_its_batch(
+fn encoding_reports_an_exception_thrown_while_transferring_the_batch(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;

@@ -2,6 +2,7 @@ use std::ffi::CStr;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::bail;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -16,8 +17,12 @@ use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
+use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_bindings_tests::yes_or_no_prefixes::YES_OR_NO_PREFIXES;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -26,13 +31,71 @@ const JSON_SCHEMA: &str =
     r#"{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}"#;
 const REGEX_GRAMMAR: &str = r"yes|no";
 
+const LARK_GRAMMAR: &str = r#"start: "yes" | "no""#;
+
 fn out_of_vocabulary_failure() -> String {
     GrammarRuntimeError::InternalParserError {
         message: "token id 2147483646 out of range".to_owned(),
     }
     .to_string()
 }
-const LARK_GRAMMAR: &str = r#"start: "yes" | "no""#;
+
+fn yes_no_and_hello(model: &LlamaModel) -> Result<Vec<LlamaToken>> {
+    Ok(vec![
+        single_token(model, "yes")?,
+        single_token(model, "no")?,
+        single_token(model, "hello")?,
+    ])
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn a_json_schema_sampler_masks_tokens_that_cannot_start_the_schema(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let sampler = create_llg_sampler(model, "json", JSON_SCHEMA)?;
+
+    assert_eq!(
+        logits_left_by(
+            &sampler,
+            &[single_token(model, "{")?, single_token(model, "hello")?]
+        )?,
+        [0.0, f32::NEG_INFINITY]
+    );
+
+    Ok(())
+}
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
@@ -42,12 +105,6 @@ const LARK_GRAMMAR: &str = r#"start: "yes" | "no""#;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn llguidance_method_creates_sampler(fixture: &LlamaFixture<'_>) {
-    let result = LlamaSampler::llguidance(fixture.model, "regex", r"yes|no");
-
-    assert!(result.is_ok());
-}
-
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -80,10 +137,16 @@ fn llguidance_method_creates_sampler(fixture: &LlamaFixture<'_>) {
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn creates_sampler_with_valid_json_schema(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let sampler = create_llg_sampler(fixture.model, "json", JSON_SCHEMA)?;
+fn a_regex_sampler_masks_tokens_that_cannot_start_a_match(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
-    assert!(!sampler.as_ptr().is_null());
+    assert_eq!(
+        logits_left_by(&sampler, &yes_no_and_hello(model)?)?,
+        [0.0, 0.0, f32::NEG_INFINITY]
+    );
 
     Ok(())
 }
@@ -120,50 +183,16 @@ fn creates_sampler_with_valid_json_schema(fixture: &LlamaFixture<'_>) -> Result<
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn creates_sampler_with_valid_regex_grammar(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
+fn a_lark_sampler_masks_tokens_that_cannot_start_the_grammar(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let sampler = create_llg_sampler(model, "lark", LARK_GRAMMAR)?;
 
-    assert!(!sampler.as_ptr().is_null());
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-fn creates_sampler_with_valid_lark_grammar(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let sampler = create_llg_sampler(fixture.model, "lark", LARK_GRAMMAR)?;
-
-    assert!(!sampler.as_ptr().is_null());
+    assert_eq!(
+        logits_left_by(&sampler, &yes_no_and_hello(model)?)?,
+        [0.0, 0.0, f32::NEG_INFINITY]
+    );
 
     Ok(())
 }
@@ -200,10 +229,13 @@ fn creates_sampler_with_valid_lark_grammar(fixture: &LlamaFixture<'_>) -> Result
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn returns_error_for_unknown_grammar_kind(fixture: &LlamaFixture<'_>) {
-    let result = create_llg_sampler(fixture.model, "not_a_real_kind", "anything");
-
-    assert!(result.is_err());
+fn an_unknown_grammar_kind_is_reported_as_an_invalid_grammar(fixture: &LlamaFixture<'_>) {
+    assert_eq!(
+        create_llg_sampler(fixture.model, "not_a_real_kind", "anything").err(),
+        Some(GrammarError::LlguidanceGrammarInvalid {
+            message: "unknown constraint type: not_a_real_kind".to_owned(),
+        })
+    );
 }
 
 #[llama_test(
@@ -238,10 +270,13 @@ fn returns_error_for_unknown_grammar_kind(fixture: &LlamaFixture<'_>) {
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn returns_error_for_malformed_json_schema(fixture: &LlamaFixture<'_>) {
-    let result = create_llg_sampler(fixture.model, "json", "{this is not valid json");
-
-    assert!(result.is_err());
+fn a_json_schema_that_is_not_json_is_reported_as_an_invalid_grammar(fixture: &LlamaFixture<'_>) {
+    assert_eq!(
+        create_llg_sampler(fixture.model, "json", "{this is not valid json").err(),
+        Some(GrammarError::LlguidanceGrammarInvalid {
+            message: "key must be a string at line 1 column 2".to_owned(),
+        })
+    );
 }
 
 #[llama_test(
@@ -276,10 +311,14 @@ fn returns_error_for_malformed_json_schema(fixture: &LlamaFixture<'_>) {
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn returns_error_for_malformed_regex(fixture: &LlamaFixture<'_>) {
-    let result = create_llg_sampler(fixture.model, "regex", "[invalid");
+fn a_malformed_regex_leaves_llguidance_without_a_parser(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let Err(GrammarError::LlguidanceParserUnavailable { .. }) =
+        create_llg_sampler(fixture.model, "regex", "[invalid")
+    else {
+        bail!("a regex with an unclosed character class must leave llguidance without a parser");
+    };
 
-    assert!(result.is_err());
+    Ok(())
 }
 
 #[llama_test(
@@ -358,14 +397,20 @@ fn name_callback_returns_llguidance(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn clone_via_ffi_creates_independent_sampler(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
+fn a_sampler_cloned_through_ffi_keeps_its_own_grammar_state(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let mut sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
+    let mut cloned = unsafe {
+        LlamaSampler::from_raw(
+            llama_cpp_bindings_sys::llama_sampler_clone(sampler.as_ptr()),
+            "llguidance",
+        )
+    }?;
 
-    let cloned = unsafe { llama_cpp_bindings_sys::llama_sampler_clone(sampler.as_ptr()) };
-
-    assert!(!cloned.is_null());
-
-    unsafe { llama_cpp_bindings_sys::llama_sampler_free(cloned) };
+    assert_eq!(cloned.accept(single_token(model, "yes")?), Ok(()));
+    assert_eq!(sampler.accept(single_token(model, "no")?), Ok(()));
 
     Ok(())
 }
@@ -402,7 +447,7 @@ fn clone_via_ffi_creates_independent_sampler(fixture: &LlamaFixture<'_>) -> Resu
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn samples_token_constrained_by_grammar(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn llguidance_chain_samples_a_prefix_of_yes_or_no(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let backend = fixture.backend;
     let mut context = LlamaContext::from_model(
@@ -421,9 +466,16 @@ fn samples_token_constrained_by_grammar(fixture: &LlamaFixture<'_>) -> Result<()
     let mut chain = LlamaSampler::chain([llg_sampler, LlamaSampler::greedy()?])?;
 
     let token = chain.sample(&context, batch.n_tokens() - 1)?;
+    let piece = model.token_to_piece(
+        &SampledToken::Content(token),
+        &mut encoding_rs::UTF_8.new_decoder(),
+        false,
+        None,
+    )?;
+
     assert!(
-        token.0 >= 0,
-        "grammar-constrained sampling must yield a valid token id without the grammar rejecting it"
+        YES_OR_NO_PREFIXES.contains(&piece.as_str()),
+        "the grammar must constrain the sampled token to a prefix of yes or no, got: '{piece}'"
     );
 
     Ok(())
@@ -544,69 +596,18 @@ fn accept_maps_an_out_of_vocabulary_token_to_grammar_callback_failure(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn approximate_tok_env_drives_consistent_grammar_constraint(
+fn samplers_sharing_the_cached_tokenizer_environment_mask_alike(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let first = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
-    let second = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
-
-    assert!(!first.as_ptr().is_null());
-    assert!(!second.as_ptr().is_null());
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-fn llguidance_chain_samples_a_valid_token(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let backend = fixture.backend;
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let candidates = yes_no_and_hello(model)?;
+    let first = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
+    let second = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
 
-    let tokens = model.str_to_token("Answer:", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
-    batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&batch)?;
-
-    let llg_sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
-    let mut chain = LlamaSampler::chain([llg_sampler, LlamaSampler::greedy()?])?;
-    let token = chain.sample(&context, batch.n_tokens() - 1)?;
-
-    assert!(token.0 >= 0);
+    assert_eq!(
+        logits_left_by(&first, &candidates)?,
+        logits_left_by(&second, &candidates)?
+    );
 
     Ok(())
 }

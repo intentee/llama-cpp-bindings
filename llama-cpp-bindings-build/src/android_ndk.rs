@@ -250,13 +250,6 @@ pub mod tests {
         .unwrap();
 
         assert_eq!(
-            [detected.android_platform(), detected.cmake_toolchain_file(),],
-            [
-                "android-30".to_owned(),
-                format!("{FIXTURE_ANDROID_NDK}/build/cmake/android.toolchain.cmake"),
-            ]
-        );
-        assert_eq!(
             detected,
             AndroidNdk {
                 ndk_path: FIXTURE_ANDROID_NDK.to_owned(),
@@ -270,7 +263,30 @@ pub mod tests {
     }
 
     #[test]
-    fn the_api_level_is_read_with_or_without_the_android_prefix_and_defaults_to_28() {
+    fn the_cmake_platform_and_toolchain_file_derive_from_the_api_level_and_ndk_path() {
+        let android_ndk = AndroidNdk {
+            ndk_path: "/ndk".to_owned(),
+            api_level: "30".to_owned(),
+            abi: "arm64-v8a",
+            sysroot: "/ndk/sysroot".to_owned(),
+            target_prefix: "aarch64-linux-android",
+            clang_builtin_includes: "/ndk/lib/clang/20/include".to_owned(),
+        };
+
+        assert_eq!(
+            [
+                android_ndk.android_platform(),
+                android_ndk.cmake_toolchain_file()
+            ],
+            [
+                "android-30".to_owned(),
+                "/ndk/build/cmake/android.toolchain.cmake".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn an_unprefixed_api_level_is_read_as_is_and_a_missing_one_defaults_to_28() {
         let api_level_of = |environment: &BuildEnvironment| {
             AndroidNdk::detect(
                 environment,
@@ -298,7 +314,7 @@ pub mod tests {
     }
 
     #[test]
-    fn detection_reports_every_way_the_ndk_cannot_be_used() {
+    fn detection_names_the_ndk_input_that_is_missing_unreadable_or_unsupported() {
         let fixture_ndk = Path::new(FIXTURE_ANDROID_NDK);
         let missing_root = temporary_directory("missing-ndk-root");
 

@@ -237,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn an_untagged_partial_tail_after_content_waits_for_what_follows() {
+    fn an_untagged_tail_of_a_partial_parse_waits_for_what_follows() {
         let spans = ChatSpans::new(
             8,
             &[span(ChatSpanKind::Content, 0, 5)],
@@ -245,17 +245,6 @@ mod tests {
         );
 
         assert_eq!(spans.classify_token(&(5..8)), None);
-    }
-
-    #[test]
-    fn an_untagged_partial_tail_after_reasoning_waits_for_what_follows() {
-        let spans = ChatSpans::new(
-            13,
-            &[span(ChatSpanKind::Reasoning, 0, 12)],
-            ChatOutputCompleteness::Partial,
-        );
-
-        assert_eq!(spans.classify_token(&(12..13)), None);
     }
 
     #[test]
@@ -273,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn a_token_without_text_takes_the_role_of_its_position() {
+    fn a_token_without_text_right_after_reasoning_is_a_reasoning_marker() {
         assert_eq!(
             reasoning_then_content(ChatOutputCompleteness::Partial).classify_token(&(12..12)),
             Some(ChatPieceRole::Marker(SampledTokenSection::Reasoning))

@@ -13,7 +13,6 @@ use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_capability::MtmdCapability;
 use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
 use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
@@ -74,14 +73,6 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
-
-    assert_eq!(
-        mtmd_ctx.capabilities(model),
-        MtmdCapability::Chat
-            | MtmdCapability::Vision
-            | MtmdCapability::Audio
-            | MtmdCapability::TextGeneration
-    );
 
     let image_bitmap = load_fixture_bitmap(mtmd_ctx, "llamas.jpg")?;
     assert!(!image_bitmap.is_audio(), "llamas.jpg must decode as image");

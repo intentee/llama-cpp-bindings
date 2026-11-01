@@ -27,7 +27,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn init_from_file_with_null_byte_in_path_returns_error(fixture: &LlamaFixture<'_>) {
+fn init_from_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
     let mtmd_params = MtmdContextParams::default();
 
     assert_eq!(

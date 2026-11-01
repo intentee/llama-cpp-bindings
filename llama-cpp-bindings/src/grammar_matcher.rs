@@ -141,7 +141,6 @@ mod tests {
     use toktrie::ApproximateTokEnv;
 
     use super::GrammarMatcher;
-    use super::catch_step_panic;
     use super::panic_payload_message;
     use super::stop_reason_to_result;
     use crate::error::grammar_runtime_error::GrammarRuntimeError;
@@ -167,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn a_panicking_parser_step_is_reported_with_its_operation() {
+    fn a_panicking_parser_step_is_reported_with_its_operation_and_message() {
         let mut matcher = GrammarMatcher::new(letters_a_then_b_parser());
 
         assert_eq!(
@@ -208,17 +207,6 @@ mod tests {
     }
 
     #[test]
-    fn a_panicking_step_is_reported_with_its_operation_and_message() {
-        assert_eq!(
-            catch_step_panic("consume_token", || -> u32 { panic!("parser exploded") }),
-            Err(GrammarRuntimeError::Panicked {
-                operation: "consume_token",
-                message: "parser exploded".to_owned(),
-            })
-        );
-    }
-
-    #[test]
     fn benign_stop_reasons_are_ok() {
         for reason in [
             StopReason::NotStopped,
@@ -226,7 +214,7 @@ mod tests {
             StopReason::NoExtensionBias,
             StopReason::EndOfSentence,
         ] {
-            assert!(stop_reason_to_result(reason, String::new()).is_ok());
+            assert_eq!(stop_reason_to_result(reason, String::new()), Ok(()));
         }
     }
 

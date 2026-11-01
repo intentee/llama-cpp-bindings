@@ -119,65 +119,72 @@ pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, JsonSchemaToG
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
-    use std::mem::discriminant;
 
     use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
     use crate::json_schema_to_grammar::json_schema_to_grammar;
 
     #[test]
-    fn an_object_schema_converts_to_a_grammar() {
-        let schema = r#"{"type": "object", "properties": {"name": {"type": "string"}}}"#;
-        let grammar = json_schema_to_grammar(schema).expect("schema converts to grammar");
-
-        assert_ne!(grammar, "");
-    }
-
-    #[test]
-    fn null_byte_returns_schema_contains_nul_byte_error() {
+    fn a_schema_with_a_nul_byte_is_reported_before_conversion() {
         let schema = "{\x00}";
-        let err = json_schema_to_grammar(schema).unwrap_err();
-        let representative = JsonSchemaToGrammarError::SchemaContainsNulByte(
-            CString::new(b"a\0b".to_vec()).unwrap_err(),
+
+        assert_eq!(
+            json_schema_to_grammar(schema),
+            Err(JsonSchemaToGrammarError::SchemaContainsNulByte(
+                CString::new(schema).unwrap_err()
+            ))
         );
-
-        assert_eq!(discriminant(&err), discriminant(&representative));
     }
 
     #[test]
-    fn a_string_schema_converts_to_a_grammar() {
+    fn a_string_schema_converts_to_its_gbnf_grammar() {
         let schema = r#"{"type": "string"}"#;
-        let grammar = json_schema_to_grammar(schema).expect("schema converts to grammar");
 
-        assert_ne!(grammar, "");
+        assert_eq!(
+            json_schema_to_grammar(schema),
+            Ok(concat!(
+                r#"char ::= [^"\\\x7F\x00-\x1F] | [\\] (["\\bfnrt] | "u" [0-9a-fA-F]{4})"#,
+                "\n",
+                r#"root ::= "\"" char* "\"""#,
+                "\n",
+                r#"space ::= | " " | "\n"{1,2} [ \t]{0,20}"#,
+                "\n",
+            )
+            .to_owned())
+        );
     }
 
     #[test]
-    fn invalid_json_returns_invalid_json() {
+    fn invalid_json_is_reported_with_the_parser_message() {
         let schema = "not valid json at all";
-        let err = json_schema_to_grammar(schema).unwrap_err();
-        let representative = JsonSchemaToGrammarError::InvalidJson {
-            message: String::new(),
-        };
 
-        assert_eq!(discriminant(&err), discriminant(&representative));
+        assert_eq!(
+            json_schema_to_grammar(schema),
+            Err(JsonSchemaToGrammarError::InvalidJson {
+                message: "[json.exception.parse_error.101] parse error at line 1, column 2: \
+                          syntax error while parsing value - invalid literal; last read: 'no'"
+                    .to_owned(),
+            })
+        );
     }
 
     #[test]
-    fn unresolved_ref_returns_invalid_schema() {
+    fn an_unresolved_ref_is_reported_as_an_invalid_schema_with_its_message() {
         let schema = r##"{"$ref": "#/$defs/Missing"}"##;
-        let err = json_schema_to_grammar(schema).unwrap_err();
-        let representative = JsonSchemaToGrammarError::InvalidSchema {
-            message: String::new(),
-        };
 
-        assert_eq!(discriminant(&err), discriminant(&representative));
+        assert_eq!(
+            json_schema_to_grammar(schema),
+            Err(JsonSchemaToGrammarError::InvalidSchema {
+                message: "JSON schema conversion failed:\nJSON schema error at #: \
+                          cannot resolve $ref #/$defs/Missing, $defs not found"
+                    .to_owned(),
+            })
+        );
     }
 }
 
 #[cfg(test)]
 mod json_schema_to_grammar_status_to_result_tests {
     use std::ffi::c_char;
-    use std::mem::discriminant;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -281,7 +288,7 @@ mod json_schema_to_grammar_status_to_result_tests {
     }
 
     #[test]
-    fn ok_status_with_non_utf8_grammar_returns_grammar_not_utf8() {
+    fn ok_status_with_non_utf8_grammar_reports_the_utf8_error() {
         let invalid_utf8_grammar: [u8; 2] = [0xFF, 0];
         let out = unsafe {
             llama_cpp_bindings_sys::llama_rs_string_dup(
@@ -297,12 +304,11 @@ mod json_schema_to_grammar_status_to_result_tests {
                 ptr::null_mut(),
             )
         };
-        let representative =
-            JsonSchemaToGrammarError::GrammarNotUtf8(String::from_utf8(vec![0xFF]).unwrap_err());
-
         assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&representative),
+            result,
+            Err(JsonSchemaToGrammarError::GrammarNotUtf8(
+                String::from_utf8(vec![0xFF]).unwrap_err()
+            ))
         );
     }
 
@@ -360,7 +366,8 @@ mod json_schema_to_grammar_status_to_result_tests {
     }
 
     #[test]
-    fn json_schema_to_grammar_status_to_result_maps_null_schema_json_arg() {
+    fn json_schema_to_grammar_status_to_result_reports_a_null_schema_json_arg_as_a_contract_violation()
+     {
         let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG,
@@ -381,7 +388,8 @@ mod json_schema_to_grammar_status_to_result_tests {
     }
 
     #[test]
-    fn json_schema_to_grammar_status_to_result_maps_null_out_grammar_arg() {
+    fn json_schema_to_grammar_status_to_result_reports_a_null_out_grammar_arg_as_a_contract_violation()
+     {
         let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG,
@@ -402,7 +410,8 @@ mod json_schema_to_grammar_status_to_result_tests {
     }
 
     #[test]
-    fn json_schema_to_grammar_status_to_result_maps_null_out_error_arg() {
+    fn json_schema_to_grammar_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
+     {
         let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG,
@@ -423,7 +432,7 @@ mod json_schema_to_grammar_status_to_result_tests {
     }
 
     #[test]
-    fn json_schema_to_grammar_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn json_schema_to_grammar_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,

@@ -25,7 +25,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn encode_chunk_succeeds_for_image_chunk(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn encode_chunk_encodes_an_image_chunk(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
@@ -37,16 +37,12 @@ fn encode_chunk_succeeds_for_image_chunk(fixture: &LlamaFixture<'_>) -> Result<(
         parse_special: true,
     };
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let image_chunk = (0..chunks.len())
+        .filter_map(|chunk_index| chunks.get(chunk_index))
+        .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
+        .context("a prompt with an image must tokenize into an image chunk")?;
 
-    for chunk_index in 0..chunks.len() {
-        let chunk = chunks
-            .get(chunk_index)
-            .context(format!("missing chunk at index {chunk_index}"))?;
-        if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
-            let result = mtmd_ctx.encode_chunk(&chunk);
-            assert!(result.is_ok());
-            return Ok(());
-        }
-    }
+    assert_eq!(mtmd_ctx.encode_chunk(&image_chunk), Ok(()));
+
     Ok(())
 }

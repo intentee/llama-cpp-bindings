@@ -42,13 +42,17 @@ impl From<LlamaSplitMode> for llama_cpp_bindings_sys::llama_split_mode {
 #[cfg(test)]
 mod tests {
     use super::LlamaSplitMode;
+    use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
 
     #[test]
     fn try_from_invalid_reports_the_value() {
-        let result = LlamaSplitMode::try_from(99);
-
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().value, 99);
+        assert_eq!(
+            LlamaSplitMode::try_from(99),
+            Err(LlamaSplitModeParseError {
+                value: 99,
+                context: "unknown split mode value: 99".to_owned(),
+            })
+        );
     }
 
     #[test]

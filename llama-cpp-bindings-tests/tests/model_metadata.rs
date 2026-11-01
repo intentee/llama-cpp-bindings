@@ -1,7 +1,13 @@
+use std::ffi::CString;
+
 use anyhow::Result;
 
+use llama_cpp_bindings::error::meta_val_error::MetaValError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
+
+const INITIAL_META_VALUE_BUFFER_BYTES: usize = 256;
+const OUT_OF_RANGE_META_INDEX_RETURN: i32 = -1;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
@@ -147,9 +153,13 @@ fn the_first_metadata_entry_has_a_nonempty_value(fixture: &LlamaFixture<'_>) -> 
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn meta_key_by_index_out_of_range_returns_error(fixture: &LlamaFixture<'_>) {
-    let result = fixture.model.meta_key_by_index(999_999);
-    assert!(result.is_err());
+fn meta_key_by_index_out_of_range_reports_the_negative_llama_cpp_return(
+    fixture: &LlamaFixture<'_>,
+) {
+    assert_eq!(
+        fixture.model.meta_key_by_index(999_999),
+        Err(MetaValError::NegativeReturn(OUT_OF_RANGE_META_INDEX_RETURN))
+    );
 }
 
 #[llama_test(
@@ -184,9 +194,13 @@ fn meta_key_by_index_out_of_range_returns_error(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn meta_val_str_by_index_out_of_range_returns_error(fixture: &LlamaFixture<'_>) {
-    let result = fixture.model.meta_val_str_by_index(999_999);
-    assert!(result.is_err());
+fn meta_val_str_by_index_out_of_range_reports_the_negative_llama_cpp_return(
+    fixture: &LlamaFixture<'_>,
+) {
+    assert_eq!(
+        fixture.model.meta_val_str_by_index(999_999),
+        Err(MetaValError::NegativeReturn(OUT_OF_RANGE_META_INDEX_RETURN))
+    );
 }
 
 #[llama_test(
@@ -261,16 +275,15 @@ fn meta_val_str_returns_value_for_known_key(fixture: &LlamaFixture<'_>) -> Resul
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn meta_val_str_with_long_value_triggers_buffer_resize(fixture: &LlamaFixture<'_>) {
-    let model = fixture.model;
-    let count = model.meta_count();
+fn meta_val_str_reads_a_value_longer_than_its_initial_buffer_whole(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let chat_template = fixture.model.meta_val_str("tokenizer.chat_template")?;
 
-    for index in 0..count {
-        let key = model.meta_key_by_index(index);
-        let value = model.meta_val_str_by_index(index);
-        assert!(key.is_ok());
-        assert!(value.is_ok());
-    }
+    assert!(chat_template.len() > INITIAL_META_VALUE_BUFFER_BYTES);
+    assert_eq!(chat_template, fixture.model.chat_template(None)?.to_str()?);
+
+    Ok(())
 }
 
 #[llama_test(
@@ -305,7 +318,11 @@ fn meta_val_str_with_long_value_triggers_buffer_resize(fixture: &LlamaFixture<'_
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn meta_val_str_with_null_byte_in_key_returns_error(fixture: &LlamaFixture<'_>) {
-    let result = fixture.model.meta_val_str("key\0with_null");
-    assert!(result.is_err());
+fn meta_val_str_refuses_a_key_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
+    assert_eq!(
+        fixture.model.meta_val_str("key\0with_null").err(),
+        CString::new("key\0with_null")
+            .err()
+            .map(MetaValError::NullError)
+    );
 }

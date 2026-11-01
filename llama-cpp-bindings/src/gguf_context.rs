@@ -641,11 +641,16 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn from_file_opens_valid_gguf() {
-        let context = GgufContext::from_file(fixture_path());
-
-        assert!(context.is_ok());
+    fn bias_and_weight_tensors(test_name: &str) -> SyntheticGgufFile {
+        SyntheticGgufBuilder::default()
+            .tensor(b"synthetic.bias", &[2], GGML_TYPE_F16, vec![0; 4])
+            .tensor(
+                b"synthetic.weight",
+                &[3, 2],
+                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+            )
+            .write(test_name)
     }
 
     #[test]
@@ -656,19 +661,10 @@ mod tests {
     }
 
     #[test]
-    fn n_kv_returns_positive_count() {
+    fn n_kv_counts_every_key_of_the_file() {
         let context = GgufContext::from_file(fixture_path()).unwrap();
 
-        assert!(context.n_kv() > 0);
-    }
-
-    #[test]
-    fn find_key_finds_a_known_key_at_a_non_negative_index() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
-        let index = context.find_key("general.architecture");
-
-        assert!(index.is_ok());
-        assert!(index.unwrap() >= 0);
+        assert_eq!(context.n_kv(), 20);
     }
 
     #[test]
@@ -713,12 +709,12 @@ mod tests {
     }
 
     #[test]
-    fn val_str_returns_architecture_value() {
+    fn val_str_reads_the_architecture_stored_in_the_file() {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let index = context.find_key("general.architecture").unwrap();
         let value = context.val_str(index).unwrap();
 
-        assert_ne!(value, "");
+        assert_eq!(value, "bert");
     }
 
     #[test]
@@ -827,21 +823,20 @@ mod tests {
     }
 
     #[test]
+    fn n_tensors_counts_every_tensor_of_the_file() {
+        let fixture = bias_and_weight_tensors("n_tensors_counts_every_tensor_of_the_file");
+        let context = GgufContext::from_file(&fixture.path).unwrap();
+
+        assert_eq!(context.n_tensors(), 2);
+    }
+
+    #[test]
     fn read_tensor_f32_returns_shape_and_values() {
-        let fixture = SyntheticGgufBuilder::default()
-            .tensor(b"synthetic.bias", &[2], GGML_TYPE_F16, vec![0; 4])
-            .tensor(
-                b"synthetic.weight",
-                &[3, 2],
-                llama_cpp_bindings_sys::GGML_TYPE_F32,
-                f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
-            )
-            .write("read_tensor_f32_returns_shape_and_values");
+        let fixture = bias_and_weight_tensors("read_tensor_f32_returns_shape_and_values");
         let context = GgufContext::from_file(&fixture.path).unwrap();
 
         let tensor = context.read_tensor_f32("synthetic.weight").unwrap();
 
-        assert_eq!(context.n_tensors(), 2);
         assert_eq!(tensor.shape, [3, 2, 1, 1]);
         assert_eq!(tensor.values, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }

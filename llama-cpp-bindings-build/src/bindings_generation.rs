@@ -261,19 +261,26 @@ mod tests {
     }
 
     #[test]
-    fn fault_injection_and_android_targets_add_their_clang_arguments() {
+    fn fault_injection_adds_its_define_to_the_clang_arguments() {
+        assert_eq!(
+            planned(BitFlags::from(BuildFeature::FaultInjection), &[]).clang_args,
+            [
+                llama_cpp_includes(),
+                vec![format!("-D{FAULT_INJECTION_DEFINE}")],
+            ]
+            .concat()
+        );
+    }
+
+    #[test]
+    fn android_targets_add_the_ndk_clang_arguments() {
         let toolchain = format!("{FIXTURE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64");
 
         assert_eq!(
-            planned(
-                BitFlags::from(BuildFeature::FaultInjection),
-                &ANDROID_OVERRIDES
-            )
-            .clang_args,
+            planned(BitFlags::empty(), &ANDROID_OVERRIDES).clang_args,
             [
                 llama_cpp_includes(),
                 vec![
-                    format!("-D{FAULT_INJECTION_DEFINE}"),
                     format!("--sysroot={toolchain}/sysroot"),
                     "-D__ANDROID_API__=28".to_owned(),
                     "-D__ANDROID__".to_owned(),

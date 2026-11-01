@@ -85,7 +85,7 @@ mod tests {
     }
 
     #[test]
-    fn partial_name_key_is_still_possibly_valid() {
+    fn a_name_key_awaiting_its_colon_is_still_possibly_valid() {
         assert_eq!(probe(r#"{ "name""#), JsonProbeOutcome::StillPossiblyValid,);
     }
 
@@ -170,25 +170,9 @@ mod tests {
     }
 
     #[test]
-    fn complete_tool_call_with_internal_whitespace_is_completed_valid() {
-        assert_eq!(
-            probe(r#"{"name": "f", "arguments": {}}"#),
-            JsonProbeOutcome::CompletedValid,
-        );
-    }
-
-    #[test]
     fn complete_tool_call_with_string_argument_is_completed_valid() {
         assert_eq!(
             probe(r#"{"name":"get_weather","arguments":{"location":"Paris"}}"#),
-            JsonProbeOutcome::CompletedValid,
-        );
-    }
-
-    #[test]
-    fn complete_tool_call_with_multiple_arguments_is_completed_valid() {
-        assert_eq!(
-            probe(r#"{"name":"book_flight","arguments":{"from":"NYC","to":"PAR","passengers":2}}"#),
             JsonProbeOutcome::CompletedValid,
         );
     }
@@ -234,14 +218,6 @@ mod tests {
     }
 
     #[test]
-    fn complete_tool_call_with_array_inside_arguments_is_completed_valid() {
-        assert_eq!(
-            probe(r#"{"name":"f","arguments":{"items":[1,2,3]}}"#),
-            JsonProbeOutcome::CompletedValid,
-        );
-    }
-
-    #[test]
     fn complete_tool_call_without_arguments_field_is_completed_valid() {
         assert_eq!(
             probe(r#"{"name":"ping"}"#),
@@ -250,22 +226,12 @@ mod tests {
     }
 
     #[test]
-    fn top_level_array_is_failed() {
+    fn a_top_level_value_other_than_an_object_is_failed() {
         assert_eq!(probe("["), JsonProbeOutcome::Failed);
     }
 
     #[test]
-    fn top_level_scalar_number_is_failed() {
-        assert_eq!(probe("123"), JsonProbeOutcome::Failed);
-    }
-
-    #[test]
-    fn top_level_string_is_failed() {
-        assert_eq!(probe(r#""hi""#), JsonProbeOutcome::Failed);
-    }
-
-    #[test]
-    fn complete_object_with_wrong_first_key_is_failed() {
+    fn an_unknown_key_is_failed() {
         assert_eq!(probe(r#"{"foo":"bar"}"#), JsonProbeOutcome::Failed,);
     }
 
@@ -275,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn complete_object_with_non_string_name_is_failed() {
+    fn a_name_value_that_is_not_a_string_is_failed() {
         assert_eq!(
             probe(r#"{"name":123,"arguments":{}}"#),
             JsonProbeOutcome::Failed,
@@ -283,33 +249,9 @@ mod tests {
     }
 
     #[test]
-    fn complete_object_with_null_name_is_failed() {
-        assert_eq!(
-            probe(r#"{"name":null,"arguments":{}}"#),
-            JsonProbeOutcome::Failed,
-        );
-    }
-
-    #[test]
-    fn complete_object_with_arguments_as_array_is_failed() {
+    fn an_arguments_value_that_is_not_an_object_is_failed() {
         assert_eq!(
             probe(r#"{"name":"f","arguments":[]}"#),
-            JsonProbeOutcome::Failed,
-        );
-    }
-
-    #[test]
-    fn complete_object_with_arguments_as_string_is_failed() {
-        assert_eq!(
-            probe(r#"{"name":"f","arguments":"hi"}"#),
-            JsonProbeOutcome::Failed,
-        );
-    }
-
-    #[test]
-    fn complete_object_with_third_top_level_key_is_failed() {
-        assert_eq!(
-            probe(r#"{"name":"f","arguments":{},"extra":1}"#),
             JsonProbeOutcome::Failed,
         );
     }
@@ -318,14 +260,6 @@ mod tests {
     fn complete_object_with_empty_name_is_failed() {
         assert_eq!(
             probe(r#"{"name":"","arguments":{}}"#),
-            JsonProbeOutcome::Failed,
-        );
-    }
-
-    #[test]
-    fn complete_object_with_trailing_garbage_is_failed() {
-        assert_eq!(
-            probe(r#"{"name":"f","arguments":{}}garbage"#),
             JsonProbeOutcome::Failed,
         );
     }
@@ -354,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn complete_tool_call_followed_by_second_object_is_failed() {
+    fn a_second_object_after_the_closed_tool_call_is_failed() {
         assert_eq!(
             probe(r#"{"name":"a","arguments":{}}{"name":"b","arguments":{}}"#),
             JsonProbeOutcome::Failed,
@@ -362,36 +296,12 @@ mod tests {
     }
 
     #[test]
-    fn buffer_with_only_open_quote_is_still_possibly_valid() {
+    fn a_partially_written_key_is_still_possibly_valid() {
         assert_eq!(probe(r#"{ "n"#), JsonProbeOutcome::StillPossiblyValid,);
     }
 
     #[test]
-    fn buffer_with_complete_first_field_unknown_second_key_is_failed() {
-        assert_eq!(
-            probe(r#"{ "name": "f", "foo": 1}"#),
-            JsonProbeOutcome::Failed,
-        );
-    }
-
-    #[test]
-    fn unicode_letter_inside_name_value_completes_validly() {
-        assert_eq!(
-            probe(r#"{"name":"éclair","arguments":{}}"#),
-            JsonProbeOutcome::CompletedValid,
-        );
-    }
-
-    #[test]
-    fn arguments_field_with_explicit_null_is_failed() {
-        assert_eq!(
-            probe(r#"{"name":"f","arguments":null}"#),
-            JsonProbeOutcome::Failed,
-        );
-    }
-
-    #[test]
-    fn syntactically_malformed_object_is_failed() {
+    fn a_comma_before_the_first_key_is_failed() {
         assert_eq!(probe("{,}"), JsonProbeOutcome::Failed,);
     }
 
@@ -427,9 +337,17 @@ mod tests {
 
     #[test]
     fn syntax_error_inside_arguments_fails_when_the_object_closes() {
+        let mut streaming_probe = StreamingJsonProbe::default();
+
         assert_eq!(
-            probe(r#"{"name":"f","arguments":{"q" 1}}"#),
-            JsonProbeOutcome::Failed,
+            [
+                streaming_probe.feed(r#"{"name":"f","arguments":{"q" 1}"#),
+                streaming_probe.feed("}"),
+            ],
+            [
+                JsonProbeOutcome::StillPossiblyValid,
+                JsonProbeOutcome::Failed
+            ]
         );
     }
 

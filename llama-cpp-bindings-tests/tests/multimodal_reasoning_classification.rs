@@ -244,89 +244,6 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    const MAX_GENERATED_TOKENS: i32 = 200;
-
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
-
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-
-    let image_path = fixtures_dir().join("llamas.jpg");
-    let image_path_str = image_path
-        .to_str()
-        .context("image path is not valid UTF-8")?;
-    let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
-
-    let session = media_question_chat_session(model, PROMPT_QUESTION)?;
-    let input_text = MtmdInputText {
-        text: session.prompt()?,
-        add_special: true,
-        parse_special: true,
-    };
-
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
-
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
-    let n_past = classifier.eval_multimodal_chunks(
-        &chunks,
-        mtmd_ctx,
-        &mut context,
-        EvalMultimodalChunksParams {
-            start_position: 0,
-            seq_id: 0,
-            n_batch: 512,
-            logits_last: true,
-        },
-    )?;
-
-    let mut sampler = LlamaSampler::chain([
-        LlamaSampler::penalties(model.n_vocab(), 64, 1.1, 0.0, 0.0)?,
-        LlamaSampler::top_k(40)?,
-        LlamaSampler::top_p(0.9, 1)?,
-        LlamaSampler::min_p(0.05, 1)?,
-        LlamaSampler::temp(0.7)?,
-        LlamaSampler::dist(0x00C0_FFEE)?,
-    ])?;
-
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
-    let outcome = ClassifySampleLoop {
-        classifier: &mut classifier,
-        sampler: &mut sampler,
-        context: &mut context,
-        batch: &mut batch,
-        initial_position: n_past,
-        max_generated_tokens: MAX_GENERATED_TOKENS,
-    }
-    .run();
-
-    let usage = classifier.usage();
-
-    if outcome.observed_reasoning == 0 {
-        bail!(
-            "Qwen 3.5 multimodal + thinking: classifier must emit at least one Reasoning token \
-             when the prompt opens a `<think>` block; outcome={outcome:?}"
-        );
-    }
-    if usage.reasoning_tokens == 0 {
-        bail!(
-            "Qwen 3.5 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
-        );
-    }
-
-    Ok(())
-}
-
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -336,7 +253,7 @@ fn qwen35_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
+fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     const MAX_GENERATED_TOKENS: i32 = 200;
@@ -406,12 +323,13 @@ fn qwen36_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     if outcome.observed_reasoning == 0 {
         bail!(
-            "Qwen 3.6 multimodal + thinking: classifier must emit at least one Reasoning token; outcome={outcome:?}"
+            "Qwen multimodal + thinking: classifier must emit at least one Reasoning token \
+             when the prompt opens a `<think>` block; outcome={outcome:?}"
         );
     }
     if usage.reasoning_tokens == 0 {
         bail!(
-            "Qwen 3.6 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
+            "Qwen multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
         );
     }
 

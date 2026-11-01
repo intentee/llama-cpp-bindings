@@ -888,7 +888,7 @@ mod check_lora_adapters_result_tests {
 
     #[test]
     fn a_zero_set_adapters_return_code_is_success() {
-        assert!(check_lora_adapters_result(0).is_ok());
+        assert_eq!(check_lora_adapters_result(0), Ok(()));
     }
 
     #[test]
@@ -914,17 +914,19 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     #[test]
     fn nextn_hidden_state_probe_status_to_result_maps_ok_to_whether_the_graph_produces_it() {
         assert_eq!(
-            nextn_hidden_state_probe_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_OK,
-                true,
-                ptr::null_mut(),
-            ),
-            Ok(true)
+            [true, false].map(|produces_nextn_hidden_state| {
+                nextn_hidden_state_probe_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_OK,
+                    produces_nextn_hidden_state,
+                    ptr::null_mut(),
+                )
+            }),
+            [Ok(true), Ok(false)]
         );
     }
 
     #[test]
-    fn nextn_hidden_state_probe_status_to_result_maps_null_ctx_arg() {
+    fn nextn_hidden_state_probe_status_to_result_reports_a_null_ctx_arg_as_a_contract_violation() {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_CTX_ARG,
@@ -940,7 +942,8 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     }
 
     #[test]
-    fn nextn_hidden_state_probe_status_to_result_maps_null_out_produces_nextn_hidden_state_arg() {
+    fn nextn_hidden_state_probe_status_to_result_reports_a_null_out_produces_nextn_hidden_state_arg_as_a_contract_violation()
+     {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_PRODUCES_NEXTN_HIDDEN_STATE_ARG,
@@ -956,7 +959,8 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     }
 
     #[test]
-    fn nextn_hidden_state_probe_status_to_result_maps_null_out_error_arg() {
+    fn nextn_hidden_state_probe_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
+     {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_ERROR_ARG,
@@ -972,7 +976,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     }
 
     #[test]
-    fn nextn_hidden_state_probe_status_to_result_maps_llama_cpp_failed_to_reserve_graph() {
+    fn nextn_hidden_state_probe_status_to_result_reports_a_failed_graph_reservation() {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_FAILED_TO_RESERVE_GRAPH,
@@ -984,7 +988,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     }
 
     #[test]
-    fn nextn_hidden_state_probe_status_to_result_maps_error_string_allocation_failed() {
+    fn nextn_hidden_state_probe_status_to_result_reports_not_enough_memory_for_the_error_string() {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_ERROR_STRING_ALLOCATION_FAILED,
@@ -996,7 +1000,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     }
 
     #[test]
-    fn nextn_hidden_state_probe_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn nextn_hidden_state_probe_status_to_result_reports_llama_cpp_running_out_of_memory() {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_OUT_OF_MEMORY,
@@ -1031,7 +1035,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     }
 
     #[test]
-    fn nextn_hidden_state_probe_status_to_result_maps_llama_cpp_threw_cxx_exception_without_a_message()
+    fn nextn_hidden_state_probe_status_to_result_reports_an_exception_without_a_message_as_a_contract_violation()
      {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(
@@ -1048,7 +1052,7 @@ mod nextn_hidden_state_probe_status_to_result_tests {
     }
 
     #[test]
-    fn nextn_hidden_state_probe_status_to_result_maps_an_unknown_status() {
+    fn nextn_hidden_state_probe_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             nextn_hidden_state_probe_status_to_result(255, false, ptr::null_mut()),
             Err(FfiStatusError {
@@ -1160,7 +1164,7 @@ mod new_context_with_model_status_to_result_tests {
     }
 
     #[test]
-    fn new_context_with_model_status_to_result_maps_null_model_arg() {
+    fn new_context_with_model_status_to_result_reports_a_null_model_arg_as_a_contract_violation() {
         let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG,
             ptr::null_mut(),
@@ -1179,7 +1183,8 @@ mod new_context_with_model_status_to_result_tests {
     }
 
     #[test]
-    fn new_context_with_model_status_to_result_maps_null_out_ctx_arg() {
+    fn new_context_with_model_status_to_result_reports_a_null_out_ctx_arg_as_a_contract_violation()
+    {
         let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG,
             ptr::null_mut(),
@@ -1198,7 +1203,8 @@ mod new_context_with_model_status_to_result_tests {
     }
 
     #[test]
-    fn new_context_with_model_status_to_result_maps_null_out_error_arg() {
+    fn new_context_with_model_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
+     {
         let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG,
             ptr::null_mut(),
@@ -1217,7 +1223,7 @@ mod new_context_with_model_status_to_result_tests {
     }
 
     #[test]
-    fn new_context_with_model_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn new_context_with_model_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
@@ -1360,7 +1366,7 @@ mod process_status_to_result_tests {
     }
 
     #[test]
-    fn every_status_without_a_message_maps_to_its_error() {
+    fn every_status_without_a_return_code_or_message_maps_to_its_result() {
         let statuses = [
             llama_cpp_bindings_sys::LLAMA_RS_PROCESS_OK,
             llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE,

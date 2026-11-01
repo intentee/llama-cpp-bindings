@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn exception_status_without_message_maps_to_unknown_reported_error() {
+    fn exception_status_without_message_is_a_contract_error() {
         assert_eq!(
             validation_status_to_result(
                 LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION,
@@ -276,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn llama_cpp_out_of_memory_status_is_distinct_from_error_string_allocation() {
+    fn llama_cpp_out_of_memory_status_maps_to_llama_cpp_out_of_memory() {
         assert_eq!(
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY,

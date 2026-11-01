@@ -220,24 +220,22 @@ impl Drop for MtmdInputChunk {
 }
 
 #[cfg(test)]
-mod unit_tests {
+mod tokens_from_raw_ptr_tests {
     use std::ptr;
 
-    use super::non_causal_chunk_micro_batch_error;
     use super::tokens_from_raw_ptr;
-    use crate::mtmd::mtmd_eval_error::MtmdEvalError;
-    use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
     use crate::token::LlamaToken;
 
     #[test]
     fn tokens_from_raw_ptr_returns_none_for_null() {
-        assert!(unsafe { tokens_from_raw_ptr(ptr::null(), 5) }.is_none());
+        assert_eq!(unsafe { tokens_from_raw_ptr(ptr::null(), 5) }, None);
     }
 
     #[test]
     fn tokens_from_raw_ptr_returns_none_for_zero_count() {
         let token: llama_cpp_bindings_sys::llama_token = 42;
-        assert!(unsafe { tokens_from_raw_ptr(&raw const token, 0) }.is_none());
+
+        assert_eq!(unsafe { tokens_from_raw_ptr(&raw const token, 0) }, None);
     }
 
     #[test]
@@ -247,6 +245,13 @@ mod unit_tests {
 
         assert_eq!(result, Some(&[LlamaToken::new(1), LlamaToken::new(2)][..]));
     }
+}
+
+#[cfg(test)]
+mod non_causal_chunk_micro_batch_error_tests {
+    use super::non_causal_chunk_micro_batch_error;
+    use crate::mtmd::mtmd_eval_error::MtmdEvalError;
+    use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 
     #[test]
     fn a_non_causal_chunk_larger_than_the_micro_batch_reports_the_mismatch() {
@@ -263,12 +268,12 @@ mod unit_tests {
 
     #[test]
     fn a_causal_chunk_larger_than_the_micro_batch_is_split_instead() {
-        assert!(non_causal_chunk_micro_batch_error(false, 9, 4).is_none());
+        assert_eq!(non_causal_chunk_micro_batch_error(false, 9, 4), None);
     }
 
     #[test]
     fn a_non_causal_chunk_within_the_micro_batch_fits() {
-        assert!(non_causal_chunk_micro_batch_error(true, 4, 4).is_none());
+        assert_eq!(non_causal_chunk_micro_batch_error(true, 4, 4), None);
     }
 }
 

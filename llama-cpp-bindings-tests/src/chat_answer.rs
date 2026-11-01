@@ -3,9 +3,7 @@ use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings_types::token_usage::TokenUsage;
 
 use crate::classify_sample_loop_outcome::ClassifySampleLoopOutcome;
-use crate::recognized_answer::recognized_answer;
-
-const REASONING_PROBE: &str = "x";
+use crate::prompted_reasoning::prompted_reasoning;
 
 fn thinking_tags(session: &ChatSession<'_>) -> Vec<String> {
     let mut tags = session
@@ -19,20 +17,6 @@ fn thinking_tags(session: &ChatSession<'_>) -> Vec<String> {
     );
 
     tags
-}
-
-fn prompted_reasoning(session: &ChatSession<'_>) -> String {
-    let probed = recognized_answer(session, REASONING_PROBE, ChatOutputCompleteness::Partial);
-
-    if probed.content == REASONING_PROBE && probed.reasoning_content.is_empty() {
-        return String::new();
-    }
-
-    probed
-        .reasoning_content
-        .strip_suffix(REASONING_PROBE)
-        .expect("the probe must continue either the prompt's reasoning or its content")
-        .to_owned()
 }
 
 /// A generated answer to a chat session, with what the classifier attributed to each section.

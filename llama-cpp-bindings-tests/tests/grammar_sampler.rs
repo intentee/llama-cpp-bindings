@@ -1,8 +1,6 @@
 use std::ffi::CString;
 
-use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::bail;
 
 use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::context::LlamaContext;
@@ -16,6 +14,9 @@ use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
+use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
+use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_bindings_tests::yes_or_no_prefixes::YES_OR_NO_PREFIXES;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -53,7 +54,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn grammar_sampler_constrains_the_first_token_to_a_prefix_of_yes_or_no(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let mut context = LlamaContext::from_model(
         model,
@@ -94,22 +97,10 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
     );
 
     let piece = outcome.piece.raw();
-    let first_char = piece
-        .chars()
-        .next()
-        .context("piece should have at least one character")?
-        .to_lowercase()
-        .next()
-        .context("lowercase iterator should yield a character")?;
 
     assert!(
-        first_char == 'y' || first_char == 'n',
-        "Grammar should constrain first token to start with y/n, got: '{piece}'"
-    );
-    assert_eq!(
-        classifier.usage().completion_tokens(),
-        1,
-        "exactly one completion token sampled"
+        YES_OR_NO_PREFIXES.contains(&piece.to_lowercase().as_str()),
+        "the grammar must constrain the first token to a prefix of yes or no, got: '{piece}'"
     );
 
     Ok(())
@@ -147,7 +138,7 @@ fn grammar_sampler_constrains_output_to_yes_or_no(fixture: &LlamaFixture<'_>) ->
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn sample_with_grammar_produces_constrained_output_in_loop(
+fn grammar_constrained_chat_answer_is_yes_or_no_content_that_ends_generation(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
@@ -216,10 +207,21 @@ fn sample_with_grammar_produces_constrained_output_in_loop(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_returns_sampler_for_valid_grammar(fixture: &LlamaFixture<'_>) {
-    let sampler = LlamaSampler::grammar(fixture.model, "root ::= \"hello\"", "root");
+fn a_grammar_sampler_masks_tokens_that_cannot_start_the_grammar(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
+    let sampler = LlamaSampler::grammar(model, "root ::= \"hello\"", "root")?;
 
-    assert!(sampler.is_ok());
+    assert_eq!(
+        logits_left_by(
+            &sampler,
+            &[single_token(model, "hello")?, single_token(model, "yes")?]
+        )?,
+        [0.0, f32::NEG_INFINITY]
+    );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -234,11 +236,7 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let [think_token] =
-        model.str_to_token("<think>", AddBos::Never, ParseSpecialTokens::Always)?[..]
-    else {
-        bail!("<think> must be a single token");
-    };
+    let think_token = single_token(model, "<think>")?;
     let mut context = LlamaContext::from_model(
         model,
         fixture.backend,

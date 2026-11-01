@@ -787,7 +787,8 @@ mod tests {
     }
 
     #[test]
-    fn creating_a_session_reports_each_null_argument_as_a_contract_violation() {
+    fn creating_a_session_reports_each_null_argument_and_a_null_created_session_as_a_contract_violation()
+     {
         for (status, detail) in [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_TEMPLATES_ARG,

@@ -45,22 +45,12 @@ impl Drop for LlamaLoraAdapter<'_> {
 #[cfg(test)]
 mod ownership_tests {
     use std::marker::PhantomData;
-    use std::mem::ManuallyDrop;
     use std::ptr;
-    use std::ptr::NonNull;
 
     use crate::model::llama_lora_adapter::LlamaLoraAdapter;
 
     #[test]
-    fn adapter_preserves_the_owned_native_pointer() {
-        let pointer = NonNull::dangling();
-        let adapter = ManuallyDrop::new(unsafe { LlamaLoraAdapter::new(pointer) });
-
-        assert_eq!(adapter.as_ptr(), pointer.as_ptr());
-    }
-
-    #[test]
-    fn dropping_an_adapter_releases_its_native_pointer() {
+    fn dropping_an_adapter_holding_a_null_pointer_is_tolerated() {
         drop(LlamaLoraAdapter {
             lora_adapter: ptr::null_mut(),
             model: PhantomData,

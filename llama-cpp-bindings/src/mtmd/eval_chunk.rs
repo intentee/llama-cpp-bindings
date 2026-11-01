@@ -189,7 +189,7 @@ mod eval_chunk_single_status_to_result_tests {
     }
 
     #[test]
-    fn eval_chunk_single_status_cxx_exception_reports_unknown_error_for_null() {
+    fn eval_chunk_single_status_reports_an_exception_without_a_message_as_a_contract_violation() {
         let result = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
@@ -221,7 +221,7 @@ mod eval_chunk_single_status_to_result_tests {
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_maps_null_mtmd_ctx_arg() {
+    fn eval_chunk_single_status_to_result_reports_a_null_mtmd_ctx_arg_as_a_contract_violation() {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG,
             0,
@@ -241,7 +241,7 @@ mod eval_chunk_single_status_to_result_tests {
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_maps_null_llama_ctx_arg() {
+    fn eval_chunk_single_status_to_result_reports_a_null_llama_ctx_arg_as_a_contract_violation() {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG,
             0,
@@ -261,7 +261,7 @@ mod eval_chunk_single_status_to_result_tests {
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_maps_null_chunk_arg() {
+    fn eval_chunk_single_status_to_result_reports_a_null_chunk_arg_as_a_contract_violation() {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG,
             0,
@@ -281,7 +281,8 @@ mod eval_chunk_single_status_to_result_tests {
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_maps_null_out_new_n_past_arg() {
+    fn eval_chunk_single_status_to_result_reports_a_null_out_new_n_past_arg_as_a_contract_violation()
+     {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG,
             0,
@@ -301,7 +302,7 @@ mod eval_chunk_single_status_to_result_tests {
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn eval_chunk_single_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY,
             0,

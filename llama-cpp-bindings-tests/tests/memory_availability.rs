@@ -51,14 +51,34 @@ fn a_causal_embedding_context_keeps_memory(fixture: &LlamaFixture<'_>) -> Result
     n_threads_batch = 8,
     embeddings = true,
 )]
-fn memory_operations_respect_an_embedding_context_without_memory(
+fn memory_edits_without_a_memory_module_trivially_succeed(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     context.memory_clear();
-    assert_eq!(context.memory_seq_rm(Some(0), None, None), Ok(()));
     context.memory_seq_keep(0);
+
+    assert_eq!(context.memory_seq_rm(Some(0), None, None), Ok(()));
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 2048,
+    n_ubatch = 512,
+    n_threads_batch = 8,
+    embeddings = true,
+)]
+fn memory_operations_needing_a_memory_module_report_its_absence(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+    let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
 
     assert_eq!(
         context.memory_seq_cp(0, 1, None, None),
@@ -68,7 +88,6 @@ fn memory_operations_respect_an_embedding_context_without_memory(
         context.memory_seq_add(0, None, None, 1),
         Err(MemorySeqAddError::MemoryHandleUnavailable)
     );
-    let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     assert_eq!(
         context.memory_seq_div(0, None, None, divisor),
         Err(MemorySeqDivError::MemoryHandleUnavailable)
@@ -77,10 +96,31 @@ fn memory_operations_respect_an_embedding_context_without_memory(
         context.memory_seq_pos_max(0),
         Err(MemorySeqPosMaxError::MemoryHandleUnavailable)
     );
-    assert!(matches!(
-        context.memory_seq_rm(Some(u32::MAX), None, None),
-        Err(MemorySeqRmError::SeqIdTooLarge(_))
-    ));
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 2048,
+    n_ubatch = 512,
+    n_threads_batch = 8,
+    embeddings = true,
+)]
+fn removing_a_sequence_without_a_memory_module_still_validates_its_id(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+
+    assert_eq!(
+        context.memory_seq_rm(Some(u32::MAX), None, None).err(),
+        i32::try_from(u32::MAX)
+            .err()
+            .map(MemorySeqRmError::SeqIdTooLarge)
+    );
 
     Ok(())
 }

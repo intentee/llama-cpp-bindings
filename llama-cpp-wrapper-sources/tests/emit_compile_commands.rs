@@ -56,7 +56,7 @@ fn the_binary_fails_when_the_database_cannot_be_written() {
 }
 
 #[test]
-fn the_binary_requires_every_output_path() {
+fn the_binary_requires_every_argument() {
     let database_path = temporary_path("unwritten.json");
 
     assert!(!emitter_succeeded(&[]));

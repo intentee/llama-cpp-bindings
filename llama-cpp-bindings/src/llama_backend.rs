@@ -68,8 +68,6 @@ impl Drop for LlamaBackend {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use serial_test::serial;
 
     use super::LlamaBackend;
@@ -86,27 +84,23 @@ mod tests {
 
     #[test]
     #[serial]
-    fn double_init_returns_error() {
+    fn initializing_the_backend_twice_reports_it_is_already_initialized() {
         let _backend = LlamaBackend::init().unwrap();
-        let second_err = LlamaBackend::init().unwrap_err();
 
         assert_eq!(
-            discriminant(&second_err),
-            discriminant(&LlamaCppError::BackendAlreadyInitialized),
-            "expected BackendAlreadyInitialized, got {second_err:?}"
+            LlamaBackend::init(),
+            Err(LlamaCppError::BackendAlreadyInitialized)
         );
     }
 
     #[test]
     #[serial]
-    fn init_numa_returns_error_when_backend_already_initialized() {
+    fn init_numa_reports_an_already_initialized_backend() {
         let _backend = LlamaBackend::init().unwrap();
-        let second_err = LlamaBackend::init_numa(NumaStrategy::Disabled).unwrap_err();
 
         assert_eq!(
-            discriminant(&second_err),
-            discriminant(&LlamaCppError::BackendAlreadyInitialized),
-            "expected BackendAlreadyInitialized, got {second_err:?}"
+            LlamaBackend::init_numa(NumaStrategy::Disabled),
+            Err(LlamaCppError::BackendAlreadyInitialized)
         );
     }
 
@@ -138,16 +132,16 @@ mod tests {
 
     #[test]
     #[serial]
-    fn dropping_backend_allows_reinitialization() {
+    fn dropping_the_backend_allows_reinitializing_it() {
         let backend = LlamaBackend::init().unwrap();
         drop(backend);
-        let backend = LlamaBackend::init();
-        assert!(backend.is_ok());
+
+        assert_eq!(LlamaBackend::init(), Ok(LlamaBackend {}));
     }
 
     #[test]
     #[serial]
-    fn init_numa_with_a_numa_strategy_initializes_the_backend_numa_support_needs() {
+    fn init_numa_initializes_the_backend_with_a_numa_strategy() {
         assert_eq!(
             LlamaBackend::init_numa(NumaStrategy::Distribute),
             Ok(LlamaBackend {})

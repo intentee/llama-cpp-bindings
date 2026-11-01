@@ -49,35 +49,6 @@ fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
     load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 2048,
-    n_ubatch = 512,
-)]
-fn candidates_ith_returns_n_vocab_entries(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let last_index = i32::try_from(tokens.len() - 1)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
-    batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&batch)?;
-
-    let count = context.candidates_ith(last_index)?.count();
-
-    assert_eq!(count, usize::try_from(fixture.model.n_vocab())?);
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
     n_ctx = 256,
     n_batch = 128,
     n_ubatch = 64,

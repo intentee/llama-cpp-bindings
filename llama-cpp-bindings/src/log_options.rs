@@ -25,7 +25,7 @@ mod tests {
     use crate::log_options::LogOptions;
 
     #[test]
-    fn builder_chain_sets_both_flags() {
+    fn the_builder_disables_logs_and_demotes_info_to_debug() {
         let options = LogOptions::default()
             .with_logs_enabled(false)
             .with_demote_info_to_debug(true);

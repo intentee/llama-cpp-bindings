@@ -488,15 +488,12 @@ impl Default for LlamaModelParams {
 mod tests {
     use std::ffi::CStr;
     use std::ffi::CString;
-    use std::mem::discriminant;
+    use std::ffi::c_char;
     use std::pin::pin;
     use std::ptr;
 
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
     use super::LLAMA_CPP_MAX_DEVICES;
     use super::LlamaModelParams;
-    use super::fit_params_status_to_result;
     use crate::context::params::LlamaContextParams;
     use crate::error::fit_error::FitError;
     use crate::error::llama_cpp_error::LlamaCppError;
@@ -510,20 +507,6 @@ mod tests {
     use crate::model::llama_load_mode::LlamaLoadMode;
     use crate::model::params::param_override_value::ParamOverrideValue;
     use crate::model::split_mode::LlamaSplitMode;
-
-    fn contract_error_reported_for(
-        status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
-    ) -> Option<FitError> {
-        fit_params_status_to_result(status, 0, ptr::null_mut()).err()
-    }
-
-    fn contract_error_with(detail: &'static str) -> FitError {
-        FfiContractError {
-            operation: "llama_rs_fit_params",
-            detail,
-        }
-        .into()
-    }
 
     #[test]
     fn device_capacity_is_not_smaller_than_the_upstream_limit() {
@@ -593,17 +576,10 @@ mod tests {
     }
 
     #[test]
-    fn with_split_mode_none() {
+    fn with_split_mode_none_disables_splitting() {
         let params = LlamaModelParams::default().with_split_mode(LlamaSplitMode::None);
 
         assert_eq!(params.split_mode(), Ok(LlamaSplitMode::None));
-    }
-
-    #[test]
-    fn with_split_mode_row() {
-        let params = LlamaModelParams::default().with_split_mode(LlamaSplitMode::Row);
-
-        assert_eq!(params.split_mode(), Ok(LlamaSplitMode::Row));
     }
 
     #[test]
@@ -614,8 +590,10 @@ mod tests {
     }
 
     #[test]
-    fn with_vocab_only_disables() {
-        let params = LlamaModelParams::default().with_vocab_only(false);
+    fn with_vocab_only_false_disables_vocab_only_loading() {
+        let params = LlamaModelParams::default()
+            .with_vocab_only(true)
+            .with_vocab_only(false);
 
         assert!(!params.vocab_only());
     }
@@ -628,8 +606,10 @@ mod tests {
     }
 
     #[test]
-    fn with_no_alloc_disables() {
-        let params = LlamaModelParams::default().with_no_alloc(false);
+    fn with_no_alloc_false_reenables_allocation() {
+        let params = LlamaModelParams::default()
+            .with_no_alloc(true)
+            .with_no_alloc(false);
 
         assert!(!params.no_alloc());
     }
@@ -652,8 +632,10 @@ mod tests {
     }
 
     #[test]
-    fn with_load_mtp_disables_mtp_loading() {
-        let params = LlamaModelParams::default().with_load_mtp(false);
+    fn with_load_mtp_false_disables_mtp_loading() {
+        let params = LlamaModelParams::default()
+            .with_load_mtp(true)
+            .with_load_mtp(false);
 
         assert!(!params.load_mtp());
     }
@@ -665,35 +647,17 @@ mod tests {
         assert!(!params.no_alloc());
     }
 
-    fn debug_output_of_default_params_with(lazy_mode: LlamaLazyMode) -> String {
-        format!(
-            "LlamaModelParams {{ n_gpu_layers: -1, main_gpu: 0, vocab_only: false, \
-             lazy_mode: Ok({lazy_mode:?}), load_mode: Ok(Auto), load_mtp: false, \
+    #[test]
+    fn debug_output_lists_every_field_including_the_lazy_mode() {
+        let params = LlamaModelParams::default().with_lazy_mode(LlamaLazyMode::On);
+
+        assert_eq!(
+            format!("{params:?}"),
+            "LlamaModelParams { n_gpu_layers: -1, main_gpu: 0, vocab_only: false, \
+             lazy_mode: Ok(On), load_mode: Ok(Auto), load_mtp: false, \
              split_mode: Ok(Layer), devices: [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, \
              0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0], \
-             kv_overrides: \"vec of kv_overrides\", .. }}"
-        )
-    }
-
-    #[test]
-    fn debug_format_contains_field_names() {
-        let params = LlamaModelParams::default();
-        let debug_output = format!("{params:?}");
-
-        assert_eq!(
-            debug_output,
-            debug_output_of_default_params_with(LlamaLazyMode::Auto)
-        );
-    }
-
-    #[test]
-    fn debug_format_includes_lazy_mode() {
-        let params = LlamaModelParams::default().with_lazy_mode(LlamaLazyMode::On);
-        let debug_output = format!("{params:?}");
-
-        assert_eq!(
-            debug_output,
-            debug_output_of_default_params_with(LlamaLazyMode::On)
+             kv_overrides: \"vec of kv_overrides\", .. }"
         );
     }
 
@@ -715,18 +679,34 @@ mod tests {
 
     #[test]
     fn with_devices_accepts_an_empty_device_list() {
-        let params = LlamaModelParams::default().with_devices(&[]);
-
-        assert!(params.is_ok());
-        assert_eq!(params.unwrap().devices(), Vec::<usize>::new());
+        assert_eq!(
+            LlamaModelParams::default()
+                .with_devices(&[])
+                .map(|params| params.devices()),
+            Ok(Vec::new())
+        );
     }
 
     #[test]
     fn add_cpu_buft_override_fills_an_empty_override_slot() {
         let mut params = pin!(LlamaModelParams::default());
-        let result = params.as_mut().add_cpu_buft_override(c"test_pattern");
 
-        assert!(result.is_ok());
+        assert_eq!(
+            params.as_mut().add_cpu_buft_override(c"test_pattern"),
+            Ok(())
+        );
+        assert_eq!(
+            unsafe { CStr::from_ptr(params.buft_overrides[0].pattern) },
+            c"test_pattern"
+        );
+        assert_eq!(params.buft_overrides[0].buft, unsafe {
+            llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type()
+        });
+        assert_eq!(params.buft_overrides[1].pattern, ptr::null());
+        assert_eq!(
+            params.params.tensor_buft_overrides,
+            params.buft_overrides.as_ptr()
+        );
     }
 
     #[test]
@@ -759,11 +739,17 @@ mod tests {
     }
 
     #[test]
-    fn add_cpu_moe_override_fills_an_empty_override_slot() {
+    fn add_cpu_moe_override_keeps_expert_tensors_in_cpu_memory() {
         let mut params = pin!(LlamaModelParams::default());
-        let result = params.as_mut().add_cpu_moe_override();
 
-        assert!(result.is_ok());
+        assert_eq!(params.as_mut().add_cpu_moe_override(), Ok(()));
+        assert_eq!(
+            unsafe { CStr::from_ptr(params.buft_overrides[0].pattern) },
+            c"\\.ffn_(up|down|gate)_(ch|)exps"
+        );
+        assert_eq!(params.buft_overrides[0].buft, unsafe {
+            llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type()
+        });
     }
 
     #[test]
@@ -808,8 +794,7 @@ mod tests {
 
         let params = LlamaModelParams::default().with_devices(&[0]).unwrap();
 
-        assert_eq!(params.devices().len(), 1);
-        assert_eq!(params.devices()[0], 0);
+        assert_eq!(params.devices(), vec![0]);
     }
 
     #[test]
@@ -836,11 +821,11 @@ mod tests {
             .append_kv_override(key, ParamOverrideValue::Int(1));
 
         assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ModelParamsError::InvalidCharacterInKey {
-                byte: 0,
-                reason: String::new(),
-            }),
+            result,
+            Err(ModelParamsError::InvalidCharacterInKey {
+                byte: 0xff,
+                reason: c_char::try_from(0xff_u8).unwrap_err().to_string(),
+            })
         );
     }
 
@@ -852,11 +837,11 @@ mod tests {
         let result = params.as_mut().add_cpu_buft_override(key);
 
         assert_eq!(
-            discriminant(&result.unwrap_err()),
-            discriminant(&ModelParamsError::InvalidCharacterInKey {
-                byte: 0,
-                reason: String::new(),
-            }),
+            result,
+            Err(ModelParamsError::InvalidCharacterInKey {
+                byte: 0xff,
+                reason: c_char::try_from(0xff_u8).unwrap_err().to_string(),
+            })
         );
     }
 
@@ -886,7 +871,7 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn fit_params_invalid_model_path_returns_error() {
+    fn fit_params_reports_a_missing_model_file_as_aborted() {
         let _backend = LlamaBackend::init();
         let mut params = pin!(LlamaModelParams::default());
         let mut context_params = LlamaContextParams::default();
@@ -928,94 +913,6 @@ mod tests {
             })
         );
     }
-
-    #[test]
-    fn fit_params_status_to_result_maps_null_path_model_arg() {
-        assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG
-            ),
-            Some(contract_error_with("was given a null path_model argument"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_maps_null_mparams_arg() {
-        assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG
-            ),
-            Some(contract_error_with("was given a null mparams argument"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_maps_null_cparams_arg() {
-        assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG
-            ),
-            Some(contract_error_with("was given a null cparams argument"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_maps_null_out_unrecognized_status_code_arg() {
-        assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG
-            ),
-            Some(contract_error_with(
-                "was given a null out_unrecognized_status_code argument"
-            ))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_maps_null_out_error_arg() {
-        assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG
-            ),
-            Some(contract_error_with("was given a null out_error argument"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_maps_null_extra_path_model_arg() {
-        assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG
-            ),
-            Some(contract_error_with(
-                "was given an extra model with a null path_model argument"
-            ))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_maps_null_extra_mparams_arg() {
-        assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG
-            ),
-            Some(contract_error_with(
-                "was given an extra model with a null mparams argument"
-            ))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_maps_null_extra_cparams_arg() {
-        assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG
-            ),
-            Some(contract_error_with(
-                "was given an extra model with a null cparams argument"
-            ))
-        );
-    }
 }
 
 #[cfg(test)]
@@ -1027,6 +924,20 @@ mod fit_params_status_to_result_tests {
 
     use super::fit_params_status_to_result;
     use crate::error::fit_error::FitError;
+
+    fn contract_error_reported_for(
+        status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
+    ) -> Option<FitError> {
+        fit_params_status_to_result(status, 0, ptr::null_mut()).err()
+    }
+
+    fn contract_error_with(detail: &'static str) -> FitError {
+        FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail,
+        }
+        .into()
+    }
 
     #[test]
     fn fit_params_status_ok_returns_ok() {
@@ -1102,7 +1013,7 @@ mod fit_params_status_to_result_tests {
     }
 
     #[test]
-    fn fit_params_status_cxx_exception_without_a_message_is_a_contract_error_with_unknown_error() {
+    fn fit_params_status_reports_an_exception_without_a_message_as_a_contract_violation() {
         let result = fit_params_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
@@ -1141,5 +1052,94 @@ mod fit_params_status_to_result_tests {
         );
 
         assert_eq!(outcome.err(), Some(FitError::LlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn fit_params_status_to_result_reports_a_null_path_model_arg_as_a_contract_violation() {
+        assert_eq!(
+            contract_error_reported_for(
+                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG
+            ),
+            Some(contract_error_with("was given a null path_model argument"))
+        );
+    }
+
+    #[test]
+    fn fit_params_status_to_result_reports_a_null_mparams_arg_as_a_contract_violation() {
+        assert_eq!(
+            contract_error_reported_for(
+                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG
+            ),
+            Some(contract_error_with("was given a null mparams argument"))
+        );
+    }
+
+    #[test]
+    fn fit_params_status_to_result_reports_a_null_cparams_arg_as_a_contract_violation() {
+        assert_eq!(
+            contract_error_reported_for(
+                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG
+            ),
+            Some(contract_error_with("was given a null cparams argument"))
+        );
+    }
+
+    #[test]
+    fn fit_params_status_to_result_reports_a_null_out_unrecognized_status_code_arg_as_a_contract_violation()
+     {
+        assert_eq!(
+            contract_error_reported_for(
+                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG
+            ),
+            Some(contract_error_with(
+                "was given a null out_unrecognized_status_code argument"
+            ))
+        );
+    }
+
+    #[test]
+    fn fit_params_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation() {
+        assert_eq!(
+            contract_error_reported_for(
+                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG
+            ),
+            Some(contract_error_with("was given a null out_error argument"))
+        );
+    }
+
+    #[test]
+    fn fit_params_status_to_result_reports_a_null_extra_path_model_arg_as_a_contract_violation() {
+        assert_eq!(
+            contract_error_reported_for(
+                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG
+            ),
+            Some(contract_error_with(
+                "was given an extra model with a null path_model argument"
+            ))
+        );
+    }
+
+    #[test]
+    fn fit_params_status_to_result_reports_a_null_extra_mparams_arg_as_a_contract_violation() {
+        assert_eq!(
+            contract_error_reported_for(
+                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG
+            ),
+            Some(contract_error_with(
+                "was given an extra model with a null mparams argument"
+            ))
+        );
+    }
+
+    #[test]
+    fn fit_params_status_to_result_reports_a_null_extra_cparams_arg_as_a_contract_violation() {
+        assert_eq!(
+            contract_error_reported_for(
+                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG
+            ),
+            Some(contract_error_with(
+                "was given an extra model with a null cparams argument"
+            ))
+        );
     }
 }

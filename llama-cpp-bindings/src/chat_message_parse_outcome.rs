@@ -56,6 +56,14 @@ mod tests {
         )
     }
 
+    fn odd_answer() -> RawChatMessage {
+        RawChatMessage {
+            text: "<odd>Paris.".to_owned(),
+            completeness: ChatOutputCompleteness::Finished,
+            ffi_error_message: "the format differs".to_owned(),
+        }
+    }
+
     #[test]
     fn a_recognized_answer_keeps_its_content_and_reasoning_before_the_tool_calls() {
         assert_eq!(
@@ -100,16 +108,8 @@ mod tests {
         );
     }
 
-    fn odd_answer() -> RawChatMessage {
-        RawChatMessage {
-            text: "<odd>Paris.".to_owned(),
-            completeness: ChatOutputCompleteness::Finished,
-            ffi_error_message: "the format differs".to_owned(),
-        }
-    }
-
     #[test]
-    fn an_unrecognized_answer_is_its_raw_text() {
+    fn an_unrecognized_answer_is_its_raw_message() {
         assert_eq!(
             ChatMessageParseOutcome::Unrecognized(odd_answer()).into_recognized(),
             Err(odd_answer())

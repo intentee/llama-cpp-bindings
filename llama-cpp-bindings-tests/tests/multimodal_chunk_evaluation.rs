@@ -35,6 +35,54 @@ use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
+struct ImageDimensions {
+    width: u32,
+    height: u32,
+}
+
+const EVALUATED_IMAGE_DIMENSIONS: [ImageDimensions; 10] = [
+    ImageDimensions {
+        width: 224,
+        height: 224,
+    },
+    ImageDimensions {
+        width: 512,
+        height: 512,
+    },
+    ImageDimensions {
+        width: 100,
+        height: 500,
+    },
+    ImageDimensions {
+        width: 337,
+        height: 421,
+    },
+    ImageDimensions {
+        width: 2,
+        height: 2,
+    },
+    ImageDimensions {
+        width: 7,
+        height: 13,
+    },
+    ImageDimensions {
+        width: 3,
+        height: 1000,
+    },
+    ImageDimensions {
+        width: 1000,
+        height: 3,
+    },
+    ImageDimensions {
+        width: 1920,
+        height: 1080,
+    },
+    ImageDimensions {
+        width: 4096,
+        height: 4096,
+    },
+];
+
 fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
@@ -65,7 +113,12 @@ fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) ->
         (*fixture.context_params).into_llama_context_params(),
     )?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
-    chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false)?;
+
+    assert_eq!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false)?,
+        n_positions,
+        "evaluating a {width}x{height} image must advance past every chunk position"
+    );
     Ok(())
 }
 
@@ -521,7 +574,9 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn eval_chunks_succeeds_for_a_standard_image(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn eval_chunks_advances_past_every_position_of_a_standard_image(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
@@ -553,9 +608,11 @@ fn eval_chunks_succeeds_for_a_standard_image(fixture: &LlamaFixture<'_>) -> Resu
         (*fixture.context_params).into_llama_context_params(),
     )?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
-    let result = chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false);
 
-    assert!(result.is_ok());
+    assert_eq!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false),
+        Ok(n_positions)
+    );
 
     Ok(())
 }
@@ -578,47 +635,10 @@ fn eval_chunks_succeeds_for_a_standard_image(fixture: &LlamaFixture<'_>) -> Resu
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn eval_chunks_succeeds_for_varied_image_dimensions(fixture: &LlamaFixture<'_>) {
-    let test_dimensions: [(u32, u32); 4] = [(224, 224), (512, 512), (100, 500), (337, 421)];
-
-    for (width, height) in test_dimensions {
-        let result = eval_synthetic_bitmap(fixture, width, height);
-        assert!(
-            result.is_ok(),
-            "dimension {width}x{height} should succeed: {result:?}"
-        );
-    }
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 8192,
-    n_batch = 512,
-    n_ubatch = 512,
-    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 8192,
-    n_batch = 512,
-    n_ubatch = 512,
-    mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
-)]
-fn eval_chunks_supports_extreme_dimensions(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let extreme_dimensions: [(u32, u32); 6] = [
-        (2, 2),
-        (7, 13),
-        (3, 1000),
-        (1000, 3),
-        (1920, 1080),
-        (4096, 4096),
-    ];
-
-    for (width, height) in extreme_dimensions {
+fn eval_chunks_evaluates_images_of_ordinary_and_extreme_dimensions(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    for ImageDimensions { width, height } in EVALUATED_IMAGE_DIMENSIONS {
         eval_synthetic_bitmap(fixture, width, height)
             .context(format!("dimension {width}x{height} should succeed"))?;
     }

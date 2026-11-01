@@ -186,7 +186,6 @@ mod tests {
     use llama_cpp_log_decoder::log_level::LogLevel;
     use llama_cpp_log_decoder::log_line::LogLine;
 
-    use super::GGML_SOURCE;
     use super::LLAMA_SOURCE;
     use super::LogSource;
     use super::dispatch_output;
@@ -249,6 +248,13 @@ mod tests {
                 level: record.level,
                 text: record.message.clone(),
             })
+            .collect()
+    }
+
+    fn records_with_text(target: &str, text: &str) -> Vec<LogRecord> {
+        records_for(target)
+            .into_iter()
+            .filter(|record| record.text == text)
             .collect()
     }
 
@@ -482,12 +488,33 @@ mod tests {
 
     #[test]
     #[serial]
-    fn sending_logs_to_log_installs_both_log_sources() {
+    fn sending_logs_to_log_creates_the_llama_cpp_source_and_routes_ggml_logs() {
         ensure_test_logger_installed();
         send_logs_to_log(LogOptions::default());
 
-        assert!(LLAMA_SOURCE.get().is_some());
-        assert!(GGML_SOURCE.get().is_some());
+        let mut ggml_callback: llama_cpp_bindings_sys::ggml_log_callback = None;
+        let mut ggml_user_data: *mut c_void = ptr::null_mut();
+
+        unsafe {
+            llama_cpp_bindings_sys::ggml_log_get(&raw mut ggml_callback, &raw mut ggml_user_data);
+            ggml_callback.unwrap()(
+                llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN,
+                c"routed through ggml\n".as_ptr(),
+                ggml_user_data,
+            );
+        }
+
+        assert_eq!(
+            LLAMA_SOURCE.get().map(|llama_source| llama_source.target),
+            Some("llama.cpp")
+        );
+        assert_eq!(
+            records_with_text("ggml", "routed through ggml"),
+            [LogRecord {
+                level: Level::Warn,
+                text: "routed through ggml".to_owned(),
+            }]
+        );
     }
 
     #[test]

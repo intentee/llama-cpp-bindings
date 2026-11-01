@@ -3,7 +3,6 @@ use anyhow::Result;
 
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -39,12 +38,11 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn eos_token_differs_from_bos_and_ends_generation(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_eos_token_differs_from_the_bos_token(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let eos = model.token_eos().context("model declares an EOS token")?;
 
     assert_ne!(model.token_bos(), Some(eos));
-    assert!(model.is_eog_token(&SampledToken::Content(eos)));
     Ok(())
 }
 

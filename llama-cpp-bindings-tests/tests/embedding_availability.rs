@@ -41,3 +41,20 @@ fn token_embeddings_need_a_context_without_pooling(fixture: &LlamaFixture<'_>) {
         })
     );
 }
+
+#[llama_test(
+    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 512,
+    embeddings = true,
+)]
+fn disabling_embeddings_makes_token_embeddings_unavailable(fixture: &LlamaFixture<'_>) {
+    let mut context = context_after_decoding_text(fixture, LlamaPoolingType::None);
+
+    context.set_embeddings(false);
+
+    assert_eq!(context.embeddings_ith(-1), Err(EmbeddingsError::NotEnabled));
+}

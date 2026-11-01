@@ -142,14 +142,24 @@ mod tests {
     }
 
     #[test]
-    fn fault_injection_defines_its_switch_and_a_static_android_stl_is_linked_separately() {
+    fn fault_injection_defines_its_switch() {
+        assert_eq!(
+            planned(BitFlags::from(BuildFeature::FaultInjection), &[]),
+            WrapperCompilation {
+                defines: vec![FAULT_INJECTION_DEFINE],
+                ..linux_compilation()
+            }
+        );
+    }
+
+    #[test]
+    fn a_static_android_stl_is_linked_separately() {
         assert_eq!(
             planned(
-                BuildFeature::FaultInjection | BuildFeature::StaticStdcxx,
+                BitFlags::from(BuildFeature::StaticStdcxx),
                 &ANDROID_OVERRIDES
             ),
             WrapperCompilation {
-                defines: vec![FAULT_INJECTION_DEFINE],
                 cpp_stdlib_linked_separately: true,
                 target_triple: "aarch64-linux-android".to_owned(),
                 ..linux_compilation()

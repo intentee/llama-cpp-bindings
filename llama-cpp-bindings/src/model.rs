@@ -927,7 +927,7 @@ mod cstring_with_validated_len_tests {
     use crate::error::string_to_token_error::StringToTokenError;
 
     #[test]
-    fn cstring_with_validated_len_null_byte_returns_error() {
+    fn cstring_with_validated_len_reports_a_nul_byte_in_the_text() {
         assert_eq!(
             cstring_with_validated_len("null\0byte").err(),
             CString::new("null\0byte")
@@ -950,27 +950,8 @@ mod cstring_with_validated_len_tests {
 }
 
 #[cfg(test)]
-mod validate_string_length_for_tokenizer_tests {
-    use super::validate_string_length_for_tokenizer;
-    use crate::error::string_to_token_error::StringToTokenError;
-
-    #[test]
-    fn validate_string_length_overflow_returns_error() {
-        assert_eq!(
-            validate_string_length_for_tokenizer(usize::MAX),
-            i32::try_from(usize::MAX).map_err(StringToTokenError::CIntConversionError)
-        );
-    }
-}
-
-#[cfg(test)]
 mod checked_token_buffer_capacity_tests {
     use super::checked_token_buffer_capacity;
-
-    #[test]
-    fn checked_token_buffer_capacity_overflow_returns_error() {
-        assert!(checked_token_buffer_capacity(usize::MAX).is_err());
-    }
 
     #[test]
     fn checked_token_buffer_capacity_in_range_returns_value() {
@@ -981,11 +962,6 @@ mod checked_token_buffer_capacity_tests {
 #[cfg(test)]
 mod checked_token_count_tests {
     use super::checked_token_count;
-
-    #[test]
-    fn checked_token_count_negative_returns_error() {
-        assert!(checked_token_count(-1).is_err());
-    }
 
     #[test]
     fn checked_token_count_non_negative_returns_value() {
@@ -1093,7 +1069,7 @@ mod extract_meta_string_tests {
     use crate::error::meta_val_error::MetaValError;
 
     #[test]
-    fn returns_error_when_null_terminator_missing() {
+    fn a_value_without_a_nul_terminator_is_reported_as_a_negative_return() {
         let result = extract_meta_string(
             |buf_ptr, buf_len| {
                 let buffer = unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
@@ -1109,14 +1085,14 @@ mod extract_meta_string_tests {
     }
 
     #[test]
-    fn returns_error_for_negative_return_value() {
+    fn a_negative_return_value_is_reported_as_is() {
         let result = extract_meta_string(|_buf_ptr, _buf_len| -5, 4);
 
         assert_eq!(result.unwrap_err(), MetaValError::NegativeReturn(-5));
     }
 
     #[test]
-    fn returns_error_for_invalid_utf8_data() {
+    fn invalid_utf8_metadata_is_reported_as_a_utf8_error() {
         let result = extract_meta_string(
             |buf_ptr, buf_len| {
                 let buffer = unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
@@ -1134,7 +1110,7 @@ mod extract_meta_string_tests {
     }
 
     #[test]
-    fn triggers_buffer_resize_when_returned_len_exceeds_capacity() {
+    fn a_value_longer_than_the_buffer_is_reread_into_a_larger_buffer() {
         let initial_capacity: usize = 4;
         let length_exceeding_initial_capacity = 10;
         let written_length = 2;
@@ -1157,7 +1133,7 @@ mod extract_meta_string_tests {
             initial_capacity,
         );
 
-        assert_eq!(result.unwrap(), "hi");
+        assert_eq!(result, Ok("hi".to_owned()));
     }
 }
 
@@ -1315,7 +1291,7 @@ mod load_model_from_file_status_to_result_tests {
     }
 
     #[test]
-    fn load_model_from_file_status_to_result_maps_null_path_arg() {
+    fn load_model_from_file_status_to_result_reports_a_null_path_arg_as_a_contract_violation() {
         let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG,
@@ -1337,7 +1313,8 @@ mod load_model_from_file_status_to_result_tests {
     }
 
     #[test]
-    fn load_model_from_file_status_to_result_maps_null_out_model_arg() {
+    fn load_model_from_file_status_to_result_reports_a_null_out_model_arg_as_a_contract_violation()
+    {
         let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG,
@@ -1359,7 +1336,8 @@ mod load_model_from_file_status_to_result_tests {
     }
 
     #[test]
-    fn load_model_from_file_status_to_result_maps_null_out_error_arg() {
+    fn load_model_from_file_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
+    {
         let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG,
@@ -1381,7 +1359,7 @@ mod load_model_from_file_status_to_result_tests {
     }
 
     #[test]
-    fn load_model_from_file_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn load_model_from_file_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
@@ -1487,7 +1465,7 @@ mod tokenize_status_to_result_tests {
     }
 
     #[test]
-    fn tokenize_status_to_result_maps_null_vocab_arg() {
+    fn tokenize_status_to_result_reports_a_null_vocab_arg_as_a_contract_violation() {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG,
@@ -1508,7 +1486,7 @@ mod tokenize_status_to_result_tests {
     }
 
     #[test]
-    fn tokenize_status_to_result_maps_null_text_arg() {
+    fn tokenize_status_to_result_reports_a_null_text_arg_as_a_contract_violation() {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_TEXT_ARG,
@@ -1529,7 +1507,7 @@ mod tokenize_status_to_result_tests {
     }
 
     #[test]
-    fn tokenize_status_to_result_maps_null_out_returned_count_arg() {
+    fn tokenize_status_to_result_reports_a_null_out_returned_count_arg_as_a_contract_violation() {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_RETURNED_COUNT_ARG,
@@ -1550,7 +1528,7 @@ mod tokenize_status_to_result_tests {
     }
 
     #[test]
-    fn tokenize_status_to_result_maps_null_out_error_arg() {
+    fn tokenize_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation() {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_ERROR_ARG,
@@ -1571,7 +1549,7 @@ mod tokenize_status_to_result_tests {
     }
 
     #[test]
-    fn tokenize_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn tokenize_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,

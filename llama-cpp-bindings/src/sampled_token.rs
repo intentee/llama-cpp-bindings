@@ -80,7 +80,7 @@ mod tests {
     }
 
     #[test]
-    fn a_token_of_no_section_is_undeterminable() {
+    fn a_token_of_the_pending_section_is_undeterminable() {
         assert_eq!(
             SampledToken::in_section(SampledTokenSection::Pending, LlamaToken::new(7)),
             SampledToken::Undeterminable(LlamaToken::new(7))

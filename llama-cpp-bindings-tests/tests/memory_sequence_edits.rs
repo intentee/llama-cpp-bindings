@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
+use llama_cpp_bindings_tests::two_sequence_context::two_sequence_context;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -80,11 +81,15 @@ fn memory_seq_rm_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> Result
     n_ubatch = 128,
 )]
 fn memory_seq_cp_copies_a_whole_primed_sequence(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let mut context = two_sequence_context(fixture)?;
 
     prime_memory(fixture, &mut context)?;
 
     assert_eq!(context.memory_seq_cp(0, 1, None, None), Ok(()));
+    assert_eq!(
+        context.memory_seq_pos_max(1)?,
+        context.memory_seq_pos_max(0)?
+    );
 
     Ok(())
 }

@@ -438,7 +438,8 @@ mod batch_ext_assign_entries_status_to_result_tests {
     use crate::error::batch_transfer_error::BatchTransferError;
 
     #[test]
-    fn adding_a_batch_entry_reports_each_refusal_of_a_validated_entry_as_a_contract_violation() {
+    fn assigning_batch_entries_reports_each_refused_or_malformed_entry_and_null_argument_as_a_contract_violation()
+     {
         for (status, detail) in [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_BATCH_FULL,

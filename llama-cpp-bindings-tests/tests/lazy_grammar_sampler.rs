@@ -3,9 +3,9 @@ use std::ffi::CString;
 use anyhow::Result;
 
 use llama_cpp_bindings::error::grammar_error::GrammarError;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
+use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -17,12 +17,22 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_returns_sampler_for_valid_grammar_with_patterns(fixture: &LlamaFixture<'_>) {
+fn a_lazy_grammar_awaiting_its_trigger_pattern_leaves_candidates_unconstrained(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model = fixture.model;
     let patterns = vec!["\\{.*".to_owned()];
-    let sampler =
-        LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hello\"", "root", &patterns, &[]);
+    let sampler = LlamaSampler::grammar_lazy(model, "root ::= \"hello\"", "root", &patterns, &[])?;
 
-    assert!(sampler.is_ok());
+    assert_eq!(
+        logits_left_by(
+            &sampler,
+            &[single_token(model, "hello")?, single_token(model, "yes")?]
+        )?,
+        [0.0, 0.0]
+    );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -33,7 +43,7 @@ fn grammar_lazy_returns_sampler_for_valid_grammar_with_patterns(fixture: &LlamaF
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_with_root_not_found_returns_error(fixture: &LlamaFixture<'_>) {
+fn grammar_lazy_without_its_root_reports_the_missing_root(fixture: &LlamaFixture<'_>) {
     let patterns = vec!["function".to_owned()];
     let result =
         LlamaSampler::grammar_lazy(fixture.model, "expr ::= \"hello\"", "root", &patterns, &[]);
@@ -49,16 +59,16 @@ fn grammar_lazy_with_root_not_found_returns_error(fixture: &LlamaFixture<'_>) {
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_with_null_byte_in_pattern_returns_error(fixture: &LlamaFixture<'_>) {
+fn grammar_lazy_refuses_a_trigger_pattern_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
     let patterns = vec!["hel\0lo".to_owned()];
     let result =
         LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hello\"", "root", &patterns, &[]);
 
     assert_eq!(
         result.err(),
-        Some(GrammarError::TriggerPatternContainsNul(
-            CString::new("hel\0lo").expect_err("the pattern carries a nul byte")
-        ))
+        CString::new("hel\0lo")
+            .err()
+            .map(GrammarError::TriggerPatternContainsNul)
     );
 }
 
@@ -70,30 +80,24 @@ fn grammar_lazy_with_null_byte_in_pattern_returns_error(fixture: &LlamaFixture<'
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_returns_sampler_for_valid_grammar_with_trigger_tokens(
+fn a_lazy_grammar_awaiting_its_trigger_token_leaves_candidates_unconstrained(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let trigger_tokens =
-        fixture
-            .model
-            .str_to_token("{", AddBos::Never, ParseSpecialTokens::Always)?;
-
-    assert!(
-        !trigger_tokens.is_empty(),
-        "the tokenizer must produce at least one trigger token"
-    );
-
+    let model = fixture.model;
     let sampler = LlamaSampler::grammar_lazy(
-        fixture.model,
+        model,
         "root ::= \"hello\"",
         "root",
         &[],
-        &trigger_tokens,
-    );
+        &[single_token(model, "{")?],
+    )?;
 
-    assert!(
-        sampler.is_ok(),
-        "trigger tokens alone must be enough to build a lazy grammar sampler"
+    assert_eq!(
+        logits_left_by(
+            &sampler,
+            &[single_token(model, "hello")?, single_token(model, "yes")?]
+        )?,
+        [0.0, 0.0]
     );
 
     Ok(())
@@ -107,15 +111,15 @@ fn grammar_lazy_returns_sampler_for_valid_grammar_with_trigger_tokens(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_with_null_byte_in_grammar_returns_error(fixture: &LlamaFixture<'_>) {
+fn grammar_lazy_refuses_a_grammar_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
     let result =
         LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hel\0lo\"", "root", &[], &[]);
 
     assert_eq!(
         result.err(),
-        Some(GrammarError::GrammarContainsNul(
-            CString::new("root ::= \"hel\0lo\"").expect_err("the grammar carries a nul byte")
-        ))
+        CString::new("root ::= \"hel\0lo\"")
+            .err()
+            .map(GrammarError::GrammarContainsNul)
     );
 }
 

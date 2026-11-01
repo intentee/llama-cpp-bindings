@@ -124,7 +124,7 @@ mod tests {
             false,
         );
 
-        assert!(array.selected_token().is_none());
+        assert_eq!(array.selected_token(), None);
     }
 
     #[test]
@@ -135,7 +135,7 @@ mod tests {
             sorted: false,
         };
 
-        assert!(array.selected_token().is_none());
+        assert_eq!(array.selected_token(), None);
     }
 
     #[test]

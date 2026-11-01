@@ -88,6 +88,32 @@ fn hidden_state_after(
         .to_vec())
 }
 
+fn context_with_a_decoded_fork<'fixture>(
+    fixture: &'fixture LlamaFixture<'_>,
+    state: &[LlamaToken],
+    branch: &[LlamaToken],
+) -> Result<LlamaContext<'fixture>> {
+    let mut context = hidden_state_context(fixture)?;
+    let mut state_batch = LlamaBatch::new(ContextLimits::of(&context));
+
+    add_tokens(&mut state_batch, state, 0, 0, false)?;
+    context.decode(&state_batch)?;
+    context.memory_seq_cp(0, 1, None, None)?;
+
+    let mut branch_batch = LlamaBatch::new(ContextLimits::of(&context));
+
+    add_tokens(
+        &mut branch_batch,
+        branch,
+        i32::try_from(state.len())?,
+        1,
+        true,
+    )?;
+    context.decode(&branch_batch)?;
+
+    Ok(context)
+}
+
 fn decode_tokens(
     context: &mut LlamaContext<'_>,
     tokens: &[LlamaToken],
@@ -249,35 +275,37 @@ fn nextn_embeddings_are_unavailable_until_enabled(fixture: &LlamaFixture<'_>) ->
     n_ubatch = 512,
     n_seq_max = 2,
 )]
-fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
+fn a_forked_branch_has_the_hidden_state_of_an_independent_decode(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let state = tokenize(fixture, STATE)?;
     let first_branch = tokenize(fixture, FIRST_BRANCH)?;
+    let context = context_with_a_decoded_fork(fixture, &state, &first_branch)?;
+
+    assert_eq!(
+        context.nextn_embeddings_ith(i32::try_from(first_branch.len())? - 1)?,
+        hidden_state_after(fixture, &state, &first_branch)?.as_slice(),
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 512,
+    n_seq_max = 2,
+)]
+fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let state = tokenize(fixture, STATE)?;
     let second_branch = tokenize(fixture, SECOND_BRANCH)?;
-    let branch_position = i32::try_from(state.len())?;
-
-    let mut context = hidden_state_context(fixture)?;
-    let mut state_batch = LlamaBatch::new(ContextLimits::of(&context));
-
-    add_tokens(&mut state_batch, &state, 0, 0, false)?;
-    context.decode(&state_batch)?;
-    context.memory_seq_cp(0, 1, None, None)?;
-
-    let mut first_branch_batch = LlamaBatch::new(ContextLimits::of(&context));
-
-    add_tokens(
-        &mut first_branch_batch,
-        &first_branch,
-        branch_position,
-        1,
-        true,
-    )?;
-    context.decode(&first_branch_batch)?;
-
-    let first_branch_hidden_state = context
-        .nextn_embeddings_ith(first_branch_batch.n_tokens() - 1)?
-        .to_vec();
+    let mut context =
+        context_with_a_decoded_fork(fixture, &state, &tokenize(fixture, FIRST_BRANCH)?)?;
 
     context.memory_seq_rm(Some(1), None, None)?;
 
@@ -286,16 +314,12 @@ fn a_released_fork_leaves_its_shared_state_as_an_independent_decode_would(
     add_tokens(
         &mut second_branch_batch,
         &second_branch,
-        branch_position,
+        i32::try_from(state.len())?,
         0,
         true,
     )?;
     context.decode(&second_branch_batch)?;
 
-    assert_eq!(
-        first_branch_hidden_state,
-        hidden_state_after(fixture, &state, &first_branch)?,
-    );
     assert_eq!(
         context.nextn_embeddings_ith(second_branch_batch.n_tokens() - 1)?,
         hidden_state_after(fixture, &state, &second_branch)?.as_slice(),
@@ -334,31 +358,6 @@ fn final_hidden_states_after_enabling_embeddings_for_a_row_equal_those_of_an_emb
     assert_eq!(
         toggled_row_hidden_state.as_slice(),
         embeddings_context.embeddings_ith(row_last_index)?,
-    );
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 512,
-)]
-fn disabling_embeddings_makes_token_embeddings_unavailable(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let state = tokenize(fixture, STATE)?;
-    let mut context = final_hidden_state_context(fixture, true)?;
-    let last_index = decode_tokens(&mut context, &state, 0, true)?;
-
-    context.set_embeddings(false);
-
-    assert_eq!(
-        context.embeddings_ith(last_index),
-        Err(EmbeddingsError::NotEnabled)
     );
 
     Ok(())

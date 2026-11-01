@@ -149,8 +149,11 @@ mod target_cpu_of_tests {
     #[test]
     fn an_attached_codegen_target_cpu_is_found() {
         assert_eq!(
-            target_cpu_of("-Ctarget-cpu=native"),
-            Some("native".to_owned())
+            [
+                target_cpu_of("-Ctarget-cpu=native"),
+                target_cpu_of("--codegen=target-cpu=znver4"),
+            ],
+            [Some("native".to_owned()), Some("znver4".to_owned())]
         );
     }
 
@@ -160,13 +163,8 @@ mod target_cpu_of_tests {
             [
                 target_cpu_of("-C\x1ftarget-cpu=znver4"),
                 target_cpu_of("--codegen\x1ftarget-cpu=znver4"),
-                target_cpu_of("--codegen=target-cpu=znver4"),
             ],
-            [
-                Some("znver4".to_owned()),
-                Some("znver4".to_owned()),
-                Some("znver4".to_owned()),
-            ]
+            [Some("znver4".to_owned()), Some("znver4".to_owned())]
         );
     }
 

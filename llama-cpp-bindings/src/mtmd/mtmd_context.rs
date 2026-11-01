@@ -499,7 +499,7 @@ mod map_tokenize_from_parts_status_tests {
     }
 
     #[test]
-    fn tokenize_from_parts_status_maps_preprocessing_or_tokenization_failure() {
+    fn tokenize_from_parts_status_reports_a_media_preprocessing_or_tokenization_failure() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
@@ -535,7 +535,7 @@ mod map_tokenize_from_parts_status_tests {
     }
 
     #[test]
-    fn tokenize_from_parts_status_maps_llama_cpp_out_of_memory() {
+    fn tokenize_from_parts_status_reports_llama_cpp_running_out_of_memory() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY,
@@ -570,7 +570,7 @@ mod map_tokenize_from_parts_status_tests {
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_maps_llama_cpp_reported_malformed_part() {
+    fn map_tokenize_from_parts_status_reports_a_malformed_part_list_as_a_contract_violation() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART,
@@ -589,7 +589,7 @@ mod map_tokenize_from_parts_status_tests {
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_maps_null_part_element() {
+    fn map_tokenize_from_parts_status_reports_a_null_part_element_as_a_contract_violation() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT,
@@ -608,7 +608,8 @@ mod map_tokenize_from_parts_status_tests {
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_maps_llama_cpp_threw_cxx_exception_without_a_message() {
+    fn map_tokenize_from_parts_status_reports_an_exception_without_a_message_as_a_contract_violation()
+     {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -627,7 +628,7 @@ mod map_tokenize_from_parts_status_tests {
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_maps_null_ctx_arg() {
+    fn map_tokenize_from_parts_status_reports_a_null_ctx_arg_as_a_contract_violation() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG,
@@ -646,7 +647,7 @@ mod map_tokenize_from_parts_status_tests {
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_maps_null_output_arg() {
+    fn map_tokenize_from_parts_status_reports_a_null_output_arg_as_a_contract_violation() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG,
@@ -665,7 +666,8 @@ mod map_tokenize_from_parts_status_tests {
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_maps_null_parts_arg_when_num_parts_nonzero() {
+    fn map_tokenize_from_parts_status_reports_a_null_parts_arg_with_a_nonzero_part_count_as_a_contract_violation()
+     {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO,
@@ -681,6 +683,10 @@ mod map_tokenize_from_parts_status_tests {
                 .into()
             )
         );
+    }
+
+    #[test]
+    fn map_tokenize_from_parts_status_preserves_an_unknown_status() {
         assert_eq!(
             map_tokenize_from_parts_status(255, 0, ptr::null_mut()).err(),
             Some(MtmdTokenizeError::FfiStatus(FfiStatusError {
@@ -702,7 +708,7 @@ mod map_tokenize_status_tests {
     use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
 
     #[test]
-    fn tokenize_status_maps_bitmap_count_mismatch() {
+    fn tokenize_status_reports_a_bitmap_count_that_does_not_match_the_marker_count() {
         let result = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
             0,
@@ -716,7 +722,7 @@ mod map_tokenize_status_tests {
     }
 
     #[test]
-    fn tokenize_status_maps_preprocessing_or_tokenization_failure() {
+    fn tokenize_status_reports_a_media_preprocessing_or_tokenization_failure() {
         let result = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
             0,
@@ -730,7 +736,7 @@ mod map_tokenize_status_tests {
     }
 
     #[test]
-    fn tokenize_status_maps_unknown_status_with_value() {
+    fn tokenize_status_maps_an_undocumented_code_with_its_value() {
         let result = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
             42,
@@ -763,7 +769,7 @@ mod map_tokenize_status_tests {
     }
 
     #[test]
-    fn tokenize_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
+    fn tokenize_status_reports_an_exception_without_a_message_as_a_contract_violation() {
         let result = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
@@ -811,7 +817,7 @@ mod map_tokenize_status_tests {
     }
 
     #[test]
-    fn map_tokenize_status_maps_null_ctx_arg() {
+    fn map_tokenize_status_reports_a_null_ctx_arg_as_a_contract_violation() {
         let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG,
             0,
@@ -830,7 +836,7 @@ mod map_tokenize_status_tests {
     }
 
     #[test]
-    fn map_tokenize_status_maps_null_output_arg() {
+    fn map_tokenize_status_reports_a_null_output_arg_as_a_contract_violation() {
         let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG,
             0,
@@ -849,7 +855,7 @@ mod map_tokenize_status_tests {
     }
 
     #[test]
-    fn map_tokenize_status_maps_null_text_arg() {
+    fn map_tokenize_status_reports_a_null_text_arg_as_a_contract_violation() {
         let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG,
             0,
@@ -868,7 +874,7 @@ mod map_tokenize_status_tests {
     }
 
     #[test]
-    fn map_tokenize_status_maps_llama_cpp_out_of_memory() {
+    fn map_tokenize_status_reports_llama_cpp_running_out_of_memory() {
         let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,
             0,
@@ -939,7 +945,7 @@ mod map_encode_chunk_status_tests {
     }
 
     #[test]
-    fn encode_chunk_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
+    fn encode_chunk_status_reports_an_exception_without_a_message_as_a_contract_violation() {
         let result = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
@@ -970,7 +976,7 @@ mod map_encode_chunk_status_tests {
     }
 
     #[test]
-    fn map_encode_chunk_status_maps_null_ctx_arg() {
+    fn map_encode_chunk_status_reports_a_null_ctx_arg_as_a_contract_violation() {
         let outcome = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG,
             0,
@@ -989,7 +995,7 @@ mod map_encode_chunk_status_tests {
     }
 
     #[test]
-    fn map_encode_chunk_status_maps_null_chunk_arg() {
+    fn map_encode_chunk_status_reports_a_null_chunk_arg_as_a_contract_violation() {
         let outcome = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG,
             0,
@@ -1008,7 +1014,7 @@ mod map_encode_chunk_status_tests {
     }
 
     #[test]
-    fn map_encode_chunk_status_maps_llama_cpp_out_of_memory() {
+    fn map_encode_chunk_status_reports_llama_cpp_running_out_of_memory() {
         let outcome = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY,
             0,
@@ -1076,7 +1082,7 @@ mod map_init_from_file_status_tests {
     }
 
     #[test]
-    fn init_from_file_status_maps_cxx_exception_to_without_a_message_is_a_contract_error() {
+    fn init_from_file_status_reports_an_exception_without_a_message_as_a_contract_violation() {
         let result = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             ptr::null_mut(),
@@ -1109,7 +1115,7 @@ mod map_init_from_file_status_tests {
     }
 
     #[test]
-    fn map_init_from_file_status_maps_null_mmproj_path_arg() {
+    fn map_init_from_file_status_reports_a_null_mmproj_path_arg_as_a_contract_violation() {
         let outcome = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_MMPROJ_PATH_ARG,
             ptr::null_mut(),
@@ -1129,7 +1135,7 @@ mod map_init_from_file_status_tests {
     }
 
     #[test]
-    fn map_init_from_file_status_maps_null_text_model_arg() {
+    fn map_init_from_file_status_reports_a_null_text_model_arg_as_a_contract_violation() {
         let outcome = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_TEXT_MODEL_ARG,
             ptr::null_mut(),
@@ -1149,7 +1155,7 @@ mod map_init_from_file_status_tests {
     }
 
     #[test]
-    fn map_init_from_file_status_maps_null_out_ctx_arg() {
+    fn map_init_from_file_status_reports_a_null_out_ctx_arg_as_a_contract_violation() {
         let outcome = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_OUT_CTX_ARG,
             ptr::null_mut(),
@@ -1169,7 +1175,7 @@ mod map_init_from_file_status_tests {
     }
 
     #[test]
-    fn map_init_from_file_status_maps_llama_cpp_out_of_memory() {
+    fn map_init_from_file_status_reports_llama_cpp_running_out_of_memory() {
         let outcome = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
@@ -1225,20 +1231,53 @@ mod capability_flags_tests {
 
     #[test]
     fn every_capability_of_llama_cpp_maps_to_its_own_flag() {
-        let all_capabilities = llama_cpp_bindings_sys::mtmd_helper_cap {
-            chat: true,
-            vision: true,
-            audio: true,
-            video: true,
-            audio_stream: true,
-            text_gen: true,
-            audio_gen: true,
-            audio_gen_spk_ref: true,
-        };
+        let single_capabilities = [
+            llama_cpp_bindings_sys::mtmd_helper_cap {
+                chat: true,
+                ..NO_CAPABILITIES
+            },
+            llama_cpp_bindings_sys::mtmd_helper_cap {
+                vision: true,
+                ..NO_CAPABILITIES
+            },
+            llama_cpp_bindings_sys::mtmd_helper_cap {
+                audio: true,
+                ..NO_CAPABILITIES
+            },
+            llama_cpp_bindings_sys::mtmd_helper_cap {
+                video: true,
+                ..NO_CAPABILITIES
+            },
+            llama_cpp_bindings_sys::mtmd_helper_cap {
+                audio_stream: true,
+                ..NO_CAPABILITIES
+            },
+            llama_cpp_bindings_sys::mtmd_helper_cap {
+                text_gen: true,
+                ..NO_CAPABILITIES
+            },
+            llama_cpp_bindings_sys::mtmd_helper_cap {
+                audio_gen: true,
+                ..NO_CAPABILITIES
+            },
+            llama_cpp_bindings_sys::mtmd_helper_cap {
+                audio_gen_spk_ref: true,
+                ..NO_CAPABILITIES
+            },
+        ];
 
         assert_eq!(
-            capability_flags(all_capabilities),
-            BitFlags::<MtmdCapability>::all()
+            single_capabilities.map(capability_flags),
+            [
+                BitFlags::from_flag(MtmdCapability::Chat),
+                BitFlags::from_flag(MtmdCapability::Vision),
+                BitFlags::from_flag(MtmdCapability::Audio),
+                BitFlags::from_flag(MtmdCapability::Video),
+                BitFlags::from_flag(MtmdCapability::AudioStream),
+                BitFlags::from_flag(MtmdCapability::TextGeneration),
+                BitFlags::from_flag(MtmdCapability::AudioGeneration),
+                BitFlags::from_flag(MtmdCapability::AudioGenerationSpeakerReference),
+            ]
         );
     }
 

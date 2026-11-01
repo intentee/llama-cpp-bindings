@@ -1,5 +1,7 @@
 use std::ffi::CString;
 
+use anyhow::Result;
+
 use llama_cpp_bindings::error::chat_template_error::ChatTemplateError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -36,9 +38,10 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_template_returns_non_empty(fixture: &LlamaFixture<'_>) {
-    let template = fixture.model.chat_template(None);
-    assert!(template.is_ok());
+fn default_chat_template_is_not_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_ne!(fixture.model.chat_template(None)?.to_str()?, "");
+
+    Ok(())
 }
 
 #[llama_test(

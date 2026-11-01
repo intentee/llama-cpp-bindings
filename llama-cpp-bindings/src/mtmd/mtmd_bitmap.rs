@@ -410,6 +410,8 @@ impl Drop for MtmdBitmap {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CString;
+
     use crate::mtmd::mtmd_bitmap::MtmdBitmap;
     use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
 
@@ -424,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_data_size_returns_error() {
+    fn image_data_shorter_than_its_dimensions_is_an_invalid_data_size() {
         let too_short = vec![0u8; 5];
 
         assert_eq!(
@@ -470,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn set_id_changes_id() {
+    fn set_id_replaces_the_bitmap_id() {
         let image_data = vec![0u8; 12];
         let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
         bitmap.set_id("test_image").unwrap();
@@ -498,29 +500,20 @@ mod tests {
     }
 
     #[test]
-    fn id_returns_some_by_default() {
+    fn a_new_bitmap_has_an_empty_id() {
         let image_data = vec![0u8; 12];
         let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
 
-        assert!(bitmap.id().is_some());
+        assert_eq!(bitmap.id(), Some(String::new()));
     }
 
     #[test]
-    fn id_returns_custom_value_after_set() {
-        let image_data = vec![0u8; 12];
-        let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
-        bitmap.set_id("my_image").unwrap();
-
-        assert_eq!(bitmap.id(), Some("my_image".to_string()));
-    }
-
-    #[test]
-    fn set_id_with_null_byte_returns_error() {
+    fn set_id_reports_a_nul_byte_in_the_id() {
         let image_data = vec![0u8; 12];
         let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
         let result = bitmap.set_id("id\0null");
 
-        assert!(result.is_err());
+        assert_eq!(result, Err(CString::new("id\0null").unwrap_err()));
     }
 }
 
@@ -533,7 +526,7 @@ mod cstr_ptr_to_optional_string_tests {
 
     #[test]
     fn cstr_ptr_to_optional_string_returns_none_for_null() {
-        assert!(cstr_ptr_to_optional_string(ptr::null()).is_none());
+        assert_eq!(cstr_ptr_to_optional_string(ptr::null()), None);
     }
 
     #[test]
@@ -652,7 +645,7 @@ mod from_file_status_to_result_tests {
     }
 
     #[test]
-    fn from_file_status_to_result_maps_null_fname_arg() {
+    fn from_file_status_to_result_reports_a_null_fname_arg_as_a_contract_violation() {
         let outcome = unsafe {
             from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_FNAME_ARG,
@@ -674,7 +667,7 @@ mod from_file_status_to_result_tests {
     }
 
     #[test]
-    fn from_file_status_to_result_maps_null_out_bitmap_arg() {
+    fn from_file_status_to_result_reports_a_null_out_bitmap_arg_as_a_contract_violation() {
         let outcome = unsafe {
             from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_OUT_BITMAP_ARG,
@@ -696,7 +689,7 @@ mod from_file_status_to_result_tests {
     }
 
     #[test]
-    fn from_file_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn from_file_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = unsafe {
             from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
@@ -1047,35 +1040,38 @@ mod bitmap_init_status_to_result_tests {
     }
 
     #[test]
-    fn thrown_exceptions_report_their_messages() {
+    fn an_exception_thrown_while_initializing_an_image_bitmap_reports_its_message() {
         let image_error =
             unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"image threw".as_ptr()) };
+
+        assert_eq!(
+            bitmap_init_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                image_error,
+            )
+            .err(),
+            Some(MtmdBitmapError::Reported {
+                message: "image threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn an_exception_thrown_while_initializing_an_audio_bitmap_reports_its_message() {
         let audio_error =
             unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"audio threw".as_ptr()) };
 
         assert_eq!(
-            [
-                bitmap_init_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                    ptr::null_mut(),
-                    image_error,
-                )
-                .err(),
-                bitmap_init_from_audio_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                    ptr::null_mut(),
-                    audio_error,
-                )
-                .err(),
-            ],
-            [
-                Some(MtmdBitmapError::Reported {
-                    message: "image threw".to_owned(),
-                }),
-                Some(MtmdBitmapError::Reported {
-                    message: "audio threw".to_owned(),
-                }),
-            ]
+            bitmap_init_from_audio_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                ptr::null_mut(),
+                audio_error,
+            )
+            .err(),
+            Some(MtmdBitmapError::Reported {
+                message: "audio threw".to_owned(),
+            })
         );
     }
 }

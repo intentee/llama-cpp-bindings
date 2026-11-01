@@ -33,6 +33,9 @@ mod tests {
 
     use libtest_mimic::Arguments;
 
+    use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
+    use llama_cpp_bindings::llama_backend::LlamaBackend;
+
     use super::run_to_conclusions;
     use crate::harness_arguments_error::HarnessArgumentsError;
     use crate::harness_run_error::HarnessRunError;
@@ -53,17 +56,26 @@ mod tests {
     }
 
     #[test]
-    fn empty_inventory_yields_no_conclusions_and_skips_void_logs() {
+    fn an_already_initialized_backend_stops_the_run_with_a_backend_init_error() {
+        let _gate = BACKEND_INIT_GATE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let _hold = LlamaBackend::init().expect("first init must succeed");
+
+        assert_eq!(
+            run_to_conclusions(Arguments::default()).err(),
+            Some(HarnessRunError::BackendInit(
+                LlamaCppError::BackendAlreadyInitialized
+            ))
+        );
+    }
+
+    #[test]
+    fn empty_inventory_yields_no_conclusions() {
         let _gate = BACKEND_INIT_GATE
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
 
-        let conclusions = run_to_conclusions(Arguments::default())
-            .expect("empty inventory must run without a setup failure");
-
-        assert!(
-            conclusions.is_empty(),
-            "empty inventory must yield zero phase conclusions"
-        );
+        assert_eq!(run_to_conclusions(Arguments::default()), Ok(Vec::new()));
     }
 }

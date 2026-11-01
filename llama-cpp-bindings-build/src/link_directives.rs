@@ -615,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn library_directories_an_enabled_feature_needs_must_exist() {
+    fn library_directories_an_enabled_feature_needs_must_be_set_and_exist() {
         let missing_directory = env::temp_dir().join(format!(
             "llama-cpp-bindings-build-missing-{}",
             process::id()

@@ -1,8 +1,12 @@
+use std::ffi::CString;
+
 use anyhow::Context as _;
 use anyhow::Result;
 
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_bindings::mtmd::mtmd_input_chunk::MtmdInputChunk;
 use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_bindings::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
@@ -12,6 +16,13 @@ use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
+
+fn first_image_chunk(chunks: &MtmdInputChunks) -> Result<MtmdInputChunk> {
+    (0..chunks.len())
+        .filter_map(|chunk_index| chunks.get(chunk_index))
+        .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
+        .context("a prompt with an image must tokenize into an image chunk")
+}
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
@@ -162,18 +173,14 @@ fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn image_chunk_returns_none_for_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn an_image_chunk_has_no_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello <__media__>");
-    for chunk_index in 0..chunks.len() {
-        let chunk = chunks
-            .get(chunk_index)
-            .context(format!("missing chunk at index {chunk_index}"))?;
-        if chunk.chunk_type()? == MtmdInputChunkType::Image {
-            assert_eq!(chunk.text_tokens_of(MtmdInputChunkType::Image), None);
 
-            return Ok(());
-        }
-    }
+    assert_eq!(
+        first_image_chunk(&chunks)?.text_tokens_of(MtmdInputChunkType::Image),
+        None
+    );
+
     Ok(())
 }
 
@@ -195,17 +202,13 @@ fn image_chunk_returns_none_for_text_tokens(fixture: &LlamaFixture<'_>) -> Resul
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn image_chunk_id_returns_some(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn an_image_chunk_carries_the_empty_id_of_a_bitmap_without_one(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello <__media__>");
-    for chunk_index in 0..chunks.len() {
-        let chunk = chunks
-            .get(chunk_index)
-            .context(format!("missing chunk at index {chunk_index}"))?;
-        if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
-            assert!(chunk.id().is_some());
-            return Ok(());
-        }
-    }
+
+    assert_eq!(first_image_chunk(&chunks)?.id(), Some(String::new()));
+
     Ok(())
 }
 
@@ -263,7 +266,9 @@ fn tokenizing_text_with_an_image_produces_chunks(fixture: &LlamaFixture<'_>) -> 
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn tokenize_bitmap_count_mismatch_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn tokenizing_more_bitmaps_than_media_markers_reports_a_tokenization_failure(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
@@ -274,8 +279,11 @@ fn tokenize_bitmap_count_mismatch_returns_error(fixture: &LlamaFixture<'_>) -> R
     };
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
-    let result = mtmd_ctx.tokenize(input_text, &[&bitmap]);
-    assert!(result.is_err());
+
+    assert_eq!(
+        mtmd_ctx.tokenize(input_text, &[&bitmap]).err(),
+        Some(MtmdTokenizeError::MediaPreprocessingOrTokenizationFailed)
+    );
     Ok(())
 }
 
@@ -297,7 +305,7 @@ fn tokenize_bitmap_count_mismatch_returns_error(fixture: &LlamaFixture<'_>) -> R
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn tokenize_with_null_byte_in_text_returns_error(fixture: &LlamaFixture<'_>) {
+fn tokenize_refuses_text_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
     let mtmd_ctx = fixture
         .mtmd_context
         .expect("mmproj_file declared in attribute");
@@ -306,8 +314,13 @@ fn tokenize_with_null_byte_in_text_returns_error(fixture: &LlamaFixture<'_>) {
         add_special: true,
         parse_special: true,
     };
-    let result = mtmd_ctx.tokenize(input_text, &[]);
-    assert!(result.is_err());
+
+    assert_eq!(
+        mtmd_ctx.tokenize(input_text, &[]).err(),
+        CString::new("text\0null")
+            .err()
+            .map(MtmdTokenizeError::CStringError)
+    );
 }
 
 #[llama_test(

@@ -41,6 +41,8 @@ impl Debug for LlamaChatTemplate {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CString;
+
     use crate::model::llama_chat_template::LlamaChatTemplate;
 
     #[test]
@@ -52,10 +54,11 @@ mod tests {
     }
 
     #[test]
-    fn null_byte_returns_error() {
-        let template = LlamaChatTemplate::new("null\0byte");
-
-        assert!(template.is_err());
+    fn a_nul_byte_in_the_template_is_reported() {
+        assert_eq!(
+            LlamaChatTemplate::new("null\0byte"),
+            Err(CString::new("null\0byte").unwrap_err())
+        );
     }
 
     #[test]

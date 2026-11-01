@@ -140,7 +140,7 @@ mod tests {
     use crate::token::LlamaToken;
 
     #[test]
-    fn escaping_a_trigger_word_maps_every_status() {
+    fn regex_escape_status_to_result_maps_every_status_to_the_escaped_word_or_its_error() {
         let escape = |status, out_string, out_error| {
             regex_escape_status_to_result(status, out_string, out_error)
         };

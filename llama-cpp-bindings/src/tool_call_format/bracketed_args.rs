@@ -105,8 +105,6 @@ pub fn parse(
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use serde_json::json;
 
     use llama_cpp_bindings_types::bracketed_json_shape::BracketedJsonShape;
@@ -191,26 +189,22 @@ mod tests {
     }
 
     #[test]
-    fn rejects_malformed_json_arguments_with_typed_failure() {
-        let result = parse(
-            "[TOOL_CALLS]get_weather[ARGS]{\"location\":}",
-            &mistral3_markers(),
-            &mistral3_shape(),
-        );
-
-        let failure = result.expect_err("malformed JSON must produce a typed failure");
-
+    fn malformed_json_arguments_are_reported_with_the_parser_message() {
         assert_eq!(
-            discriminant(&failure),
-            discriminant(&BracketedArgsFailure::InvalidJsonArguments {
-                tool_name: String::new(),
-                message: String::new(),
-            }),
+            parse(
+                "[TOOL_CALLS]get_weather[ARGS]{\"location\":}",
+                &mistral3_markers(),
+                &mistral3_shape(),
+            ),
+            Err(BracketedArgsFailure::InvalidJsonArguments {
+                tool_name: "get_weather".to_owned(),
+                message: "expected value at line 1 column 13".to_owned(),
+            })
         );
     }
 
     #[test]
-    fn rejects_truncated_json_arguments_with_unterminated_failure() {
+    fn whitespace_only_arguments_are_reported_as_unterminated() {
         let failure = parse(
             "[TOOL_CALLS]get_weather[ARGS]   ",
             &mistral3_markers(),

@@ -11,7 +11,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 512,
     n_ubatch = 128
 )]
-fn embedding_model_chat_template_renders_tool_calls(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn embedding_model_chat_template_supports_tool_calls(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert!(fixture.model.chat_templates()?.supports_tool_calls());
 
     Ok(())

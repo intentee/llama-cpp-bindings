@@ -80,7 +80,6 @@ mod tests {
     use crate::system_include_flags::system_include_flags;
     use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
     use crate::wrapper_source_paths::wrapper_source_paths;
-    use crate::wrapper_sources_error::WrapperSourcesError;
 
     fn database_for(output_path: &str) -> CompileCommandsFile {
         CompileCommandsFile {
@@ -136,15 +135,18 @@ mod tests {
 
         assert_eq!(
             commands
-                .first()
+                .iter()
                 .map(|command| command
                     .arguments
                     .iter()
                     .filter(|argument| argument.starts_with("-isystem"))
                     .cloned()
                     .collect::<Vec<String>>())
-                .unwrap_or_default(),
-            system_include_flags(Path::new("/repo/llama-cpp-bindings-sys"))
+                .collect::<Vec<Vec<String>>>(),
+            vec![
+                system_include_flags(Path::new("/repo/llama-cpp-bindings-sys"));
+                wrapper_source_paths(Path::new("/repo/llama-cpp-bindings-sys")).len()
+            ]
         );
     }
 
@@ -172,20 +174,32 @@ mod tests {
 
     #[test]
     fn creating_the_database_under_a_missing_directory_reports_the_path() {
-        let output_path = "/nonexistent-directory/compile_commands.json";
-
-        assert!(matches!(
-            database_for(output_path).write(),
-            Err(WrapperSourcesError::Create { ref path, .. }) if path == Path::new(output_path)
-        ));
+        assert_eq!(
+            database_for("/nonexistent-directory/compile_commands.json")
+                .write()
+                .err()
+                .map(|error| error.to_string()),
+            Some(
+                "compilation database file /nonexistent-directory/compile_commands.json could \
+                 not be created: No such file or directory (os error 2)"
+                    .to_owned()
+            )
+        );
     }
 
     #[cfg(target_os = "linux")]
     #[test]
     fn a_destination_that_cannot_absorb_the_bytes_reports_the_path() {
-        assert!(matches!(
-            database_for("/dev/full").write(),
-            Err(WrapperSourcesError::Serialize { ref path, .. }) if path == Path::new("/dev/full")
-        ));
+        assert_eq!(
+            database_for("/dev/full")
+                .write()
+                .err()
+                .map(|error| error.to_string()),
+            Some(
+                "compilation database could not be written to /dev/full: No space left on \
+                 device (os error 28)"
+                    .to_owned()
+            )
+        );
     }
 }

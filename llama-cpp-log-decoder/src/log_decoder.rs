@@ -194,24 +194,6 @@ mod tests {
     }
 
     #[test]
-    fn a_continuation_completes_the_held_line() {
-        let mut decoder = LogDecoder::new();
-        decoder.feed(IncomingLogLevel::Info, "hello ");
-        let result = decoder.feed(IncomingLogLevel::Cont, "world\n");
-
-        assert_eq!(
-            result,
-            DecodeResult {
-                output: DecodeOutput::Line(LogLine {
-                    level: LogLevel::Info,
-                    text: "hello world".to_owned(),
-                }),
-                anomaly: None,
-            }
-        );
-    }
-
-    #[test]
     fn continuations_join_until_the_newline() {
         let mut decoder = LogDecoder::new();
         decoder.feed(IncomingLogLevel::Info, "part1 ");

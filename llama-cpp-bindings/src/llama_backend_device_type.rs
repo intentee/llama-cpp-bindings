@@ -25,7 +25,7 @@ mod tests {
     use crate::llama_backend_device_type::LlamaBackendDeviceType;
 
     #[test]
-    fn device_type_from_raw_all_variants() {
+    fn from_raw_maps_every_device_type_and_an_unknown_one() {
         assert_eq!(
             LlamaBackendDeviceType::from_raw(llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_CPU),
             LlamaBackendDeviceType::Cpu

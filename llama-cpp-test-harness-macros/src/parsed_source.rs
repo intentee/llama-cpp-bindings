@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn non_string_argument_is_rejected() {
+    fn huggingface_with_non_string_first_argument_is_rejected() {
         let message = parse("HuggingFace(42, \"file\")")
             .expect_err("non-string arg must fail")
             .to_string();
@@ -214,16 +214,6 @@ mod tests {
         assert_eq!(
             message,
             "`model_source` argument `LocalPath.path` expects a string literal"
-        );
-    }
-
-    #[test]
-    fn unparseable_input_returns_err() {
-        let result = parse("@&^!");
-
-        assert!(
-            result.is_err(),
-            "garbage input must fail to parse as syn::Expr"
         );
     }
 

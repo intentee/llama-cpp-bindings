@@ -165,7 +165,7 @@ pub mod tests {
     }
 
     #[test]
-    fn the_cargo_variables_and_features_describe_the_build() {
+    fn the_context_is_read_from_the_build_variables_and_the_dynamic_link_feature() {
         assert_eq!(
             context_of(&cargo_environment(
                 BitFlags::from(BuildFeature::DynamicLink),
@@ -189,7 +189,7 @@ pub mod tests {
     }
 
     #[test]
-    fn every_variable_cargo_sets_for_build_scripts_is_required() {
+    fn every_variable_cargo_sets_for_build_scripts_except_the_target_env_is_required() {
         let without = |name: &str| {
             let mut environment = cargo_environment(BitFlags::empty(), &[]);
 

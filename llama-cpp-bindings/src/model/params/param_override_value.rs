@@ -73,6 +73,7 @@ mod tests {
     use std::mem;
 
     use super::ParamOverrideValue;
+    use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
     #[test]
     fn each_override_value_is_tagged_with_its_llama_cpp_type() {
@@ -199,15 +200,16 @@ mod tests {
     }
 
     #[test]
-    fn unknown_tag_returns_error() {
+    fn an_unknown_kv_override_tag_is_reported_with_its_value() {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
             key: [0; 128],
             tag: 9999,
             __bindgen_anon_1: unsafe { mem::zeroed() },
         };
 
-        let result = ParamOverrideValue::try_from(&ffi_override);
-
-        assert!(result.is_err());
+        assert_eq!(
+            ParamOverrideValue::try_from(&ffi_override),
+            Err(UnknownKvOverrideTag(9999))
+        );
     }
 }

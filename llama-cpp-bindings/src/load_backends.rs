@@ -23,8 +23,6 @@ mod tests {
 
     #[test]
     fn load_backends_does_not_error_with_default_backends_dir() {
-        let result = load_backends();
-
-        assert!(result.is_ok());
+        assert_eq!(load_backends(), Ok(()));
     }
 }

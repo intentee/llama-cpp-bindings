@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn every_kv_cache_type_converts_to_its_ggml_type_and_back() {
+    fn every_kv_cache_type_converts_to_the_matching_ggml_type_and_back() {
         let all_variants = [
             KvCacheType::F32,
             KvCacheType::F16,
@@ -206,11 +206,21 @@ mod tests {
             KvCacheType::Q20,
         ];
 
-        for variant in all_variants {
-            let ggml_type: llama_cpp_bindings_sys::ggml_type = variant.into();
-            let back = KvCacheType::from(ggml_type);
+        let ggml_types = all_variants.map(llama_cpp_bindings_sys::ggml_type::from);
 
-            assert_eq!(back, variant);
-        }
+        assert_eq!(
+            ggml_types.map(|ggml_type| {
+                unsafe { CStr::from_ptr(llama_cpp_bindings_sys::ggml_type_name(ggml_type)) }
+                    .to_str()
+                    .unwrap()
+            }),
+            [
+                "f32", "f16", "q4_0", "q4_1", "q5_0", "q5_1", "q8_0", "q8_1", "q2_K", "q3_K",
+                "q4_K", "q5_K", "q6_K", "q8_K", "iq2_xxs", "iq2_xs", "iq3_xxs", "iq1_s", "iq4_nl",
+                "iq3_s", "iq2_s", "iq4_xs", "i8", "i16", "i32", "i64", "f64", "iq1_m", "bf16",
+                "tq1_0", "tq2_0", "mxfp4", "nvfp4", "q1_0", "q2_0",
+            ]
+        );
+        assert_eq!(ggml_types.map(KvCacheType::from), all_variants);
     }
 }

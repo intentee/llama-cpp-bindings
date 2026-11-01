@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_on_valid_input_emits_inventory_submission() {
+    fn dispatch_on_valid_input_emits_the_expanded_tokens() {
         let attribute = quote! {
             model_source = HuggingFace("r", "f"),
             n_gpu_layers = 0,

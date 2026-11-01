@@ -21,7 +21,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn decode_empty_batch_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn decoding_an_empty_batch_is_refused_as_invalid(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -29,9 +29,7 @@ fn decode_empty_batch_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
     )?;
     let batch = LlamaBatch::new(ContextLimits::of(&context));
 
-    let result = context.decode(&batch);
-
-    assert!(result.is_err());
+    assert_eq!(context.decode(&batch), Err(DecodeError::BatchInvalid));
 
     Ok(())
 }
@@ -44,7 +42,7 @@ fn decode_empty_batch_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 512,
     n_ubatch = 64,
 )]
-fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_returns_an_error(
+fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_is_refused(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
@@ -83,7 +81,7 @@ fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_returns_a
     n_ubatch = 64,
     embeddings = true,
 )]
-fn decoding_more_tokens_than_the_micro_batch_on_an_encoder_returns_an_error(
+fn decoding_more_tokens_than_the_micro_batch_on_an_encoder_is_refused(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
@@ -115,7 +113,7 @@ fn decoding_more_tokens_than_the_micro_batch_on_an_encoder_returns_an_error(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn decoding_reports_a_token_llama_cpp_cannot_add_to_its_batch(
+fn decoding_reports_an_exception_thrown_while_transferring_the_batch(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;

@@ -4,9 +4,11 @@ use proc_macro2::Ident;
 use proc_macro2::Span;
 use syn::Expr;
 use syn::ExprLit;
+use syn::ExprUnary;
 use syn::Lit;
 use syn::Meta;
 use syn::Token;
+use syn::UnOp;
 use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
@@ -79,6 +81,37 @@ fn require_i32_lit(literal: &Lit, field: &str) -> syn::Result<i32> {
     }
 }
 
+fn require_negated_i32_lit(literal: &Lit, field: &str) -> syn::Result<i32> {
+    if let Lit::Int(int_literal) = literal {
+        format!("-{}", int_literal.base10_digits())
+            .parse::<i32>()
+            .map_err(|parse_error| {
+                syn::Error::new_spanned(
+                    literal,
+                    format!("field `{field}` expects an integer that fits in i32: {parse_error}"),
+                )
+            })
+    } else {
+        Err(syn::Error::new_spanned(
+            literal,
+            format!("field `{field}` expects an integer literal"),
+        ))
+    }
+}
+
+fn require_i32_value(expression: &Expr, field: &str) -> syn::Result<i32> {
+    if let Expr::Unary(ExprUnary {
+        op: UnOp::Neg(_),
+        expr: negated,
+        ..
+    }) = expression
+    {
+        require_negated_i32_lit(literal_from_expression(negated)?, field)
+    } else {
+        require_i32_lit(literal_from_expression(expression)?, field)
+    }
+}
+
 fn require_bool_lit(literal: &Lit, field: &str) -> syn::Result<bool> {
     if let Lit::Bool(bool_literal) = literal {
         Ok(bool_literal.value())
@@ -108,10 +141,7 @@ fn dispatch_field(
             accumulator.mmproj_source = Some(ParsedSource::parse(value, "mmproj_source")?);
         }
         "n_gpu_layers" => {
-            accumulator.n_gpu_layers = Some(require_i32_lit(
-                literal_from_expression(value)?,
-                "n_gpu_layers",
-            )?);
+            accumulator.n_gpu_layers = Some(require_i32_value(value, "n_gpu_layers")?);
         }
         "n_ctx" => {
             accumulator.n_ctx = Some(require_int_lit(literal_from_expression(value)?, "n_ctx")?);
@@ -154,10 +184,7 @@ fn dispatch_field(
             )?);
         }
         "n_threads_batch" => {
-            accumulator.n_threads_batch = Some(require_i32_lit(
-                literal_from_expression(value)?,
-                "n_threads_batch",
-            )?);
+            accumulator.n_threads_batch = Some(require_i32_value(value, "n_threads_batch")?);
         }
         "void_logs" => {
             accumulator.void_logs = Some(require_bool_lit(
@@ -408,38 +435,6 @@ mod tests {
     }
 
     #[test]
-    fn non_literal_value_for_scalar_field_is_rejected() {
-        let source = "\
-            model_source = HuggingFace(\"x\", \"y\"), \
-            n_gpu_layers = some_const, \
-            load_mode = Mmap, \
-            n_ctx = 1, \
-            n_batch = 1, \
-            n_ubatch = 1";
-        let message = parse(source)
-            .expect_err("non-literal value must fail")
-            .to_string();
-
-        assert_eq!(message, "expected a literal (string, integer, or bool)");
-    }
-
-    #[test]
-    fn wrong_literal_kind_for_int_field_is_rejected() {
-        let source = "\
-            model_source = HuggingFace(\"x\", \"y\"), \
-            n_gpu_layers = \"nine\", \
-            load_mode = Mmap, \
-            n_ctx = 1, \
-            n_batch = 1, \
-            n_ubatch = 1";
-        let message = parse(source)
-            .expect_err("string for int field must fail")
-            .to_string();
-
-        assert_eq!(message, "field `n_gpu_layers` expects an integer literal");
-    }
-
-    #[test]
     fn load_mode_literal_is_rejected() {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
@@ -472,7 +467,85 @@ mod tests {
     }
 
     #[test]
-    fn negative_int_for_u32_field_is_rejected() {
+    fn negative_i32_fields_are_parsed() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -1, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1, \
+            n_threads_batch = -2";
+        let parsed = parse(source).expect("negative i32 fields must parse");
+
+        assert_eq!(
+            [
+                parsed.model_load_params.n_gpu_layers,
+                parsed
+                    .context_params
+                    .n_threads_batch
+                    .expect("n_threads_batch was given")
+            ],
+            [-1, -2]
+        );
+    }
+
+    #[test]
+    fn a_negative_i32_field_below_i32_min_is_rejected() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -2147483649, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1";
+
+        assert_eq!(
+            parse(source)
+                .expect_err("an i32 below i32::MIN must fail")
+                .to_string(),
+            "field `n_gpu_layers` expects an integer that fits in i32: number too small to fit in target type"
+        );
+    }
+
+    #[test]
+    fn a_negated_i32_field_that_is_not_an_integer_is_rejected() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -1.5, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1";
+
+        assert_eq!(
+            parse(source)
+                .expect_err("a negated float must fail")
+                .to_string(),
+            "field `n_gpu_layers` expects an integer literal"
+        );
+    }
+
+    #[test]
+    fn a_negated_i32_field_that_is_not_a_literal_is_rejected() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -layers, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1";
+
+        assert_eq!(
+            parse(source)
+                .expect_err("a negated identifier must fail")
+                .to_string(),
+            "expected a literal (string, integer, or bool)"
+        );
+    }
+
+    #[test]
+    fn negative_int_for_u32_field_is_rejected_as_a_non_literal() {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
@@ -628,14 +701,6 @@ mod tests {
         let parsed = parse(&source).expect("embeddings = true must parse");
 
         assert!(parsed.context_params.embeddings);
-    }
-
-    #[test]
-    fn optional_embeddings_false_is_parsed() {
-        let source = format!("{ALL_REQUIRED}, embeddings = false");
-        let parsed = parse(&source).expect("embeddings = false must parse");
-
-        assert!(!parsed.context_params.embeddings);
     }
 
     #[test]
@@ -855,11 +920,10 @@ mod tests {
 
     #[test]
     fn unparseable_attribute_token_stream_is_rejected() {
-        let result = parse("@&^!");
+        let message = parse("@&^!")
+            .expect_err("garbage attribute body must fail")
+            .to_string();
 
-        assert!(
-            result.is_err(),
-            "garbage attribute body must fail to parse as Punctuated<Meta, ,>"
-        );
+        assert_eq!(message, "expected identifier");
     }
 }

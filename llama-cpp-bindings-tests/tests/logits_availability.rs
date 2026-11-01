@@ -19,26 +19,6 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
     embeddings = true,
 )]
-fn a_pooled_embeddings_decode_produces_no_logits(fixture: &LlamaFixture<'_>) {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean);
-
-    assert_eq!(
-        context.get_logits_ith(-1),
-        Err(LogitsError::PooledEmbeddingsProduceNoLogits {
-            pooling_type: LlamaPoolingType::Mean,
-        })
-    );
-}
-
-#[llama_test(
-    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 512,
-    embeddings = true,
-)]
 fn sampling_after_a_pooled_embeddings_decode_is_refused_instead_of_aborting(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {

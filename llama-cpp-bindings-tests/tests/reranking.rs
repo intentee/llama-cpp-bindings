@@ -1,21 +1,22 @@
-use anyhow::Context;
 use anyhow::Result;
-use anyhow::bail;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::normalize::normalize;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
-fn cosine_similarity(vec_a: &[f32], vec_b: &[f32]) -> f32 {
-    vec_a
+const QUERY: &str = "What is machine learning?";
+const RELEVANT_DOCUMENT: &str = "Machine learning is a subset of artificial intelligence.";
+const UNRELATED_DOCUMENT: &str = "The weather today is sunny and warm.";
+
+fn cosine_similarity(left_embedding: &[f32], right_embedding: &[f32]) -> f32 {
+    normalize(left_embedding)
         .iter()
-        .zip(vec_b.iter())
+        .zip(normalize(right_embedding).iter())
         .map(|(left, right)| left * right)
         .sum::<f32>()
 }
@@ -27,107 +28,40 @@ fn cosine_similarity(vec_a: &[f32], vec_b: &[f32]) -> f32 {
     n_ctx = 512,
     n_batch = 2048,
     n_ubatch = 512,
-    n_seq_max = 2,
+    n_seq_max = 3,
     n_threads_batch = 8,
     embeddings = true,
 )]
-fn reranking_produces_scores(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-
-    let query = "What is machine learning?";
-    let documents = [
-        "Machine learning is a subset of artificial intelligence.",
-        "The weather today is sunny and warm.",
-    ];
-
-    let document_count = documents.len();
-    assert_eq!(
-        u32::try_from(document_count)?,
-        fixture.context_params.n_seq_max,
-        "attribute n_seq_max must match the document count this trial expects",
-    );
-
-    let mut ctx = LlamaContext::from_model(
-        model,
+fn the_relevant_document_embeds_closer_to_the_query_than_an_unrelated_one(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = LlamaContext::from_model(
+        fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
-    )
-    .with_context(|| "unable to create context")?;
+    )?;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
-    let prompt_lines: Vec<String> = documents
-        .iter()
-        .map(|document| format!("{query}</s><s>{document}"))
-        .collect();
+    for (sequence_id, text) in (0..).zip([QUERY, RELEVANT_DOCUMENT, UNRELATED_DOCUMENT]) {
+        let tokens =
+            fixture
+                .model
+                .str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
 
-    let tokens_lines_list = prompt_lines
-        .iter()
-        .map(|line| model.str_to_token(line, AddBos::Always, ParseSpecialTokens::Always))
-        .collect::<Result<Vec<_>, _>>()
-        .with_context(|| "failed to tokenize prompts")?;
-
-    let n_ctx = usize::try_from(ctx.n_ctx())?;
-
-    if tokens_lines_list.iter().any(|tokens| n_ctx < tokens.len()) {
-        bail!("one of the provided prompts exceeds the size of the context window");
+        batch.add_sequence(&tokens, sequence_id, false)?;
     }
 
-    let mut classifier = SampledTokenClassifier::undeterminable(model);
-    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
+    context.decode(&batch)?;
 
-    for (sequence_index, tokens) in tokens_lines_list.iter().enumerate() {
-        classifier.feed_prompt_sequence_to_batch(
-            &mut batch,
-            tokens,
-            i32::try_from(sequence_index)?,
-            false,
-        )?;
-    }
-
-    let total_tokens: usize = tokens_lines_list.iter().map(Vec::len).sum();
-    let total_token_count = u64::try_from(total_tokens)?;
-
-    assert_eq!(classifier.pending_prompt_tokens(), total_token_count);
-    assert_eq!(classifier.usage().prompt_tokens, 0);
-
-    ctx.memory_clear();
-    ctx.decode(&batch)
-        .with_context(|| "llama_decode() failed")?;
-
-    let promoted = classifier.commit_prompt_tokens();
-    assert_eq!(promoted, total_token_count);
-
-    let mut embeddings = Vec::with_capacity(document_count);
-
-    for sequence_index in 0..document_count {
-        let raw_embedding = ctx
-            .embeddings_seq_ith(i32::try_from(sequence_index)?)
-            .with_context(|| "failed to get sequence embeddings")?;
-        embeddings.push(normalize(raw_embedding));
-    }
-
-    assert_eq!(
-        embeddings.len(),
-        document_count,
-        "should produce one embedding per document"
-    );
-
-    for (index, embedding) in embeddings.iter().enumerate() {
-        assert!(
-            !embedding.is_empty(),
-            "embedding {index} should not be empty"
-        );
-    }
-
-    let similarity = cosine_similarity(&embeddings[0], &embeddings[1]);
+    let query_embedding = context.embeddings_seq_ith(0)?;
+    let relevant_similarity = cosine_similarity(query_embedding, context.embeddings_seq_ith(1)?);
+    let unrelated_similarity = cosine_similarity(query_embedding, context.embeddings_seq_ith(2)?);
 
     assert!(
-        similarity.is_finite(),
-        "cosine similarity should be a finite number"
+        relevant_similarity > unrelated_similarity,
+        "the relevant document must rank above the unrelated one; \
+         relevant={relevant_similarity} unrelated={unrelated_similarity}"
     );
-
-    let usage = classifier.into_usage();
-    assert_eq!(usage.prompt_tokens, total_token_count);
-    assert_eq!(usage.completion_tokens(), 0);
 
     Ok(())
 }

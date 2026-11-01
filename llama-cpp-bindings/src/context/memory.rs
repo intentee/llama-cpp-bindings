@@ -332,12 +332,13 @@ mod memory_seq_add_status_to_result_tests {
 
     #[test]
     fn add_ok_status_maps_to_ok() {
-        let result = memory_seq_add_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_OK,
-            ptr::null_mut(),
+        assert_eq!(
+            memory_seq_add_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_OK,
+                ptr::null_mut(),
+            ),
+            Ok(())
         );
-
-        assert!(result.is_ok());
     }
 
     #[test]
@@ -374,7 +375,7 @@ mod memory_seq_add_status_to_result_tests {
     }
 
     #[test]
-    fn add_llama_cpp_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
+    fn add_llama_cpp_exception_status_without_a_message_is_a_contract_violation() {
         assert_eq!(
             memory_seq_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -418,7 +419,7 @@ mod memory_seq_add_status_to_result_tests {
     }
 
     #[test]
-    fn memory_seq_add_status_to_result_maps_null_ctx_arg() {
+    fn memory_seq_add_status_to_result_reports_a_null_ctx_arg_as_a_contract_violation() {
         let outcome = memory_seq_add_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG,
             ptr::null_mut(),
@@ -436,7 +437,7 @@ mod memory_seq_add_status_to_result_tests {
     }
 
     #[test]
-    fn memory_seq_add_status_to_result_maps_null_model() {
+    fn memory_seq_add_status_to_result_reports_a_null_model_as_a_contract_violation() {
         let outcome = memory_seq_add_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL,
             ptr::null_mut(),
@@ -454,7 +455,7 @@ mod memory_seq_add_status_to_result_tests {
     }
 
     #[test]
-    fn memory_seq_add_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn memory_seq_add_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = memory_seq_add_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
@@ -475,12 +476,13 @@ mod memory_seq_div_status_to_result_tests {
 
     #[test]
     fn div_ok_status_maps_to_ok() {
-        let result = memory_seq_div_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK,
-            ptr::null_mut(),
+        assert_eq!(
+            memory_seq_div_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK,
+                ptr::null_mut(),
+            ),
+            Ok(())
         );
-
-        assert!(result.is_ok());
     }
 
     #[test]
@@ -517,7 +519,7 @@ mod memory_seq_div_status_to_result_tests {
     }
 
     #[test]
-    fn div_llama_cpp_exception_status_without_a_message_is_a_contract_error_with_unknown_message() {
+    fn div_llama_cpp_exception_status_without_a_message_is_a_contract_violation() {
         assert_eq!(
             memory_seq_div_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -561,7 +563,7 @@ mod memory_seq_div_status_to_result_tests {
     }
 
     #[test]
-    fn memory_seq_div_status_to_result_maps_null_ctx_arg() {
+    fn memory_seq_div_status_to_result_reports_a_null_ctx_arg_as_a_contract_violation() {
         let outcome = memory_seq_div_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG,
             ptr::null_mut(),
@@ -579,7 +581,7 @@ mod memory_seq_div_status_to_result_tests {
     }
 
     #[test]
-    fn memory_seq_div_status_to_result_maps_null_model() {
+    fn memory_seq_div_status_to_result_reports_a_null_model_as_a_contract_violation() {
         let outcome = memory_seq_div_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL,
             ptr::null_mut(),
@@ -597,7 +599,7 @@ mod memory_seq_div_status_to_result_tests {
     }
 
     #[test]
-    fn memory_seq_div_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn memory_seq_div_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = memory_seq_div_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
             ptr::null_mut(),
@@ -717,7 +719,7 @@ mod memory_seq_pos_max_status_to_result_tests {
     }
 
     #[test]
-    fn seq_pos_max_llama_cpp_exception_status_without_a_message_is_a_contract_error_error() {
+    fn seq_pos_max_llama_cpp_exception_status_without_a_message_is_a_contract_violation() {
         assert_eq!(
             memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -764,7 +766,7 @@ mod memory_seq_pos_max_status_to_result_tests {
     }
 
     #[test]
-    fn memory_seq_pos_max_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn memory_seq_pos_max_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = memory_seq_pos_max_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
             0,

@@ -348,7 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn with_n_ctx_none_sets_zero() {
+    fn with_n_ctx_none_reads_back_as_no_context_size() {
         let params = super::LlamaContextParams::default().with_n_ctx(None);
 
         assert_eq!(params.n_ctx(), None);
@@ -384,7 +384,9 @@ mod tests {
 
     #[test]
     fn with_embeddings_disables() {
-        let params = super::LlamaContextParams::default().with_embeddings(false);
+        let params = super::LlamaContextParams::default()
+            .with_embeddings(true)
+            .with_embeddings(false);
 
         assert!(!params.embeddings());
     }
@@ -398,7 +400,9 @@ mod tests {
 
     #[test]
     fn with_offload_kqv_enables() {
-        let params = super::LlamaContextParams::default().with_offload_kqv(true);
+        let params = super::LlamaContextParams::default()
+            .with_offload_kqv(false)
+            .with_offload_kqv(true);
 
         assert!(params.offload_kqv());
     }
@@ -412,33 +416,29 @@ mod tests {
 
     #[test]
     fn with_swa_full_enables() {
-        let params = super::LlamaContextParams::default().with_swa_full(true);
+        let params = super::LlamaContextParams::default()
+            .with_swa_full(false)
+            .with_swa_full(true);
 
         assert!(params.swa_full());
     }
 
     #[test]
-    fn with_rope_scaling_type_linear() {
-        let params =
-            super::LlamaContextParams::default().with_rope_scaling_type(RopeScalingType::Linear);
+    fn with_rope_scaling_type_sets_each_scaling_type() {
+        let scaling_types = [
+            RopeScalingType::Linear,
+            RopeScalingType::Yarn,
+            RopeScalingType::None,
+        ];
 
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::Linear);
-    }
-
-    #[test]
-    fn with_rope_scaling_type_yarn() {
-        let params =
-            super::LlamaContextParams::default().with_rope_scaling_type(RopeScalingType::Yarn);
-
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::Yarn);
-    }
-
-    #[test]
-    fn with_rope_scaling_type_none() {
-        let params =
-            super::LlamaContextParams::default().with_rope_scaling_type(RopeScalingType::None);
-
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::None);
+        assert_eq!(
+            scaling_types.map(|scaling_type| {
+                super::LlamaContextParams::default()
+                    .with_rope_scaling_type(scaling_type)
+                    .rope_scaling_type()
+            }),
+            scaling_types
+        );
     }
 
     #[test]
@@ -470,38 +470,23 @@ mod tests {
     }
 
     #[test]
-    fn with_pooling_type_mean() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::Mean);
+    fn with_pooling_type_sets_each_pooling_type() {
+        let pooling_types = [
+            LlamaPoolingType::Mean,
+            LlamaPoolingType::Cls,
+            LlamaPoolingType::Last,
+            LlamaPoolingType::Rank,
+            LlamaPoolingType::None,
+        ];
 
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Mean);
-    }
-
-    #[test]
-    fn with_pooling_type_cls() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::Cls);
-
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Cls);
-    }
-
-    #[test]
-    fn with_pooling_type_last() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::Last);
-
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Last);
-    }
-
-    #[test]
-    fn with_pooling_type_rank() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::Rank);
-
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Rank);
-    }
-
-    #[test]
-    fn with_pooling_type_none() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::None);
-
-        assert_eq!(params.pooling_type(), LlamaPoolingType::None);
+        assert_eq!(
+            pooling_types.map(|pooling_type| {
+                super::LlamaContextParams::default()
+                    .with_pooling_type(pooling_type)
+                    .pooling_type()
+            }),
+            pooling_types
+        );
     }
 
     #[test]
@@ -526,13 +511,19 @@ mod tests {
     }
 
     #[test]
-    fn with_flash_attention_policy_sets_value() {
-        let params = super::LlamaContextParams::default()
-            .with_flash_attention_policy(llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED);
+    fn with_flash_attention_policy_sets_each_policy() {
+        let policies = [
+            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED,
+            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_DISABLED,
+        ];
 
         assert_eq!(
-            params.flash_attention_policy(),
-            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED
+            policies.map(|policy| {
+                super::LlamaContextParams::default()
+                    .with_flash_attention_policy(policy)
+                    .flash_attention_policy()
+            }),
+            policies
         );
     }
 
@@ -563,22 +554,24 @@ mod tests {
     }
 
     #[test]
-    fn with_cb_eval_sets_callback() {
-        extern "C" fn test_cb_eval(
+    fn with_cb_eval_installs_the_given_callback() {
+        extern "C" fn echo_whether_asked(
             _tensor: *mut llama_cpp_bindings_sys::ggml_tensor,
-            _ask: bool,
+            ask: bool,
             _user_data: *mut c_void,
         ) -> bool {
-            false
+            ask
         }
 
-        let result = test_cb_eval(ptr::null_mut(), false, ptr::null_mut());
+        let params = super::LlamaContextParams::default().with_cb_eval(Some(echo_whether_asked));
 
-        assert!(!result);
-
-        let params = super::LlamaContextParams::default().with_cb_eval(Some(test_cb_eval));
-
-        assert!(params.context_params.cb_eval.is_some());
+        assert_eq!(
+            params
+                .context_params
+                .cb_eval
+                .map(|cb_eval| unsafe { cb_eval(ptr::null_mut(), true, ptr::null_mut()) }),
+            Some(true)
+        );
     }
 
     #[test]
@@ -591,30 +584,17 @@ mod tests {
     }
 
     #[test]
-    fn with_flash_attention_policy_disabled() {
-        let params = super::LlamaContextParams::default()
-            .with_flash_attention_policy(llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_DISABLED);
+    fn with_attention_type_sets_each_attention_type() {
+        let attention_types = [LlamaAttentionType::Causal, LlamaAttentionType::NonCausal];
 
         assert_eq!(
-            params.flash_attention_policy(),
-            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_DISABLED
+            attention_types.map(|attention_type| {
+                super::LlamaContextParams::default()
+                    .with_attention_type(attention_type)
+                    .attention_type()
+            }),
+            attention_types
         );
-    }
-
-    #[test]
-    fn with_attention_type_causal() {
-        let params =
-            super::LlamaContextParams::default().with_attention_type(LlamaAttentionType::Causal);
-
-        assert_eq!(params.attention_type(), LlamaAttentionType::Causal);
-    }
-
-    #[test]
-    fn with_attention_type_non_causal() {
-        let params =
-            super::LlamaContextParams::default().with_attention_type(LlamaAttentionType::NonCausal);
-
-        assert_eq!(params.attention_type(), LlamaAttentionType::NonCausal);
     }
 
     #[test]
@@ -654,7 +634,9 @@ mod tests {
 
     #[test]
     fn with_op_offload_enables() {
-        let params = super::LlamaContextParams::default().with_op_offload(true);
+        let params = super::LlamaContextParams::default()
+            .with_op_offload(false)
+            .with_op_offload(true);
 
         assert!(params.op_offload());
     }
@@ -675,7 +657,9 @@ mod tests {
 
     #[test]
     fn with_kv_unified_disables() {
-        let params = super::LlamaContextParams::default().with_kv_unified(false);
+        let params = super::LlamaContextParams::default()
+            .with_kv_unified(true)
+            .with_kv_unified(false);
 
         assert!(!params.kv_unified());
     }

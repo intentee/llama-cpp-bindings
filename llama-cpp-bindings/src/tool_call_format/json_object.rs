@@ -165,23 +165,19 @@ mod tests {
     }
 
     #[test]
-    fn rejects_input_without_open_brace() {
+    fn input_without_an_open_brace_parses_no_tool_calls() {
         let parsed = parse("plain content", &qwen3_shape()).expect("must parse");
         assert_eq!(parsed, Vec::<ParsedToolCall>::new());
     }
 
     #[test]
-    fn rejects_array_instead_of_object() {
-        let parsed = parse("[1, 2, 3]", &qwen3_shape()).expect("must parse");
-        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
-    }
-
-    #[test]
-    fn returns_failure_for_malformed_json() {
-        let err = parse(r#"{"name": "f", "arguments": {"a": }"#, &qwen3_shape()).unwrap_err();
-        let JsonObjectFailure::InvalidJson { message } = err;
-
-        assert_ne!(message, "");
+    fn malformed_json_is_reported_with_the_parser_message() {
+        assert_eq!(
+            parse(r#"{"name": "f", "arguments": {"a": }"#, &qwen3_shape()),
+            Err(JsonObjectFailure::InvalidJson {
+                message: "expected value at line 1 column 34".to_owned(),
+            })
+        );
     }
 
     #[test]

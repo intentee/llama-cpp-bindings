@@ -24,7 +24,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 64,
     n_ubatch = 64,
 )]
-fn media_question_chat_session_refuses_a_question_with_a_nul_byte(
+fn chat_message_reports_the_nul_byte_position_after_the_media_marker(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let Err(failure) = media_question_chat_session(fixture.model, "describe\0this") else {

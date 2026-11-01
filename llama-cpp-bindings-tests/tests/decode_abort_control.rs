@@ -65,9 +65,7 @@ fn set_abort_flag_false_allows_decode(fixture: &LlamaFixture<'_>) -> Result<()> 
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
-    let result = context.decode(&batch);
-
-    assert!(result.is_ok());
+    assert_eq!(context.decode(&batch), Ok(()));
 
     Ok(())
 }
@@ -96,9 +94,7 @@ fn clear_abort_callback_allows_decode_with_flag_true(fixture: &LlamaFixture<'_>)
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
-    let result = context.decode(&batch);
-
-    assert!(result.is_ok());
+    assert_eq!(context.decode(&batch), Ok(()));
 
     Ok(())
 }

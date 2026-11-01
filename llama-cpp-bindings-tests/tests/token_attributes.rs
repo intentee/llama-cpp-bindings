@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 
+use llama_cpp_bindings::llama_token_attrs::LlamaTokenAttrs;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -36,14 +37,13 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_attr_returns_attrs_for_bos(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_eos_token_carries_only_the_control_attribute(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
-    let bos = model.token_bos().context("model declares a BOS token")?;
-    let attrs = model.token_attr(bos)?;
-    let bit_repr = format!("{:?}", *attrs);
-    assert!(
-        !bit_repr.is_empty(),
-        "token_attr(bos) must produce Debug output"
+    let eos = model.token_eos().context("model declares an EOS token")?;
+
+    assert_eq!(
+        model.token_attr(eos)?,
+        LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_CONTROL)?
     );
     Ok(())
 }

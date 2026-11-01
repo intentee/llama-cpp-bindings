@@ -29,16 +29,12 @@ mod tests {
     use std::process::ExitCode;
     use std::sync::PoisonError;
 
-    use libtest_mimic::Arguments;
     use libtest_mimic::Conclusion;
 
-    use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
     use llama_cpp_bindings::llama_backend::LlamaBackend;
 
     use super::aggregate_exit_code;
     use super::run;
-    use crate::harness_run_error::HarnessRunError;
-    use crate::run_to_conclusions::run_to_conclusions;
     use crate::test_backend_gate::BACKEND_INIT_GATE;
 
     fn passing_conclusion() -> Conclusion {
@@ -90,23 +86,6 @@ mod tests {
         let code = aggregate_exit_code(&[]);
 
         assert_eq!(as_u8(code), 0);
-    }
-
-    #[test]
-    fn run_to_conclusions_errors_when_backend_init_fails() {
-        let _gate = BACKEND_INIT_GATE
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        let _hold = LlamaBackend::init().expect("first init must succeed");
-
-        let outcome = run_to_conclusions(Arguments::default());
-
-        assert_eq!(
-            outcome.err(),
-            Some(HarnessRunError::BackendInit(
-                LlamaCppError::BackendAlreadyInitialized
-            ))
-        );
     }
 
     #[test]

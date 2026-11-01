@@ -18,7 +18,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn embeddings_ith_returns_error_when_embeddings_disabled(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn token_embedding_reports_embeddings_not_enabled_on_a_context_without_embeddings(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let context = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -38,7 +40,7 @@ fn embeddings_ith_returns_error_when_embeddings_disabled(fixture: &LlamaFixture<
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn embeddings_seq_ith_returns_error_when_embeddings_disabled(
+fn sequence_embedding_reports_embeddings_not_enabled_on_a_context_without_embeddings(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let context = LlamaContext::from_model(
@@ -64,7 +66,7 @@ fn embeddings_seq_ith_returns_error_when_embeddings_disabled(
     n_ubatch = 512,
     embeddings = true,
 )]
-fn embeddings_seq_ith_returns_null_embedding_error_for_invalid_seq(
+fn sequence_embedding_of_a_sequence_missing_from_the_decoded_batch_is_unavailable(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
@@ -100,7 +102,7 @@ fn embeddings_seq_ith_returns_null_embedding_error_for_invalid_seq(
     n_ubatch = 512,
     embeddings = true,
 )]
-fn embeddings_ith_returns_null_embedding_error_for_non_embedding_token(
+fn token_embedding_of_an_index_without_a_decoded_output_reports_logits_not_enabled(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let context = LlamaContext::from_model(

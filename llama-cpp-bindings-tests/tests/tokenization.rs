@@ -1,5 +1,3 @@
-use std::fmt::Write;
-
 use anyhow::Result;
 
 use llama_cpp_bindings::model::add_bos::AddBos;
@@ -41,7 +39,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn the_first_token_of_tokenized_text_decodes_to_a_nonempty_piece(
+fn the_first_token_of_tokenized_text_decodes_to_its_first_word(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
@@ -51,57 +49,7 @@ fn the_first_token_of_tokenized_text_decodes_to_a_nonempty_piece(
     let piece =
         model.token_to_piece(&SampledToken::Content(tokens[0]), &mut decoder, false, None)?;
 
-    assert_ne!(piece, "");
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn str_to_token_grows_buffer_when_initial_estimation_too_small(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let many_short_chars = "a b c d e f g h i j k l";
-    let tokens =
-        fixture
-            .model
-            .str_to_token(many_short_chars, AddBos::Always, ParseSpecialTokens::Always)?;
-
-    assert!(
-        tokens.len() > 8,
-        "expected regrow; got {} tokens",
-        tokens.len()
-    );
+    assert_eq!(piece, "hello");
 
     Ok(())
 }
@@ -184,11 +132,13 @@ fn str_to_token_without_bos_yields_no_more_tokens_than_with_bos(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn str_to_token_with_many_tokens_triggers_buffer_resize(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let many_numbers = (0..2000).fold(String::new(), |mut accumulator, number| {
-        let _ = write!(accumulator, "{number} ");
-        accumulator
-    });
+fn str_to_token_regrows_its_buffer_for_more_tokens_than_it_estimated(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let many_numbers = (0_u32..2000)
+        .map(|number| number.to_string())
+        .collect::<Vec<String>>()
+        .join(" ");
 
     let tokens =
         fixture

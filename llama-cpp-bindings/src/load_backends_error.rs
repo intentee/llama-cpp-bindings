@@ -1,7 +1,7 @@
 use std::ffi::NulError;
 use std::path::PathBuf;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum LoadBackendsError {
     #[error("backend directory path is not valid UTF-8: {0}")]
     PathNotUtf8(PathBuf),

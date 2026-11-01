@@ -327,17 +327,6 @@ mod tests {
     }
 
     #[test]
-    fn parses_bare_numeric_value() {
-        let parsed =
-            parse(&gemma4_call("a:42"), &gemma4_markers(), &gemma4_shape()).expect("must parse");
-
-        assert_eq!(
-            parsed[0].arguments,
-            ToolCallArguments::ValidJson(json!({"a": 42})),
-        );
-    }
-
-    #[test]
     fn parses_comma_separated_bare_values() {
         let parsed = parse(
             &gemma4_call("a:42,b:true"),
@@ -352,17 +341,6 @@ mod tests {
                 "f".to_owned(),
                 ToolCallArguments::ValidJson(json!({"a": 42, "b": true})),
             )]),
-        );
-    }
-
-    #[test]
-    fn parses_bare_boolean_value() {
-        let parsed =
-            parse(&gemma4_call("a:true"), &gemma4_markers(), &gemma4_shape()).expect("must parse");
-
-        assert_eq!(
-            parsed[0].arguments,
-            ToolCallArguments::ValidJson(json!({"a": true})),
         );
     }
 

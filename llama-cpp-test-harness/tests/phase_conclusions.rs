@@ -18,7 +18,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     void_logs = true,
 )]
-fn phase_a_first_passing_trial(fixture: &LlamaFixture<'_>) {
+fn phase_a_passing_trial_that_requests_void_logs(fixture: &LlamaFixture<'_>) {
     let formatted = format!("{:?}", fixture.model);
     assert!(formatted.contains("LlamaModel"));
     no_op(fixture);
@@ -114,7 +114,7 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) {
     n_batch = 1,
     n_ubatch = 1
 )]
-fn shared_setup_failure_and_phase_a_trial(fixture: &LlamaFixture<'_>) {
+fn phase_a_trial_also_scheduled_into_every_setup_failure_phase(fixture: &LlamaFixture<'_>) {
     assert!(fixture.model_path.exists());
 }
 
@@ -127,7 +127,7 @@ fn shared_setup_failure_and_phase_a_trial(fixture: &LlamaFixture<'_>) {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf")
 )]
-fn phase_d_mmproj_trial(fixture: &LlamaFixture<'_>) {
+fn phase_d_passing_trial_with_a_loaded_mmproj(fixture: &LlamaFixture<'_>) {
     assert!(
         fixture.mtmd_context.is_some(),
         "mmproj_file declared, but fixture.mtmd_context is None",

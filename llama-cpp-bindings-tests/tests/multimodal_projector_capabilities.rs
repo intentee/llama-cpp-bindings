@@ -9,6 +9,8 @@ use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
+const AUDIO_SAMPLE_RATE_HZ: u32 = 16_000;
+
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -134,5 +136,68 @@ fn get_audio_sample_rate_is_none_for_vision_only_mmproj(fixture: &LlamaFixture<'
     assert!(
         mtmd_ctx.get_audio_sample_rate().is_none(),
         "Qwen 3.5 / 3.6 mmproj has no audio; get_audio_sample_rate must return None"
+    );
+}
+
+#[llama_test(
+    model_source = HuggingFace(
+        "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
+        "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+    ),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 4096,
+    n_batch = 512,
+    n_ubatch = 512,
+    mmproj_source = HuggingFace(
+        "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
+        "mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf"
+    ),
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 4096,
+    n_batch = 512,
+    n_ubatch = 512,
+    mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
+)]
+fn audio_mmproj_reports_audio_support_at_sixteen_kilohertz(fixture: &LlamaFixture<'_>) {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+
+    assert!(
+        mtmd_ctx
+            .capabilities(fixture.model)
+            .contains(MtmdCapability::Audio),
+        "an audio mmproj must report audio support"
+    );
+    assert_eq!(mtmd_ctx.get_audio_sample_rate(), Some(AUDIO_SAMPLE_RATE_HZ));
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 4096,
+    n_batch = 512,
+    n_ubatch = 512,
+    mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
+)]
+fn gemma4_mmproj_reports_chat_vision_audio_and_text_generation_capabilities(
+    fixture: &LlamaFixture<'_>,
+) {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+
+    assert_eq!(
+        mtmd_ctx.capabilities(fixture.model),
+        MtmdCapability::Chat
+            | MtmdCapability::Vision
+            | MtmdCapability::Audio
+            | MtmdCapability::TextGeneration
     );
 }

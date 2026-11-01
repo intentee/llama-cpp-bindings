@@ -481,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn variables_the_configuration_reads_must_be_present_and_unicode() {
+    fn the_configuration_refuses_non_unicode_variables_and_a_missing_ggml_dir() {
         let context = context_of(&cargo_environment(BitFlags::empty(), &[]));
         let refusal = |features: BitFlags<BuildFeature>, name: &str| {
             CmakeConfiguration::of(

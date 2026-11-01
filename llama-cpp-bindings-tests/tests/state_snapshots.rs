@@ -174,59 +174,6 @@ fn state_set_data_consumes_exactly_the_bytes_state_get_data_wrote(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn state_seq_get_size_ext_returns_size_for_decoded_sequence(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let mut context = fixture.build_context()?;
-
-    let tokens =
-        fixture
-            .model
-            .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
-    batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&batch)?;
-
-    let flags = LlamaStateSeqFlags::empty();
-    let size = context.state_seq_get_size_ext(0, &flags);
-
-    assert!(size > 0);
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
 fn state_seq_set_data_ext_consumes_exactly_the_bytes_state_seq_get_data_ext_wrote(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
@@ -246,6 +193,7 @@ fn state_seq_set_data_ext_consumes_exactly_the_bytes_state_seq_get_data_ext_wrot
     let bytes_written = unsafe { context.state_seq_get_data_ext(&mut buffer, 0, &flags) }?;
 
     assert!(bytes_written > 0);
+    assert_eq!(bytes_written, size);
 
     let bytes_read = unsafe { context.state_seq_set_data_ext(&buffer, 0, &flags) }?;
 

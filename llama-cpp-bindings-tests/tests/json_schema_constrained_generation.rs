@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use serde_json::Value;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -10,8 +11,11 @@ use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
+
+const MAX_ANSWER_TOKENS: i32 = 64;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
@@ -45,7 +49,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn json_schema_grammar_sampler_constrains_the_answer_to_the_schema(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let mut context = LlamaContext::from_model(
         model,
@@ -56,10 +62,11 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
     let prompt = "<|im_start|>user\nWhat is 2+2? Respond with a JSON object.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut classifier = SampledTokenClassifier::undeterminable(model);
 
-    batch.add_sequence(&tokens, 0, false)?;
-
+    classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
     context.decode(&batch)?;
+    classifier.commit_prompt_tokens();
 
     let grammar_str = json_schema_to_grammar(
         r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#,
@@ -71,35 +78,29 @@ fn json_schema_grammar_sampler_constrains_output_to_json(fixture: &LlamaFixture<
         LlamaSampler::greedy()?,
     ])?;
 
-    let mut classifier = SampledTokenClassifier::undeterminable(model);
-    let mut outcomes = Vec::new();
-    let turn = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1, &mut outcomes)?;
-    classifier.finish(&mut outcomes)?;
-
-    assert_eq!(
-        outcomes.len(),
-        1,
-        "expected one finalised outcome after finishing"
-    );
-    let outcome = &outcomes[0];
-
-    let raw_as_sampled = SampledToken::Content(turn.token);
-    assert!(
-        !model.is_eog_token(&raw_as_sampled),
-        "Grammar sampler should not allow EOS as first token"
-    );
-
-    let piece = outcome.piece.raw();
+    let initial_position = batch.n_tokens();
+    let outcome = ClassifySampleLoop {
+        classifier: &mut classifier,
+        sampler: &mut sampler,
+        context: &mut context,
+        batch: &mut batch,
+        initial_position,
+        max_generated_tokens: MAX_ANSWER_TOKENS,
+    }
+    .run();
 
     assert!(
-        piece.starts_with('{'),
-        "JSON schema grammar should constrain first token to start with '{{', got: '{piece}'"
+        outcome.eog_seen,
+        "the answer must end once the schema is satisfied; outcome={outcome:?}"
     );
-    assert_eq!(
-        classifier.usage().completion_tokens(),
-        1,
-        "exactly one completion token sampled"
-    );
+
+    let answer = outcome.generated.text().parse::<Value>()?;
+    let answer_object = answer
+        .as_object()
+        .context("the schema requires the answer to be a JSON object")?;
+
+    assert_eq!(answer_object.keys().collect::<Vec<_>>(), ["answer"]);
+    assert!(answer_object["answer"].is_string(), "{answer}");
 
     Ok(())
 }
@@ -199,12 +200,12 @@ fn an_llguidance_json_schema_constrains_the_answer_to_the_schema(
     }
 
     let parsed = serde_json::Deserializer::from_str(&generated)
-        .into_iter::<serde_json::Value>()
+        .into_iter::<Value>()
         .next()
         .context("model produced no JSON value")??;
 
-    assert!(parsed.get("city").is_some());
-    assert!(parsed.get("temperature").is_some());
+    assert!(parsed["city"].is_string(), "{parsed}");
+    assert!(parsed["temperature"].is_number(), "{parsed}");
 
     Ok(())
 }

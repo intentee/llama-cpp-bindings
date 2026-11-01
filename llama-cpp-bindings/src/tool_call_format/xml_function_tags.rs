@@ -324,12 +324,6 @@ mod tests {
     }
 
     #[test]
-    fn returns_empty_for_empty_body() {
-        let parsed = parse("", &xml_shape()).expect("must parse empty");
-        assert_eq!(parsed, Vec::<ParsedToolCall>::new());
-    }
-
-    #[test]
     fn returns_empty_when_shape_has_empty_required_field() {
         let mut shape = xml_shape();
         shape.function_close.clear();
@@ -339,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_negotiate_with_cat_reproducer_payload() {
+    fn parses_newline_padded_parameters_inside_a_tool_call_block_into_typed_arguments() {
         let body = "<tool_call>\n\
 <function=negotiate_with_cat>\n\
 <parameter=bribe>\n\

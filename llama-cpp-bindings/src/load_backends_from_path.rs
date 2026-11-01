@@ -24,7 +24,6 @@ pub fn load_backends_from_path(path: &Path) -> Result<(), LoadBackendsError> {
 mod tests {
     use std::ffi::CString;
     use std::ffi::OsStr;
-    use std::mem::discriminant;
     use std::os::unix::ffi::OsStrExt;
     use std::path::PathBuf;
 
@@ -34,19 +33,22 @@ mod tests {
     #[test]
     fn load_backends_from_path_returns_path_null_byte_for_embedded_null() {
         let path = PathBuf::from(OsStr::from_bytes(b"/tmp/foo\0bar"));
-        let err = load_backends_from_path(&path).unwrap_err();
-        let representative =
-            LoadBackendsError::PathNullByte(CString::new(b"a\0b".to_vec()).unwrap_err());
 
-        assert_eq!(discriminant(&err), discriminant(&representative));
+        assert_eq!(
+            load_backends_from_path(&path),
+            Err(LoadBackendsError::PathNullByte(
+                CString::new("/tmp/foo\0bar").unwrap_err()
+            ))
+        );
     }
 
     #[test]
     fn load_backends_from_path_returns_path_not_utf8_for_invalid_utf8() {
         let path = PathBuf::from(OsStr::from_bytes(b"/tmp/\xff\xfe"));
-        let err = load_backends_from_path(&path).unwrap_err();
-        let representative = LoadBackendsError::PathNotUtf8(PathBuf::new());
 
-        assert_eq!(discriminant(&err), discriminant(&representative));
+        assert_eq!(
+            load_backends_from_path(&path),
+            Err(LoadBackendsError::PathNotUtf8(path.clone()))
+        );
     }
 }

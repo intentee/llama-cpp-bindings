@@ -84,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn list_devices_returns_at_least_one() {
+    fn list_all_lists_a_named_device_at_index_zero() {
         #[cfg(feature = "dynamic-backends")]
         load_backends().unwrap();
 

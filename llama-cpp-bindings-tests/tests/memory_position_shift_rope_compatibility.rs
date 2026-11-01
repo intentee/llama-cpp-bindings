@@ -25,7 +25,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn memory_seq_add_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_add_refuses_an_mrope_model(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     prime_memory(fixture, &mut context)?;
@@ -53,7 +53,7 @@ fn memory_seq_add_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) -> R
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn memory_seq_div_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_div_refuses_an_mrope_model(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     prime_memory(fixture, &mut context)?;
@@ -74,14 +74,18 @@ fn memory_seq_div_returns_error_for_mrope_model(fixture: &LlamaFixture<'_>) -> R
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn memory_seq_add_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_add_shifts_the_positions_of_a_standard_rope_model(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     prime_memory(fixture, &mut context)?;
 
-    let result = context.memory_seq_add(0, Some(0), None, 1);
+    let primed_position_max = context.memory_seq_pos_max(0)?;
 
-    assert!(result.is_ok());
+    context.memory_seq_add(0, Some(0), None, 1)?;
+
+    assert_eq!(context.memory_seq_pos_max(0)?, primed_position_max + 1);
 
     Ok(())
 }
@@ -94,15 +98,22 @@ fn memory_seq_add_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> Res
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn memory_seq_div_succeeds_on_embedding_model(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_div_divides_the_positions_of_a_standard_rope_model(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = fixture.build_context()?;
 
     prime_memory(fixture, &mut context)?;
 
+    let primed_position_max = context.memory_seq_pos_max(0)?;
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
-    let result = context.memory_seq_div(0, Some(0), None, divisor);
 
-    assert!(result.is_ok());
+    context.memory_seq_div(0, Some(0), None, divisor)?;
+
+    assert_eq!(
+        context.memory_seq_pos_max(0)?,
+        primed_position_max / i32::from(divisor.get())
+    );
 
     Ok(())
 }

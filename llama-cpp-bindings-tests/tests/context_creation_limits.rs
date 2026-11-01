@@ -39,10 +39,16 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn new_context_with_huge_ctx_returns_null_error(fixture: &LlamaFixture<'_>) {
-    let result = fixture.build_context();
-
-    assert!(result.is_err());
+fn a_context_size_overflowing_llama_cpp_padding_is_unconstructible(fixture: &LlamaFixture<'_>) {
+    assert_eq!(
+        LlamaContext::from_model(
+            fixture.model,
+            fixture.backend,
+            (*fixture.context_params).into_llama_context_params(),
+        )
+        .err(),
+        Some(LlamaContextLoadError::Unconstructible)
+    );
 }
 
 #[llama_test(

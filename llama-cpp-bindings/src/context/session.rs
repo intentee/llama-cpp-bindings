@@ -410,12 +410,13 @@ mod process_session_load_result_tests {
     use crate::token::LlamaToken;
 
     #[test]
-    fn session_load_success_within_bounds() {
-        let tokens = vec![LlamaToken::new(0); 100];
-        let result = process_session_load_result(true, 10, 100, tokens);
+    fn session_load_truncates_the_tokens_to_the_loaded_count() {
+        let tokens: Vec<LlamaToken> = (0..100).map(LlamaToken::new).collect();
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 10);
+        assert_eq!(
+            process_session_load_result(true, 10, 100, tokens),
+            Ok((0..10).map(LlamaToken::new).collect())
+        );
     }
 
     #[test]
@@ -445,15 +446,20 @@ mod process_session_load_result_tests {
 mod process_seq_load_result_tests {
     use super::process_seq_load_result;
     use crate::context::load_seq_state_error::LoadSeqStateError;
+    use crate::context::loaded_seq_state::LoadedSeqState;
     use crate::token::LlamaToken;
 
     #[test]
-    fn seq_load_success_within_bounds() {
-        let tokens = vec![LlamaToken::new(0); 100];
-        let loaded = process_seq_load_result(42, 10, 100, tokens).expect("bounded load succeeds");
+    fn seq_load_truncates_the_tokens_to_the_loaded_count_and_reports_the_bytes_read() {
+        let tokens: Vec<LlamaToken> = (0..100).map(LlamaToken::new).collect();
 
-        assert_eq!(loaded.tokens.len(), 10);
-        assert_eq!(loaded.bytes_read, 42);
+        assert_eq!(
+            process_seq_load_result(42, 10, 100, tokens),
+            Ok(LoadedSeqState {
+                tokens: (0..10).map(LlamaToken::new).collect(),
+                bytes_read: 42,
+            })
+        );
     }
 
     #[test]
@@ -490,7 +496,7 @@ mod state_data_status_to_result_tests {
     use crate::context::state_data_error::StateDataError;
 
     #[test]
-    fn state_data_status_to_result_maps_llama_cpp_out_of_memory() {
+    fn state_data_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = state_data_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY,
             0,
@@ -532,7 +538,7 @@ mod state_data_status_to_result_tests {
     }
 
     #[test]
-    fn state_data_status_to_result_maps_error_string_allocation_failed() {
+    fn state_data_status_to_result_reports_not_enough_memory_for_the_error_string() {
         assert_eq!(
             state_data_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED,

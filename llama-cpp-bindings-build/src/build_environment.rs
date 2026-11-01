@@ -136,7 +136,7 @@ pub mod tests {
     }
 
     #[test]
-    fn a_missing_variable_is_required_but_optional() {
+    fn a_missing_variable_fails_when_required_and_is_none_when_optional() {
         let environment = environment_of(BitFlags::empty(), []);
 
         assert_eq!(environment.optional("HOST").ok(), Some(None));
