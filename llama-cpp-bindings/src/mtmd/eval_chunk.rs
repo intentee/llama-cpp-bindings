@@ -9,7 +9,6 @@ use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_input_chunk::MtmdInputChunk;
 use crate::context::LlamaContext;
-use crate::context::decoded_output_rows::DecodedOutputRows;
 
 fn eval_chunk_single_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status,
@@ -112,7 +111,7 @@ pub fn eval_chunk(
         out_llama_cpp_return_code,
         out_error,
     )?;
-    llama_ctx.record_decoded_rows(DecodedOutputRows::of_helper_decode(logits_last));
+    llama_ctx.record_helper_decode(logits_last);
 
     Ok(next_position)
 }

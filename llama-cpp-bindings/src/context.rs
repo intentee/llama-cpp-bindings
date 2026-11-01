@@ -415,7 +415,7 @@ pub struct LlamaContext<'model> {
     decoded_outputs: DecodedOutputs,
     batch_ext: NonNull<llama_cpp_bindings_sys::llama_batch_ext>,
     limits: ContextLimits,
-    decodes_batches_in_one_micro_batch: bool,
+    keeps_no_memory: bool,
 }
 
 impl Debug for LlamaContext<'_> {
@@ -449,8 +449,6 @@ impl<'model> LlamaContext<'model> {
             llama_cpp_bindings_sys::llama_pooling_type(context.as_ptr())
         });
         let keeps_no_memory = memory_of(context).is_none();
-        let attends_causally =
-            unsafe { llama_cpp_bindings_sys::llama_get_causal_attn(context.as_ptr()) };
 
         Ok(Self {
             context,
@@ -467,7 +465,7 @@ impl<'model> LlamaContext<'model> {
                 n_seq_max: unsafe { llama_cpp_bindings_sys::llama_n_seq_max(context.as_ptr()) },
                 n_vocab: model.n_vocab(),
             },
-            decodes_batches_in_one_micro_batch: keeps_no_memory || !attends_causally,
+            keeps_no_memory,
         })
     }
 
@@ -529,6 +527,11 @@ impl<'model> LlamaContext<'model> {
         self.limits.n_seq_max
     }
 
+    fn decodes_batches_in_one_micro_batch(&self) -> bool {
+        self.keeps_no_memory
+            || !unsafe { llama_cpp_bindings_sys::llama_get_causal_attn(self.context.as_ptr()) }
+    }
+
     fn exceeds_micro_batch(&self, batch: &LlamaBatch) -> bool {
         i64::from(batch.n_tokens()) > i64::from(self.n_ubatch())
     }
@@ -576,10 +579,10 @@ impl<'model> LlamaContext<'model> {
         unsafe { llama_cpp_bindings_sys::llama_detach_threadpool(self.context.as_ptr()) }
     }
 
-    /// Records which rows the last decode wrote, for a decode llama.cpp ran on this context
-    /// without one of this context's batches, such as the mtmd helper decoding media chunks.
-    pub fn record_decoded_rows(&mut self, rows: DecodedOutputRows) {
-        self.decoded_outputs.rows = rows;
+    /// Records the rows a llama.cpp helper wrote when it decoded on this context without one of
+    /// this context's batches, such as the mtmd helper decoding media chunks.
+    pub fn record_helper_decode(&mut self, logits_last: bool) {
+        self.decoded_outputs.rows = DecodedOutputRows::of_helper_decode(logits_last);
     }
 
     fn record_batch_output_rows(&mut self, output_token_indices: &[i32]) {
@@ -649,7 +652,7 @@ impl<'model> LlamaContext<'model> {
     ///
     /// - `DecodeError` if the decoding failed.
     pub fn decode(&mut self, batch: &LlamaBatch) -> Result<(), DecodeError> {
-        if self.decodes_batches_in_one_micro_batch && self.exceeds_micro_batch(batch) {
+        if self.decodes_batches_in_one_micro_batch() && self.exceeds_micro_batch(batch) {
             return Err(DecodeError::BatchExceedsMicroBatch {
                 n_tokens: batch.n_tokens(),
                 n_ubatch: self.n_ubatch(),

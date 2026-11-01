@@ -131,6 +131,38 @@ fn a_greedy_sampler_selects_a_candidate_of_a_decoded_row(fixture: &LlamaFixture<
 }
 
 #[llama_test(
+    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+#[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
     load_mode = Mmap,
@@ -151,9 +183,9 @@ fn sampling_the_last_decoded_row_yields_a_token(fixture: &LlamaFixture<'_>) -> R
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
     let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
-    let result = sampler.sample(&context, batch.n_tokens() - 1);
+    let token = sampler.sample(&context, batch.n_tokens() - 1)?;
 
-    assert!(result.is_ok());
+    assert!((0..fixture.model.n_vocab()).contains(&token.0));
 
     Ok(())
 }

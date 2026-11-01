@@ -111,7 +111,9 @@ impl ChatSpans {
         self.segments
             .iter()
             .skip(self.first_segment_ending_after(bytes.start))
-            .take_while(|segment| segment.bytes.start < bytes.end)
+            .take_while(|segment| {
+                segment.bytes.start.max(bytes.start) < segment.bytes.end.min(bytes.end)
+            })
             .map(|segment| segment.role)
             .find(|role| matches!(role, ChatPieceRole::Text(_)))
             .or_else(|| {
@@ -275,6 +277,20 @@ mod tests {
         assert_eq!(
             reasoning_then_content(ChatOutputCompleteness::Partial).classify_token(&(12..12)),
             Some(ChatPieceRole::Marker(SampledTokenSection::Reasoning))
+        );
+    }
+
+    #[test]
+    fn a_token_without_text_inside_a_text_span_is_a_marker_of_that_section() {
+        let spans = ChatSpans::new(
+            10,
+            &[span(ChatSpanKind::Content, 0, 10)],
+            ChatOutputCompleteness::Finished,
+        );
+
+        assert_eq!(
+            spans.classify_token(&(4..4)),
+            Some(ChatPieceRole::Marker(SampledTokenSection::Content))
         );
     }
 

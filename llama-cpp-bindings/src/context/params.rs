@@ -289,17 +289,6 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn with_no_perf(mut self, no_perf: bool) -> Self {
-        self.context_params.no_perf = no_perf;
-        self
-    }
-
-    #[must_use]
-    pub const fn no_perf(&self) -> bool {
-        self.context_params.no_perf
-    }
-
-    #[must_use]
     pub const fn with_op_offload(mut self, op_offload: bool) -> Self {
         self.context_params.op_offload = op_offload;
         self
@@ -661,20 +650,6 @@ mod tests {
         let params = super::LlamaContextParams::default().with_yarn_orig_ctx(4096);
 
         assert_eq!(params.yarn_orig_ctx(), 4096);
-    }
-
-    #[test]
-    fn with_no_perf_enables() {
-        let params = super::LlamaContextParams::default().with_no_perf(true);
-
-        assert!(params.no_perf());
-    }
-
-    #[test]
-    fn with_no_perf_disables() {
-        let params = super::LlamaContextParams::default().with_no_perf(false);
-
-        assert!(!params.no_perf());
     }
 
     #[test]

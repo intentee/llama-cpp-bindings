@@ -3,9 +3,14 @@ use anyhow::Result;
 use anyhow::bail;
 
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
+use llama_cpp_bindings::context::llama_attention_type::LlamaAttentionType;
 use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
+use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_bindings::model::add_bos::AddBos;
+use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
@@ -16,6 +21,7 @@ use llama_cpp_bindings::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeErr
 use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
+use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
@@ -616,6 +622,54 @@ fn eval_chunks_supports_extreme_dimensions(fixture: &LlamaFixture<'_>) -> Result
         eval_synthetic_bitmap(fixture, width, height)
             .context(format!("dimension {width}x{height} should succeed"))?;
     }
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/gemma-3-4b-it-GGUF", "gemma-3-4b-it-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 2048,
+    n_ubatch = 512,
+    mmproj_source = HuggingFace("unsloth/gemma-3-4b-it-GGUF", "mmproj-F16.gguf"),
+)]
+fn gemma3_decoding_follows_the_causal_attention_the_mtmd_helper_leaves_on_the_context(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .expect("mmproj_file declared in attribute");
+    let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
+    let mut llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params)
+            .into_llama_context_params()
+            .with_attention_type(LlamaAttentionType::NonCausal),
+    )?;
+    let n_batch = i32::try_from(llama_ctx.n_batch())?;
+    let next_position = chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false)?;
+    let tokens = fixture.model.str_to_token(
+        &"llama ".repeat(600),
+        AddBos::Never,
+        ParseSpecialTokens::Never,
+    )?;
+    let last_index = tokens.len() - 1;
+    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_ctx));
+
+    for (index, token) in tokens.iter().enumerate() {
+        batch.add(
+            &SampledToken::Content(*token),
+            next_position + i32::try_from(index)?,
+            &[0],
+            index == last_index,
+        )?;
+    }
+
+    assert!(batch.n_tokens().unsigned_abs() > llama_ctx.n_ubatch());
+    assert_eq!(llama_ctx.decode(&batch), Ok(()));
 
     Ok(())
 }

@@ -65,7 +65,13 @@ const DEPRECATED_FUNCTIONS: &[&str] = &[
 ];
 
 const SUPERSEDED_ITEMS: &[&str] = &[
-    "LLAMA_TOKEN_TYPE_.*",
+    "LLAMA_TOKEN_TYPE_BYTE",
+    "LLAMA_TOKEN_TYPE_CONTROL",
+    "LLAMA_TOKEN_TYPE_NORMAL",
+    "LLAMA_TOKEN_TYPE_UNDEFINED",
+    "LLAMA_TOKEN_TYPE_UNKNOWN",
+    "LLAMA_TOKEN_TYPE_UNUSED",
+    "LLAMA_TOKEN_TYPE_USER_DEFINED",
     "ggml_backend_offload_op",
     "ggml_backend_supports_buft",
     "ggml_backend_supports_op",
@@ -77,7 +83,14 @@ const SUPERSEDED_ITEMS: &[&str] = &[
     "llama_encode",
     "llama_get_embeddings",
     "llama_get_logits",
-    "llama_perf_.*",
+    "llama_perf_context",
+    "llama_perf_context_data",
+    "llama_perf_context_print",
+    "llama_perf_context_reset",
+    "llama_perf_sampler",
+    "llama_perf_sampler_data",
+    "llama_perf_sampler_print",
+    "llama_perf_sampler_reset",
     "llama_token_type",
     "mtmd_image_tokens_get_id",
     "mtmd_image_tokens_get_n_pos",
@@ -192,7 +205,10 @@ impl BindingsGeneration {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use std::fs;
     use std::path::PathBuf;
+    use std::process;
 
     use enumflags2::BitFlags;
 
@@ -300,6 +316,36 @@ mod tests {
                  be kept private"
                     .to_owned()
             )
+        );
+    }
+
+    #[test]
+    fn generated_bindings_hide_superseded_enum_variants_and_keep_their_replacements() {
+        let output = env::temp_dir().join(format!(
+            "llama-cpp-bindings-build-bindings-{}.rs",
+            process::id()
+        ));
+        BindingsGeneration {
+            header: PathBuf::from(FIXTURE_BINDINGS).join("wrapper.h"),
+            clang_args: Vec::new(),
+            output: output.clone(),
+        }
+        .generate()
+        .unwrap();
+        let bindings = fs::read_to_string(&output).unwrap();
+        fs::remove_file(&output).unwrap();
+        let declares = |constant: &str| {
+            bindings
+                .lines()
+                .any(|line| line.trim() == format!("pub const {constant}: ggml_prec = 0;"))
+        };
+
+        assert_eq!(
+            [
+                declares("GGML_PREC_DEFAULT"),
+                declares("GGML_PREC_UNDEFINED")
+            ],
+            [false, true]
         );
     }
 

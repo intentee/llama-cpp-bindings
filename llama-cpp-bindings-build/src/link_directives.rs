@@ -127,9 +127,11 @@ fn native_libraries(context: &BuildContext, environment: &BuildEnvironment) -> V
         if environment.has(BuildFeature::Rocm) {
             libraries.push(built("ggml-hip"));
         }
+
+        libraries.push(built("ggml-cpu"));
     }
 
-    libraries.extend(["ggml-cpu", "ggml-base", "ggml"].map(built));
+    libraries.extend(["ggml-base", "ggml"].map(built));
 
     libraries
 }
@@ -390,7 +392,8 @@ mod tests {
     }
 
     #[test]
-    fn a_dynamic_build_links_shared_libraries_and_leaves_gpu_backends_to_runtime_loading() {
+    fn a_dynamic_backends_build_links_shared_libraries_and_leaves_every_backend_to_runtime_loading()
+    {
         assert_eq!(
             libraries(&linked(&cargo_environment(
                 BuildFeature::DynamicLink
@@ -403,7 +406,6 @@ mod tests {
                 "llama-common",
                 "mtmd",
                 "llama",
-                "ggml-cpu",
                 "ggml-base",
                 "ggml",
                 "stdc++"
