@@ -71,7 +71,7 @@ fn meta_count_returns_positive(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn meta_key_by_index_returns_valid_key(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_first_metadata_entry_has_a_nonempty_key(fixture: &LlamaFixture<'_>) -> Result<()> {
     let key = fixture.model.meta_key_by_index(0)?;
     assert_ne!(key, "");
     Ok(())
@@ -109,7 +109,7 @@ fn meta_key_by_index_returns_valid_key(fixture: &LlamaFixture<'_>) -> Result<()>
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn meta_val_str_by_index_returns_valid_value(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_first_metadata_entry_has_a_nonempty_value(fixture: &LlamaFixture<'_>) -> Result<()> {
     let value = fixture.model.meta_val_str_by_index(0)?;
     assert_ne!(value, "");
     Ok(())
