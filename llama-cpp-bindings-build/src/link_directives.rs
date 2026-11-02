@@ -8,6 +8,7 @@ use crate::build_feature::BuildFeature;
 use crate::cargo_directive::CargoDirective;
 use crate::link_kind::LinkKind;
 use crate::native_library::NativeLibrary;
+use crate::native_profile::NATIVE_PROFILE;
 use crate::target_os::TargetOs;
 
 const fn link(link_kind: LinkKind, name: &'static str) -> CargoDirective {
@@ -62,7 +63,7 @@ fn private_dependency_search_paths(context: &BuildContext) -> Vec<CargoDirective
     .flat_map(|library_dir| {
         [
             CargoDirective::LinkSearchNative(library_dir.clone()),
-            CargoDirective::LinkSearchNative(library_dir.join(&context.profile)),
+            CargoDirective::LinkSearchNative(library_dir.join(NATIVE_PROFILE)),
         ]
     })
     .collect()

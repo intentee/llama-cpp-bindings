@@ -23,6 +23,7 @@ mod link_directives;
 mod link_kind;
 mod native_build;
 mod native_library;
+mod native_profile;
 mod privatized_field;
 mod rebuild_triggers;
 mod target_os;

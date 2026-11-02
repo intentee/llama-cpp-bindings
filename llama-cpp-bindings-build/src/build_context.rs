@@ -7,13 +7,6 @@ use crate::cargo_directive::CargoDirective;
 use crate::host_os::HostOs;
 use crate::target_os::TargetOs;
 
-fn native_profile(cargo_profile: &str) -> String {
-    match cargo_profile {
-        "debug" | "release" => "Release".to_owned(),
-        other => other.to_owned(),
-    }
-}
-
 /// Where and for what the native libraries are built, as cargo describes the build script run.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BuildContext {
@@ -25,7 +18,6 @@ pub struct BuildContext {
     pub cargo_cfg_target_arch: String,
     pub cargo_cfg_target_env: String,
     pub build_shared_libs: bool,
-    pub profile: String,
     pub opt_level: String,
     pub debug_info: String,
     pub include_debug_messages: bool,
@@ -58,7 +50,6 @@ impl BuildContext {
                 .optional("CARGO_CFG_TARGET_ENV")?
                 .unwrap_or_default(),
             build_shared_libs: environment.has(BuildFeature::DynamicLink),
-            profile: native_profile(&environment.required("PROFILE")?),
             opt_level: environment.required("OPT_LEVEL")?,
             debug_info: environment.required("DEBUG")?,
             include_debug_messages: environment.optional("BUILD_DEBUG")?.is_some(),
@@ -100,7 +91,6 @@ pub mod tests {
     use enumflags2::BitFlags;
 
     use super::BuildContext;
-    use super::native_profile;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
     use crate::build_environment::BuildEnvironment;
     use crate::build_environment::tests::environment_of;
@@ -110,7 +100,7 @@ pub mod tests {
     use crate::host_os::HostOs;
     use crate::target_os::TargetOs;
 
-    const CARGO_VARIABLES: [(&str, &str); 10] = [
+    const CARGO_VARIABLES: [(&str, &str); 9] = [
         ("CARGO_CFG_TARGET_ARCH", "x86_64"),
         ("CARGO_CFG_TARGET_ENV", "gnu"),
         ("CARGO_CFG_TARGET_OS", "linux"),
@@ -119,7 +109,6 @@ pub mod tests {
         ("HOST", "x86_64-unknown-linux-gnu"),
         ("OPT_LEVEL", "3"),
         ("OUT_DIR", "/out"),
-        ("PROFILE", "release"),
         ("TARGET", "x86_64-unknown-linux-gnu"),
     ];
 
@@ -154,17 +143,6 @@ pub mod tests {
     }
 
     #[test]
-    fn cargo_debug_and_release_profiles_both_use_optimized_native_code() {
-        assert_eq!(native_profile("debug"), "Release");
-        assert_eq!(native_profile("release"), "Release");
-    }
-
-    #[test]
-    fn custom_cargo_profile_name_is_preserved_for_cmake() {
-        assert_eq!(native_profile("RelWithDebInfo"), "RelWithDebInfo");
-    }
-
-    #[test]
     fn the_context_is_read_from_the_build_variables_and_the_dynamic_link_feature() {
         assert_eq!(
             context_of(&cargo_environment(
@@ -180,7 +158,6 @@ pub mod tests {
                 cargo_cfg_target_arch: "x86_64".to_owned(),
                 cargo_cfg_target_env: "gnu".to_owned(),
                 build_shared_libs: true,
-                profile: "Release".to_owned(),
                 opt_level: "3".to_owned(),
                 debug_info: "false".to_owned(),
                 include_debug_messages: true,

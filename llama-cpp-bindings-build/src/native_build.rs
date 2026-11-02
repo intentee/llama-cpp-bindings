@@ -39,7 +39,6 @@ impl NativeBuild {
             cmake: CmakeBuild {
                 source_dir: context.llama_src(),
                 out_dir: context.cmake_dir(),
-                profile: context.profile.clone(),
                 target_triple: context.target_triple.clone(),
                 host_triple: context.host_triple.clone(),
                 defines,
@@ -129,7 +128,6 @@ mod tests {
             cmake: CmakeBuild {
                 source_dir: PathBuf::from(FIXTURES).join("cmake_project"),
                 out_dir: root.join("cmake"),
-                profile: "Release".to_owned(),
                 target_triple: HOST_TRIPLE.to_owned(),
                 host_triple: HOST_TRIPLE.to_owned(),
                 defines: vec![CmakeDefine::new("FIXTURE_LIBRARY_NAME", "fixture")],

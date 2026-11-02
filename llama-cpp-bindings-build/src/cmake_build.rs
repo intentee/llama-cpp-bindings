@@ -5,13 +5,13 @@ use cmake::Config;
 
 use crate::build_error::BuildError;
 use crate::cmake_define::CmakeDefine;
+use crate::native_profile::NATIVE_PROFILE;
 
 /// Configures the `CMake` project in `source_dir` and builds and installs it into `out_dir`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CmakeBuild {
     pub source_dir: PathBuf,
     pub out_dir: PathBuf,
-    pub profile: String,
     pub target_triple: String,
     pub host_triple: String,
     pub defines: Vec<CmakeDefine>,
@@ -45,7 +45,7 @@ impl CmakeBuild {
             .target(&self.target_triple)
             .host(&self.host_triple)
             .out_dir(&self.out_dir)
-            .profile(&self.profile)
+            .profile(NATIVE_PROFILE)
             .build();
 
         Ok(())
