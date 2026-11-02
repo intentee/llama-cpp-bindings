@@ -27,6 +27,37 @@ impl CmakeCache {
                 name: name.to_owned(),
             })
     }
+
+    /// The switch `name`, which the project writes into the cache as `ON` or `OFF`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BuildError::CmakeCacheEntryMissing`] when the cache has no entry `name`, or
+    /// [`BuildError::CmakeCacheEntryNotASwitch`] when it holds anything but `ON` or `OFF`.
+    pub fn switch(&self, name: &str) -> Result<bool, BuildError> {
+        match self.value(name)? {
+            "ON" => Ok(true),
+            "OFF" => Ok(false),
+            value => Err(BuildError::CmakeCacheEntryNotASwitch {
+                name: name.to_owned(),
+                value: value.to_owned(),
+            }),
+        }
+    }
+
+    /// The elements of the `CMake` list `name`, which `CMake` separates with semicolons and
+    /// writes as an empty value when the list has none.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BuildError::CmakeCacheEntryMissing`] when the cache has no entry `name`.
+    pub fn list(&self, name: &str) -> Result<Vec<&str>, BuildError> {
+        Ok(self
+            .value(name)?
+            .split(';')
+            .filter(|element| !element.is_empty())
+            .collect())
+    }
 }
 
 #[cfg(test)]
@@ -34,15 +65,37 @@ pub mod tests {
     use super::CmakeCache;
     use crate::cmake_cache_entry::CmakeCacheEntry;
 
-    pub fn cache_of(entries: &[(&str, &str)]) -> CmakeCache {
-        CmakeCache {
-            entries: entries
-                .iter()
-                .map(|(name, value)| CmakeCacheEntry {
-                    name: (*name).to_owned(),
-                    value: (*value).to_owned(),
-                })
-                .collect(),
+    pub fn entry(name: &str, value: &str) -> CmakeCacheEntry {
+        CmakeCacheEntry {
+            name: name.to_owned(),
+            value: value.to_owned(),
         }
+    }
+
+    #[test]
+    fn a_switch_written_as_anything_but_on_or_off_is_refused() {
+        assert_eq!(
+            CmakeCache {
+                entries: vec![entry("GGML_OPENMP_ENABLED", "TRUE")],
+            }
+            .switch("GGML_OPENMP_ENABLED")
+            .err()
+            .map(|error| error.to_string()),
+            Some(
+                "the CMake cache entry GGML_OPENMP_ENABLED is TRUE, neither ON nor OFF".to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn an_empty_list_has_no_elements() {
+        assert_eq!(
+            CmakeCache {
+                entries: vec![entry("OpenMP_C_LIB_NAMES", "")],
+            }
+            .list("OpenMP_C_LIB_NAMES")
+            .unwrap(),
+            Vec::<&str>::new()
+        );
     }
 }

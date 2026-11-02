@@ -96,7 +96,7 @@ pub enum BuildError {
     #[error("the CMake cache has no entry {name}")]
     CmakeCacheEntryMissing { name: String },
     #[error("the CMake cache entry {name} is {value}, neither ON nor OFF")]
-    CmakeCacheEntryNotASwitch { name: &'static str, value: String },
+    CmakeCacheEntryNotASwitch { name: String, value: String },
     #[error(
         "ggml needs the OpenMP runtime {libraries:?}, which Apple's linker cannot link by its \
          exact file name"

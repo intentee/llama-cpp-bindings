@@ -65,28 +65,30 @@ mod tests {
 
     use super::OpenmpLinking;
     use crate::cargo_directive::CargoDirective;
-    use crate::cmake_cache::tests::cache_of;
+    use crate::cmake_cache::CmakeCache;
+    use crate::cmake_cache::tests::entry;
+    use crate::cmake_cache_entry::CmakeCacheEntry;
     use crate::openmp_runtime_source::OpenmpRuntimeSource;
     use crate::target_os::TargetOs;
 
-    fn linux_directives(entries: &[(&str, &str)]) -> Result<Vec<CargoDirective>, String> {
+    fn linux_directives(entries: Vec<CmakeCacheEntry>) -> Result<Vec<CargoDirective>, String> {
         OpenmpLinking {
             source: OpenmpRuntimeSource::BundledGgml,
             target_os: TargetOs::Linux,
         }
-        .directives(&cache_of(entries))
+        .directives(&CmakeCache { entries })
         .map_err(|error| error.to_string())
     }
 
     #[test]
     fn each_runtime_library_is_linked_by_its_exact_file_name_from_its_directory() {
         assert_eq!(
-            linux_directives(&[
-                ("GGML_OPENMP_ENABLED", "ON"),
-                ("OpenMP_C_LIB_NAMES", "gomp;pthread"),
-                ("OpenMP_CXX_LIB_NAMES", "gomp;pthread"),
-                ("OpenMP_gomp_LIBRARY", "/usr/lib/gcc/libgomp.so"),
-                ("OpenMP_pthread_LIBRARY", "/usr/lib/libpthread.a"),
+            linux_directives(vec![
+                entry("GGML_OPENMP_ENABLED", "ON"),
+                entry("OpenMP_C_LIB_NAMES", "gomp;pthread"),
+                entry("OpenMP_CXX_LIB_NAMES", "gomp;pthread"),
+                entry("OpenMP_gomp_LIBRARY", "/usr/lib/gcc/libgomp.so"),
+                entry("OpenMP_pthread_LIBRARY", "/usr/lib/libpthread.a"),
             ]),
             Ok(vec![
                 CargoDirective::LinkSearchNative(PathBuf::from("/usr/lib/gcc")),
@@ -100,7 +102,7 @@ mod tests {
     #[test]
     fn a_cache_without_the_bundled_ggml_openmp_switch_is_refused() {
         assert_eq!(
-            linux_directives(&[]),
+            linux_directives(Vec::new()),
             Err("the CMake cache has no entry GGML_OPENMP_ENABLED".to_owned())
         );
     }
@@ -108,11 +110,11 @@ mod tests {
     #[test]
     fn a_runtime_library_path_without_a_file_name_is_refused() {
         assert_eq!(
-            linux_directives(&[
-                ("GGML_OPENMP_ENABLED", "ON"),
-                ("OpenMP_C_LIB_NAMES", "gomp"),
-                ("OpenMP_CXX_LIB_NAMES", "gomp"),
-                ("OpenMP_gomp_LIBRARY", "/"),
+            linux_directives(vec![
+                entry("GGML_OPENMP_ENABLED", "ON"),
+                entry("OpenMP_C_LIB_NAMES", "gomp"),
+                entry("OpenMP_CXX_LIB_NAMES", "gomp"),
+                entry("OpenMP_gomp_LIBRARY", "/"),
             ]),
             Err("the OpenMP runtime library / names no file".to_owned())
         );
