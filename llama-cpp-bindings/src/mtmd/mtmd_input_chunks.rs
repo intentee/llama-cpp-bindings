@@ -238,6 +238,7 @@ mod tests {
 
 #[cfg(test)]
 mod input_chunks_init_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -253,6 +254,14 @@ mod input_chunks_init_status_to_result_tests {
             operation: OPERATION,
             detail,
         }
+        .into()
+    }
+
+    fn missing_message(detail: &'static str) -> MtmdInputChunksError {
+        CppStringError::Missing(FfiContractError {
+            operation: OPERATION,
+            detail,
+        })
         .into()
     }
 
@@ -276,7 +285,7 @@ mod input_chunks_init_status_to_result_tests {
                 Some(contract_violation("was given a null out_chunks argument")),
                 Some(MtmdInputChunksError::NotEnoughMemory),
                 Some(MtmdInputChunksError::LlamaCppOutOfMemory),
-                Some(contract_violation(
+                Some(missing_message(
                     "reported a thrown C++ exception without an error message"
                 )),
                 Some(MtmdInputChunksError::FfiStatus(FfiStatusError {

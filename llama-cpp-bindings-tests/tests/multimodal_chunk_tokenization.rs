@@ -151,7 +151,7 @@ fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello <__media__>");
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     assert_eq!(first_chunk.chunk_type()?, MtmdInputChunkType::Text);
-    assert!(first_chunk.id().is_none());
+    assert_eq!(first_chunk.id(), Ok(None));
     Ok(())
 }
 
@@ -207,7 +207,7 @@ fn an_image_chunk_carries_the_empty_id_of_a_bitmap_without_one(
 ) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello <__media__>");
 
-    assert_eq!(first_image_chunk(&chunks)?.id(), Some(String::new()));
+    assert_eq!(first_image_chunk(&chunks)?.id(), Ok(Some(String::new())));
 
     Ok(())
 }

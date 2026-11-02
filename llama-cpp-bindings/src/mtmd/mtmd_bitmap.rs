@@ -1,9 +1,10 @@
 use std::ffi::NulError;
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CString, c_char};
 use std::path::PathBuf;
 use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
+use std::str::Utf8Error;
 
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
@@ -11,18 +12,7 @@ use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use super::mtmd_bitmap_error::MtmdBitmapError;
 use super::mtmd_context::MtmdContext;
-
-fn cstr_ptr_to_optional_string(ptr: *const c_char) -> Option<String> {
-    if ptr.is_null() {
-        None
-    } else {
-        let id = unsafe { CStr::from_ptr(ptr) }
-            .to_string_lossy()
-            .into_owned();
-
-        Some(id)
-    }
-}
+use super::optional_mtmd_id::optional_mtmd_id;
 
 /// # Safety
 ///
@@ -387,11 +377,15 @@ impl MtmdBitmap {
         unsafe { llama_cpp_bindings_sys::mtmd_bitmap_is_audio(self.bitmap.as_ptr()) }
     }
 
-    #[must_use]
-    pub fn id(&self) -> Option<String> {
-        let ptr = unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_id(self.bitmap.as_ptr()) };
-
-        cstr_ptr_to_optional_string(ptr)
+    /// # Errors
+    ///
+    /// Returns [`Utf8Error`] when the id is not valid UTF-8.
+    pub fn id(&self) -> Result<Option<String>, Utf8Error> {
+        unsafe {
+            optional_mtmd_id(llama_cpp_bindings_sys::mtmd_bitmap_get_id(
+                self.bitmap.as_ptr(),
+            ))
+        }
     }
 
     /// # Errors
@@ -483,7 +477,7 @@ mod tests {
         let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
         bitmap.set_id("test_image").unwrap();
 
-        assert_eq!(bitmap.id().as_deref(), Some("test_image"));
+        assert_eq!(bitmap.id(), Ok(Some("test_image".to_owned())));
     }
 
     #[test]
@@ -517,7 +511,7 @@ mod tests {
         let image_data = vec![0u8; 12];
         let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
 
-        assert_eq!(bitmap.id(), Some(String::new()));
+        assert_eq!(bitmap.id(), Ok(Some(String::new())));
     }
 
     #[test]
@@ -531,28 +525,8 @@ mod tests {
 }
 
 #[cfg(test)]
-mod cstr_ptr_to_optional_string_tests {
-    use std::ffi::CString;
-    use std::ptr;
-
-    use super::cstr_ptr_to_optional_string;
-
-    #[test]
-    fn cstr_ptr_to_optional_string_returns_none_for_null() {
-        assert_eq!(cstr_ptr_to_optional_string(ptr::null()), None);
-    }
-
-    #[test]
-    fn cstr_ptr_to_optional_string_copies_a_non_null_string() {
-        let cstr = CString::new("hello").unwrap();
-        let result = cstr_ptr_to_optional_string(cstr.as_ptr());
-
-        assert_eq!(result, Some("hello".to_string()));
-    }
-}
-
-#[cfg(test)]
 mod from_file_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::path::PathBuf;
     use std::ptr;
 
@@ -628,10 +602,10 @@ mod from_file_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            FfiContractError {
+            CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_mtmd_bitmap_init_from_file",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into()
         );
     }
@@ -754,6 +728,7 @@ mod from_file_status_to_result_tests {
 
 #[cfg(test)]
 mod from_buf_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -859,10 +834,10 @@ mod from_buf_status_to_result_tests {
         assert_eq!(
             result.err(),
             Some(
-                FfiContractError {
+                CppStringError::Missing(FfiContractError {
                     operation: "llama_rs_mtmd_bitmap_init_from_buf",
                     detail: "reported a thrown C++ exception without an error message",
-                }
+                })
                 .into()
             )
         );
@@ -950,6 +925,7 @@ mod from_buf_status_to_result_tests {
 
 #[cfg(test)]
 mod bitmap_init_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -961,6 +937,14 @@ mod bitmap_init_status_to_result_tests {
 
     fn contract_violation(operation: &'static str, detail: &'static str) -> MtmdBitmapError {
         FfiContractError { operation, detail }.into()
+    }
+
+    fn missing_message(operation: &'static str) -> MtmdBitmapError {
+        CppStringError::Missing(FfiContractError {
+            operation,
+            detail: "reported a thrown C++ exception without an error message",
+        })
+        .into()
     }
 
     #[test]
@@ -995,10 +979,7 @@ mod bitmap_init_status_to_result_tests {
                 )),
                 Some(MtmdBitmapError::NotEnoughMemory),
                 Some(MtmdBitmapError::LlamaCppOutOfMemory),
-                Some(contract_violation(
-                    operation,
-                    "reported a thrown C++ exception without an error message"
-                )),
+                Some(missing_message(operation)),
                 Some(MtmdBitmapError::FfiStatus(FfiStatusError {
                     operation,
                     code: 255,
@@ -1040,10 +1021,7 @@ mod bitmap_init_status_to_result_tests {
                 )),
                 Some(MtmdBitmapError::NotEnoughMemory),
                 Some(MtmdBitmapError::LlamaCppOutOfMemory),
-                Some(contract_violation(
-                    operation,
-                    "reported a thrown C++ exception without an error message"
-                )),
+                Some(missing_message(operation)),
                 Some(MtmdBitmapError::FfiStatus(FfiStatusError {
                     operation,
                     code: 255,

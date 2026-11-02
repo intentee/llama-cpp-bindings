@@ -125,6 +125,7 @@ impl LazyGrammarTriggers {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
@@ -199,7 +200,12 @@ mod tests {
             ],
             [
                 Ok("\\[TOOL\\]".to_owned()),
-                contract("success status contained a null string"),
+                Err(GrammarError::CppString(CppStringError::Missing(
+                    FfiContractError {
+                        operation: "llama_rs_regex_escape",
+                        detail: "success status contained a null string",
+                    }
+                ))),
                 Err(GrammarError::Reported {
                     message: "the escape threw".to_owned()
                 }),
@@ -224,10 +230,12 @@ mod tests {
                 ptr::null_mut(),
                 ptr::null_mut()
             ),
-            Err(GrammarError::FfiContract(FfiContractError {
-                operation: "llama_rs_regex_escape",
-                detail: "reported a thrown C++ exception without an error message"
-            }))
+            Err(GrammarError::CppString(CppStringError::Missing(
+                FfiContractError {
+                    operation: "llama_rs_regex_escape",
+                    detail: "reported a thrown C++ exception without an error message"
+                }
+            )))
         );
     }
 

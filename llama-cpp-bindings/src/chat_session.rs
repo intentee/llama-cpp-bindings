@@ -690,6 +690,7 @@ impl Drop for ChatSession<'_> {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ffi::CStr;
     use std::ffi::CString;
     use std::ptr;
@@ -813,10 +814,12 @@ mod tests {
                 chat_session_create_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
             }),
             refusals.map(|_status| {
-                Some(ChatSessionError::FfiContract(FfiContractError {
-                    operation: "llama_rs_chat_session_create",
-                    detail: "reported a failure without an error message",
-                }))
+                Some(ChatSessionError::CppString(CppStringError::Missing(
+                    FfiContractError {
+                        operation: "llama_rs_chat_session_create",
+                        detail: "reported a failure without an error message",
+                    },
+                )))
             })
         );
     }
@@ -1131,18 +1134,18 @@ mod tests {
                 .err(),
             ],
             [
-                Some(ParseChatMessageError::FfiContract(FfiContractError {
+                Some(ParseChatMessageError::CppString(CppStringError::Missing(FfiContractError {
                     operation: "llama_rs_chat_session_parse",
                     detail: "reported a failure without an error message",
-                })),
-                Some(ParseChatMessageError::FfiContract(FfiContractError {
+                }))),
+                Some(ParseChatMessageError::CppString(CppStringError::Missing(FfiContractError {
                     operation: "llama_rs_chat_session_parse",
                     detail: "reported a failure without an error message",
-                })),
-                Some(ParseChatMessageError::FfiContract(FfiContractError {
+                }))),
+                Some(ParseChatMessageError::CppString(CppStringError::Missing(FfiContractError {
                     operation: "llama_rs_chat_session_classify",
                     detail: "reported a thrown C++ exception without an error message",
-                })),
+                }))),
             ]
         );
     }

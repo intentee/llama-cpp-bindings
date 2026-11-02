@@ -917,6 +917,7 @@ mod tests {
 
 #[cfg(test)]
 mod fit_params_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1022,10 +1023,10 @@ mod fit_params_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_fit_params",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }

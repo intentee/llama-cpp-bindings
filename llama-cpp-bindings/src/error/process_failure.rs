@@ -1,9 +1,12 @@
+use llama_cpp_ffi_status::cpp_string_error::CppStringError;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
 /// How `llama_rs_process` failed before llama.cpp returned a code of its own.
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ProcessFailure {
+    #[error(transparent)]
+    CppString(#[from] CppStringError),
     #[error(transparent)]
     FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]

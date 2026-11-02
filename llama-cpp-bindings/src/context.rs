@@ -754,6 +754,7 @@ mod check_lora_adapters_result_tests {
 
 #[cfg(test)]
 mod new_context_with_model_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -830,10 +831,10 @@ mod new_context_with_model_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_new_context_with_model",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
@@ -926,6 +927,7 @@ mod new_context_with_model_status_to_result_tests {
 
 #[cfg(test)]
 mod batch_ext_init_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1012,10 +1014,12 @@ mod batch_ext_init_status_to_result_tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(LlamaContextLoadError::FfiContract(FfiContractError {
-                operation: "llama_rs_batch_ext_init",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Some(LlamaContextLoadError::CppString(CppStringError::Missing(
+                FfiContractError {
+                    operation: "llama_rs_batch_ext_init",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            )))
         );
     }
 
@@ -1033,6 +1037,7 @@ mod batch_ext_init_status_to_result_tests {
 
 #[cfg(test)]
 mod process_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1050,6 +1055,14 @@ mod process_status_to_result_tests {
             operation: OPERATION,
             detail,
         })
+        .into()
+    }
+
+    fn missing_message(detail: &'static str) -> DecodeError {
+        ProcessFailure::from(CppStringError::Missing(FfiContractError {
+            operation: OPERATION,
+            detail,
+        }))
         .into()
     }
 
@@ -1081,7 +1094,7 @@ mod process_status_to_result_tests {
                 )),
                 Err(ProcessFailure::NotEnoughMemory.into()),
                 Err(ProcessFailure::LlamaCppOutOfMemory.into()),
-                Err(contract_violation(
+                Err(missing_message(
                     "reported a thrown C++ exception without an error message"
                 )),
                 Err(contract_violation("was given a null ctx argument")),

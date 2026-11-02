@@ -1348,6 +1348,7 @@ mod grammar_callback_error_to_accept_result_tests {
 
 #[cfg(test)]
 mod check_sampler_accept_status_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1442,10 +1443,12 @@ mod check_sampler_accept_status_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(SamplerAcceptError::FfiContract(FfiContractError {
-                operation: "llama_rs_sampler_accept",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(SamplerAcceptError::CppString(CppStringError::Missing(
+                FfiContractError {
+                    operation: "llama_rs_sampler_accept",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            )))
         );
     }
 
@@ -1469,6 +1472,7 @@ mod check_sampler_accept_status_tests {
 
 #[cfg(test)]
 mod sampler_sample_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1498,10 +1502,10 @@ mod sampler_sample_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            FfiContractError {
+            CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_sampler_sample",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into()
         );
     }
@@ -1625,6 +1629,7 @@ mod sampler_sample_status_to_result_tests {
 
 #[cfg(test)]
 mod sampler_init_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
@@ -1754,10 +1759,10 @@ mod sampler_init_status_to_result_tests {
             )
             .err(),
             Some(
-                FfiContractError {
+                CppStringError::Missing(FfiContractError {
                     operation: "llama_rs_sampler_init",
                     detail: "reported a thrown C++ exception without an error message",
-                }
+                })
                 .into()
             )
         );
@@ -1821,6 +1826,7 @@ mod sampler_init_status_to_result_tests {
 
 #[cfg(test)]
 mod sampler_chain_add_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1921,10 +1927,10 @@ mod sampler_chain_add_status_to_result_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_sampler_chain_add",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
@@ -1951,6 +1957,7 @@ mod sampler_chain_add_status_to_result_tests {
 
 #[cfg(test)]
 mod sampler_init_grammar_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1991,10 +1998,10 @@ mod sampler_init_grammar_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            FfiContractError {
+            CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_sampler_init_grammar",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into()
         );
     }
@@ -2085,6 +2092,7 @@ mod sampler_init_grammar_status_to_result_tests {
 
 #[cfg(test)]
 mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -2125,10 +2133,10 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            FfiContractError {
+            CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_sampler_init_grammar_lazy_patterns",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into()
         );
     }
@@ -2143,10 +2151,10 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
             )
             .err(),
             Some(
-                FfiContractError {
+                CppStringError::Missing(FfiContractError {
                     operation: "llama_rs_sampler_init_grammar_lazy_patterns",
                     detail: "reported a thrown C++ exception without an error message",
-                }
+                })
                 .into()
             )
         );
@@ -2325,6 +2333,7 @@ mod sampler_application_tests {
 
 #[cfg(test)]
 mod sampler_apply_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -2351,10 +2360,10 @@ mod sampler_apply_status_to_result_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_sampler_apply",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into()),
         );
     }

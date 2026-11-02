@@ -1,11 +1,14 @@
 use std::ffi::NulError;
 use std::path::PathBuf;
 
+use llama_cpp_ffi_status::cpp_string_error::CppStringError;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LlamaModelLoadError {
+    #[error(transparent)]
+    CppString(#[from] CppStringError),
     #[error(transparent)]
     FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]

@@ -476,6 +476,7 @@ impl Drop for MtmdContext {
 
 #[cfg(test)]
 mod map_tokenize_from_parts_status_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -618,10 +619,10 @@ mod map_tokenize_from_parts_status_tests {
             )
             .err(),
             Some(
-                FfiContractError {
+                CppStringError::Missing(FfiContractError {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
                     detail: "reported a thrown C++ exception without an error message",
-                }
+                })
                 .into()
             )
         );
@@ -699,6 +700,7 @@ mod map_tokenize_from_parts_status_tests {
 
 #[cfg(test)]
 mod map_tokenize_status_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -778,10 +780,10 @@ mod map_tokenize_status_tests {
 
         assert_eq!(
             result,
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_mtmd_tokenize",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
@@ -903,6 +905,7 @@ mod map_tokenize_status_tests {
 
 #[cfg(test)]
 mod map_encode_chunk_status_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -954,10 +957,10 @@ mod map_encode_chunk_status_tests {
 
         assert_eq!(
             result,
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_mtmd_encode_chunk",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
@@ -1043,6 +1046,7 @@ mod map_encode_chunk_status_tests {
 
 #[cfg(test)]
 mod map_init_from_file_status_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1092,10 +1096,10 @@ mod map_init_from_file_status_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            FfiContractError {
+            CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_mtmd_init_from_file",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into()
         );
     }

@@ -104,6 +104,7 @@ pub fn validate_gbnf(
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ffi::CString;
     use std::fmt::Write;
     use std::ptr;
@@ -204,10 +205,12 @@ mod tests {
                 "root",
                 ptr::null_mut(),
             ),
-            Err(GbnfValidationError::FfiContract(FfiContractError {
-                operation: "llama_rs_validate_gbnf",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(GbnfValidationError::CppString(CppStringError::Missing(
+                FfiContractError {
+                    operation: "llama_rs_validate_gbnf",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            )))
         );
     }
 

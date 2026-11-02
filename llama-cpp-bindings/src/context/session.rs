@@ -487,6 +487,7 @@ mod process_seq_load_result_tests {
 
 #[cfg(test)]
 mod state_data_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -577,10 +578,12 @@ mod state_data_status_to_result_tests {
                 ptr::null_mut(),
                 "llama_rs_state_get_data",
             ),
-            Err(StateDataError::FfiContract(FfiContractError {
-                operation: "llama_rs_state_get_data",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(StateDataError::CppString(CppStringError::Missing(
+                FfiContractError {
+                    operation: "llama_rs_state_get_data",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            )))
         );
     }
 

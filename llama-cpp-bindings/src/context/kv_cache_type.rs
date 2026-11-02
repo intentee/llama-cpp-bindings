@@ -143,7 +143,8 @@ mod tests {
 
             let upstream_name =
                 unsafe { CStr::from_ptr(llama_cpp_bindings_sys::ggml_type_name(raw)) }
-                    .to_string_lossy();
+                    .to_str()
+                    .expect("ggml type names are ASCII");
 
             assert_ne!(
                 KvCacheType::from(raw),

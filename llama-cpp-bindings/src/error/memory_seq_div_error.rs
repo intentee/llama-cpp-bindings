@@ -1,5 +1,6 @@
 use std::num::TryFromIntError;
 
+use llama_cpp_ffi_status::cpp_string_error::CppStringError;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
@@ -8,6 +9,8 @@ use crate::error::unknown_rope_type::UnknownRopeType;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MemorySeqDivError {
+    #[error(transparent)]
+    CppString(#[from] CppStringError),
     #[error(transparent)]
     FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]

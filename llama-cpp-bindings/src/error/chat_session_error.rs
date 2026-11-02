@@ -1,6 +1,7 @@
 use std::ffi::NulError;
 use std::str::Utf8Error;
 
+use llama_cpp_ffi_status::cpp_string_error::CppStringError;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
@@ -11,6 +12,8 @@ use crate::error::string_to_token_error::StringToTokenError;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ChatSessionError {
+    #[error(transparent)]
+    CppString(#[from] CppStringError),
     #[error(transparent)]
     FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]

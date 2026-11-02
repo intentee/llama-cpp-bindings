@@ -429,6 +429,7 @@ mod tests {
 
 #[cfg(test)]
 mod batch_ext_assign_entries_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -556,12 +557,10 @@ mod batch_ext_assign_entries_status_to_result_tests {
                 0,
                 ptr::null_mut(),
             ),
-            Err(BatchTransferError::FfiContract(
-                FfiContractError {
+            Err(BatchTransferError::CppString(CppStringError::Missing(FfiContractError {
                     operation: "llama_rs_batch_ext_assign_entries",
                     detail: "reported a thrown C++ exception without an error message",
-                }
-            ))
+                })))
         );
     }
 

@@ -178,6 +178,7 @@ impl MtmdMemoryUsage {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::num::NonZeroU32;
     use std::ptr;
 
@@ -226,6 +227,14 @@ mod tests {
             operation: "llama_rs_mtmd_get_memory_usage",
             detail,
         }
+        .into()
+    }
+
+    fn missing_message(detail: &'static str) -> MtmdMemoryUsageError {
+        CppStringError::Missing(FfiContractError {
+            operation: "llama_rs_mtmd_get_memory_usage",
+            detail,
+        })
         .into()
     }
 
@@ -420,7 +429,7 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(contract_violation(
+            Err(missing_message(
                 "reported a thrown C++ exception without an error message"
             ))
         );

@@ -343,6 +343,7 @@ impl LlamaContext<'_> {
 
 #[cfg(test)]
 mod memory_seq_add_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -391,10 +392,10 @@ mod memory_seq_add_status_to_result_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_memory_seq_add",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
@@ -458,6 +459,7 @@ mod memory_seq_add_status_to_result_tests {
 
 #[cfg(test)]
 mod memory_seq_div_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -506,10 +508,10 @@ mod memory_seq_div_status_to_result_tests {
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_memory_seq_div",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
@@ -573,6 +575,7 @@ mod memory_seq_div_status_to_result_tests {
 
 #[cfg(test)]
 mod memory_seq_pos_max_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -670,10 +673,10 @@ mod memory_seq_pos_max_status_to_result_tests {
                 -1,
                 ptr::null_mut(),
             ),
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_memory_seq_pos_max",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }

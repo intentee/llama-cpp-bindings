@@ -1157,6 +1157,7 @@ mod initialize_lora_adapter_tests {
 
 #[cfg(test)]
 mod load_model_from_file_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::path::Path;
     use std::ptr;
 
@@ -1253,10 +1254,10 @@ mod load_model_from_file_status_to_result_tests {
 
         assert_eq!(
             result.unwrap_err(),
-            FfiContractError {
+            CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_load_model_from_file",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into()
         );
     }
@@ -1368,6 +1369,7 @@ mod load_model_from_file_status_to_result_tests {
 
 #[cfg(test)]
 mod tokenize_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -1434,10 +1436,10 @@ mod tokenize_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_tokenize",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }

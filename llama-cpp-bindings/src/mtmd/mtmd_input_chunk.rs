@@ -1,8 +1,8 @@
-use std::ffi::CStr;
 use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
+use std::str::Utf8Error;
 
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
@@ -14,6 +14,7 @@ use super::mtmd_input_chunk_error::MtmdInputChunkError;
 use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 use super::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
+use super::optional_mtmd_id::optional_mtmd_id;
 use crate::token::LlamaToken;
 
 /// # Safety
@@ -154,16 +155,14 @@ impl MtmdInputChunk {
         unsafe { llama_cpp_bindings_sys::mtmd_input_chunk_get_n_pos(self.chunk.as_ptr()) }
     }
 
-    #[must_use]
-    pub fn id(&self) -> Option<String> {
-        let ptr = unsafe { llama_cpp_bindings_sys::mtmd_input_chunk_get_id(self.chunk.as_ptr()) };
-        if ptr.is_null() {
-            None
-        } else {
-            unsafe { CStr::from_ptr(ptr) }
-                .to_string_lossy()
-                .into_owned()
-                .into()
+    /// # Errors
+    ///
+    /// Returns [`Utf8Error`] when the id is not valid UTF-8.
+    pub fn id(&self) -> Result<Option<String>, Utf8Error> {
+        unsafe {
+            optional_mtmd_id(llama_cpp_bindings_sys::mtmd_input_chunk_get_id(
+                self.chunk.as_ptr(),
+            ))
         }
     }
 
@@ -279,6 +278,7 @@ mod non_causal_chunk_micro_batch_error_tests {
 
 #[cfg(test)]
 mod input_chunk_copy_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
@@ -294,6 +294,14 @@ mod input_chunk_copy_status_to_result_tests {
             operation: OPERATION,
             detail,
         }
+        .into()
+    }
+
+    fn missing_message(detail: &'static str) -> MtmdInputChunkError {
+        CppStringError::Missing(FfiContractError {
+            operation: OPERATION,
+            detail,
+        })
         .into()
     }
 
@@ -319,7 +327,7 @@ mod input_chunk_copy_status_to_result_tests {
                 Some(contract_violation("was given a null out_chunk argument")),
                 Some(MtmdInputChunkError::NotEnoughMemory),
                 Some(MtmdInputChunkError::LlamaCppOutOfMemory),
-                Some(contract_violation(
+                Some(missing_message(
                     "reported a thrown C++ exception without an error message"
                 )),
                 Some(MtmdInputChunkError::FfiStatus(FfiStatusError {

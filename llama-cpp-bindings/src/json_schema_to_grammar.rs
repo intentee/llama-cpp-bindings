@@ -184,6 +184,7 @@ mod tests {
 
 #[cfg(test)]
 mod json_schema_to_grammar_status_to_result_tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ffi::c_char;
     use std::ptr;
 
@@ -205,10 +206,10 @@ mod json_schema_to_grammar_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_json_schema_to_grammar",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
@@ -225,10 +226,10 @@ mod json_schema_to_grammar_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_json_schema_to_grammar",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
@@ -245,10 +246,10 @@ mod json_schema_to_grammar_status_to_result_tests {
 
         assert_eq!(
             result,
-            Err(FfiContractError {
+            Err(CppStringError::Missing(FfiContractError {
                 operation: "llama_rs_json_schema_to_grammar",
                 detail: "reported a thrown C++ exception without an error message",
-            }
+            })
             .into())
         );
     }
