@@ -138,13 +138,8 @@ auto chat_input_of(
     return input;
 }
 
-auto session_parser(const common_chat_session & session) -> const common_peg_arena & {
-    static const common_peg_arena content_only =
-        build_chat_peg_parser([](common_chat_peg_builder & builder) -> common_peg_parser {
-            return builder.content(builder.rest()) + builder.end();
-        });
-
-    return session.parser().empty() ? content_only : session.parser();
+auto parse_flags_of(bool is_partial) -> common_peg_parse_flags {
+    return is_partial ? COMMON_PEG_PARSE_FLAG_LENIENT : COMMON_PEG_PARSE_FLAG_COMPLETE;
 }
 }  // namespace
 
@@ -236,7 +231,7 @@ extern "C" auto llama_rs_chat_session_create(
         chat_session->session.apply_sampling(chat_session->sampling);
         chat_session->preserved_tokens.assign(
             chat_session->sampling.preserved_tokens.begin(), chat_session->sampling.preserved_tokens.end());
-        chat_session->trigger_rules = trigger_rules_of(session_parser(chat_session->session));
+        chat_session->trigger_rules = trigger_rules_of(chat_session->session.parser());
 
         *out_session = chat_session.release();
 
@@ -462,14 +457,9 @@ extern "C" auto llama_rs_chat_session_classify(
         common_chat_input parse_input = chat_input_of(session->generation_prompt, text, text_length, byte_tokens);
         const size_t generation_prompt_length = session->generation_prompt.size();
 
-        common_peg_parse_flags flags = COMMON_PEG_PARSE_FLAG_LENIENT;
-        if (!is_partial) {
-            flags |= COMMON_PEG_PARSE_FLAG_COMPLETE;
-        }
-
-        common_peg_parse_context context(std::move(parse_input.text), std::move(parse_input.tokens), flags);
-        const common_peg_arena & parser = session_parser(session->session);
-        const common_peg_parse_result result = parser.parse(context);
+        common_peg_parse_context context(
+            std::move(parse_input.text), std::move(parse_input.tokens), parse_flags_of(is_partial));
+        const common_peg_parse_result result = session->session.parser().parse(context);
 
         if (result.fail() && (!is_partial || result.end == 0)) {
             return LLAMA_RS_CHAT_SESSION_CLASSIFY_OUTPUT_DOES_NOT_MATCH_FORMAT;
