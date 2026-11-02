@@ -20,7 +20,7 @@ pub struct WrapperCompilation {
     pub sources: Vec<PathBuf>,
     pub include_dirs: Vec<PathBuf>,
     pub flags: Vec<String>,
-    pub cpp_standard_flag: String,
+    pub cpp_standard: &'static str,
     pub defines: Vec<&'static str>,
     pub cpp_stdlib_linked_separately: bool,
     pub target_triple: String,
@@ -43,7 +43,7 @@ impl WrapperCompilation {
                 .map(|include_dir| context.sys_dir.join(include_dir))
                 .collect(),
             flags: system_include_flags(&context.sys_dir),
-            cpp_standard_flag: format!("-std={CPP_STANDARD}"),
+            cpp_standard: CPP_STANDARD,
             defines: if environment.has(BuildFeature::FaultInjection) {
                 vec![FAULT_INJECTION_DEFINE]
             } else {
@@ -71,7 +71,7 @@ impl WrapperCompilation {
             build.flag(flag);
         }
 
-        build.flag_if_supported(&self.cpp_standard_flag);
+        build.std(self.cpp_standard);
 
         for define in &self.defines {
             build.define(define, None);
@@ -125,7 +125,7 @@ mod tests {
                 .collect(),
             include_dirs: vec![PathBuf::from("/sys/.")],
             flags: system_include_flags(Path::new("/sys")),
-            cpp_standard_flag: "-std=c++17".to_owned(),
+            cpp_standard: "c++17",
             defines: Vec::new(),
             cpp_stdlib_linked_separately: false,
             target_triple: "x86_64-unknown-linux-gnu".to_owned(),
