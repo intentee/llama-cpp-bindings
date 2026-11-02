@@ -3,6 +3,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod invalid_arguments_json;
 pub mod model_provided_tool_call_id;
 pub mod model_provided_tool_call_id_error;
 pub mod parsed_chat_message;
