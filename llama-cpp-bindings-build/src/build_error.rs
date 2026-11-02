@@ -73,12 +73,6 @@ pub enum BuildError {
     EnvironmentDirectory { name: &'static str, path: PathBuf },
     #[error("cargo directives could not be written: {0}")]
     DirectiveWrite(#[source] io::Error),
-    #[error("the CMake file API query could not be written into {path}: {source}")]
-    CmakeFileApiQueryNotWritten {
-        path: PathBuf,
-        #[source]
-        source: io::Error,
-    },
     #[error("the CMake file API reply directory {path} could not be listed: {source}")]
     CmakeFileApiReplyDirectoryUnreadable {
         path: PathBuf,

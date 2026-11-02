@@ -48,27 +48,12 @@ pub struct CmakeFileApi {
 }
 
 impl CmakeFileApi {
-    fn api_dir(&self) -> PathBuf {
-        self.build_dir.join(".cmake").join("api").join("v1")
-    }
+    /// The initial-cache script that, passed to `CMake` with `-C`, has every configure of the
+    /// build tree query its cache before `CMake` reads the queries.
+    pub const CACHE_QUERY_SCRIPT: &'static str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/cmake/cache_query.cmake");
 
-    /// Asks `CMake` to answer with its cache the next time it configures this build tree.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`BuildError::CmakeFileApiQueryNotWritten`] when the query cannot be written.
-    pub fn request_cache(&self) -> Result<(), BuildError> {
-        let query_dir = self.api_dir().join("query");
-
-        fs::create_dir_all(&query_dir)
-            .and_then(|()| fs::write(query_dir.join("cache-v2"), b""))
-            .map_err(|source| BuildError::CmakeFileApiQueryNotWritten {
-                path: query_dir,
-                source,
-            })
-    }
-
-    /// The cache `CMake` reported in its current reply to [`Self::request_cache`].
+    /// The cache `CMake` reported in its current reply to [`Self::CACHE_QUERY_SCRIPT`].
     ///
     /// # Errors
     ///
@@ -78,7 +63,7 @@ impl CmakeFileApi {
     /// [`BuildError::CmakeFileApiReplyFileInvalid`] when a reply file cannot be read as the
     /// reply this crate queried.
     pub fn cache(&self) -> Result<CmakeCache, BuildError> {
-        let reply_dir = self.api_dir().join("reply");
+        let reply_dir = self.build_dir.join(".cmake/api/v1/reply");
         let CmakeReplyIndex { reply } = read_reply_file(current_reply_index(&reply_dir)?)?;
 
         read_reply_file(reply_dir.join(reply.cache.json_file))

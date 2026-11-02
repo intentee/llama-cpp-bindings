@@ -166,6 +166,20 @@ mod tests {
         }
     }
 
+    fn successful_directives(root: &Path) -> String {
+        format!(
+            "cargo:rustc-link-search=native={root}/cmake/lib\n\
+             cargo:rustc-link-lib=static=fixture\n\
+             cargo:rustc-link-search=native={root}/cmake/lib\n\
+             cargo:rustc-link-lib=dylib:+verbatim=libfixture.a\n\
+             cargo:rerun-if-env-changed=TARGET\n\
+             cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS\n\
+             cargo:rerun-if-changed={FIXTURES}/bindings/wrapper.h\n\
+             cargo:rerun-if-changed={FIXTURES}/bindings/llama_types.h\n",
+            root = root.display()
+        )
+    }
+
     fn build_root(name: &str) -> PathBuf {
         let root =
             env::temp_dir().join(format!("llama-cpp-bindings-build-{name}-{}", process::id()));
@@ -188,17 +202,7 @@ mod tests {
 
             assert_eq!(
                 String::from_utf8(output).unwrap(),
-                format!(
-                    "cargo:rustc-link-search=native={root}/cmake/lib\n\
-                     cargo:rustc-link-lib=static=fixture\n\
-                     cargo:rustc-link-search=native={root}/cmake/lib\n\
-                     cargo:rustc-link-lib=dylib:+verbatim=libfixture.a\n\
-                     cargo:rerun-if-env-changed=TARGET\n\
-                     cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS\n\
-                     cargo:rerun-if-changed={FIXTURES}/bindings/wrapper.h\n\
-                     cargo:rerun-if-changed={FIXTURES}/bindings/llama_types.h\n",
-                    root = root.display()
-                )
+                successful_directives(&root)
             );
             assert_eq!(
                 [
@@ -212,6 +216,34 @@ mod tests {
             );
             fs::remove_dir_all(root).unwrap();
         }
+    }
+
+    #[test]
+    fn a_build_tree_left_by_a_relocated_source_still_reports_the_cmake_cache() {
+        let root = build_root("relocated-source");
+        let relocated_source = root.join("relocated_cmake_project");
+        let mut native_build = fixture_build(&root);
+        let mut output = Vec::new();
+
+        fixture_build(&root).run(&mut Vec::new()).unwrap();
+        fs::create_dir_all(&relocated_source).unwrap();
+        for file_name in ["CMakeLists.txt", "fixture.c"] {
+            fs::copy(
+                PathBuf::from(FIXTURES)
+                    .join("cmake_project")
+                    .join(file_name),
+                relocated_source.join(file_name),
+            )
+            .unwrap();
+        }
+        native_build.cmake.source_dir = relocated_source;
+        native_build.run(&mut output).unwrap();
+
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            successful_directives(&root)
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -257,31 +289,6 @@ mod tests {
             ))
         );
         assert_eq!(output, Vec::<u8>::new());
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn a_build_tree_that_cannot_take_the_cache_query_stops_before_cmake_and_any_directive() {
-        let root = build_root("unqueryable-cmake");
-        let mut native_build = fixture_build(&root);
-        let mut output = Vec::new();
-
-        native_build.cmake.file_api.build_dir = PathBuf::from(MANIFEST);
-
-        assert_eq!(
-            native_build
-                .run(&mut output)
-                .err()
-                .map(|error| error.to_string()),
-            Some(format!(
-                "the CMake file API query could not be written into {MANIFEST}/.cmake/api/v1/\
-                 query: Not a directory (os error 20)"
-            ))
-        );
-        assert_eq!(
-            [output.is_empty(), root.join("cmake/lib").exists()],
-            [true, false]
-        );
         fs::remove_dir_all(root).unwrap();
     }
 

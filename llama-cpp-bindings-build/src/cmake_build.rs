@@ -26,8 +26,7 @@ impl CmakeBuild {
     /// # Errors
     ///
     /// Returns [`BuildError::Filesystem`] when a directory the project installs into cannot be
-    /// created, or the [`BuildError`] of [`CmakeFileApi::request_cache`] or
-    /// [`CmakeFileApi::cache`].
+    /// created, or the [`BuildError`] of [`CmakeFileApi::cache`].
     ///
     /// # Panics
     ///
@@ -39,7 +38,6 @@ impl CmakeBuild {
                 source,
             })
         })?;
-        self.file_api.request_cache()?;
 
         let mut config = Config::new(&self.source_dir);
 
@@ -48,6 +46,8 @@ impl CmakeBuild {
         }
 
         config
+            .configure_arg("-C")
+            .configure_arg(CmakeFileApi::CACHE_QUERY_SCRIPT)
             .target(&self.target_triple)
             .host(&self.host_triple)
             .out_dir(&self.out_dir)
