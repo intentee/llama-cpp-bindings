@@ -53,7 +53,7 @@ auto tool_choice_of(llama_rs_chat_tool_choice tool_choice) -> common_chat_tool_c
             return COMMON_CHAT_TOOL_CHOICE_AUTO;
     }
 
-    return COMMON_CHAT_TOOL_CHOICE_AUTO;
+    throw std::invalid_argument("unrecognized llama_rs_chat_tool_choice value");
 }
 
 auto continuation_of(llama_rs_chat_assistant_turn assistant_turn) -> common_chat_continuation {
@@ -67,7 +67,7 @@ auto continuation_of(llama_rs_chat_assistant_turn assistant_turn) -> common_chat
             return COMMON_CHAT_CONTINUATION_NONE;
     }
 
-    return COMMON_CHAT_CONTINUATION_NONE;
+    throw std::invalid_argument("unrecognized llama_rs_chat_assistant_turn value");
 }
 
 auto span_kind_of_tag(const std::string & tag) -> std::optional<llama_rs_chat_span_kind> {
@@ -179,17 +179,7 @@ extern "C" auto llama_rs_chat_session_create(
     try {
         common_chat_templates_inputs inputs;
 
-        try {
-            inputs.messages = common_chat_msgs_parse_oaicompat(common_json::parse(messages_json));
-        } catch (const common_json_error & err) {
-            return llama_rs_report_exception_message(
-                out_error, err.what(), LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_NOT_JSON,
-                LLAMA_RS_CHAT_SESSION_CREATE_ERROR_STRING_ALLOCATION_FAILED);
-        } catch (const std::invalid_argument & err) {
-            return llama_rs_report_exception_message(
-                out_error, err.what(), LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_INVALID,
-                LLAMA_RS_CHAT_SESSION_CREATE_ERROR_STRING_ALLOCATION_FAILED);
-        }
+        inputs.messages = common_chat_msgs_parse_oaicompat(common_json::parse(messages_json));
 
         try {
             inputs.tools = common_chat_tools_parse_oaicompat(common_json::parse(tools_json));

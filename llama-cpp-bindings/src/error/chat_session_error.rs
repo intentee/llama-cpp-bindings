@@ -21,10 +21,6 @@ pub enum ChatSessionError {
     MessageNotUtf8(#[source] Utf8Error),
     #[error("the chat request contains an interior NUL byte")]
     RequestContainsNul(#[source] NulError),
-    #[error("the messages are not valid JSON: {message}")]
-    MessagesNotJson { message: String },
-    #[error("the messages are not valid chat messages: {message}")]
-    MessagesInvalid { message: String },
     #[error("the tools are not valid JSON: {message}")]
     ToolsNotJson { message: String },
     #[error("the tools are not valid tool definitions: {message}")]

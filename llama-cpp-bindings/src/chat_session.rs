@@ -111,16 +111,6 @@ fn chat_session_create_status_to_result(
             .ok_or_else(|| {
                 contract_violation(OPERATION, "success status contained a null session").into()
             }),
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_NOT_JSON => {
-            Err(ChatSessionError::MessagesNotJson {
-                message: reported_message()?,
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_INVALID => {
-            Err(ChatSessionError::MessagesInvalid {
-                message: reported_message()?,
-            })
-        }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_NOT_JSON => {
             Err(ChatSessionError::ToolsNotJson {
                 message: reported_message()?,
@@ -779,15 +769,7 @@ mod tests {
 
     #[test]
     fn creating_a_session_reports_why_llama_cpp_refused_the_request() {
-        let refusals: [CreateRefusal; 6] = [
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_NOT_JSON,
-                |message| ChatSessionError::MessagesNotJson { message },
-            ),
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_INVALID,
-                |message| ChatSessionError::MessagesInvalid { message },
-            ),
+        let refusals: [CreateRefusal; 4] = [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_NOT_JSON,
                 |message| ChatSessionError::ToolsNotJson { message },
@@ -820,8 +802,6 @@ mod tests {
     #[test]
     fn creating_a_session_reports_a_refusal_without_a_message_as_a_contract_violation() {
         let refusals = [
-            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_NOT_JSON,
-            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_MESSAGES_INVALID,
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_NOT_JSON,
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_INVALID,
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TEMPLATE_CANNOT_SERVE_REQUEST,

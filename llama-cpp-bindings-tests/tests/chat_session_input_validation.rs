@@ -166,3 +166,46 @@ fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
 
     Ok(())
 }
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/gemma-3-4b-it-GGUF", "gemma-3-4b-it-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn a_conversation_the_template_raises_on_is_refused_with_the_template_message(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let result = ChatSession::new(
+        fixture.model,
+        fixture.model.chat_templates()?,
+        &[
+            LlamaChatMessage::new("user".to_owned(), "hello".to_owned())?,
+            LlamaChatMessage::new("user".to_owned(), "are you there?".to_owned())?,
+        ],
+        "[]",
+        &ChatSessionOptions {
+            assistant_turn: ChatAssistantTurn::New,
+            enable_thinking: false,
+            parallel_tool_calls: false,
+            tool_choice: ChatToolChoice::Auto,
+        },
+    );
+
+    assert_eq!(
+        result.err(),
+        Some(ChatSessionError::TemplateCannotServeRequest {
+            message: "Unable to generate parser for this template. Automatic parser generation \
+                      failed: \n------------\nWhile executing CallExpression at line 19, column \
+                      27 in source:\n...% 2 == 0) -%}↵        {{ raise_exception(\"Conversation \
+                      roles must alternate user...\n                                           \
+                      ^\nError: Jinja Exception: Conversation roles must alternate \
+                      user/assistant/user/assistant/..."
+                .to_owned()
+        })
+    );
+
+    Ok(())
+}
