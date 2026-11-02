@@ -492,14 +492,6 @@ impl<'model> LlamaContext<'model> {
         }
     }
 
-    pub fn synchronize(&self) {
-        unsafe { llama_cpp_bindings_sys::llama_synchronize(self.context.as_ptr()) }
-    }
-
-    pub fn detach_threadpool(&self) {
-        unsafe { llama_cpp_bindings_sys::llama_detach_threadpool(self.context.as_ptr()) }
-    }
-
     /// Records the rows a llama.cpp helper wrote when it decoded on this context without one of
     /// this context's batches, such as the mtmd helper decoding media chunks.
     pub fn record_helper_decode(&mut self, logits_last: bool) {
