@@ -16,7 +16,7 @@ use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,
@@ -41,7 +41,7 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
 
 #[llama_test(
     model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,

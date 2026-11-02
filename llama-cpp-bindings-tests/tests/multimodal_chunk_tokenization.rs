@@ -26,7 +26,7 @@ fn first_image_chunk(chunks: &MtmdInputChunks) -> Result<MtmdInputChunk> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -35,7 +35,7 @@ fn first_image_chunk(chunks: &MtmdInputChunks) -> Result<MtmdInputChunk> {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -51,7 +51,7 @@ fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -60,7 +60,7 @@ fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -81,7 +81,7 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -90,7 +90,7 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -106,7 +106,7 @@ fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -115,7 +115,7 @@ fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -131,7 +131,7 @@ fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -140,7 +140,7 @@ fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -157,7 +157,7 @@ fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -166,7 +166,7 @@ fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -186,7 +186,7 @@ fn an_image_chunk_has_no_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -195,7 +195,7 @@ fn an_image_chunk_has_no_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -214,7 +214,7 @@ fn an_image_chunk_carries_the_empty_id_of_a_bitmap_without_one(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -223,7 +223,7 @@ fn an_image_chunk_carries_the_empty_id_of_a_bitmap_without_one(
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -250,7 +250,7 @@ fn tokenizing_text_with_an_image_produces_chunks(fixture: &LlamaFixture<'_>) -> 
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -259,7 +259,7 @@ fn tokenizing_text_with_an_image_produces_chunks(fixture: &LlamaFixture<'_>) -> 
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -289,7 +289,7 @@ fn tokenizing_more_bitmaps_than_media_markers_reports_a_tokenization_failure(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -298,7 +298,7 @@ fn tokenizing_more_bitmaps_than_media_markers_reports_a_tokenization_failure(
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -325,7 +325,7 @@ fn tokenize_refuses_text_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,

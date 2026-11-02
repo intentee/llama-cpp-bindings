@@ -36,7 +36,7 @@ fn generated_tool_call_answer(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,
@@ -52,7 +52,7 @@ fn a_chat_session_without_tools_needs_no_grammar_sampler(fixture: &LlamaFixture<
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,
@@ -68,7 +68,7 @@ fn a_tool_choice_of_none_needs_no_grammar_sampler(fixture: &LlamaFixture<'_>) ->
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,
@@ -91,7 +91,7 @@ fn qwen36_required_tool_call_grammar_constrains_the_answer_to_a_tool_call(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,

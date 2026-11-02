@@ -6,7 +6,7 @@ use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,
@@ -24,7 +24,7 @@ fn sequence_embeddings_need_a_pooling_context(fixture: &LlamaFixture<'_>) {
 
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,
@@ -44,7 +44,7 @@ fn token_embeddings_need_a_context_without_pooling(fixture: &LlamaFixture<'_>) {
 
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,

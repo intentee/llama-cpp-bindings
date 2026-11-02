@@ -66,7 +66,7 @@ fn token_count(model: &LlamaModel, text: &str) -> Result<u64> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 1024,
     n_batch = 128,
@@ -97,7 +97,7 @@ fn deepseek_r1_served_with_the_llama_cpp_template_parses_its_tool_call(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 1024,
     n_batch = 128,
@@ -135,7 +135,7 @@ fn deepseek_r1_served_with_the_llama_cpp_template_streams_its_tool_call_tokens_a
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 1024,
     n_batch = 128,

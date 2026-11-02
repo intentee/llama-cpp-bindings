@@ -22,7 +22,7 @@ use llama_cpp_test_harness_macros::llama_test;
         "Qwen/Qwen2.5-7B-Instruct-GGUF",
         "qwen2.5-7b-instruct-q2_k.gguf"
     ),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
@@ -53,7 +53,7 @@ fn set_lora_adapters_applies_a_real_adapter(fixture: &LlamaFixture<'_>) -> Resul
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
@@ -75,7 +75,7 @@ fn set_lora_adapters_accepts_an_empty_adapter_set(fixture: &LlamaFixture<'_>) ->
         "Qwen/Qwen2.5-7B-Instruct-GGUF",
         "qwen2.5-7b-instruct-q2_k.gguf"
     ),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,
@@ -106,7 +106,7 @@ fn setting_lora_adapters_reports_a_status_llama_cpp_returns(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -124,7 +124,7 @@ fn lora_adapter_init_with_a_missing_file_reports_it_not_found(fixture: &LlamaFix
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -145,7 +145,7 @@ fn lora_adapter_init_with_an_invalid_gguf_reports_it_unloadable(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -163,7 +163,7 @@ fn lora_adapter_init_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>)
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,

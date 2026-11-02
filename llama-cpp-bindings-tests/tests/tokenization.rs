@@ -9,7 +9,7 @@ use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -17,7 +17,7 @@ use llama_cpp_test_harness_macros::llama_test;
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -25,7 +25,7 @@ use llama_cpp_test_harness_macros::llama_test;
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -33,7 +33,7 @@ use llama_cpp_test_harness_macros::llama_test;
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -56,7 +56,7 @@ fn the_first_token_of_tokenized_text_decodes_to_its_first_word(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -83,7 +83,7 @@ fn str_to_token_prepends_bos_for_a_model_that_adds_it(fixture: &LlamaFixture<'_>
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -105,7 +105,7 @@ fn str_to_token_adds_nothing_for_a_model_that_adds_no_bos(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -113,7 +113,7 @@ fn str_to_token_adds_nothing_for_a_model_that_adds_no_bos(
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -121,7 +121,7 @@ fn str_to_token_adds_nothing_for_a_model_that_adds_no_bos(
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -129,7 +129,7 @@ fn str_to_token_adds_nothing_for_a_model_that_adds_no_bos(
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -155,7 +155,7 @@ fn str_to_token_regrows_its_buffer_for_more_tokens_than_it_estimated(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 512,

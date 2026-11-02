@@ -30,7 +30,7 @@ fn raw_text_where(outcomes: &[IngestOutcome], belongs: impl Fn(&SampledToken) ->
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 2048,
     n_batch = 512,

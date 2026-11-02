@@ -21,7 +21,7 @@ fn visible_text(outcomes: &[IngestOutcome]) -> String {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 256,
     n_batch = 128,
@@ -57,7 +57,7 @@ fn visible_text_in(outcomes: &[IngestOutcome], section: SampledTokenSection) -> 
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 256,
     n_batch = 128,
@@ -102,7 +102,7 @@ fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_co
 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-3-4b-it-GGUF", "gemma-3-4b-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 256,
     n_batch = 128,

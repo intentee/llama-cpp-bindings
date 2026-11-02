@@ -19,7 +19,7 @@ const MAX_REASONING_ANSWER_TOKENS: i32 = 512;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -44,7 +44,7 @@ fn deepseek_r1_8b_answers_without_reasoning_after_its_reasoning_is_closed(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -69,7 +69,7 @@ fn deepseek_r1_8b_reasoning_streams_match_the_parsed_answer_when_thinking_is_ena
 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -94,7 +94,7 @@ fn gemma4_answers_without_reasoning_when_thinking_is_disabled(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -135,7 +135,7 @@ fn gemma4_reasoning_streams_match_the_parsed_answer_when_reasoning_is_prefilled(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -160,7 +160,7 @@ fn glm47_answers_without_reasoning_when_thinking_is_disabled(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -185,7 +185,7 @@ fn glm47_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -210,7 +210,7 @@ fn mistral3_answers_without_reasoning_after_its_reasoning_is_closed(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -235,7 +235,7 @@ fn mistral3_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -260,7 +260,7 @@ fn qwen35_answers_without_reasoning_when_thinking_is_disabled(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -285,7 +285,7 @@ fn qwen35_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,
@@ -310,7 +310,7 @@ fn qwen36_answers_without_reasoning_when_thinking_is_disabled(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 2048,

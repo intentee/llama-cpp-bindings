@@ -23,7 +23,7 @@ fn cosine_similarity(left_embedding: &[f32], right_embedding: &[f32]) -> f32 {
 
 #[llama_test(
     model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 2048,

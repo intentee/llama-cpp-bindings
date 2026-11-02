@@ -81,21 +81,25 @@ fn require_i32_lit(literal: &Lit, field: &str) -> syn::Result<i32> {
 }
 
 fn require_negated_i32_lit(literal: &Lit, field: &str) -> syn::Result<i32> {
-    if let Lit::Int(int_literal) = literal {
-        format!("-{}", int_literal.base10_digits())
-            .parse::<i32>()
-            .map_err(|parse_error| {
-                syn::Error::new_spanned(
-                    literal,
-                    format!("field `{field}` expects an integer that fits in i32: {parse_error}"),
-                )
-            })
-    } else {
-        Err(syn::Error::new_spanned(
+    let Lit::Int(int_literal) = literal else {
+        return Err(syn::Error::new_spanned(
             literal,
             format!("field `{field}` expects an integer literal"),
-        ))
-    }
+        ));
+    };
+    let magnitude = int_literal.base10_parse::<u32>().map_err(|parse_error| {
+        syn::Error::new_spanned(
+            literal,
+            format!("field `{field}` expects an integer that fits in i32: {parse_error}"),
+        )
+    })?;
+
+    0_i32.checked_sub_unsigned(magnitude).ok_or_else(|| {
+        syn::Error::new_spanned(
+            literal,
+            format!("field `{field}` expects an integer that fits in i32: -{magnitude} is below its minimum"),
+        )
+    })
 }
 
 fn require_i32_value(expression: &Expr, field: &str) -> syn::Result<i32> {
@@ -494,7 +498,25 @@ mod tests {
             parse(source)
                 .expect_err("an i32 below i32::MIN must fail")
                 .to_string(),
-            "field `n_gpu_layers` expects an integer that fits in i32: number too small to fit in target type"
+            "field `n_gpu_layers` expects an integer that fits in i32: -2147483649 is below its minimum"
+        );
+    }
+
+    #[test]
+    fn a_negative_i32_field_whose_magnitude_exceeds_u32_is_rejected() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -4294967296, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1";
+
+        assert_eq!(
+            parse(source)
+                .expect_err("a magnitude beyond u32 must fail")
+                .to_string(),
+            "field `n_gpu_layers` expects an integer that fits in i32: number too large to fit in target type"
         );
     }
 

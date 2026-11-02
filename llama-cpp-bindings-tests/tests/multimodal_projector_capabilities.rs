@@ -13,7 +13,7 @@ const AUDIO_SAMPLE_RATE_HZ: u32 = 16_000;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -22,7 +22,7 @@ const AUDIO_SAMPLE_RATE_HZ: u32 = 16_000;
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -56,7 +56,7 @@ fn qwen_image_chunks_decode_causally(fixture: &LlamaFixture<'_>) -> Result<()> {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -65,7 +65,7 @@ fn qwen_image_chunks_decode_causally(fixture: &LlamaFixture<'_>) -> Result<()> {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -85,7 +85,7 @@ fn qwen_mmproj_reports_vision_only_chat_capabilities(fixture: &LlamaFixture<'_>)
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -94,7 +94,7 @@ fn qwen_mmproj_reports_vision_only_chat_capabilities(fixture: &LlamaFixture<'_>)
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -113,7 +113,7 @@ fn decode_use_mrope_is_true_for_qwen_vision(fixture: &LlamaFixture<'_>) {
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -122,7 +122,7 @@ fn decode_use_mrope_is_true_for_qwen_vision(fixture: &LlamaFixture<'_>) {
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
@@ -144,7 +144,7 @@ fn get_audio_sample_rate_is_none_for_vision_only_mmproj(fixture: &LlamaFixture<'
         "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
         "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
     ),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -156,7 +156,7 @@ fn get_audio_sample_rate_is_none_for_vision_only_mmproj(fixture: &LlamaFixture<'
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -179,7 +179,7 @@ fn audio_mmproj_reports_audio_support_at_sixteen_kilohertz(fixture: &LlamaFixtur
 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,

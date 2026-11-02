@@ -25,7 +25,7 @@ use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 512,
@@ -116,7 +116,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -226,7 +226,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -235,7 +235,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -244,7 +244,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 8192,
     n_batch = 512,

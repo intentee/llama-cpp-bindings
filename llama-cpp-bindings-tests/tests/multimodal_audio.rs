@@ -151,7 +151,7 @@ fn assert_audio_transcription(
         "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
         "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
     ),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -176,7 +176,7 @@ fn ultravox_transcribes_the_spoken_sentence_after_a_preamble(
 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -193,7 +193,7 @@ fn gemma4_transcribes_the_quick_brown_fox_sentence(fixture: &LlamaFixture<'_>) -
 
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -213,7 +213,7 @@ fn gemma4_transcribes_the_orange_cat_sentence(fixture: &LlamaFixture<'_>) -> Res
         "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
         "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
     ),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
@@ -225,7 +225,7 @@ fn gemma4_transcribes_the_orange_cat_sentence(fixture: &LlamaFixture<'_>) -> Res
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
+    n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 4096,
     n_batch = 512,
