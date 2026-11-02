@@ -2,8 +2,8 @@
 pub enum EmbeddingsError {
     #[error("Embeddings weren't enabled in the context options")]
     NotEnabled,
-    #[error("Logits were not enabled for the given token")]
-    LogitsNotEnabled,
+    #[error("token {token_index} names no output row of the last decode")]
+    TokenNotAnOutput { token_index: i32 },
     #[error(
         "Sequence embeddings need a pooling context, but this context uses LLAMA_POOLING_TYPE_NONE"
     )]

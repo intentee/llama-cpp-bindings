@@ -102,7 +102,7 @@ fn sequence_embedding_of_a_sequence_missing_from_the_decoded_batch_is_unavailabl
     n_ubatch = 512,
     embeddings = true,
 )]
-fn token_embedding_of_an_index_without_a_decoded_output_reports_logits_not_enabled(
+fn token_embedding_of_an_index_without_a_decoded_output_names_no_output_row(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let context = LlamaContext::from_model(
@@ -115,7 +115,7 @@ fn token_embedding_of_an_index_without_a_decoded_output_reports_logits_not_enabl
 
     assert_eq!(
         context.embeddings_ith(999),
-        Err(EmbeddingsError::LogitsNotEnabled)
+        Err(EmbeddingsError::TokenNotAnOutput { token_index: 999 })
     );
 
     Ok(())
