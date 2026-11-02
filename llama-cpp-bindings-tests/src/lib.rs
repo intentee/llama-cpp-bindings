@@ -14,7 +14,6 @@ pub mod logits_left_by;
 pub mod media_question_chat_session;
 pub mod normalize;
 pub mod paris_weather_tool_call;
-pub mod penalized_nucleus_sampler;
 pub mod prime_memory;
 pub mod prime_memory_with;
 pub mod prompt_question;
