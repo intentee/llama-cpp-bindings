@@ -43,7 +43,7 @@ mod tests {
         };
         let message = "unknown field `totally_wrong`; expected one of: model_source, \
                        n_gpu_layers, load_mode, n_ctx, n_batch, n_ubatch, mmproj_source, \
-                       embeddings, n_seq_max, n_threads_batch, void_logs";
+                       embeddings, n_seq_max, n_threads_batch";
 
         assert_eq!(
             dispatch(attribute, item).to_string(),

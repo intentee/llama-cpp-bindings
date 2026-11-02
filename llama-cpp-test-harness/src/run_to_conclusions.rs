@@ -4,8 +4,6 @@ use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
 
 use llama_cpp_bindings::llama_backend::LlamaBackend;
-use llama_cpp_bindings::log_options::LogOptions;
-use llama_cpp_bindings::send_logs_to_log::send_logs_to_log;
 
 use crate::execution_plan::ExecutionPlan;
 use crate::harness_run_error::HarnessRunError;
@@ -20,9 +18,6 @@ pub fn run_to_conclusions(arguments: Arguments) -> Result<Vec<Conclusion>, Harne
     let arguments = parse_harness_arguments(arguments)?;
     let backend = Arc::new(LlamaBackend::init()?);
     let plan = ExecutionPlan::from_inventory();
-    if plan.requests_void_logs() {
-        send_logs_to_log(LogOptions::default().with_logs_enabled(false));
-    }
 
     Ok(plan.run(&backend, &arguments))
 }

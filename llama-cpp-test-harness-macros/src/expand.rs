@@ -127,7 +127,6 @@ fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
     let physical_batch = args.context_params.n_ubatch;
     let embeddings_flag = args.context_params.embeddings;
     let sequence_max = args.context_params.n_seq_max;
-    let void_logs_flag = args.void_logs;
     let test_fn = build_test_fn_literal(signature);
     let threads_batch = args.context_params.n_threads_batch.map_or_else(
         || quote! { ::core::option::Option::None },
@@ -154,7 +153,6 @@ fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
                     n_threads_batch: #threads_batch,
                     embeddings: #embeddings_flag,
                 },
-                void_logs: #void_logs_flag,
                 func: #test_fn,
             }
         }
@@ -248,7 +246,6 @@ mod tests {
                         n_threads_batch: ::core::option::Option::None,
                         embeddings: false,
                     },
-                    void_logs: false,
                     func: ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Fallible(my_test),
                 }
             }
@@ -324,8 +321,7 @@ mod tests {
         assert_eq!(
             expansion_error(quote! { totally_wrong = "x" }, well_formed_function()),
             "unknown field `totally_wrong`; expected one of: model_source, n_gpu_layers, load_mode, \
-             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch, \
-             void_logs"
+             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch"
         );
     }
 

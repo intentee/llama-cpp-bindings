@@ -30,7 +30,7 @@ use crate::log_record::LogRecord;
 struct LogSource {
     decoder: Mutex<LogDecoder>,
     target: &'static str,
-    options: LogOptions,
+    options: Mutex<LogOptions>,
 }
 
 impl LogSource {
@@ -38,8 +38,19 @@ impl LogSource {
         Self {
             decoder: Mutex::new(LogDecoder::new()),
             target,
-            options,
+            options: Mutex::new(options),
         }
+    }
+
+    fn options(&self) -> LogOptions {
+        self.options
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    fn replace_options(&self, options: LogOptions) {
+        *self.options.lock().unwrap_or_else(PoisonError::into_inner) = options;
     }
 }
 
@@ -91,7 +102,7 @@ fn resolve_record(line: LogLine, demote_info_to_debug: bool) -> LogRecord {
 }
 
 fn dispatch_line(source: &LogSource, line: LogLine) {
-    let LogRecord { level, text } = resolve_record(line, source.options.demote_info_to_debug);
+    let LogRecord { level, text } = resolve_record(line, source.options().demote_info_to_debug);
     log!(target: source.target, level, "{text}");
 }
 
@@ -120,7 +131,7 @@ unsafe extern "C" fn logs_to_log(
 ) {
     let source: &LogSource = unsafe { &*data_ptr.cast::<LogSource>() };
 
-    if source.options.disabled {
+    if source.options().disabled {
         return;
     }
 
@@ -153,9 +164,15 @@ unsafe extern "C" fn logs_to_log(
 }
 
 pub fn send_logs_to_log(options: LogOptions) {
-    let llama_source: *const LogSource =
-        LLAMA_SOURCE.get_or_init(|| LogSource::new("llama.cpp", options.clone()));
-    let ggml_source: *const LogSource = GGML_SOURCE.get_or_init(|| LogSource::new("ggml", options));
+    let llama_source =
+        LLAMA_SOURCE.get_or_init(|| LogSource::new("llama.cpp", LogOptions::default()));
+    let ggml_source = GGML_SOURCE.get_or_init(|| LogSource::new("ggml", LogOptions::default()));
+
+    llama_source.replace_options(options.clone());
+    ggml_source.replace_options(options);
+
+    let llama_source: *const LogSource = llama_source;
+    let ggml_source: *const LogSource = ggml_source;
 
     unsafe {
         llama_cpp_bindings_sys::llama_log_set(
@@ -483,6 +500,32 @@ mod tests {
                     text: "current-line".to_owned(),
                 },
             ]
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn sending_logs_again_applies_the_new_options() {
+        ensure_test_logger_installed();
+        send_logs_to_log(LogOptions::default());
+        send_logs_to_log(LogOptions::default().with_logs_enabled(false));
+
+        let mut ggml_callback: llama_cpp_bindings_sys::ggml_log_callback = None;
+        let mut ggml_user_data: *mut c_void = ptr::null_mut();
+
+        unsafe {
+            llama_cpp_bindings_sys::ggml_log_get(&raw mut ggml_callback, &raw mut ggml_user_data);
+            ggml_callback.unwrap()(
+                llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN,
+                c"silenced by the second call\n".as_ptr(),
+                ggml_user_data,
+            );
+        }
+        send_logs_to_log(LogOptions::default());
+
+        assert_eq!(
+            records_with_text("ggml", "silenced by the second call"),
+            Vec::<LogRecord>::new()
         );
     }
 

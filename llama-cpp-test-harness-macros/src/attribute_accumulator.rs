@@ -13,5 +13,4 @@ pub struct AttributeAccumulator {
     pub embeddings: Option<bool>,
     pub n_seq_max: Option<u32>,
     pub n_threads_batch: Option<i32>,
-    pub void_logs: Option<bool>,
 }

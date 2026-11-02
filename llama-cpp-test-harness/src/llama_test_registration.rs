@@ -8,7 +8,6 @@ pub struct LlamaTestRegistration {
     pub name: &'static str,
     pub key: LoadKey,
     pub context_params: ContextParams,
-    pub void_logs: bool,
     pub func: LlamaTestFn,
 }
 

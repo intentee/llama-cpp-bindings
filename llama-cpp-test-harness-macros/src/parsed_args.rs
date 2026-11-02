@@ -33,7 +33,6 @@ const OPTIONAL_FIELDS: &[&str] = &[
     "embeddings",
     "n_seq_max",
     "n_threads_batch",
-    "void_logs",
 ];
 
 fn literal_from_expression(expression: &Expr) -> syn::Result<&Lit> {
@@ -186,12 +185,6 @@ fn dispatch_field(
         "n_threads_batch" => {
             accumulator.n_threads_batch = Some(require_i32_value(value, "n_threads_batch")?);
         }
-        "void_logs" => {
-            accumulator.void_logs = Some(require_bool_lit(
-                literal_from_expression(value)?,
-                "void_logs",
-            )?);
-        }
         "repo" | "file" | "mmproj_file" => {
             return Err(syn::Error::new_spanned(
                 identifier,
@@ -220,7 +213,6 @@ pub struct ParsedArgs {
     pub mmproj_source: Option<ParsedSource>,
     pub model_load_params: ParsedModelLoadParams,
     pub context_params: ParsedContextParams,
-    pub void_logs: bool,
 }
 
 impl Parse for ParsedArgs {
@@ -266,7 +258,6 @@ impl Parse for ParsedArgs {
                 n_threads_batch: accumulator.n_threads_batch,
                 embeddings: accumulator.embeddings.unwrap_or(false),
             },
-            void_logs: accumulator.void_logs.unwrap_or(false),
         })
     }
 }
@@ -413,8 +404,7 @@ mod tests {
         assert_eq!(
             message,
             "unknown field `surprise`; expected one of: model_source, n_gpu_layers, load_mode, \
-             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch, \
-             void_logs"
+             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch"
         );
     }
 
@@ -759,21 +749,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn optional_void_logs_defaults_to_false_when_absent() {
-        let parsed = parse(ALL_REQUIRED).expect("required-only must parse");
-
-        assert!(!parsed.void_logs);
-    }
-
-    #[test]
-    fn optional_void_logs_true_is_parsed() {
-        let source = format!("{ALL_REQUIRED}, void_logs = true");
-        let parsed = parse(&source).expect("void_logs = true must parse");
-
-        assert!(parsed.void_logs);
-    }
-
     fn override_field(field: &str, replacement: &str) -> String {
         let parts: [(&str, &str); 6] = [
             ("model_source", "HuggingFace(\"foo\", \"bar.gguf\")"),
@@ -861,29 +836,6 @@ mod tests {
             .to_string();
 
         assert_eq!(message, "expected a literal (string, integer, or bool)");
-    }
-
-    #[test]
-    fn optional_void_logs_rejects_non_literal_value() {
-        let source = append_field("void_logs", "some_const");
-        let message = parse(&source)
-            .expect_err("void_logs non-literal must fail")
-            .to_string();
-
-        assert_eq!(message, "expected a literal (string, integer, or bool)");
-    }
-
-    #[test]
-    fn optional_void_logs_rejects_wrong_literal_kind() {
-        let source = append_field("void_logs", "1");
-        let message = parse(&source)
-            .expect_err("void_logs wrong-kind must fail")
-            .to_string();
-
-        assert_eq!(
-            message,
-            "field `void_logs` expects a bool literal (`true` or `false`)"
-        );
     }
 
     #[test]

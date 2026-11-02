@@ -45,13 +45,6 @@ impl ExecutionPlan {
     }
 
     #[must_use]
-    pub fn requests_void_logs(&self) -> bool {
-        self.phases
-            .iter()
-            .any(|phase| phase.registrations.iter().any(|reg| reg.void_logs))
-    }
-
-    #[must_use]
     pub fn run(&self, backend: &Arc<LlamaBackend>, arguments: &Arguments) -> Vec<Conclusion> {
         let total = self.phases.len();
         let scheduled_phases: Vec<ScheduledPhase<'_>> = self
@@ -117,7 +110,6 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        void_logs: false,
         func: LlamaTestFn::Infallible(no_op),
     };
     static REG_BETA_B: LlamaTestRegistration = LlamaTestRegistration {
@@ -134,7 +126,6 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        void_logs: false,
         func: LlamaTestFn::Infallible(no_op),
     };
     static REG_ALPHA_Z: LlamaTestRegistration = LlamaTestRegistration {
@@ -151,7 +142,6 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        void_logs: false,
         func: LlamaTestFn::Infallible(no_op),
     };
     static REG_BETA_DIFFERENT_CONTEXT: LlamaTestRegistration = LlamaTestRegistration {
@@ -168,25 +158,6 @@ mod tests {
             },
         },
         context_params: ALTERNATE_CONTEXT_PARAMS,
-        void_logs: false,
-        func: LlamaTestFn::Infallible(no_op),
-    };
-
-    static REG_VOID_LOGS: LlamaTestRegistration = LlamaTestRegistration {
-        name: "void-logs-trial",
-        key: LoadKey {
-            model_source: GgufSource::HuggingFace {
-                repo: "beta",
-                file: "f",
-            },
-            mmproj_source: None,
-            model_load_params: ModelLoadParams {
-                n_gpu_layers: 0,
-                load_mode: LlamaLoadMode::Mmap,
-            },
-        },
-        context_params: TRIVIAL_CONTEXT_PARAMS,
-        void_logs: true,
         func: LlamaTestFn::Infallible(no_op),
     };
 
@@ -233,20 +204,6 @@ mod tests {
         assert_eq!(plan.phases.len(), 1);
         assert_eq!(plan.phases[0].registrations[0].name, "alpha");
         assert_eq!(plan.phases[0].registrations[1].name, "bravo");
-    }
-
-    #[test]
-    fn requests_void_logs_false_when_no_registration_opts_in() {
-        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_ALPHA_Z]);
-
-        assert!(!plan.requests_void_logs());
-    }
-
-    #[test]
-    fn requests_void_logs_true_when_any_registration_opts_in() {
-        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_VOID_LOGS]);
-
-        assert!(plan.requests_void_logs());
     }
 
     #[test]

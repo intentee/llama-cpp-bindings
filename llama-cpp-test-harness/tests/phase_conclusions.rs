@@ -16,11 +16,8 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
-    void_logs = true,
 )]
-fn phase_a_passing_trial_that_requests_void_logs(fixture: &LlamaFixture<'_>) {
-    let formatted = format!("{:?}", fixture.model);
-    assert!(formatted.contains("LlamaModel"));
+const fn phase_a_passing_trial_that_only_needs_its_model_to_load(fixture: &LlamaFixture<'_>) {
     no_op(fixture);
 }
 

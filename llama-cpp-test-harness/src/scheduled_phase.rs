@@ -125,7 +125,6 @@ mod tests {
             n_threads_batch: None,
             embeddings: false,
         },
-        void_logs: false,
         func: LlamaTestFn::Infallible(no_op),
     };
 
