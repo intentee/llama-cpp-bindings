@@ -343,3 +343,26 @@ fn token_to_piece_replaces_a_lone_continuation_byte_with_the_replacement_charact
 
     Ok(())
 }
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn a_control_token_decoded_without_special_rendering_is_an_empty_piece(fixture: &LlamaFixture<'_>) {
+    let model = fixture.model;
+    let control_token = single_token(model, "<|im_start|>");
+
+    assert_eq!(
+        model.token_to_piece(
+            &SampledToken::Content(control_token),
+            &mut encoding_rs::UTF_8.new_decoder(),
+            false,
+            None
+        ),
+        Ok(String::new())
+    );
+}

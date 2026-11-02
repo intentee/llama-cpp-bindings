@@ -409,7 +409,6 @@ impl LlamaModel {
         };
 
         match size {
-            0 => Err(TokenToStringError::UnknownTokenType),
             error_code if error_code.is_negative() => {
                 Err(TokenToStringError::InsufficientBufferSpace(error_code))
             }
@@ -691,17 +690,6 @@ impl LlamaModel {
     }
 }
 
-fn token_piece_bytes_for_tok_env(
-    model: &LlamaModel,
-    token: LlamaToken,
-    special: bool,
-) -> Result<Vec<u8>, TokenToStringError> {
-    match model.read_piece(token, special, None, <[u8]>::to_vec) {
-        Err(TokenToStringError::UnknownTokenType) => Ok(Vec::new()),
-        piece_result => piece_result,
-    }
-}
-
 fn build_approximate_tok_env(
     model: &LlamaModel,
 ) -> Result<Arc<ApproximateTokEnv>, TokenToStringError> {
@@ -720,9 +708,9 @@ fn build_approximate_tok_env(
 
     for token_id in 0..n_vocab.cast_signed() {
         let token = LlamaToken(token_id);
-        let bytes = token_piece_bytes_for_tok_env(model, token, false)?;
+        let bytes = model.read_piece(token, false, None, <[u8]>::to_vec)?;
         if bytes.is_empty() {
-            let special_bytes = token_piece_bytes_for_tok_env(model, token, true)?;
+            let special_bytes = model.read_piece(token, true, None, <[u8]>::to_vec)?;
             if special_bytes.is_empty() {
                 words.push(vec![]);
             } else {
