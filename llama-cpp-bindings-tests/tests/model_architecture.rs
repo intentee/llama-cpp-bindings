@@ -92,6 +92,10 @@ fn is_hybrid_returns_true_for_qwen_default_models(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
+fn rope_type_reports_normal_rope_for_a_llama_architecture_model(fixture: &LlamaFixture<'_>) {
+    assert_eq!(fixture.model.rope_type(), Ok(RopeType::Norm));
+}
+
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -100,15 +104,8 @@ fn is_hybrid_returns_true_for_qwen_default_models(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn rope_type_returns_a_known_variant_for_rope_carrying_default_models(fixture: &LlamaFixture<'_>) {
-    let rope = fixture.model.rope_type();
-    assert!(
-        matches!(
-            rope,
-            Some(RopeType::Norm | RopeType::NeoX | RopeType::MRope | RopeType::Vision)
-        ),
-        "rope_type must be a known variant for DeepSeek and GLM-4.7; got {rope:?}"
-    );
+fn rope_type_reports_normal_rope_for_glm47_flash(fixture: &LlamaFixture<'_>) {
+    assert_eq!(fixture.model.rope_type(), Ok(RopeType::Norm));
 }
 
 #[llama_test(
@@ -128,5 +125,5 @@ fn rope_type_returns_a_known_variant_for_rope_carrying_default_models(fixture: &
     n_ubatch = 64,
 )]
 fn rope_type_reports_interleaved_mrope_for_qwen_default_models(fixture: &LlamaFixture<'_>) {
-    assert_eq!(fixture.model.rope_type(), Some(RopeType::IMRope));
+    assert_eq!(fixture.model.rope_type(), Ok(RopeType::IMRope));
 }

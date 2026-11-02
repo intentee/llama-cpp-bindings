@@ -6,6 +6,9 @@ use crate::context::kv_cache_type::KvCacheType;
 use crate::context::llama_attention_type::LlamaAttentionType;
 use crate::context::llama_pooling_type::LlamaPoolingType;
 use crate::context::rope_scaling_type::RopeScalingType;
+use crate::error::unknown_attention_type::UnknownAttentionType;
+use crate::error::unknown_pooling_type::UnknownPoolingType;
+use crate::error::unknown_rope_scaling_type::UnknownRopeScalingType;
 
 #[derive(Debug, Clone, Copy)]
 pub struct LlamaContextParams {
@@ -80,9 +83,12 @@ impl LlamaContextParams {
         self
     }
 
-    #[must_use]
-    pub fn rope_scaling_type(&self) -> RopeScalingType {
-        RopeScalingType::from(self.context_params.rope_scaling_type)
+    /// # Errors
+    ///
+    /// Returns [`UnknownRopeScalingType`] when the raw params hold a value llama.cpp does not
+    /// define.
+    pub fn rope_scaling_type(&self) -> Result<RopeScalingType, UnknownRopeScalingType> {
+        RopeScalingType::try_from(self.context_params.rope_scaling_type)
     }
 
     #[must_use]
@@ -161,9 +167,11 @@ impl LlamaContextParams {
         self
     }
 
-    #[must_use]
-    pub fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::from(self.context_params.pooling_type)
+    /// # Errors
+    ///
+    /// Returns [`UnknownPoolingType`] when the raw params hold a value llama.cpp does not define.
+    pub fn pooling_type(&self) -> Result<LlamaPoolingType, UnknownPoolingType> {
+        LlamaPoolingType::try_from(self.context_params.pooling_type)
     }
 
     #[must_use]
@@ -228,9 +236,12 @@ impl LlamaContextParams {
         self
     }
 
-    #[must_use]
-    pub fn attention_type(&self) -> LlamaAttentionType {
-        LlamaAttentionType::from(self.context_params.attention_type)
+    /// # Errors
+    ///
+    /// Returns [`UnknownAttentionType`] when the raw params hold a value llama.cpp does not
+    /// define.
+    pub fn attention_type(&self) -> Result<LlamaAttentionType, UnknownAttentionType> {
+        LlamaAttentionType::try_from(self.context_params.attention_type)
     }
 
     #[must_use]
@@ -336,8 +347,8 @@ mod tests {
         assert_eq!(params.n_ctx(), NonZeroU32::new(512));
         assert_eq!(params.n_batch(), 2048);
         assert_eq!(params.n_ubatch(), 512);
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::Unspecified);
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Unspecified);
+        assert_eq!(params.rope_scaling_type(), Ok(RopeScalingType::Unspecified));
+        assert_eq!(params.pooling_type(), Ok(LlamaPoolingType::Unspecified));
     }
 
     #[test]
@@ -437,7 +448,7 @@ mod tests {
                     .with_rope_scaling_type(scaling_type)
                     .rope_scaling_type()
             }),
-            scaling_types
+            scaling_types.map(Ok)
         );
     }
 
@@ -485,7 +496,7 @@ mod tests {
                     .with_pooling_type(pooling_type)
                     .pooling_type()
             }),
-            pooling_types
+            pooling_types.map(Ok)
         );
     }
 
@@ -548,7 +559,7 @@ mod tests {
         assert_eq!(params.n_threads_batch(), 12);
         assert!(params.embeddings());
         assert!(!params.offload_kqv());
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::Yarn);
+        assert_eq!(params.rope_scaling_type(), Ok(RopeScalingType::Yarn));
         assert!((params.rope_freq_base() - 5000.0).abs() < f32::EPSILON);
         assert!((params.rope_freq_scale() - 0.25).abs() < f32::EPSILON);
     }
@@ -593,7 +604,7 @@ mod tests {
                     .with_attention_type(attention_type)
                     .attention_type()
             }),
-            attention_types
+            attention_types.map(Ok)
         );
     }
 

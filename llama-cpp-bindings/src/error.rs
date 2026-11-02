@@ -1,3 +1,4 @@
+pub mod backend_device_text_error;
 pub mod batch_transfer_error;
 pub mod chat_session_error;
 pub mod chat_template_error;
@@ -11,6 +12,7 @@ pub mod grammar_error;
 pub mod grammar_runtime_error;
 pub mod ingest_error;
 pub mod json_schema_to_grammar_error;
+pub mod llama_backend_device_error;
 pub mod llama_context_load_error;
 pub mod llama_cpp_error;
 pub mod llama_lora_adapter_init_error;
@@ -36,6 +38,11 @@ pub mod string_to_token_error;
 pub mod token_attr_error;
 pub mod token_outside_vocabulary;
 pub mod token_to_string_error;
+pub mod unknown_attention_type;
+pub mod unknown_backend_device_type;
+pub mod unknown_pooling_type;
+pub mod unknown_rope_scaling_type;
+pub mod unknown_rope_type;
 
 use llama_cpp_error::LlamaCppError;
 

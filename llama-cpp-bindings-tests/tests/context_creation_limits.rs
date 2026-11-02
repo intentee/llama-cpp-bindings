@@ -2,6 +2,8 @@ use std::num::NonZeroU32;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
+use llama_cpp_bindings::error::unknown_attention_type::UnknownAttentionType;
+use llama_cpp_bindings::error::unknown_pooling_type::UnknownPoolingType;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -120,5 +122,46 @@ fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(fixture: &LlamaF
         Some(LlamaContextLoadError::Reported {
             message: injected_fault_message(),
         })
+    );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn a_context_whose_pooling_type_llama_cpp_does_not_define_is_refused(fixture: &LlamaFixture<'_>) {
+    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_POOLING_TYPE_UNKNOWN);
+
+    assert_eq!(
+        fixture.build_context().err(),
+        Some(LlamaContextLoadError::UnknownPoolingType(
+            UnknownPoolingType(llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_RANK + 1)
+        ))
+    );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn context_params_with_an_attention_type_llama_cpp_does_not_define_are_refused(
+    fixture: &LlamaFixture<'_>,
+) {
+    let mut params = (*fixture.context_params).into_llama_context_params();
+    params.context_params.attention_type = 99;
+
+    assert_eq!(
+        LlamaContext::from_model(fixture.model, fixture.backend, params).err(),
+        Some(LlamaContextLoadError::UnknownAttentionType(
+            UnknownAttentionType(99)
+        ))
     );
 }

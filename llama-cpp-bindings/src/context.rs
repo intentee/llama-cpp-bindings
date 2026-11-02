@@ -297,6 +297,12 @@ impl<'model> LlamaContext<'model> {
         context: NonNull<llama_cpp_bindings_sys::llama_context>,
         embeddings: bool,
     ) -> Result<Self, LlamaContextLoadError> {
+        let pooling_type = LlamaPoolingType::try_from(unsafe {
+            llama_cpp_bindings_sys::llama_rs_pooling_type(context.as_ptr())
+        })
+        .inspect_err(|_unknown_pooling_type| unsafe {
+            llama_cpp_bindings_sys::llama_free(context.as_ptr());
+        })?;
         let mut out_batch: *mut llama_cpp_bindings_sys::llama_batch_ext = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -311,9 +317,6 @@ impl<'model> LlamaContext<'model> {
                 llama_cpp_bindings_sys::llama_free(context.as_ptr());
             },
         )?;
-        let pooling_type = LlamaPoolingType::from(unsafe {
-            llama_cpp_bindings_sys::llama_pooling_type(context.as_ptr())
-        });
         let keeps_no_memory = memory_of(context).is_none();
 
         Ok(Self {
@@ -349,7 +352,7 @@ impl<'model> LlamaContext<'model> {
         let embeddings = params.embeddings();
 
         SequenceOutputCapacity {
-            attention_type: params.attention_type(),
+            attention_type: params.attention_type()?,
             model_causal_attention: unsafe {
                 llama_cpp_bindings_sys::llama_rs_model_causal_attn(model.model.as_ptr())
             },

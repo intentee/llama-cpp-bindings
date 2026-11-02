@@ -507,3 +507,19 @@ extern "C" auto llama_rs_token_to_piece(
 
     return llama_token_to_piece(vocab, token, buf, length, lstrip, special);
 }
+
+extern "C" auto llama_rs_backend_device_text(const char * text) -> const char * {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_BACKEND_DEVICE_TEXT_NULL)) {
+        return nullptr;
+    }
+
+    return text;
+}
+
+extern "C" auto llama_rs_backend_device_type(ggml_backend_dev_t dev) -> uint32_t {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_BACKEND_DEVICE_TYPE_UNKNOWN)) {
+        return GGML_BACKEND_DEVICE_TYPE_META + 1;
+    }
+
+    return ggml_backend_dev_type(dev);
+}

@@ -1,6 +1,9 @@
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
+use crate::error::unknown_attention_type::UnknownAttentionType;
+use crate::error::unknown_pooling_type::UnknownPoolingType;
+
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum LlamaContextLoadError {
     #[error(transparent)]
@@ -22,4 +25,8 @@ pub enum LlamaContextLoadError {
         n_seq_max: u32,
         output_capacity: u32,
     },
+    #[error(transparent)]
+    UnknownAttentionType(#[from] UnknownAttentionType),
+    #[error(transparent)]
+    UnknownPoolingType(#[from] UnknownPoolingType),
 }

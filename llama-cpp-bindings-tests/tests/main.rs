@@ -1,4 +1,5 @@
 mod approximate_tok_env_eos_selection;
+mod backend_device_listing;
 mod batch_context_limits;
 mod chat_answer_parsing;
 mod chat_prompt_rendering;

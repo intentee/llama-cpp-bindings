@@ -15,6 +15,7 @@ use crate::error::memory_seq_div_error::MemorySeqDivError;
 use crate::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
 use crate::error::memory_seq_rm_error::MemorySeqRmError;
 use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
+use crate::error::unknown_rope_type::UnknownRopeType;
 use crate::model::rope_type::RopeType;
 
 fn memory_seq_add_status_to_result(
@@ -152,10 +153,10 @@ impl LlamaContext<'_> {
         memory_of(self.context).is_some()
     }
 
-    fn shifts_positions_one_per_embedding(&self) -> bool {
+    fn shifts_positions_one_per_embedding(&self) -> Result<bool, UnknownRopeType> {
         self.model
             .rope_type()
-            .is_none_or(RopeType::has_one_position_per_embedding)
+            .map(RopeType::has_one_position_per_embedding)
     }
 
     fn required_memory_handle(
@@ -264,7 +265,7 @@ impl LlamaContext<'_> {
             .map_or(Ok(-1), i32::try_from)
             .map_err(MemorySeqAddError::P1TooLarge)?;
 
-        if !self.shifts_positions_one_per_embedding() {
+        if !self.shifts_positions_one_per_embedding()? {
             return Err(MemorySeqAddError::IncompatibleRopeType);
         }
 
@@ -300,7 +301,7 @@ impl LlamaContext<'_> {
             .map_or(Ok(-1), i32::try_from)
             .map_err(MemorySeqDivError::P1TooLarge)?;
 
-        if !self.shifts_positions_one_per_embedding() {
+        if !self.shifts_positions_one_per_embedding()? {
             return Err(MemorySeqDivError::IncompatibleRopeType);
         }
 

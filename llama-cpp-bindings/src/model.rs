@@ -51,6 +51,7 @@ use crate::error::string_to_token_error::StringToTokenError;
 use crate::error::token_attr_error::TokenAttrError;
 use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
 use crate::error::token_to_string_error::TokenToStringError;
+use crate::error::unknown_rope_type::UnknownRopeType;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::model::add_bos::AddBos;
@@ -571,11 +572,13 @@ impl LlamaModel {
         )
     }
 
-    #[must_use]
-    pub fn rope_type(&self) -> Option<RopeType> {
-        let raw = unsafe { llama_cpp_bindings_sys::llama_model_rope_type(self.model.as_ptr()) };
-
-        RopeType::from_raw(raw)
+    /// # Errors
+    ///
+    /// Returns [`UnknownRopeType`] when llama.cpp reports a rope type it does not define.
+    pub fn rope_type(&self) -> Result<RopeType, UnknownRopeType> {
+        RopeType::try_from(unsafe {
+            llama_cpp_bindings_sys::llama_rs_model_rope_type(self.model.as_ptr())
+        })
     }
 
     /// # Errors

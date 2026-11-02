@@ -123,10 +123,13 @@ mod tests {
 
         assert_eq!(
             offloads_to_a_gpu,
-            LlamaBackendDevice::list_all().iter().any(|device| matches!(
-                device.device_type,
-                LlamaBackendDeviceType::Gpu | LlamaBackendDeviceType::IntegratedGpu
-            ))
+            LlamaBackendDevice::list_all()
+                .unwrap()
+                .iter()
+                .any(|device| matches!(
+                    device.device_type,
+                    LlamaBackendDeviceType::Gpu | LlamaBackendDeviceType::IntegratedGpu
+                ))
         );
     }
 

@@ -257,6 +257,10 @@ int32_t llama_rs_token_to_piece(
     int32_t lstrip,
     bool special);
 
+const char * llama_rs_backend_device_text(const char * text);
+
+uint32_t llama_rs_backend_device_type(ggml_backend_dev_t dev);
+
 #ifdef __cplusplus
 }
 #endif
