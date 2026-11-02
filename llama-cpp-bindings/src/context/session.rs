@@ -91,18 +91,13 @@ fn state_data_restore_status_to_result(
 fn process_session_load_result(
     success: bool,
     n_out: usize,
-    max_tokens: usize,
     mut tokens: Vec<LlamaToken>,
 ) -> Result<Vec<LlamaToken>, LoadSessionError> {
     if !success {
         return Err(LoadSessionError::FailedToLoad);
     }
 
-    if n_out > max_tokens {
-        return Err(LoadSessionError::InsufficientMaxLength { n_out, max_tokens });
-    }
-
-    unsafe { tokens.set_len(n_out) };
+    tokens.truncate(n_out);
 
     Ok(tokens)
 }
@@ -110,18 +105,13 @@ fn process_session_load_result(
 fn process_seq_load_result(
     bytes_read: usize,
     n_out: usize,
-    max_tokens: usize,
     mut tokens: Vec<LlamaToken>,
 ) -> Result<LoadedSeqState, LoadSeqStateError> {
     if bytes_read == 0 {
         return Err(LoadSeqStateError::FailedToLoad);
     }
 
-    if n_out > max_tokens {
-        return Err(LoadSeqStateError::InsufficientMaxLength { n_out, max_tokens });
-    }
-
-    unsafe { tokens.set_len(n_out) };
+    tokens.truncate(n_out);
 
     Ok(LoadedSeqState { tokens, bytes_read })
 }
@@ -172,7 +162,7 @@ impl LlamaContext<'_> {
             .ok_or_else(|| LoadSessionError::PathToStrError(path.to_path_buf()))?;
 
         let cstr = CString::new(path)?;
-        let mut tokens: Vec<LlamaToken> = Vec::with_capacity(max_tokens);
+        let mut tokens = vec![LlamaToken::new(0); max_tokens];
         let mut n_out = 0;
 
         let tokens_out = tokens
@@ -188,7 +178,7 @@ impl LlamaContext<'_> {
                 &raw mut n_out,
             )
         };
-        process_session_load_result(success, n_out, max_tokens, tokens)
+        process_session_load_result(success, n_out, tokens)
     }
 
     /// # Errors
@@ -243,7 +233,7 @@ impl LlamaContext<'_> {
             .ok_or_else(|| LoadSeqStateError::PathToStrError(path.to_path_buf()))?;
 
         let cstr = CString::new(path)?;
-        let mut tokens: Vec<LlamaToken> = Vec::with_capacity(max_tokens);
+        let mut tokens = vec![LlamaToken::new(0); max_tokens];
         let mut n_out = 0;
 
         let tokens_out = tokens
@@ -261,7 +251,7 @@ impl LlamaContext<'_> {
             )
         };
 
-        process_seq_load_result(bytes_read, n_out, max_tokens, tokens)
+        process_seq_load_result(bytes_read, n_out, tokens)
     }
 
     #[must_use]
@@ -414,7 +404,7 @@ mod process_session_load_result_tests {
         let tokens: Vec<LlamaToken> = (0..100).map(LlamaToken::new).collect();
 
         assert_eq!(
-            process_session_load_result(true, 10, 100, tokens),
+            process_session_load_result(true, 10, tokens),
             Ok((0..10).map(LlamaToken::new).collect())
         );
     }
@@ -422,23 +412,9 @@ mod process_session_load_result_tests {
     #[test]
     fn session_load_fails_when_not_successful() {
         let tokens = vec![LlamaToken::new(0); 100];
-        let result = process_session_load_result(false, 0, 100, tokens);
+        let result = process_session_load_result(false, 0, tokens);
 
         assert_eq!(result, Err(LoadSessionError::FailedToLoad));
-    }
-
-    #[test]
-    fn session_load_fails_when_n_out_exceeds_max() {
-        let tokens = vec![LlamaToken::new(0); 100];
-        let result = process_session_load_result(true, 101, 100, tokens);
-
-        assert_eq!(
-            result,
-            Err(LoadSessionError::InsufficientMaxLength {
-                n_out: 101,
-                max_tokens: 100,
-            })
-        );
     }
 }
 
@@ -454,7 +430,7 @@ mod process_seq_load_result_tests {
         let tokens: Vec<LlamaToken> = (0..100).map(LlamaToken::new).collect();
 
         assert_eq!(
-            process_seq_load_result(42, 10, 100, tokens),
+            process_seq_load_result(42, 10, tokens),
             Ok(LoadedSeqState {
                 tokens: (0..10).map(LlamaToken::new).collect(),
                 bytes_read: 42,
@@ -465,23 +441,9 @@ mod process_seq_load_result_tests {
     #[test]
     fn seq_load_fails_when_zero_bytes_read() {
         let tokens = vec![LlamaToken::new(0); 100];
-        let result = process_seq_load_result(0, 0, 100, tokens);
+        let result = process_seq_load_result(0, 0, tokens);
 
         assert_eq!(result, Err(LoadSeqStateError::FailedToLoad));
-    }
-
-    #[test]
-    fn seq_load_fails_when_n_out_exceeds_max() {
-        let tokens = vec![LlamaToken::new(0); 100];
-        let result = process_seq_load_result(42, 101, 100, tokens);
-
-        assert_eq!(
-            result,
-            Err(LoadSeqStateError::InsufficientMaxLength {
-                n_out: 101,
-                max_tokens: 100,
-            })
-        );
     }
 }
 
