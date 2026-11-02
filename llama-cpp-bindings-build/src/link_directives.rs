@@ -52,7 +52,7 @@ fn system_ggml_search_paths(
 }
 
 fn private_dependency_search_paths(context: &BuildContext) -> Vec<CargoDirective> {
-    let build_dir = context.cmake_dir().join("build");
+    let build_dir = context.cmake_build_dir();
 
     [
         build_dir.join("common"),
@@ -207,14 +207,6 @@ fn rocm_links(
     ])
 }
 
-fn openmp_links(context: &BuildContext, environment: &BuildEnvironment) -> Vec<CargoDirective> {
-    if environment.has(BuildFeature::Openmp) && context.cargo_cfg_target_env == "gnu" {
-        vec![link(LinkKind::Unspecified, "gomp")]
-    } else {
-        Vec::new()
-    }
-}
-
 fn platform_links(context: &BuildContext, environment: &BuildEnvironment) -> Vec<CargoDirective> {
     match context.target_os {
         TargetOs::Linux => vec![link(LinkKind::Dylib, "stdc++")],
@@ -258,7 +250,6 @@ pub fn link_directives(
         native_library_links(context, environment),
         cuda_links(context, environment),
         rocm_links(context, environment)?,
-        openmp_links(context, environment),
         platform_links(context, environment),
     ]
     .concat())
@@ -564,25 +555,6 @@ mod tests {
                 ],
             ]
             .concat()
-        );
-    }
-
-    #[test]
-    fn openmp_links_libgomp_only_for_gnu_targets() {
-        assert_eq!(
-            ["gnu", "musl"].map(|cargo_cfg_target_env| {
-                platform_libraries(
-                    BitFlags::from(BuildFeature::Openmp),
-                    &[("CARGO_CFG_TARGET_ENV", cargo_cfg_target_env)],
-                )
-            }),
-            [
-                vec![
-                    library(LinkKind::Unspecified, "gomp"),
-                    library(LinkKind::Dylib, "stdc++"),
-                ],
-                vec![library(LinkKind::Dylib, "stdc++")],
-            ]
         );
     }
 

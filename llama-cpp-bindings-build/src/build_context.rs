@@ -16,7 +16,6 @@ pub struct BuildContext {
     pub target_triple: String,
     pub host_triple: String,
     pub cargo_cfg_target_arch: String,
-    pub cargo_cfg_target_env: String,
     pub build_shared_libs: bool,
     pub opt_level: String,
     pub debug_info: String,
@@ -46,9 +45,6 @@ impl BuildContext {
                 host_os,
             )?,
             host_triple: environment.required("HOST")?,
-            cargo_cfg_target_env: environment
-                .optional("CARGO_CFG_TARGET_ENV")?
-                .unwrap_or_default(),
             build_shared_libs: environment.has(BuildFeature::DynamicLink),
             opt_level: environment.required("OPT_LEVEL")?,
             debug_info: environment.required("DEBUG")?,
@@ -61,6 +57,11 @@ impl BuildContext {
     #[must_use]
     pub fn cmake_dir(&self) -> PathBuf {
         self.out_dir.join("cmake")
+    }
+
+    #[must_use]
+    pub fn cmake_build_dir(&self) -> PathBuf {
+        self.cmake_dir().join("build")
     }
 
     #[must_use]
@@ -100,9 +101,8 @@ pub mod tests {
     use crate::host_os::HostOs;
     use crate::target_os::TargetOs;
 
-    const CARGO_VARIABLES: [(&str, &str); 9] = [
+    const CARGO_VARIABLES: [(&str, &str); 8] = [
         ("CARGO_CFG_TARGET_ARCH", "x86_64"),
-        ("CARGO_CFG_TARGET_ENV", "gnu"),
         ("CARGO_CFG_TARGET_OS", "linux"),
         ("CARGO_MANIFEST_DIR", "/sys"),
         ("DEBUG", "false"),
@@ -156,7 +156,6 @@ pub mod tests {
                 target_triple: "x86_64-unknown-linux-gnu".to_owned(),
                 host_triple: "x86_64-unknown-linux-gnu".to_owned(),
                 cargo_cfg_target_arch: "x86_64".to_owned(),
-                cargo_cfg_target_env: "gnu".to_owned(),
                 build_shared_libs: true,
                 opt_level: "3".to_owned(),
                 debug_info: "false".to_owned(),
@@ -166,7 +165,7 @@ pub mod tests {
     }
 
     #[test]
-    fn every_variable_cargo_sets_for_build_scripts_except_the_target_env_is_required() {
+    fn every_variable_cargo_sets_for_build_scripts_is_required() {
         let without = |name: &str| {
             let mut environment = cargo_environment(BitFlags::empty(), &[]);
 
@@ -176,42 +175,30 @@ pub mod tests {
                 .err()
                 .map(|error| error.to_string())
         };
-        let required = CARGO_VARIABLES
-            .map(|(name, _)| name)
-            .into_iter()
-            .filter(|name| *name != "CARGO_CFG_TARGET_ENV")
-            .collect::<Vec<&str>>();
+        let required = CARGO_VARIABLES.map(|(name, _)| name);
 
         assert_eq!(
-            required
-                .iter()
-                .map(|name| without(name))
-                .collect::<Vec<Option<String>>>(),
-            required
-                .iter()
-                .map(|name| Some(format!(
-                    "environment variable {name} could not be read: environment variable not \
-                     found"
-                )))
-                .collect::<Vec<Option<String>>>()
+            required.map(without),
+            required.map(|name| Some(format!(
+                "environment variable {name} could not be read: environment variable not found"
+            )))
         );
     }
 
     #[test]
-    fn optional_variables_that_are_not_unicode_are_refused() {
+    fn a_build_debug_request_that_is_not_unicode_is_refused() {
         assert_eq!(
-            ["CARGO_CFG_TARGET_ENV", "BUILD_DEBUG"].map(|name| {
-                BuildContext::from_environment(
-                    &with_non_unicode(cargo_environment(BitFlags::empty(), &[]), name),
-                    HostOs::Linux,
-                )
-                .err()
-                .map(|error| error.to_string())
-            }),
-            ["CARGO_CFG_TARGET_ENV", "BUILD_DEBUG"].map(|name| Some(format!(
-                "environment variable {name} could not be read: environment variable was not \
-                 valid unicode: \"\\xFF\""
-            )))
+            BuildContext::from_environment(
+                &with_non_unicode(cargo_environment(BitFlags::empty(), &[]), "BUILD_DEBUG"),
+                HostOs::Linux,
+            )
+            .err()
+            .map(|error| error.to_string()),
+            Some(
+                "environment variable BUILD_DEBUG could not be read: environment variable was \
+                 not valid unicode: \"\\xFF\""
+                    .to_owned()
+            )
         );
     }
 

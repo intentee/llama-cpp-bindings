@@ -73,4 +73,41 @@ pub enum BuildError {
     EnvironmentDirectory { name: &'static str, path: PathBuf },
     #[error("cargo directives could not be written: {0}")]
     DirectiveWrite(#[source] io::Error),
+    #[error("the CMake file API query could not be written into {path}: {source}")]
+    CmakeFileApiQueryNotWritten {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("the CMake file API reply directory {path} could not be listed: {source}")]
+    CmakeFileApiReplyDirectoryUnreadable {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("CMake wrote no file API reply index into {path}")]
+    CmakeFileApiReplyIndexMissing { path: PathBuf },
+    #[error("the CMake file API reply file {path} could not be read: {source}")]
+    CmakeFileApiReplyFileUnreadable {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("the CMake file API reply file {path} is not the reply this crate queried: {source}")]
+    CmakeFileApiReplyFileInvalid {
+        path: PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error("the CMake cache has no entry {name}")]
+    CmakeCacheEntryMissing { name: String },
+    #[error("the CMake cache entry {name} is {value}, neither ON nor OFF")]
+    CmakeCacheEntryNotASwitch { name: &'static str, value: String },
+    #[error(
+        "ggml needs the OpenMP runtime {libraries:?}, which Apple's linker cannot link by its \
+         exact file name"
+    )]
+    OpenmpRuntimeUnlinkableOnApple { libraries: Vec<PathBuf> },
+    #[error("the OpenMP runtime library {library} names no file")]
+    OpenmpRuntimeLibraryWithoutFileName { library: PathBuf },
 }

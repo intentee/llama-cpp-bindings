@@ -7,8 +7,10 @@ use crate::build_error::BuildError;
 use crate::cargo_directive::CargoDirective;
 use crate::cmake_build::CmakeBuild;
 use crate::cmake_configuration::CmakeConfiguration;
+use crate::cmake_file_api::CmakeFileApi;
 use crate::emit_directives::emit_directives;
 use crate::link_directives::link_directives;
+use crate::openmp_linking::OpenmpLinking;
 use crate::rebuild_triggers::rebuild_triggers;
 use crate::wrapper_compilation::WrapperCompilation;
 
@@ -19,6 +21,7 @@ pub struct NativeBuild {
     pub wrappers: WrapperCompilation,
     pub cmake: CmakeBuild,
     pub directives: Vec<CargoDirective>,
+    pub openmp: OpenmpLinking,
     pub include_debug_messages: bool,
 }
 
@@ -39,6 +42,9 @@ impl NativeBuild {
             cmake: CmakeBuild {
                 source_dir: context.llama_src(),
                 out_dir: context.cmake_dir(),
+                file_api: CmakeFileApi {
+                    build_dir: context.cmake_build_dir(),
+                },
                 target_triple: context.target_triple.clone(),
                 host_triple: context.host_triple.clone(),
                 defines,
@@ -51,12 +57,14 @@ impl NativeBuild {
                 link_directives(context, environment)?,
             ]
             .concat(),
+            openmp: OpenmpLinking::of(context, environment),
             include_debug_messages: context.include_debug_messages,
         })
     }
 
     /// Generates the bindings, compiles the wrappers, builds llama.cpp, and only then writes the
-    /// cargo directives to `output`.
+    /// cargo directives to `output`, with the OpenMP runtime `CMake` resolved linked after every
+    /// planned library.
     ///
     /// # Errors
     ///
@@ -65,10 +73,12 @@ impl NativeBuild {
         let bindings_directives = self.bindings.generate()?;
 
         self.wrappers.compile()?;
-        self.cmake.build()?;
+
+        let cmake_cache = self.cmake.build()?;
+        let openmp_directives = self.openmp.directives(&cmake_cache)?;
 
         emit_directives(
-            &[self.directives, bindings_directives].concat(),
+            &[self.directives, openmp_directives, bindings_directives].concat(),
             self.include_debug_messages,
             output,
         )
@@ -88,8 +98,12 @@ mod tests {
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_build::CmakeBuild;
     use crate::cmake_define::CmakeDefine;
+    use crate::cmake_file_api::CmakeFileApi;
     use crate::link_kind::LinkKind;
     use crate::native_library::NativeLibrary;
+    use crate::openmp_linking::OpenmpLinking;
+    use crate::openmp_runtime_source::OpenmpRuntimeSource;
+    use crate::target_os::TargetOs;
     use crate::wrapper_compilation::WrapperCompilation;
 
     #[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu"))]
@@ -128,6 +142,9 @@ mod tests {
             cmake: CmakeBuild {
                 source_dir: PathBuf::from(FIXTURES).join("cmake_project"),
                 out_dir: root.join("cmake"),
+                file_api: CmakeFileApi {
+                    build_dir: root.join("cmake/build"),
+                },
                 target_triple: HOST_TRIPLE.to_owned(),
                 host_triple: HOST_TRIPLE.to_owned(),
                 defines: vec![CmakeDefine::new("FIXTURE_LIBRARY_NAME", "fixture")],
@@ -141,6 +158,10 @@ mod tests {
                 }),
                 CargoDirective::Debug("fixture planned".to_owned()),
             ],
+            openmp: OpenmpLinking {
+                source: OpenmpRuntimeSource::BundledGgml,
+                target_os: TargetOs::Linux,
+            },
             include_debug_messages: false,
         }
     }
@@ -170,6 +191,8 @@ mod tests {
                 format!(
                     "cargo:rustc-link-search=native={root}/cmake/lib\n\
                      cargo:rustc-link-lib=static=fixture\n\
+                     cargo:rustc-link-search=native={root}/cmake/lib\n\
+                     cargo:rustc-link-lib=dylib:+verbatim=libfixture.a\n\
                      cargo:rerun-if-env-changed=TARGET\n\
                      cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS\n\
                      cargo:rerun-if-changed={FIXTURES}/bindings/wrapper.h\n\
@@ -231,6 +254,54 @@ mod tests {
             Some(format!(
                 "filesystem operation failed for {MANIFEST}/backends: Not a directory (os error \
                  20)"
+            ))
+        );
+        assert_eq!(output, Vec::<u8>::new());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_build_tree_that_cannot_take_the_cache_query_stops_before_cmake_and_any_directive() {
+        let root = build_root("unqueryable-cmake");
+        let mut native_build = fixture_build(&root);
+        let mut output = Vec::new();
+
+        native_build.cmake.file_api.build_dir = PathBuf::from(MANIFEST);
+
+        assert_eq!(
+            native_build
+                .run(&mut output)
+                .err()
+                .map(|error| error.to_string()),
+            Some(format!(
+                "the CMake file API query could not be written into {MANIFEST}/.cmake/api/v1/\
+                 query: Not a directory (os error 20)"
+            ))
+        );
+        assert_eq!(
+            [output.is_empty(), root.join("cmake/lib").exists()],
+            [true, false]
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn an_apple_build_whose_ggml_needs_an_openmp_runtime_emits_no_directive() {
+        let root = build_root("apple-openmp");
+        let mut native_build = fixture_build(&root);
+        let mut output = Vec::new();
+
+        native_build.openmp.target_os = TargetOs::Apple;
+
+        assert_eq!(
+            native_build
+                .run(&mut output)
+                .err()
+                .map(|error| error.to_string()),
+            Some(format!(
+                "ggml needs the OpenMP runtime [{:?}], which Apple's linker cannot link by its \
+                 exact file name",
+                root.join("cmake/lib/libfixture.a")
             ))
         );
         assert_eq!(output, Vec::<u8>::new());

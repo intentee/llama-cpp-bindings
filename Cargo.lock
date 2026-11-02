@@ -1195,6 +1195,8 @@ dependencies = [
  "enumflags2",
  "find_cuda_helper",
  "llama-cpp-wrapper-sources",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 

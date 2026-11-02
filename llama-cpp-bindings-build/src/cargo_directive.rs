@@ -12,6 +12,7 @@ pub enum CargoDirective {
     LinkSearch(PathBuf),
     LinkSearchNative(PathBuf),
     LinkLibrary(NativeLibrary),
+    LinkDylibByFileName(PathBuf),
     Debug(String),
 }
 
@@ -40,6 +41,11 @@ impl Display for CargoDirective {
                 )
             }
             Self::LinkLibrary(library) => write!(formatter, "cargo:rustc-link-lib={library}"),
+            Self::LinkDylibByFileName(file_name) => write!(
+                formatter,
+                "cargo:rustc-link-lib=dylib:+verbatim={}",
+                file_name.display()
+            ),
             Self::Debug(message) => write!(formatter, "cargo:warning=[DEBUG] {message}"),
         }
     }
@@ -53,7 +59,7 @@ mod tests {
     use crate::link_kind::LinkKind;
     use crate::native_library::NativeLibrary;
 
-    fn every_directive() -> [CargoDirective; 6] {
+    fn every_directive() -> [CargoDirective; 7] {
         [
             CargoDirective::RerunIfChanged(PathBuf::from("wrapper.h")),
             CargoDirective::RerunIfEnvChanged("CUDAARCHS".to_owned()),
@@ -63,6 +69,7 @@ mod tests {
                 link_kind: LinkKind::Static,
                 name: "llama",
             }),
+            CargoDirective::LinkDylibByFileName(PathBuf::from("libgomp.so")),
             CargoDirective::Debug("TARGET: x86_64-unknown-linux-gnu".to_owned()),
         ]
     }
@@ -77,6 +84,7 @@ mod tests {
                 "cargo:rustc-link-search=/out/lib",
                 "cargo:rustc-link-search=native=/out/build/common",
                 "cargo:rustc-link-lib=static=llama",
+                "cargo:rustc-link-lib=dylib:+verbatim=libgomp.so",
                 "cargo:warning=[DEBUG] TARGET: x86_64-unknown-linux-gnu",
             ]
         );
@@ -86,7 +94,7 @@ mod tests {
     fn only_debug_messages_are_debug_directives() {
         assert_eq!(
             every_directive().map(|directive| directive.is_debug()),
-            [false, false, false, false, false, true]
+            [false, false, false, false, false, false, true]
         );
     }
 }
