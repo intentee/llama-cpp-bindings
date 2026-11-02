@@ -369,11 +369,17 @@ impl MtmdBitmap {
         unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_ny(self.bitmap.as_ptr()) }
     }
 
+    /// The bitmap's bytes, or none for a placeholder bitmap, whose data mtmd reports as null.
     #[must_use]
     pub fn data(&self) -> &[u8] {
-        let ptr = unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_data(self.bitmap.as_ptr()) };
+        let data = unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_data(self.bitmap.as_ptr()) };
         let len = unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_n_bytes(self.bitmap.as_ptr()) };
-        unsafe { slice::from_raw_parts(ptr, len) }
+
+        if data.is_null() {
+            return &[];
+        }
+
+        unsafe { slice::from_raw_parts(data, len) }
     }
 
     #[must_use]
@@ -488,6 +494,13 @@ mod tests {
         let bitmap = MtmdBitmap::from_audio_data(&audio_samples).unwrap();
 
         assert!(bitmap.is_audio());
+    }
+
+    #[test]
+    fn a_placeholder_bitmap_without_samples_holds_no_data() {
+        let bitmap = MtmdBitmap::from_audio_data(&[]).unwrap();
+
+        assert_eq!(bitmap.data(), &[] as &[u8]);
     }
 
     #[test]
