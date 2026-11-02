@@ -232,18 +232,15 @@ fn the_grammar_sampler_reports_a_lazy_grammar_llama_cpp_cannot_load(fixture: &Ll
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parsing_a_duck_typed_tool_call_reports_a_parser_llama_cpp_fails(fixture: &LlamaFixture<'_>) {
+fn parsing_an_answer_reports_a_parser_llama_cpp_fails(fixture: &LlamaFixture<'_>) {
     let session = weather_chat_session(fixture.model, ChatToolChoice::Auto);
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_PARSE_THROWS);
 
-    assert!(!session.supports_tool_calls());
     assert_eq!(
         session
             .parse(
-                &ChatOutput::from(
-                    "Checking.<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n</function>\n</tool_call>"
-                ),
+                &ChatOutput::from("Checking."),
                 ChatOutputCompleteness::Finished,
             )
             .err(),

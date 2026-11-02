@@ -20,6 +20,7 @@ pub fn user_turn_chat_session<'model>(
 ) -> Result<ChatSession<'model>> {
     Ok(ChatSession::new(
         model,
+        model.chat_templates()?,
         &[LlamaChatMessage::new(
             "user".to_owned(),
             content.to_owned(),

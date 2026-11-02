@@ -3,19 +3,11 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
-pub mod bracketed_json_shape;
-pub mod json_object_shape;
-pub mod key_value_xml_tags_shape;
 pub mod model_provided_tool_call_id;
 pub mod model_provided_tool_call_id_error;
-pub mod paired_quote_shape;
 pub mod parsed_chat_message;
 pub mod parsed_tool_call;
 pub mod parsed_tool_call_id;
 pub mod token_usage;
 pub mod token_usage_error;
-pub mod tool_call_args_shape;
 pub mod tool_call_arguments;
-pub mod tool_call_markers;
-pub mod tool_call_value_quote;
-pub mod xml_tags_shape;

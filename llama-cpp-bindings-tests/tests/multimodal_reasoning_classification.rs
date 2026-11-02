@@ -2,7 +2,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
@@ -65,8 +64,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -166,6 +164,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     ];
     let session = ChatSession::new(
         model,
+        model.chat_templates()?,
         &messages,
         "[]",
         &ChatSessionOptions {
@@ -183,8 +182,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -285,8 +283,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,

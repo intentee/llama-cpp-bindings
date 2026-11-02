@@ -1,5 +1,4 @@
 pub mod batch_transfer_error;
-pub mod bracketed_args_failure;
 pub mod chat_session_error;
 pub mod chat_template_error;
 pub mod chat_templates_error;
@@ -11,9 +10,7 @@ pub mod fit_error;
 pub mod grammar_error;
 pub mod grammar_runtime_error;
 pub mod ingest_error;
-pub mod json_object_failure;
 pub mod json_schema_to_grammar_error;
-pub mod key_value_xml_tags_failure;
 pub mod llama_context_load_error;
 pub mod llama_cpp_error;
 pub mod llama_lora_adapter_init_error;
@@ -28,7 +25,6 @@ pub mod memory_seq_rm_error;
 pub mod meta_val_error;
 pub mod model_params_error;
 pub mod new_llama_chat_message_error;
-pub mod paired_quote_failure;
 pub mod parse_chat_message_error;
 pub mod process_failure;
 pub mod sample_error;
@@ -40,8 +36,6 @@ pub mod string_to_token_error;
 pub mod token_attr_error;
 pub mod token_outside_vocabulary;
 pub mod token_to_string_error;
-pub mod tool_call_format_failure;
-pub mod xml_function_tags_failure;
 
 use llama_cpp_error::LlamaCppError;
 

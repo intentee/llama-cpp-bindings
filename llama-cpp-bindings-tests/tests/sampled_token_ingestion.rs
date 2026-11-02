@@ -2,7 +2,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::ingest_error::IngestError;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
@@ -60,7 +59,7 @@ use llama_cpp_test_harness_macros::llama_test;
 )]
 fn chat_session_classifier_starts_in_the_pending_section(fixture: &LlamaFixture<'_>) -> Result<()> {
     let session = user_turn_chat_session(fixture.model, "hello", "[]", false)?;
-    let classifier = SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let classifier = SampledTokenClassifier::for_chat_session(&session);
 
     assert_eq!(classifier.current_section(), SampledTokenSection::Pending);
     Ok(())
@@ -135,8 +134,7 @@ fn undeterminable_classifier_releases_each_token_with_its_visible_and_raw_piece(
 fn finishing_a_chat_answer_settles_its_pending_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
     let session = user_turn_chat_session(model, "hello", "[]", false)?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let [ordinary_token] =
         model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?[..]
     else {
@@ -243,8 +241,7 @@ fn ingesting_a_token_outside_the_vocabulary_reports_it_in_every_classifier(
         expected
     );
     assert_eq!(
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect)
-            .ingest(token, &mut outcomes),
+        SampledTokenClassifier::for_chat_session(&session).ingest(token, &mut outcomes),
         expected
     );
     assert_eq!(outcomes, []);
@@ -270,8 +267,7 @@ fn ingesting_a_generated_token_reports_a_classification_llama_cpp_fails(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = user_turn_chat_session(fixture.model, "Hello!", "[]", false)?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let generated = fixture
         .model
         .str_to_token("Hi", AddBos::Never, ParseSpecialTokens::Never)?;
@@ -298,8 +294,7 @@ fn ending_the_generation_reports_a_classification_llama_cpp_fails(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = user_turn_chat_session(fixture.model, "Hello!", "[]", false)?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let end_of_sequence = fixture
         .model
         .token_eos()
@@ -325,8 +320,7 @@ fn ending_the_generation_reports_a_classification_llama_cpp_fails(
 )]
 fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>) -> Result<()> {
     let session = user_turn_chat_session(fixture.model, "Hello!", "[]", false)?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let mut context = fixture.build_context()?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 

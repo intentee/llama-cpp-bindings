@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
@@ -184,6 +183,7 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
     )?];
     let session = ChatSession::new(
         model,
+        model.chat_templates()?,
         &messages,
         "[]",
         &ChatSessionOptions {
@@ -194,8 +194,7 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         },
     )?;
 
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let tokens = session.tokenize_prompt()?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 

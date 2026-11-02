@@ -1,7 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
@@ -37,6 +36,7 @@ fn describe_image_and_audio_chat_session(model: &LlamaModel) -> Result<ChatSessi
 
     Ok(ChatSession::new(
         model,
+        model.chat_templates()?,
         &messages,
         "[]",
         &ChatSessionOptions {
@@ -120,8 +120,7 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
     .with_context(|| "unable to create llama context")?;
 
     let n_batch = i32::try_from(context.n_batch())?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

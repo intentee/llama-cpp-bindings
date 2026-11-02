@@ -1,3 +1,4 @@
+use std::ffi::CStr;
 use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
@@ -8,6 +9,7 @@ use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::error::chat_templates_error::ChatTemplatesError;
 use crate::model::LlamaModel;
+use crate::model::llama_chat_template::LlamaChatTemplate;
 
 fn chat_templates_init_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_chat_templates_init_status,
@@ -49,6 +51,13 @@ fn chat_templates_init_status_to_result(
             }
             .into())
         }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_TEMPLATE_OVERRIDE_ARG => {
+            Err(FfiContractError {
+                operation: "llama_rs_chat_templates_init",
+                detail: "was given a null template_override argument",
+            }
+            .into())
+        }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_TEMPLATES_ARG => {
             Err(FfiContractError {
                 operation: "llama_rs_chat_templates_init",
@@ -71,8 +80,8 @@ fn chat_templates_init_status_to_result(
     }
 }
 
-/// The chat templates of a model as llama.cpp prepares them once per model: with the model's
-/// BOS and EOS, the template variant for tool calls, and llama.cpp's template fixes applied.
+/// Chat templates as llama.cpp prepares them for a model: with the model's BOS and EOS, the
+/// template variant for tool calls, and llama.cpp's template fixes applied.
 #[derive(Debug)]
 pub struct ChatTemplates {
     templates: NonNull<llama_cpp_bindings_sys::llama_rs_chat_templates>,
@@ -82,17 +91,14 @@ unsafe impl Send for ChatTemplates {}
 unsafe impl Sync for ChatTemplates {}
 
 impl ChatTemplates {
-    /// # Errors
-    ///
-    /// Returns [`ChatTemplatesError::ModelHasNoChatTemplate`] for a model without a chat template,
-    /// or another [`ChatTemplatesError`] when llama.cpp cannot prepare the templates.
-    pub fn new(model: &LlamaModel) -> Result<Self, ChatTemplatesError> {
+    fn init(model: &LlamaModel, template_override: &CStr) -> Result<Self, ChatTemplatesError> {
         let mut out_templates: llama_cpp_bindings_sys::llama_rs_chat_templates_handle =
             ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_chat_templates_init(
                 model.model.as_ptr(),
+                template_override.as_ptr(),
                 &raw mut out_templates,
                 &raw mut out_error,
             )
@@ -102,20 +108,37 @@ impl ChatTemplates {
             .map(|templates| Self { templates })
     }
 
+    /// The model's own chat templates.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChatTemplatesError::ModelHasNoChatTemplate`] for a model without a chat template,
+    /// or another [`ChatTemplatesError`] when llama.cpp cannot prepare the templates.
+    pub fn new(model: &LlamaModel) -> Result<Self, ChatTemplatesError> {
+        Self::init(model, c"")
+    }
+
+    /// `template` in place of the model's own chat templates, the way llama.cpp serves a model
+    /// whose template cannot render a request, such as tool calls.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChatTemplatesError::EmptyTemplateOverride`] for an empty `template`, or another
+    /// [`ChatTemplatesError`] when llama.cpp cannot prepare the template.
+    pub fn with_override(
+        model: &LlamaModel,
+        template: &LlamaChatTemplate,
+    ) -> Result<Self, ChatTemplatesError> {
+        if template.as_c_str().is_empty() {
+            return Err(ChatTemplatesError::EmptyTemplateOverride);
+        }
+
+        Self::init(model, template.as_c_str())
+    }
+
     #[must_use]
     pub const fn as_ptr(&self) -> llama_cpp_bindings_sys::llama_rs_chat_templates_handle {
         self.templates.as_ptr()
-    }
-
-    /// Whether the template a tool call request renders with can render tool calls, as llama.cpp
-    /// detects it from the template program.
-    #[must_use]
-    pub fn supports_tool_calls(&self) -> bool {
-        unsafe {
-            llama_cpp_bindings_sys::llama_rs_chat_templates_supports_tool_calls(
-                self.templates.as_ptr(),
-            )
-        }
     }
 }
 
@@ -179,6 +202,10 @@ mod tests {
                     ptr::null_mut()
                 ),
                 init_error(
+                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_TEMPLATE_OVERRIDE_ARG,
+                    ptr::null_mut()
+                ),
+                init_error(
                     llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_TEMPLATES_ARG,
                     ptr::null_mut()
                 ),
@@ -197,6 +224,7 @@ mod tests {
                     message: "the template threw".to_owned()
                 }),
                 Some(contract("was given a null model argument")),
+                Some(contract("was given a null template_override argument")),
                 Some(contract("was given a null out_templates argument")),
                 Some(contract("was given a null out_error argument")),
                 Some(ChatTemplatesError::FfiStatus(FfiStatusError {

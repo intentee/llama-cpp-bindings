@@ -1,10 +1,8 @@
 use anyhow::Result;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
@@ -35,8 +33,7 @@ fn qwen35_classifier_ends_generation_without_emitting_the_end_of_generation_toke
     const GENERATED_TEXT: &str = "The answer is four.";
 
     let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", false)?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
 
     assert_eq!(
         visible_text(&ingested_generation(
@@ -73,8 +70,7 @@ fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_co
     const UNSETTLED_TAIL: &str = "</thi";
 
     let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", true)?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let mut outcomes = Vec::new();
 
     for token in fixture.model.str_to_token(
@@ -112,54 +108,31 @@ fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_co
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn gemma3_releases_a_held_bare_json_prefix_as_content_when_generation_ends(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    const GENERATED_TEXT: &str = r#"{"answer": 4"#;
-
-    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", false)?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
-    let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT);
-
-    assert!(!session.supports_tool_calls());
-    assert_eq!(visible_text(&outcomes), GENERATED_TEXT);
-    assert!(
-        outcomes
-            .iter()
-            .all(|outcome| matches!(outcome.sampled_token, SampledToken::Content(_))),
-        "{outcomes:?}"
-    );
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/gemma-3-4b-it-GGUF", "gemma-3-4b-it-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 256,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn gemma3_attributes_a_bare_json_tool_call_object_to_the_tool_call(
+fn gemma3_whose_template_cannot_render_tool_calls_keeps_a_bare_json_tool_call_as_content(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     const GENERATED_TEXT: &str = r#"{"name": "get_weather", "arguments": {"location": "Paris"}}"#;
 
     let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", false)?;
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT);
 
-    assert!(
-        outcomes
-            .iter()
-            .all(|outcome| matches!(outcome.sampled_token, SampledToken::ToolCall(_))),
-        "{outcomes:?}"
+    assert_eq!(
+        [
+            visible_text_in(&outcomes, SampledTokenSection::Reasoning),
+            visible_text_in(&outcomes, SampledTokenSection::Content),
+            visible_text_in(&outcomes, SampledTokenSection::ToolCall),
+            visible_text_in(&outcomes, SampledTokenSection::Pending),
+        ],
+        [
+            String::new(),
+            GENERATED_TEXT.to_owned(),
+            String::new(),
+            String::new()
+        ]
     );
     assert_eq!(
-        classifier.usage().tool_call_tokens,
+        classifier.usage().content_tokens,
         u64::try_from(outcomes.len())? + END_OF_GENERATION_TOKENS
     );
 

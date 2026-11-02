@@ -1,7 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
@@ -55,6 +54,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
     ];
     let session = ChatSession::new(
         model,
+        model.chat_templates()?,
         &messages,
         "[]",
         &ChatSessionOptions {
@@ -88,8 +88,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
         "tokenization should produce at least one chunk"
     );
 
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

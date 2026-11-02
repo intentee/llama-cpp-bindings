@@ -7,7 +7,6 @@ use std::slice;
 use serde_json::Value;
 use serde_json::json;
 
-use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
@@ -24,7 +23,7 @@ use crate::chat_session_options::ChatSessionOptions;
 use crate::chat_span::ChatSpan;
 use crate::chat_span_kind::ChatSpanKind;
 use crate::chat_spans::ChatSpans;
-use crate::chat_template_tool_calls::known_marker_candidates::known_marker_candidates;
+use crate::chat_templates::ChatTemplates;
 use crate::cpp_text_view::cpp_text_view;
 use crate::error::chat_session_error::ChatSessionError;
 use crate::error::parse_chat_message_error::ParseChatMessageError;
@@ -37,8 +36,6 @@ use crate::parsed_chat::take_parsed_chat_message;
 use crate::raw_chat_message::RawChatMessage;
 use crate::sampling::LlamaSampler;
 use crate::token::LlamaToken;
-use crate::tool_call_format::tool_call_format_outcome::ToolCallFormatOutcome;
-use crate::tool_call_format::try_parse;
 
 const GRAMMAR_ROOT: &str = "root";
 
@@ -328,26 +325,24 @@ fn chat_session_classify_status_to_result(
 pub struct ChatSession<'model> {
     model: &'model LlamaModel,
     session: NonNull<llama_cpp_bindings_sys::llama_rs_chat_session>,
-    supports_tool_calls: bool,
 }
 
 unsafe impl Send for ChatSession<'_> {}
 
 impl<'model> ChatSession<'model> {
-    /// Renders `messages` with `tools_json`, an `OpenAI` tools array, through the model's chat
-    /// template.
+    /// Renders `messages` with `tools_json`, an `OpenAI` tools array, through `templates`: the
+    /// model's own [`LlamaModel::chat_templates`], or [`ChatTemplates::with_override`].
     ///
     /// # Errors
     ///
-    /// Returns the [`ChatSessionError`] describing why the model's chat template cannot serve the
-    /// request.
+    /// Returns the [`ChatSessionError`] describing why the chat template cannot serve the request.
     pub fn new(
         model: &'model LlamaModel,
+        templates: &ChatTemplates,
         messages: &[LlamaChatMessage],
         tools_json: &str,
         options: &ChatSessionOptions,
     ) -> Result<Self, ChatSessionError> {
-        let templates = model.chat_templates()?;
         let messages_json = messages_json(messages, &options.assistant_turn)?;
         let tools_json = CString::new(tools_json).map_err(ChatSessionError::RequestContainsNul)?;
         let mut out_session: llama_cpp_bindings_sys::llama_rs_chat_session_handle = ptr::null_mut();
@@ -364,11 +359,8 @@ impl<'model> ChatSession<'model> {
             )
         };
 
-        chat_session_create_status_to_result(status, out_session, out_error).map(|session| Self {
-            model,
-            session,
-            supports_tool_calls: templates.supports_tool_calls(),
-        })
+        chat_session_create_status_to_result(status, out_session, out_error)
+            .map(|session| Self { model, session })
     }
 
     fn text_of(
@@ -601,13 +593,6 @@ impl<'model> ChatSession<'model> {
         )
     }
 
-    /// Whether the template this request rendered with can render tool calls. When it cannot,
-    /// [`Self::parse`] recognizes tool calls in the formats other templates use.
-    #[must_use]
-    pub const fn supports_tool_calls(&self) -> bool {
-        self.supports_tool_calls
-    }
-
     #[must_use]
     pub const fn model(&self) -> &'model LlamaModel {
         self.model
@@ -650,7 +635,13 @@ impl<'model> ChatSession<'model> {
         )?))
     }
 
-    fn parse_with_template(
+    /// Parses the model's answer with the template's parser.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseChatMessageError`] when llama.cpp fails while parsing; an answer that does
+    /// not match the template's format is [`ChatMessageParseOutcome::Unrecognized`].
+    pub fn parse(
         &self,
         output: &ChatOutput,
         completeness: ChatOutputCompleteness,
@@ -670,50 +661,6 @@ impl<'model> ChatSession<'model> {
         };
 
         chat_session_parse_status_to_result(status, out_handle, out_error, output, completeness)
-    }
-
-    fn parse_duck_typed_tool_calls(
-        &self,
-        output: &ChatOutput,
-        completeness: ChatOutputCompleteness,
-    ) -> Result<Option<ParsedChatMessage>, ParseChatMessageError> {
-        for candidate in known_marker_candidates() {
-            if let ToolCallFormatOutcome::Parsed(tool_calls) = try_parse(output.text(), &candidate)
-            {
-                let before_tool_calls = output
-                    .text()
-                    .find(&candidate.open)
-                    .map_or_else(|| output.text(), |open| &output.text()[..open]);
-
-                return Ok(Some(
-                    self.parse_with_template(&ChatOutput::from(before_tool_calls), completeness)?
-                        .followed_by_tool_calls(tool_calls),
-                ));
-            }
-        }
-
-        Ok(None)
-    }
-
-    /// Parses the model's answer with the template's parser. When the template cannot render
-    /// tool calls, tool calls in the formats other templates use are recognized first.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ParseChatMessageError`] when llama.cpp fails while parsing; an answer that does
-    /// not match the template's format is [`ChatMessageParseOutcome::Unrecognized`].
-    pub fn parse(
-        &self,
-        output: &ChatOutput,
-        completeness: ChatOutputCompleteness,
-    ) -> Result<ChatMessageParseOutcome, ParseChatMessageError> {
-        if !self.supports_tool_calls
-            && let Some(duck_typed) = self.parse_duck_typed_tool_calls(output, completeness)?
-        {
-            return Ok(ChatMessageParseOutcome::Recognized(duck_typed));
-        }
-
-        self.parse_with_template(output, completeness)
     }
 
     /// Returns how the template's parser attributes the bytes of the model's answer to

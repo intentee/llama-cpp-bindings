@@ -25,6 +25,9 @@ pub fn closed_reasoning_chat_session<'model>(
 ) -> ChatSession<'model> {
     ChatSession::new(
         model,
+        model
+            .chat_templates()
+            .expect("the model must have chat templates"),
         &[
             LlamaChatMessage::new("user".to_owned(), question.to_owned())
                 .expect("the question must hold no NUL byte"),

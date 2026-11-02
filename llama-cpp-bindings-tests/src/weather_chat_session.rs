@@ -17,6 +17,9 @@ use crate::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
 pub fn weather_chat_session(model: &LlamaModel, tool_choice: ChatToolChoice) -> ChatSession<'_> {
     ChatSession::new(
         model,
+        model
+            .chat_templates()
+            .expect("the model must have chat templates"),
         &[LlamaChatMessage::new(
             "user".to_owned(),
             "What is the weather in Paris?".to_owned(),

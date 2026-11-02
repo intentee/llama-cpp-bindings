@@ -1,6 +1,5 @@
 use anyhow::Result;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::sampled_token::SampledToken;
@@ -47,8 +46,7 @@ fn qwen35_reasoning_closed_by_a_tool_call_is_attributed_to_each_section(
         true,
     )?;
     let answer = format!("{REASONING_BEFORE_THE_CALL}{QWEN_XML_PARIS_WEATHER_CALL}");
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let outcomes = ingested_generation(&mut classifier, fixture.model, &answer);
     let parsed = recognized_answer(&session, &answer, ChatOutputCompleteness::Finished);
 

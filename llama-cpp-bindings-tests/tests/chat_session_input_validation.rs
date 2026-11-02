@@ -103,6 +103,7 @@ fn chat_session_refuses_a_message_that_is_not_utf8(fixture: &LlamaFixture<'_>) -
     assert_eq!(
         ChatSession::new(
             fixture.model,
+            fixture.model.chat_templates()?,
             &[message],
             "[]",
             &ChatSessionOptions {
@@ -135,6 +136,7 @@ fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
 ) -> Result<()> {
     let session = ChatSession::new(
         fixture.model,
+        fixture.model.chat_templates()?,
         &[LlamaChatMessage::new(
             "user".to_owned(),
             "hello".to_owned(),

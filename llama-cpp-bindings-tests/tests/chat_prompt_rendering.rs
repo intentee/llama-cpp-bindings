@@ -148,6 +148,7 @@ fn qwen35_omitted_assistant_turn_renders_only_the_messages(
 ) -> Result<()> {
     let session = ChatSession::new(
         fixture.model,
+        fixture.model.chat_templates()?,
         &[LlamaChatMessage::new(
             "user".to_owned(),
             "hello".to_owned(),

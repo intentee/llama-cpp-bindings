@@ -2,7 +2,6 @@ use std::ffi::CString;
 
 use anyhow::Result;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::grammar_error::GrammarError;
@@ -152,8 +151,7 @@ fn grammar_constrained_chat_answer_is_yes_or_no_content_that_ends_generation(
     let tokens = session.tokenize_prompt()?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     context.decode(&batch)?;

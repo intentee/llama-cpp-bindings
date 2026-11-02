@@ -1,7 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
 
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
@@ -79,8 +78,7 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
         "vision input must produce at least one image chunk"
     );
 
-    let mut classifier =
-        SampledTokenClassifier::for_chat_session(&session, BareJsonToolCalls::Detect);
+    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

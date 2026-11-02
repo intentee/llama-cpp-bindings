@@ -228,6 +228,7 @@ fn qwen35_parses_a_tool_call_cut_inside_its_arguments_as_a_named_call(
 fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> Result<()> {
     let session = ChatSession::new(
         fixture.model,
+        fixture.model.chat_templates()?,
         &[LlamaChatMessage::new(
             "user".to_owned(),
             "What is the weather in Paris and in Berlin?".to_owned(),

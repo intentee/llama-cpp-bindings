@@ -1,4 +1,3 @@
-use llama_cpp_bindings::bare_json_tool_calls::BareJsonToolCalls;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -36,8 +35,7 @@ impl ChatAnswerGeneration<'_, '_> {
         let prompt_tokens = session
             .tokenize_prompt()
             .expect("the session's prompt must tokenize");
-        let mut classifier =
-            SampledTokenClassifier::for_chat_session(session, BareJsonToolCalls::Detect);
+        let mut classifier = SampledTokenClassifier::for_chat_session(session);
         let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
         classifier

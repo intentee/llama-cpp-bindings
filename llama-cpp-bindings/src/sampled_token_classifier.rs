@@ -5,8 +5,6 @@ use llama_cpp_bindings_sys::llama_seq_id;
 use llama_cpp_bindings_types::token_usage::TokenUsage;
 use llama_cpp_bindings_types::token_usage_error::TokenUsageError;
 
-use crate::bare_json_tool_call_probe::BareJsonToolCallProbe;
-use crate::bare_json_tool_calls::BareJsonToolCalls;
 use crate::batch_add_error::BatchAddError;
 use crate::chat_output::ChatOutput;
 use crate::chat_output_completeness::ChatOutputCompleteness;
@@ -14,7 +12,6 @@ use crate::chat_piece_role::ChatPieceRole;
 use crate::chat_session::ChatSession;
 use crate::chat_session_attribution::ChatSessionAttribution;
 use crate::classified_sample::ClassifiedSample;
-use crate::content_probe::ContentProbe;
 use crate::context::LlamaContext;
 use crate::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use crate::error::ingest_error::IngestError;
@@ -75,22 +72,9 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
         }
     }
 
-    /// A classifier for the answer to `session`. When the session's template cannot render tool
-    /// calls and `bare_json_tool_calls` asks for it, content that is a bare JSON tool call object
-    /// is attributed to a tool call.
+    /// A classifier for the answer to `session`.
     #[must_use]
-    pub fn for_chat_session(
-        session: &'session ChatSession<'model>,
-        bare_json_tool_calls: BareJsonToolCalls,
-    ) -> Self {
-        let content_probe = if !session.supports_tool_calls()
-            && bare_json_tool_calls == BareJsonToolCalls::Detect
-        {
-            ContentProbe::BareJson(BareJsonToolCallProbe::default())
-        } else {
-            ContentProbe::Disabled
-        };
-
+    pub fn for_chat_session(session: &'session ChatSession<'model>) -> Self {
         Self {
             model: session.model(),
             attribution: TokenAttribution::ChatSession(ChatSessionAttribution {
@@ -98,7 +82,6 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
                 preserved_tokens: session.preserved_tokens(),
                 output: ChatOutput::default(),
                 pending_pieces: VecDeque::new(),
-                content_probe,
             }),
             decoder: encoding_rs::UTF_8.new_decoder(),
             section: SampledTokenSection::Pending,
@@ -184,14 +167,7 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
                 break;
             };
 
-            attribution.content_probe.pass(
-                outcome_of(pending_piece.token, role, pending_piece.piece),
-                &mut released,
-            );
-        }
-
-        if completeness == ChatOutputCompleteness::Finished {
-            attribution.content_probe.release(&mut released);
+            released.push(outcome_of(pending_piece.token, role, pending_piece.piece));
         }
 
         for outcome in released {
