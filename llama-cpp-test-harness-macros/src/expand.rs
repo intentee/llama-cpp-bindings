@@ -157,12 +157,26 @@ fn build_expected_outcome_literal(expected_outcome: &ParsedExpectedOutcome) -> T
     }
 }
 
+fn trial_name(args: &ParsedArgs, signature: &Signature) -> String {
+    let mmproj = args
+        .mmproj_source
+        .as_ref()
+        .map_or_else(String::new, |mmproj_source| {
+            format!(" mmproj={}", mmproj_source.display_suffix())
+        });
+
+    format!(
+        "{fn_name}[{model}{mmproj} n_ctx={n_ctx} n_batch={n_batch} n_ubatch={n_ubatch}]",
+        fn_name = signature.ident,
+        model = args.model_source.display_suffix(),
+        n_ctx = args.context_params.n_ctx,
+        n_batch = args.context_params.n_batch,
+        n_ubatch = args.context_params.n_ubatch,
+    )
+}
+
 fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
-    let fn_name = &signature.ident;
-    let trial_name = format!(
-        "{fn_name}[{suffix}]",
-        suffix = args.model_source.display_suffix()
-    );
+    let trial_name = trial_name(args, signature);
     let model_source_literal = build_model_source_literal(&args.model_source);
     let mmproj_source_literal = build_mmproj_source_literal(args.mmproj_source.as_ref());
     let gpu_layers = args.model_load_params.n_gpu_layers;
@@ -238,6 +252,8 @@ mod tests {
     use super::build_model_source_literal;
     use super::build_test_fn_literal;
     use super::expand;
+    use super::trial_name;
+    use crate::parsed_args::ParsedArgs;
     use crate::parsed_expected_failure::ParsedExpectedFailure;
     use crate::parsed_expected_outcome::ParsedExpectedOutcome;
     use crate::parsed_source::ParsedSource;
@@ -279,7 +295,7 @@ mod tests {
             fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
             ::inventory::submit! {
                 ::llama_cpp_test_harness::llama_test_registration::LlamaTestRegistration {
-                    name: "my_test[bar.gguf]",
+                    name: "my_test[bar.gguf n_ctx=1 n_batch=1 n_ubatch=1]",
                     key: ::llama_cpp_test_model_provisioning::load_key::LoadKey {
                         model_source: ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
                             repo: "foo",
@@ -366,6 +382,26 @@ mod tests {
             ),
             "`expected_failure = TestFailure(...)` needs a test that returns a `Result`, because \
              only an error it returns counts as its failure"
+        );
+    }
+
+    #[test]
+    fn a_trial_with_an_mmproj_names_it_beside_its_model_and_context_sizes() {
+        let args: ParsedArgs = parse2(quote! {
+            model_source = HuggingFace("foo", "bar.gguf"),
+            mmproj_source = LocalPath("/models/mmproj.gguf"),
+            n_gpu_layers = 0,
+            load_mode = Mmap,
+            n_ctx = 512,
+            n_batch = 128,
+            n_ubatch = 64
+        })
+        .expect("the attribute must parse");
+        let item_fn: ItemFn = parse2(well_formed_function()).expect("the item must be a function");
+
+        assert_eq!(
+            trial_name(&args, &item_fn.sig),
+            "my_test[bar.gguf mmproj=mmproj.gguf n_ctx=512 n_batch=128 n_ubatch=64]"
         );
     }
 

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use libtest_mimic::Arguments;
@@ -7,8 +8,25 @@ use libtest_mimic::Conclusion;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 
 use crate::execution_phase::ExecutionPhase;
+use crate::harness_run_error::HarnessRunError;
 use crate::llama_test_registration::LlamaTestRegistration;
 use crate::scheduled_phase::ScheduledPhase;
+
+fn refuse_duplicate_trial_names(
+    registrations: &[&'static LlamaTestRegistration],
+) -> Result<(), HarnessRunError> {
+    let mut trial_names = BTreeSet::new();
+
+    registrations.iter().try_for_each(|registration| {
+        if trial_names.insert(registration.name) {
+            Ok(())
+        } else {
+            Err(HarnessRunError::DuplicateTrialName {
+                name: registration.name,
+            })
+        }
+    })
+}
 
 fn collect_inventory_registrations() -> Vec<&'static LlamaTestRegistration> {
     inventory::iter::<LlamaTestRegistration>
@@ -21,8 +39,15 @@ pub struct ExecutionPlan {
 }
 
 impl ExecutionPlan {
-    #[must_use]
-    pub fn from_registrations(registrations: &[&'static LlamaTestRegistration]) -> Self {
+    /// # Errors
+    ///
+    /// Returns [`HarnessRunError::DuplicateTrialName`] when two registrations share a trial name,
+    /// since their results could not be told apart.
+    pub fn from_registrations(
+        registrations: &[&'static LlamaTestRegistration],
+    ) -> Result<Self, HarnessRunError> {
+        refuse_duplicate_trial_names(registrations)?;
+
         let mut by_key: BTreeMap<_, Vec<&'static LlamaTestRegistration>> = BTreeMap::new();
         for registration in registrations {
             by_key
@@ -35,13 +60,14 @@ impl ExecutionPlan {
             registrations.sort_by_key(|registration| registration.name);
             phases.push(ExecutionPhase { key, registrations });
         }
-        Self { phases }
+        Ok(Self { phases })
     }
 
-    #[must_use]
-    pub fn from_inventory() -> Self {
-        let registrations = collect_inventory_registrations();
-        Self::from_registrations(&registrations)
+    /// # Errors
+    ///
+    /// Returns the [`HarnessRunError`] of [`Self::from_registrations`] for every registered trial.
+    pub fn from_inventory() -> Result<Self, HarnessRunError> {
+        Self::from_registrations(&collect_inventory_registrations())
     }
 
     #[must_use]
@@ -167,15 +193,31 @@ mod tests {
     };
 
     #[test]
+    fn registrations_sharing_a_trial_name_are_refused() {
+        assert_eq!(
+            ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_BETA_A])
+                .err()
+                .map(|refusal| refusal.to_string()),
+            Some(
+                "two trials are named `alpha`; every trial needs its own name so its result \
+                 can be told apart"
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
     fn from_registrations_with_empty_input_yields_empty_plan() {
-        let plan = ExecutionPlan::from_registrations(&[]);
+        let plan = ExecutionPlan::from_registrations(&[])
+            .expect("registrations with distinct names form a plan");
 
         assert!(plan.phases.is_empty());
     }
 
     #[test]
     fn registrations_with_same_load_key_collapse_to_one_phase() {
-        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_BETA_B]);
+        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_BETA_B])
+            .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
         assert_eq!(plan.phases[0].registrations.len(), 2);
@@ -183,7 +225,8 @@ mod tests {
 
     #[test]
     fn registrations_with_distinct_load_keys_form_phases_in_load_key_sort_order() {
-        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_ALPHA_Z]);
+        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_ALPHA_Z])
+            .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 2);
         assert_eq!(
@@ -204,7 +247,8 @@ mod tests {
 
     #[test]
     fn within_a_phase_registrations_sort_by_name() {
-        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_B, &REG_BETA_A]);
+        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_B, &REG_BETA_A])
+            .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
         assert_eq!(plan.phases[0].registrations[0].name, "alpha");
@@ -213,7 +257,8 @@ mod tests {
 
     #[test]
     fn registrations_sharing_a_load_key_but_differing_context_params_stay_in_one_phase() {
-        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_BETA_DIFFERENT_CONTEXT]);
+        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_A, &REG_BETA_DIFFERENT_CONTEXT])
+            .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
         assert_eq!(plan.phases[0].registrations.len(), 2);

@@ -12,12 +12,12 @@ use crate::parse_harness_arguments::parse_harness_arguments;
 /// # Errors
 ///
 /// Returns [`HarnessRunError`] when the CLI arguments conflict with the harness's single-thread
-/// requirement or the llama backend cannot be initialised. Surfacing these as a typed error keeps
+/// requirement, two registered trials share a name, or the llama backend cannot be initialised. Surfacing these as a typed error keeps
 /// the failure explicit instead of aborting the process with a panic.
 pub fn run_to_conclusions(arguments: Arguments) -> Result<Vec<Conclusion>, HarnessRunError> {
     let arguments = parse_harness_arguments(arguments)?;
+    let plan = ExecutionPlan::from_inventory()?;
     let backend = Arc::new(LlamaBackend::init()?);
-    let plan = ExecutionPlan::from_inventory();
 
     Ok(plan.run(&backend, &arguments))
 }

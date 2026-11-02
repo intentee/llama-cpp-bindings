@@ -110,7 +110,7 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) {
     n_ctx = 512,
     n_batch = 128,
     n_ubatch = 64,
-    mmproj_source = LocalPath("/nonexistent/llama-cpp-test-harness/no-such-mmproj.gguf"),
+    mmproj_source = LocalPath("/nonexistent/llama-cpp-test-harness/no-such-local-mmproj.gguf"),
     expected_failure = SetupFailure(
         MmprojLoad,
         "the local mmproj file does not exist, so llama.cpp cannot load it"

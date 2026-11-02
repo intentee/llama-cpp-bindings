@@ -23,6 +23,10 @@ vulkan = ["llama-cpp-bindings/vulkan"]
 rocm = ["llama-cpp-bindings/rocm"]
 
 [[test]]
+name = "duplicate_trial_names"
+harness = false
+
+[[test]]
 name = "phase_conclusions"
 harness = false
 
