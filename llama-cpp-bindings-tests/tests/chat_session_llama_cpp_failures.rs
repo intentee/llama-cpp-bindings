@@ -8,7 +8,6 @@ use llama_cpp_bindings::error::chat_templates_error::ChatTemplatesError;
 use llama_cpp_bindings::error::grammar_error::GrammarError;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
-use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
@@ -30,14 +29,10 @@ fn not_utf8() -> Utf8Error {
     n_batch = 512,
     n_ubatch = 512,
 )]
-fn a_chat_session_needs_a_model_with_a_chat_template(fixture: &LlamaFixture<'_>) {
+fn a_model_without_a_chat_template_has_no_chat_templates(fixture: &LlamaFixture<'_>) {
     assert_eq!(
-        user_turn_chat_session(fixture.model, "hello", "[]", false)
-            .err()
-            .map(|failure| failure.downcast::<ChatSessionError>().ok()),
-        Some(Some(ChatSessionError::Templates(
-            ChatTemplatesError::ModelHasNoChatTemplate
-        )))
+        fixture.model.chat_templates().err(),
+        Some(ChatTemplatesError::ModelHasNoChatTemplate)
     );
 }
 

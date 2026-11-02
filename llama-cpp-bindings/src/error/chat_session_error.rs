@@ -5,7 +5,6 @@ use llama_cpp_ffi_status::cpp_string_error::CppStringError;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
-use crate::error::chat_templates_error::ChatTemplatesError;
 use crate::error::grammar_error::GrammarError;
 use crate::error::sampler_accept_error::SamplerAcceptError;
 use crate::error::string_to_token_error::StringToTokenError;
@@ -18,8 +17,6 @@ pub enum ChatSessionError {
     FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
     FfiContract(#[from] FfiContractError),
-    #[error("the model's chat templates are unavailable: {0}")]
-    Templates(#[from] ChatTemplatesError),
     #[error("a chat message is not valid UTF-8")]
     MessageNotUtf8(#[source] Utf8Error),
     #[error("the chat request contains an interior NUL byte")]

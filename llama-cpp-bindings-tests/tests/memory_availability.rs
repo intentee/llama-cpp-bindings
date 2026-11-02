@@ -8,6 +8,7 @@ use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
 use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
 use llama_cpp_bindings::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
 use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
+use llama_cpp_bindings_tests::two_sequence_context::two_sequence_context;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -77,7 +78,7 @@ fn memory_edits_without_a_memory_module_trivially_succeed(
 fn memory_operations_needing_a_memory_module_report_its_absence(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let mut context = two_sequence_context(fixture)?;
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
 
     assert_eq!(
