@@ -12,13 +12,25 @@ use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
-use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
 const GENERATED_REASONING: &str = "step one, step two";
 const GENERATED_CONTENT: &str = "actual response";
+
+fn parsed_content_after_closed_reasoning(fixture: &LlamaFixture<'_>) -> Result<ParsedChatMessage> {
+    let outcome = closed_reasoning_chat_session(fixture.model, "hello", "[]").parse(
+        &ChatOutput::from("hello world"),
+        ChatOutputCompleteness::Finished,
+    )?;
+
+    let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
+        bail!("expected Recognized for plain content; got Unrecognized");
+    };
+
+    Ok(parsed)
+}
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
@@ -36,6 +48,21 @@ const GENERATED_CONTENT: &str = "actual response";
     n_batch = 128,
     n_ubatch = 64,
 )]
+fn templates_that_keep_prefill_whitespace_parse_it_into_reasoning_and_content(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    assert_eq!(
+        parsed_content_after_closed_reasoning(fixture)?,
+        ParsedChatMessage::new(
+            "\n\nhello world".to_owned(),
+            "\nThe question is simple, so I answer it directly.\n".to_owned(),
+            Vec::new()
+        )
+    );
+
+    Ok(())
+}
+
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -52,18 +79,17 @@ const GENERATED_CONTENT: &str = "actual response";
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parses_pure_content_response(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let outcome = closed_reasoning_chat_session(fixture.model, "hello", "[]").parse(
-        &ChatOutput::from("hello world"),
-        ChatOutputCompleteness::Finished,
-    )?;
-
-    let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
-        bail!("expected Recognized for plain content; got Unrecognized");
-    };
-    assert_eq!(parsed.tool_calls, Vec::<ParsedToolCall>::new());
-    assert!(!parsed.is_empty());
-    assert!(parsed.content.contains("hello world"));
+fn qwen_templates_parse_trimmed_prefill_into_reasoning_and_content(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    assert_eq!(
+        parsed_content_after_closed_reasoning(fixture)?,
+        ParsedChatMessage::new(
+            "hello world".to_owned(),
+            "The question is simple, so I answer it directly.\n".to_owned(),
+            Vec::new()
+        )
+    );
 
     Ok(())
 }

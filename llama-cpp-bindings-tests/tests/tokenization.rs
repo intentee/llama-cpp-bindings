@@ -62,14 +62,25 @@ fn the_first_token_of_tokenized_text_decodes_to_its_first_word(
     n_batch = 128,
     n_ubatch = 64,
 )]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
+fn str_to_token_prepends_bos_for_a_model_that_adds_it(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let model = fixture.model;
+    let tokens_without_bos =
+        model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
+    let expected = model
+        .token_bos()
+        .into_iter()
+        .chain(tokens_without_bos)
+        .collect::<Vec<_>>();
+
+    assert!(model.adds_bos_token());
+    assert_eq!(
+        model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?,
+        expected
+    );
+
+    Ok(())
+}
+
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -78,24 +89,16 @@ fn the_first_token_of_tokenized_text_decodes_to_its_first_word(
     n_batch = 128,
     n_ubatch = 64,
 )]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn str_to_token_without_bos_yields_no_more_tokens_than_with_bos(
+fn str_to_token_adds_nothing_for_a_model_that_adds_no_bos(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let tokens_with_bos =
-        model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let tokens_without_bos =
-        model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
 
-    assert!(tokens_with_bos.len() >= tokens_without_bos.len());
+    assert!(!model.adds_bos_token());
+    assert_eq!(
+        model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?,
+        model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?
+    );
 
     Ok(())
 }
