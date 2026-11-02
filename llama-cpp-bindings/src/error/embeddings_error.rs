@@ -1,6 +1,3 @@
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum EmbeddingsError {
     #[error("Embeddings weren't enabled in the context options")]
@@ -23,32 +20,4 @@ pub enum EmbeddingsError {
     },
     #[error("Invalid embedding dimension: {0}")]
     InvalidEmbeddingDimension(#[source] std::num::TryFromIntError),
-    #[error(
-        "NextN embeddings need a context with LLAMA_POOLING_TYPE_NONE, but it pools with {pooling_type:?}"
-    )]
-    NextnEmbeddingsRequireNonePooling {
-        pooling_type: crate::context::llama_pooling_type::LlamaPoolingType,
-    },
-    #[error("NextN embeddings weren't enabled on this context")]
-    NextnEmbeddingsNotEnabled,
-    #[error(
-        "NextN embeddings are unavailable because this model's graph produces no NextN hidden state"
-    )]
-    NextnEmbeddingsUnsupported,
-    #[error("llama.cpp failed to reserve the graph that checks for a NextN hidden state")]
-    NextnProbeGraphReservationFailed,
-    #[error("not enough memory to report why the NextN hidden state check failed")]
-    NextnProbeNotEnoughMemory,
-    #[error("llama.cpp ran out of memory while checking for a NextN hidden state")]
-    NextnProbeLlamaCppOutOfMemory,
-    #[error("llama.cpp failed while checking for a NextN hidden state: {message}")]
-    NextnProbeReported { message: String },
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
-    #[error(
-        "No NextN embedding exists for token {token_index}; it was not marked as an output of the last decoded batch"
-    )]
-    NextnEmbeddingUnavailable { token_index: i32 },
 }
