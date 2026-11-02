@@ -86,7 +86,6 @@ impl BuildContext {
 #[cfg(test)]
 pub mod tests {
     use std::ffi::OsStr;
-    use std::ffi::OsString;
     use std::path::PathBuf;
 
     use enumflags2::BitFlags;
@@ -94,48 +93,43 @@ pub mod tests {
     use super::BuildContext;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
     use crate::build_environment::BuildEnvironment;
+    use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_environment::tests::environment_of;
+    use crate::build_environment::tests::variable;
     use crate::build_environment::tests::with_non_unicode;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::host_os::HostOs;
     use crate::target_os::TargetOs;
 
-    const CARGO_VARIABLES: [(&str, &str); 8] = [
-        ("CARGO_CFG_TARGET_ARCH", "x86_64"),
-        ("CARGO_CFG_TARGET_OS", "linux"),
-        ("CARGO_MANIFEST_DIR", "/sys"),
-        ("DEBUG", "false"),
-        ("HOST", "x86_64-unknown-linux-gnu"),
-        ("OPT_LEVEL", "3"),
-        ("OUT_DIR", "/out"),
-        ("TARGET", "x86_64-unknown-linux-gnu"),
-    ];
+    fn cargo_variables() -> [EnvironmentVariable; 8] {
+        [
+            variable("CARGO_CFG_TARGET_ARCH", "x86_64"),
+            variable("CARGO_CFG_TARGET_OS", "linux"),
+            variable("CARGO_MANIFEST_DIR", "/sys"),
+            variable("DEBUG", "false"),
+            variable("HOST", "x86_64-unknown-linux-gnu"),
+            variable("OPT_LEVEL", "3"),
+            variable("OUT_DIR", "/out"),
+            variable("TARGET", "x86_64-unknown-linux-gnu"),
+        ]
+    }
 
-    pub const ANDROID_OVERRIDES: [(&str, &str); 4] = [
-        ("ANDROID_NDK_HOME", FIXTURE_ANDROID_NDK),
-        ("CARGO_CFG_TARGET_ARCH", "aarch64"),
-        ("CARGO_CFG_TARGET_OS", "android"),
-        ("TARGET", "aarch64-linux-android"),
-    ];
+    pub fn android_overrides() -> [EnvironmentVariable; 4] {
+        [
+            variable("ANDROID_NDK_HOME", FIXTURE_ANDROID_NDK),
+            variable("CARGO_CFG_TARGET_ARCH", "aarch64"),
+            variable("CARGO_CFG_TARGET_OS", "android"),
+            variable("TARGET", "aarch64-linux-android"),
+        ]
+    }
 
     /// The variables cargo sets for a build script building for x86-64 Linux, with `overrides`.
     pub fn cargo_environment(
         features: BitFlags<BuildFeature>,
-        overrides: &[(&str, &str)],
+        overrides: &[EnvironmentVariable],
     ) -> BuildEnvironment {
-        let mut environment = environment_of(
-            features,
-            CARGO_VARIABLES.map(|(name, value)| (name, OsString::from(value))),
-        );
-
-        environment.variables.extend(
-            overrides
-                .iter()
-                .map(|(name, value)| (OsString::from(name), OsString::from(value))),
-        );
-
-        environment
+        environment_of(features, &[&cargo_variables()[..], overrides].concat())
     }
 
     pub fn context_of(environment: &BuildEnvironment) -> BuildContext {
@@ -147,7 +141,7 @@ pub mod tests {
         assert_eq!(
             context_of(&cargo_environment(
                 BitFlags::from(BuildFeature::DynamicLink),
-                &[("BUILD_DEBUG", "")]
+                &[variable("BUILD_DEBUG", "")]
             )),
             BuildContext {
                 out_dir: PathBuf::from("/out"),
@@ -175,7 +169,7 @@ pub mod tests {
                 .err()
                 .map(|error| error.to_string())
         };
-        let required = CARGO_VARIABLES.map(|(name, _)| name);
+        let required = cargo_variables().map(|EnvironmentVariable { name, .. }| name);
 
         assert_eq!(
             required.map(without),

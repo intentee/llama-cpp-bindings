@@ -53,14 +53,15 @@ mod tests {
     use crate::android_ndk::AndroidNdk;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
     use crate::build_environment::tests::environment_of;
+    use crate::build_environment::tests::variable;
     use crate::host_os::HostOs;
 
     fn detected(cargo_cfg_target_os: &str) -> Result<TargetOs, String> {
         let environment = environment_of(
             BitFlags::empty(),
-            [
-                ("CARGO_CFG_TARGET_OS", OsString::from(cargo_cfg_target_os)),
-                ("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
+            &[
+                variable("CARGO_CFG_TARGET_OS", OsString::from(cargo_cfg_target_os)),
+                variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
             ],
         );
 
@@ -85,7 +86,10 @@ mod tests {
     fn android_is_not_mistaken_for_linux_and_carries_its_ndk() {
         let environment = environment_of(
             BitFlags::empty(),
-            [("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK))],
+            &[variable(
+                "ANDROID_NDK_HOME",
+                OsString::from(FIXTURE_ANDROID_NDK),
+            )],
         );
 
         assert_eq!(
@@ -119,7 +123,7 @@ mod tests {
             TargetOs::detect(
                 &environment_of(
                     BitFlags::empty(),
-                    [("CARGO_CFG_TARGET_OS", "android".into())]
+                    &[variable("CARGO_CFG_TARGET_OS", "android")]
                 ),
                 "aarch64-linux-android",
                 "aarch64",

@@ -83,19 +83,41 @@ pub mod tests {
     use crate::build_feature::BuildFeature;
     use crate::enabled_build_features::enabled_build_features;
 
+    #[derive(Clone, Debug)]
+    pub struct EnvironmentVariable {
+        pub name: &'static str,
+        pub value: OsString,
+    }
+
     #[must_use]
-    pub fn environment_of<const VARIABLES: usize>(
+    pub fn variable<TValue: Into<OsString>>(
+        name: &'static str,
+        value: TValue,
+    ) -> EnvironmentVariable {
+        EnvironmentVariable {
+            name,
+            value: value.into(),
+        }
+    }
+
+    #[must_use]
+    pub fn environment_of(
         features: BitFlags<BuildFeature>,
-        variables: [(&str, OsString); VARIABLES],
+        variables: &[EnvironmentVariable],
     ) -> BuildEnvironment {
-        BuildEnvironment {
-            variables: variables
-                .into_iter()
-                .map(|(name, value)| (OsString::from(name), value))
-                .collect::<BTreeMap<OsString, OsString>>(),
+        let mut environment = BuildEnvironment {
+            variables: BTreeMap::new(),
             features,
             cuda_library_dirs: Vec::new(),
+        };
+
+        for EnvironmentVariable { name, value } in variables {
+            environment
+                .variables
+                .insert(OsString::from(name), value.clone());
         }
+
+        environment
     }
 
     #[must_use]
@@ -123,7 +145,10 @@ pub mod tests {
     fn a_unicode_variable_is_read() {
         let environment = environment_of(
             BitFlags::empty(),
-            [("TARGET", OsString::from("x86_64-unknown-linux-gnu"))],
+            &[variable(
+                "TARGET",
+                OsString::from("x86_64-unknown-linux-gnu"),
+            )],
         );
 
         assert_eq!(
@@ -137,7 +162,7 @@ pub mod tests {
 
     #[test]
     fn a_missing_variable_fails_when_required_and_is_none_when_optional() {
-        let environment = environment_of(BitFlags::empty(), []);
+        let environment = environment_of(BitFlags::empty(), &[]);
 
         assert_eq!(environment.optional("HOST").ok(), Some(None));
         assert_eq!(
@@ -154,7 +179,7 @@ pub mod tests {
 
     #[test]
     fn a_variable_that_is_not_unicode_is_refused_even_when_optional() {
-        let environment = with_non_unicode(environment_of(BitFlags::empty(), []), "TARGET");
+        let environment = with_non_unicode(environment_of(BitFlags::empty(), &[]), "TARGET");
 
         assert_eq!(
             environment
@@ -171,7 +196,7 @@ pub mod tests {
 
     #[test]
     fn features_are_reported_by_membership() {
-        let environment = environment_of(BitFlags::from(BuildFeature::Cuda), []);
+        let environment = environment_of(BitFlags::from(BuildFeature::Cuda), &[]);
 
         assert_eq!(
             [

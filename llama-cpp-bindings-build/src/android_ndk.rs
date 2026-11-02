@@ -193,6 +193,7 @@ pub mod tests {
     use super::validate_ndk_installation;
     use crate::build_environment::BuildEnvironment;
     use crate::build_environment::tests::environment_of;
+    use crate::build_environment::tests::variable;
     use crate::host_os::HostOs;
 
     pub const FIXTURE_ANDROID_NDK: &str =
@@ -214,7 +215,7 @@ pub mod tests {
     fn ndk_at(root: &Path) -> BuildEnvironment {
         environment_of(
             BitFlags::empty(),
-            [("ANDROID_NDK_HOME", OsString::from(root))],
+            &[variable("ANDROID_NDK_HOME", OsString::from(root))],
         )
     }
 
@@ -238,9 +239,9 @@ pub mod tests {
         let detected = AndroidNdk::detect(
             &environment_of(
                 BitFlags::empty(),
-                [
-                    ("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
-                    ("ANDROID_PLATFORM", OsString::from("android-30")),
+                &[
+                    variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
+                    variable("ANDROID_PLATFORM", OsString::from("android-30")),
                 ],
             ),
             "aarch64-linux-android",
@@ -302,9 +303,9 @@ pub mod tests {
             [
                 api_level_of(&environment_of(
                     BitFlags::empty(),
-                    [
-                        ("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
-                        ("ANDROID_PLATFORM", OsString::from("33")),
+                    &[
+                        variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
+                        variable("ANDROID_PLATFORM", OsString::from("33")),
                     ]
                 )),
                 api_level_of(&ndk_at(Path::new(FIXTURE_ANDROID_NDK))),
@@ -321,7 +322,7 @@ pub mod tests {
         assert_eq!(
             [
                 detection_failure(
-                    &environment_of(BitFlags::empty(), []),
+                    &environment_of(BitFlags::empty(), &[]),
                     "aarch64",
                     HostOs::Linux
                 ),
@@ -330,9 +331,9 @@ pub mod tests {
                 detection_failure(
                     &environment_of(
                         BitFlags::empty(),
-                        [
-                            ("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
-                            ("ANDROID_PLATFORM", OsString::from_vec(vec![0xff])),
+                        &[
+                            variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
+                            variable("ANDROID_PLATFORM", OsString::from_vec(vec![0xff])),
                         ]
                     ),
                     "aarch64",

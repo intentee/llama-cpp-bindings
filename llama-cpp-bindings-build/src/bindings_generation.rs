@@ -216,14 +216,18 @@ mod tests {
 
     use super::BindingsGeneration;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
-    use crate::build_context::tests::ANDROID_OVERRIDES;
+    use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
     use crate::build_context::tests::context_of;
+    use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_feature::BuildFeature;
 
     const FIXTURE_BINDINGS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/bindings");
 
-    fn planned(features: BitFlags<BuildFeature>, overrides: &[(&str, &str)]) -> BindingsGeneration {
+    fn planned(
+        features: BitFlags<BuildFeature>,
+        overrides: &[EnvironmentVariable],
+    ) -> BindingsGeneration {
         let environment = cargo_environment(features, overrides);
 
         BindingsGeneration::of(&context_of(&environment), &environment)
@@ -277,7 +281,7 @@ mod tests {
         let toolchain = format!("{FIXTURE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64");
 
         assert_eq!(
-            planned(BitFlags::empty(), &ANDROID_OVERRIDES).clang_args,
+            planned(BitFlags::empty(), &android_overrides()).clang_args,
             [
                 llama_cpp_includes(),
                 vec![

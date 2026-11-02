@@ -266,10 +266,12 @@ mod tests {
     use enumflags2::BitFlags;
 
     use super::link_directives;
-    use crate::build_context::tests::ANDROID_OVERRIDES;
+    use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
     use crate::build_context::tests::context_of;
     use crate::build_environment::BuildEnvironment;
+    use crate::build_environment::tests::EnvironmentVariable;
+    use crate::build_environment::tests::variable;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::link_kind::LinkKind;
@@ -303,7 +305,7 @@ mod tests {
 
     fn platform_libraries(
         features: BitFlags<BuildFeature>,
-        overrides: &[(&str, &str)],
+        overrides: &[EnvironmentVariable],
     ) -> Vec<NativeLibrary> {
         let libraries = libraries(&linked(&cargo_environment(features, overrides)));
 
@@ -422,7 +424,7 @@ mod tests {
                     | BuildFeature::Metal
                     | BuildFeature::Vulkan
                     | BuildFeature::Rocm,
-                &[("ROCM_PATH", rocm_root.to_str().unwrap())],
+                &[variable("ROCM_PATH", rocm_root.to_str().unwrap())],
             )
         };
         let directives = linked(&environment);
@@ -506,7 +508,7 @@ mod tests {
         let system_ggml_linked = |features: BitFlags<BuildFeature>| {
             linked(&cargo_environment(
                 features | BuildFeature::SystemGgml | BuildFeature::Cuda,
-                &[("GGML_LIBRARY_DIR", FIXTURES)],
+                &[variable("GGML_LIBRARY_DIR", FIXTURES)],
             ))
         };
         let linked_with_ggml_as = |ggml_kind: LinkKind| {
@@ -564,18 +566,21 @@ mod tests {
             [
                 platform_libraries(
                     BitFlags::from(BuildFeature::Metal),
-                    &[("CARGO_CFG_TARGET_OS", "macos")]
+                    &[variable("CARGO_CFG_TARGET_OS", "macos")]
                 ),
-                platform_libraries(BitFlags::empty(), &[("CARGO_CFG_TARGET_OS", "macos")]),
+                platform_libraries(
+                    BitFlags::empty(),
+                    &[variable("CARGO_CFG_TARGET_OS", "macos")]
+                ),
                 platform_libraries(
                     BitFlags::from(BuildFeature::StaticStdcxx),
-                    &ANDROID_OVERRIDES
+                    &android_overrides()
                 ),
                 platform_libraries(
                     BitFlags::from(BuildFeature::SharedStdcxx),
-                    &ANDROID_OVERRIDES
+                    &android_overrides()
                 ),
-                platform_libraries(BitFlags::empty(), &ANDROID_OVERRIDES),
+                platform_libraries(BitFlags::empty(), &android_overrides()),
             ],
             [
                 vec![
@@ -605,7 +610,7 @@ mod tests {
             "llama-cpp-bindings-build-missing-{}",
             process::id()
         ));
-        let refusal = |features: BitFlags<BuildFeature>, overrides: &[(&str, &str)]| {
+        let refusal = |features: BitFlags<BuildFeature>, overrides: &[EnvironmentVariable]| {
             let environment = cargo_environment(features, overrides);
 
             link_directives(&context_of(&environment), &environment)
@@ -618,12 +623,15 @@ mod tests {
                 refusal(BitFlags::from(BuildFeature::SystemGgml), &[]),
                 refusal(
                     BitFlags::from(BuildFeature::SystemGgml),
-                    &[("GGML_LIBRARY_DIR", missing_directory.to_str().unwrap())]
+                    &[variable(
+                        "GGML_LIBRARY_DIR",
+                        missing_directory.to_str().unwrap()
+                    )]
                 ),
                 refusal(BitFlags::from(BuildFeature::Rocm), &[]),
                 refusal(
                     BitFlags::from(BuildFeature::Rocm),
-                    &[("ROCM_PATH", env!("CARGO_MANIFEST_DIR"))]
+                    &[variable("ROCM_PATH", env!("CARGO_MANIFEST_DIR"))]
                 ),
             ],
             [

@@ -209,12 +209,14 @@ mod cpu_tuning_tests {
     use super::CpuTuning;
     use crate::build_context::tests::cargo_environment;
     use crate::build_context::tests::context_of;
+    use crate::build_environment::tests::EnvironmentVariable;
+    use crate::build_environment::tests::variable;
     use crate::build_environment::tests::with_non_unicode;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_define::CmakeDefine;
 
-    fn tuned(features: BitFlags<BuildFeature>, overrides: &[(&str, &str)]) -> CpuTuning {
+    fn tuned(features: BitFlags<BuildFeature>, overrides: &[EnvironmentVariable]) -> CpuTuning {
         let environment = cargo_environment(features, overrides);
 
         CpuTuning::of(&context_of(&environment), &environment).unwrap()
@@ -248,8 +250,8 @@ mod cpu_tuning_tests {
             tuned(
                 BitFlags::empty(),
                 &[
-                    ("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
-                    ("CARGO_CFG_TARGET_FEATURE", "avx2"),
+                    variable("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
+                    variable("CARGO_CFG_TARGET_FEATURE", "avx2"),
                 ]
             ),
             CpuTuning {
@@ -266,7 +268,7 @@ mod cpu_tuning_tests {
         assert_eq!(
             tuned(
                 BitFlags::empty(),
-                &[("CARGO_CFG_TARGET_FEATURE", "fxsr,sse,sse2")]
+                &[variable("CARGO_CFG_TARGET_FEATURE", "fxsr,sse,sse2")]
             ),
             CpuTuning {
                 defines: [
@@ -287,8 +289,8 @@ mod cpu_tuning_tests {
             tuned(
                 BitFlags::empty(),
                 &[
-                    ("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=znver4"),
-                    (
+                    variable("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=znver4"),
+                    variable(
                         "CARGO_CFG_TARGET_FEATURE",
                         "avx,avx2,avx512f,avx512cd,avx512vl,avx512dq,bmi2,f16c,fma,sse4.2"
                     ),
@@ -316,8 +318,8 @@ mod cpu_tuning_tests {
             tuned(
                 BitFlags::empty(),
                 &[
-                    ("CARGO_CFG_TARGET_ARCH", "aarch64"),
-                    ("TARGET", "aarch64-unknown-linux-gnu"),
+                    variable("CARGO_CFG_TARGET_ARCH", "aarch64"),
+                    variable("TARGET", "aarch64-unknown-linux-gnu"),
                 ]
             ),
             CpuTuning {
@@ -335,9 +337,9 @@ mod cpu_tuning_tests {
             tuned(
                 BuildFeature::DynamicBackends | BuildFeature::DynamicLink,
                 &[
-                    ("CARGO_CFG_TARGET_ARCH", "aarch64"),
-                    ("TARGET", "aarch64-unknown-linux-gnu"),
-                    ("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
+                    variable("CARGO_CFG_TARGET_ARCH", "aarch64"),
+                    variable("TARGET", "aarch64-unknown-linux-gnu"),
+                    variable("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
                 ]
             ),
             CpuTuning {

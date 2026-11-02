@@ -68,6 +68,7 @@ mod tests {
     use super::build;
     use crate::build_context::tests::cargo_environment;
     use crate::build_environment::BuildEnvironment;
+    use crate::build_environment::tests::variable;
     use crate::build_feature::BuildFeature;
 
     const FIXTURE_CMAKE_PROJECT: &str =
@@ -100,7 +101,7 @@ mod tests {
                 failure(&cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])),
                 failure(&cargo_environment(
                     BitFlags::empty(),
-                    &[("CARGO_MANIFEST_DIR", FIXTURE_CMAKE_PROJECT)]
+                    &[variable("CARGO_MANIFEST_DIR", FIXTURE_CMAKE_PROJECT)]
                 )),
             ],
             [

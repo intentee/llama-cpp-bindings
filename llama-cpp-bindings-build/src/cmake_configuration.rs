@@ -209,9 +209,11 @@ mod tests {
 
     use super::CmakeConfiguration;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
-    use crate::build_context::tests::ANDROID_OVERRIDES;
+    use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
     use crate::build_context::tests::context_of;
+    use crate::build_environment::tests::EnvironmentVariable;
+    use crate::build_environment::tests::variable;
     use crate::build_environment::tests::with_non_unicode;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
@@ -222,7 +224,7 @@ mod tests {
 
     fn configured(
         features: BitFlags<BuildFeature>,
-        overrides: &[(&str, &str)],
+        overrides: &[EnvironmentVariable],
     ) -> CmakeConfiguration {
         let environment = cargo_environment(features, overrides);
 
@@ -231,7 +233,7 @@ mod tests {
 
     fn after_the_base_switches(
         features: BitFlags<BuildFeature>,
-        overrides: &[(&str, &str)],
+        overrides: &[EnvironmentVariable],
     ) -> CmakeConfiguration {
         let environment = cargo_environment(features, overrides);
         let context = context_of(&environment);
@@ -298,7 +300,7 @@ mod tests {
         assert_eq!(
             after_the_base_switches(
                 BuildFeature::Metal | BuildFeature::Vulkan,
-                &[("CARGO_CFG_TARGET_OS", "macos")]
+                &[variable("CARGO_CFG_TARGET_OS", "macos")]
             ),
             CmakeConfiguration {
                 defines: vec![
@@ -317,7 +319,7 @@ mod tests {
     #[test]
     fn android_targets_build_with_the_ndk_toolchain_their_stl_and_no_openmp() {
         let android_with = |features: BitFlags<BuildFeature>| {
-            after_the_base_switches(features | BuildFeature::Openmp, &ANDROID_OVERRIDES)
+            after_the_base_switches(features | BuildFeature::Openmp, &android_overrides())
         };
         let android_defines = |stl: Vec<CmakeDefine>| {
             [
@@ -366,7 +368,7 @@ mod tests {
 
     #[test]
     fn gpu_backends_turn_on_their_ggml_switches_and_take_their_sdk_and_architectures_when_set() {
-        let gpu_configuration = |overrides: &[(&str, &str)]| {
+        let gpu_configuration = |overrides: &[EnvironmentVariable]| {
             after_the_base_switches(
                 BuildFeature::Vulkan
                     | BuildFeature::Cuda
@@ -405,7 +407,10 @@ mod tests {
 
         assert_eq!(
             [
-                gpu_configuration(&[("VULKAN_SDK", "/vulkan"), ("CUDAARCHS", "89")]),
+                gpu_configuration(&[
+                    variable("VULKAN_SDK", "/vulkan"),
+                    variable("CUDAARCHS", "89")
+                ]),
                 gpu_configuration(&[]),
             ],
             [
@@ -441,7 +446,7 @@ mod tests {
         assert_eq!(
             after_the_base_switches(
                 BitFlags::from(BuildFeature::SystemGgml),
-                &[("GGML_DIR", "/ggml/lib/cmake/ggml")]
+                &[variable("GGML_DIR", "/ggml/lib/cmake/ggml")]
             ),
             CmakeConfiguration {
                 defines: vec![

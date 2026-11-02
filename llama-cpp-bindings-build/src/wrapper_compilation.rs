@@ -106,12 +106,16 @@ mod tests {
     use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
 
     use super::WrapperCompilation;
-    use crate::build_context::tests::ANDROID_OVERRIDES;
+    use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
     use crate::build_context::tests::context_of;
+    use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_feature::BuildFeature;
 
-    fn planned(features: BitFlags<BuildFeature>, overrides: &[(&str, &str)]) -> WrapperCompilation {
+    fn planned(
+        features: BitFlags<BuildFeature>,
+        overrides: &[EnvironmentVariable],
+    ) -> WrapperCompilation {
         let environment = cargo_environment(features, overrides);
 
         WrapperCompilation::of(&context_of(&environment), &environment)
@@ -157,7 +161,7 @@ mod tests {
         assert_eq!(
             planned(
                 BitFlags::from(BuildFeature::StaticStdcxx),
-                &ANDROID_OVERRIDES
+                &android_overrides()
             ),
             WrapperCompilation {
                 cpp_stdlib_linked_separately: true,
