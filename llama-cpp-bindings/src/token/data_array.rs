@@ -47,6 +47,35 @@ impl LlamaTokenDataArray {
 }
 
 impl LlamaTokenDataArray {
+    fn c_selection(&self) -> Result<i64, FfiContractError> {
+        let Some(selected_index) = self.selected else {
+            return Ok(-1);
+        };
+
+        self.data
+            .get(selected_index)
+            .and_then(|_selected_candidate| i64::try_from(selected_index).ok())
+            .ok_or(FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the token data array selects a token outside itself",
+            })
+    }
+
+    fn selection_of(&self, c_selected: i64) -> Result<Option<usize>, FfiContractError> {
+        if c_selected == -1 {
+            return Ok(None);
+        }
+
+        usize::try_from(c_selected)
+            .ok()
+            .filter(|&selected_index| selected_index < self.data.len())
+            .map(Some)
+            .ok_or(FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the llama.cpp sampler selected a token outside the token data array",
+            })
+    }
+
     /// # Errors
     ///
     /// Returns [`llama_cpp_ffi_status::ffi_contract_error::FfiContractError`] when the llama.cpp sampler grows the array beyond the
@@ -71,10 +100,7 @@ impl LlamaTokenDataArray {
         let mut c_llama_token_data_array = llama_cpp_bindings_sys::llama_token_data_array {
             data,
             size,
-            selected: self
-                .selected
-                .and_then(|selected_index| selected_index.try_into().ok())
-                .unwrap_or(-1),
+            selected: self.c_selection()?,
             sorted: self.sorted,
         };
 
@@ -99,11 +125,7 @@ impl LlamaTokenDataArray {
         }
 
         self.sorted = c_llama_token_data_array.sorted;
-        self.selected = c_llama_token_data_array
-            .selected
-            .try_into()
-            .ok()
-            .filter(|&selected_index| selected_index < self.data.len());
+        self.selected = self.selection_of(c_llama_token_data_array.selected)?;
 
         Ok(result)
     }
@@ -179,37 +201,45 @@ mod tests {
     }
 
     #[test]
-    fn modify_clears_selection_when_index_is_out_of_range() {
+    fn a_sampler_selecting_a_token_outside_the_array_is_a_contract_violation() {
         let mut array = LlamaTokenDataArray::new(
             vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
             false,
         );
 
-        unsafe {
-            array
-                .modify_as_c_llama_token_data_array(|c_array| {
-                    c_array.selected = 5;
-                })
-                .expect("the array is left at its original size");
-        }
+        let result = unsafe {
+            array.modify_as_c_llama_token_data_array(|c_array| {
+                c_array.selected = 5;
+            })
+        };
 
-        assert_eq!(array.selected, None);
+        assert_eq!(
+            result,
+            Err(FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the llama.cpp sampler selected a token outside the token data array",
+            })
+        );
     }
 
     #[test]
-    fn selected_overflow_uses_negative_one() {
-        let mut array = LlamaTokenDataArray {
-            data: vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
-            selected: Some(usize::MAX),
-            sorted: false,
-        };
+    fn a_selection_outside_the_array_is_refused_before_reaching_llama_cpp() {
+        for selected in [1, usize::MAX] {
+            let mut array = LlamaTokenDataArray {
+                data: vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
+                selected: Some(selected),
+                sorted: false,
+            };
 
-        unsafe {
-            array
-                .modify_as_c_llama_token_data_array(|c_array| {
-                    assert_eq!(c_array.selected, -1);
+            let result = unsafe { array.modify_as_c_llama_token_data_array(|_c_array| ()) };
+
+            assert_eq!(
+                result,
+                Err(FfiContractError {
+                    operation: "modify_as_c_llama_token_data_array",
+                    detail: "the token data array selects a token outside itself",
                 })
-                .expect("the array is left at its original size");
+            );
         }
     }
 
