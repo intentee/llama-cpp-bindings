@@ -1,0 +1,22 @@
+[package]
+name = "llama-cpp-test-model-provisioning"
+description = "Downloads and loads the models llama-cpp-bindings integration tests run against"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+hf-hub = { workspace = true }
+llama-cpp-bindings = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+cuda = ["llama-cpp-bindings/cuda"]
+cuda-no-vmm = ["llama-cpp-bindings/cuda-no-vmm"]
+metal = ["llama-cpp-bindings/metal"]
+vulkan = ["llama-cpp-bindings/vulkan"]
+rocm = ["llama-cpp-bindings/rocm"]
+
+[lints]
+workspace = true

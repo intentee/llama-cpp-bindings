@@ -15,6 +15,8 @@ use syn::punctuated::Punctuated;
 
 use crate::attribute_accumulator::AttributeAccumulator;
 use crate::parsed_context_params::ParsedContextParams;
+use crate::parsed_expected_failure::ParsedExpectedFailure;
+use crate::parsed_expected_outcome::ParsedExpectedOutcome;
 use crate::parsed_load_mode::ParsedLoadMode;
 use crate::parsed_model_load_params::ParsedModelLoadParams;
 use crate::parsed_source::ParsedSource;
@@ -33,6 +35,7 @@ const OPTIONAL_FIELDS: &[&str] = &[
     "embeddings",
     "n_seq_max",
     "n_threads_batch",
+    "expected_failure",
 ];
 
 fn literal_from_expression(expression: &Expr) -> syn::Result<&Lit> {
@@ -189,6 +192,9 @@ fn dispatch_field(
         "n_threads_batch" => {
             accumulator.n_threads_batch = Some(require_i32_value(value, "n_threads_batch")?);
         }
+        "expected_failure" => {
+            accumulator.expected_failure = Some(ParsedExpectedFailure::parse(value)?);
+        }
         "repo" | "file" | "mmproj_file" => {
             return Err(syn::Error::new_spanned(
                 identifier,
@@ -217,6 +223,7 @@ pub struct ParsedArgs {
     pub mmproj_source: Option<ParsedSource>,
     pub model_load_params: ParsedModelLoadParams,
     pub context_params: ParsedContextParams,
+    pub expected_outcome: ParsedExpectedOutcome,
 }
 
 impl Parse for ParsedArgs {
@@ -262,6 +269,10 @@ impl Parse for ParsedArgs {
                 n_threads_batch: accumulator.n_threads_batch,
                 embeddings: accumulator.embeddings.unwrap_or(false),
             },
+            expected_outcome: accumulator.expected_failure.map_or(
+                ParsedExpectedOutcome::Success,
+                ParsedExpectedOutcome::Failure,
+            ),
         })
     }
 }
@@ -399,6 +410,19 @@ mod tests {
     }
 
     #[test]
+    fn an_expected_failure_that_cannot_be_parsed_is_rejected() {
+        let source = format!("{ALL_REQUIRED}, expected_failure = Whatever(\"reason\")");
+
+        assert_eq!(
+            parse(&source)
+                .expect_err("an unknown expected failure must fail")
+                .to_string(),
+            "field `expected_failure` expects `SetupFailure(kind, \"reason\")` or \
+             `TestFailure(\"reason\")`"
+        );
+    }
+
+    #[test]
     fn unknown_field_is_rejected() {
         let source = format!("{ALL_REQUIRED}, surprise = 1");
         let message = parse(&source)
@@ -408,7 +432,8 @@ mod tests {
         assert_eq!(
             message,
             "unknown field `surprise`; expected one of: model_source, n_gpu_layers, load_mode, \
-             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch"
+             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch, \
+             expected_failure"
         );
     }
 

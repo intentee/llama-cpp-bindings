@@ -32,10 +32,10 @@ mod tests {
     use libtest_mimic::Conclusion;
 
     use llama_cpp_bindings::llama_backend::LlamaBackend;
+    use llama_cpp_test_model_provisioning::backend_init_gate::BACKEND_INIT_GATE;
 
     use super::aggregate_exit_code;
     use super::run;
-    use crate::test_backend_gate::BACKEND_INIT_GATE;
 
     fn passing_conclusion() -> Conclusion {
         Conclusion {

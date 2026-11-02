@@ -1,3 +1,4 @@
+use crate::parsed_expected_failure::ParsedExpectedFailure;
 use crate::parsed_load_mode::ParsedLoadMode;
 use crate::parsed_source::ParsedSource;
 
@@ -13,4 +14,5 @@ pub struct AttributeAccumulator {
     pub embeddings: Option<bool>,
     pub n_seq_max: Option<u32>,
     pub n_threads_batch: Option<i32>,
+    pub expected_failure: Option<ParsedExpectedFailure>,
 }

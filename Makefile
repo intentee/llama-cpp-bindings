@@ -83,6 +83,7 @@ coverage: node_modules
 		--gated llama-cpp-log-decoder=100 \
 		--gated llama-cpp-test-harness=100 \
 		--gated llama-cpp-test-harness-macros=100 \
+		--gated llama-cpp-test-model-provisioning=100 \
 		--gated llama-cpp-wrapper-sources=100
 
 .PHONY: coverage-clean
@@ -122,7 +123,8 @@ test: test.llms
 
 .PHONY: test.harness
 test.harness: clippy
-	cargo test -p llama-cpp-test-harness-macros -p llama-cpp-test-harness $(DEVICE_FEATURE)
+	cargo test -p llama-cpp-test-harness-macros -p llama-cpp-test-harness \
+		-p llama-cpp-test-model-provisioning $(DEVICE_FEATURE)
 
 .PHONY: test.llms
 test.llms: clippy test.harness test.unit

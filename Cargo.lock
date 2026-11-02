@@ -1222,6 +1222,7 @@ dependencies = [
  "llama-cpp-gbnf",
  "llama-cpp-test-harness",
  "llama-cpp-test-harness-macros",
+ "llama-cpp-test-model-provisioning",
  "serde_json",
  "toktrie",
 ]
@@ -1276,11 +1277,11 @@ name = "llama-cpp-test-harness"
 version = "0.26.0"
 dependencies = [
  "anyhow",
- "hf-hub",
  "inventory",
  "libtest-mimic",
  "llama-cpp-bindings",
  "llama-cpp-test-harness-macros",
+ "llama-cpp-test-model-provisioning",
  "thiserror",
 ]
 
@@ -1291,6 +1292,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "llama-cpp-test-model-provisioning"
+version = "0.26.0"
+dependencies = [
+ "hf-hub",
+ "llama-cpp-bindings",
+ "thiserror",
 ]
 
 [[package]]

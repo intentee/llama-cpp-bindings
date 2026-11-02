@@ -1,23 +1,23 @@
 use libtest_mimic::Arguments;
 
-use crate::harness_arguments_error::HarnessArgumentsError;
+use crate::harness_run_error::HarnessRunError;
 
-fn validate(mut arguments: Arguments) -> Result<Arguments, HarnessArgumentsError> {
+fn validate(mut arguments: Arguments) -> Result<Arguments, HarnessRunError> {
     match arguments.test_threads {
         None | Some(1) => {
             arguments.test_threads = Some(1);
             Ok(arguments)
         }
-        Some(requested) => Err(HarnessArgumentsError::ConflictingTestThreads { requested }),
+        Some(requested) => Err(HarnessRunError::ConflictingTestThreads { requested }),
     }
 }
 
 /// # Errors
 ///
-/// Returns [`HarnessArgumentsError::ConflictingTestThreads`] when `--test-threads` is set to
+/// Returns [`HarnessRunError::ConflictingTestThreads`] when `--test-threads` is set to
 /// any value other than `1`. The harness orchestrates phase batching itself and cannot share
 /// that responsibility with `libtest_mimic`'s thread pool.
-pub fn parse_harness_arguments(arguments: Arguments) -> Result<Arguments, HarnessArgumentsError> {
+pub fn parse_harness_arguments(arguments: Arguments) -> Result<Arguments, HarnessRunError> {
     validate(arguments)
 }
 
@@ -26,7 +26,7 @@ mod tests {
     use libtest_mimic::Arguments;
 
     use super::validate;
-    use crate::harness_arguments_error::HarnessArgumentsError;
+    use crate::harness_run_error::HarnessRunError;
 
     #[test]
     fn validate_accepts_unset_test_threads_and_defaults_to_one() {
@@ -57,7 +57,7 @@ mod tests {
 
         assert_eq!(
             error,
-            HarnessArgumentsError::ConflictingTestThreads { requested: 8 }
+            HarnessRunError::ConflictingTestThreads { requested: 8 }
         );
     }
 

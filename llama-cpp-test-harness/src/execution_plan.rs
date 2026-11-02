@@ -68,14 +68,15 @@ impl ExecutionPlan {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+    use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
+    use llama_cpp_test_model_provisioning::load_key::LoadKey;
+    use llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams;
 
     use super::ExecutionPlan;
     use crate::context_params::ContextParams;
-    use crate::gguf_source::GgufSource;
+    use crate::expected_outcome::ExpectedOutcome;
     use crate::llama_test_fn::LlamaTestFn;
     use crate::llama_test_registration::LlamaTestRegistration;
-    use crate::load_key::LoadKey;
-    use crate::model_load_params::ModelLoadParams;
     use crate::no_op::no_op;
 
     const TRIVIAL_CONTEXT_PARAMS: ContextParams = ContextParams {
@@ -111,6 +112,7 @@ mod tests {
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
         func: LlamaTestFn::Infallible(no_op),
+        expected_outcome: ExpectedOutcome::Success,
     };
     static REG_BETA_B: LlamaTestRegistration = LlamaTestRegistration {
         name: "bravo",
@@ -127,6 +129,7 @@ mod tests {
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
         func: LlamaTestFn::Infallible(no_op),
+        expected_outcome: ExpectedOutcome::Success,
     };
     static REG_ALPHA_Z: LlamaTestRegistration = LlamaTestRegistration {
         name: "zulu",
@@ -143,6 +146,7 @@ mod tests {
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
         func: LlamaTestFn::Infallible(no_op),
+        expected_outcome: ExpectedOutcome::Success,
     };
     static REG_BETA_DIFFERENT_CONTEXT: LlamaTestRegistration = LlamaTestRegistration {
         name: "charlie",
@@ -159,6 +163,7 @@ mod tests {
         },
         context_params: ALTERNATE_CONTEXT_PARAMS,
         func: LlamaTestFn::Infallible(no_op),
+        expected_outcome: ExpectedOutcome::Success,
     };
 
     #[test]

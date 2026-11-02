@@ -8,11 +8,11 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
-hf-hub = { workspace = true }
 inventory = { workspace = true }
 libtest-mimic = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 llama-cpp-test-harness-macros = { workspace = true }
+llama-cpp-test-model-provisioning = { workspace = true }
 thiserror = { workspace = true }
 
 [features]

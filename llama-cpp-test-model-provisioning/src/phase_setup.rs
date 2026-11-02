@@ -1,20 +1,18 @@
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use anyhow::Error;
-use anyhow::Result;
-
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 
 use crate::load_key::LoadKey;
 use crate::phase_model_files::PhaseModelFiles;
+use crate::phase_setup_error::PhaseSetupError;
 use crate::phase_state::PhaseState;
 
 pub struct PhaseSetup {
     key: LoadKey,
     backend: Arc<LlamaBackend>,
-    model_files: OnceLock<Result<PhaseModelFiles>>,
-    phase_state: OnceLock<Result<PhaseState>>,
+    model_files: OnceLock<Result<PhaseModelFiles, PhaseSetupError>>,
+    phase_state: OnceLock<Result<PhaseState, PhaseSetupError>>,
 }
 
 impl PhaseSetup {
@@ -32,7 +30,7 @@ impl PhaseSetup {
     ///
     /// Returns the failure of downloading the model or the mmproj file. The outcome is cached, so
     /// the files are downloaded at most once per phase.
-    pub fn download_model_files(&self) -> Result<&PhaseModelFiles, &Error> {
+    pub fn download_model_files(&self) -> Result<&PhaseModelFiles, &PhaseSetupError> {
         self.model_files
             .get_or_init(|| self.key.download_model_files())
             .as_ref()
@@ -42,7 +40,7 @@ impl PhaseSetup {
     ///
     /// Returns the cached download failure, or the failure of loading the downloaded files into
     /// llama.cpp. The outcome is cached, so the model is loaded at most once per phase.
-    pub fn load_phase_state(&self) -> Result<&PhaseState, &Error> {
+    pub fn load_phase_state(&self) -> Result<&PhaseState, &PhaseSetupError> {
         let model_files = self.download_model_files()?;
 
         self.phase_state
@@ -61,10 +59,10 @@ mod tests {
     use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
 
     use super::PhaseSetup;
+    use crate::backend_init_gate::BACKEND_INIT_GATE;
     use crate::gguf_source::GgufSource;
     use crate::load_key::LoadKey;
     use crate::model_load_params::ModelLoadParams;
-    use crate::test_backend_gate::BACKEND_INIT_GATE;
 
     const NON_GGUF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
 

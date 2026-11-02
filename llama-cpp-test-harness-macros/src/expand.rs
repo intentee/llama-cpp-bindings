@@ -10,6 +10,8 @@ use syn::parse::ParseStream;
 use syn::parse2;
 
 use crate::parsed_args::ParsedArgs;
+use crate::parsed_expected_failure::ParsedExpectedFailure;
+use crate::parsed_expected_outcome::ParsedExpectedOutcome;
 use crate::parsed_source::ParsedSource;
 
 struct StackedItems {
@@ -73,13 +75,13 @@ fn split_fn_and_pass_through(items: Vec<Item>) -> syn::Result<(ItemFn, Vec<Item>
 fn build_model_source_literal(source: &ParsedSource) -> TokenStream {
     match source {
         ParsedSource::HuggingFace { repo, file } => quote! {
-            ::llama_cpp_test_harness::gguf_source::GgufSource::HuggingFace {
+            ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
                 repo: #repo,
                 file: #file,
             }
         },
         ParsedSource::LocalPath(path) => quote! {
-            ::llama_cpp_test_harness::gguf_source::GgufSource::LocalPath(#path)
+            ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::LocalPath(#path)
         },
     }
 }
@@ -88,13 +90,13 @@ fn build_mmproj_source_literal(source: Option<&ParsedSource>) -> TokenStream {
     match source {
         None => quote! { ::core::option::Option::None },
         Some(ParsedSource::HuggingFace { repo, file }) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_harness::gguf_source::GgufSource::HuggingFace {
+            ::core::option::Option::Some(::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
                 repo: #repo,
                 file: #file,
             })
         },
         Some(ParsedSource::LocalPath(path)) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_harness::gguf_source::GgufSource::LocalPath(#path))
+            ::core::option::Option::Some(::llama_cpp_test_model_provisioning::gguf_source::GgufSource::LocalPath(#path))
         },
     }
 }
@@ -109,6 +111,49 @@ fn build_test_fn_literal(signature: &Signature) -> TokenStream {
         ReturnType::Type(..) => {
             quote! { ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Fallible(#fn_name) }
         }
+    }
+}
+
+fn validate_expected_outcome(
+    expected_outcome: &ParsedExpectedOutcome,
+    signature: &Signature,
+) -> syn::Result<()> {
+    if let (
+        ParsedExpectedOutcome::Failure(ParsedExpectedFailure::Test { .. }),
+        ReturnType::Default,
+    ) = (expected_outcome, &signature.output)
+    {
+        Err(syn::Error::new_spanned(
+            signature,
+            "`expected_failure = TestFailure(...)` needs a test that returns a `Result`, because \
+             only an error it returns counts as its failure",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn build_expected_outcome_literal(expected_outcome: &ParsedExpectedOutcome) -> TokenStream {
+    match expected_outcome {
+        ParsedExpectedOutcome::Success => {
+            quote! { ::llama_cpp_test_harness::expected_outcome::ExpectedOutcome::Success }
+        }
+        ParsedExpectedOutcome::Failure(ParsedExpectedFailure::PhaseSetup { kind, reason }) => {
+            quote! {
+                ::llama_cpp_test_harness::expected_outcome::ExpectedOutcome::Failure {
+                    failure: ::llama_cpp_test_harness::expected_failure::ExpectedFailure::PhaseSetup(
+                        ::llama_cpp_test_model_provisioning::phase_setup_failure_kind::PhaseSetupFailureKind::#kind
+                    ),
+                    reason: #reason,
+                }
+            }
+        }
+        ParsedExpectedOutcome::Failure(ParsedExpectedFailure::Test { reason }) => quote! {
+            ::llama_cpp_test_harness::expected_outcome::ExpectedOutcome::Failure {
+                failure: ::llama_cpp_test_harness::expected_failure::ExpectedFailure::Test,
+                reason: #reason,
+            }
+        },
     }
 }
 
@@ -128,6 +173,7 @@ fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
     let embeddings_flag = args.context_params.embeddings;
     let sequence_max = args.context_params.n_seq_max;
     let test_fn = build_test_fn_literal(signature);
+    let expected_outcome = build_expected_outcome_literal(&args.expected_outcome);
     let threads_batch = args.context_params.n_threads_batch.map_or_else(
         || quote! { ::core::option::Option::None },
         |value| quote! { ::core::option::Option::Some(#value) },
@@ -137,10 +183,10 @@ fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
         ::inventory::submit! {
             ::llama_cpp_test_harness::llama_test_registration::LlamaTestRegistration {
                 name: #trial_name,
-                key: ::llama_cpp_test_harness::load_key::LoadKey {
+                key: ::llama_cpp_test_model_provisioning::load_key::LoadKey {
                     model_source: #model_source_literal,
                     mmproj_source: #mmproj_source_literal,
-                    model_load_params: ::llama_cpp_test_harness::model_load_params::ModelLoadParams {
+                    model_load_params: ::llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams {
                         n_gpu_layers: #gpu_layers,
                         load_mode: #load_mode,
                     },
@@ -154,6 +200,7 @@ fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
                     embeddings: #embeddings_flag,
                 },
                 func: #test_fn,
+                expected_outcome: #expected_outcome,
             }
         }
     }
@@ -164,6 +211,7 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     let StackedItems { items } = parse2(item)?;
     let (item_fn, pass_through) = split_fn_and_pass_through(items)?;
     validate_signature(&item_fn)?;
+    validate_expected_outcome(&args.expected_outcome, &item_fn.sig)?;
 
     let new_submission = build_registration(&args, &item_fn.sig);
 
@@ -176,6 +224,8 @@ pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStr
 
 #[cfg(test)]
 mod tests {
+    use proc_macro2::Ident;
+    use proc_macro2::Span;
     use proc_macro2::TokenStream;
     use quote::quote;
     use syn::Item;
@@ -183,10 +233,13 @@ mod tests {
     use syn::parse2;
 
     use super::StackedItems;
+    use super::build_expected_outcome_literal;
     use super::build_mmproj_source_literal;
     use super::build_model_source_literal;
     use super::build_test_fn_literal;
     use super::expand;
+    use crate::parsed_expected_failure::ParsedExpectedFailure;
+    use crate::parsed_expected_outcome::ParsedExpectedOutcome;
     use crate::parsed_source::ParsedSource;
 
     fn well_formed_attribute() -> TokenStream {
@@ -227,13 +280,13 @@ mod tests {
             ::inventory::submit! {
                 ::llama_cpp_test_harness::llama_test_registration::LlamaTestRegistration {
                     name: "my_test[bar.gguf]",
-                    key: ::llama_cpp_test_harness::load_key::LoadKey {
-                        model_source: ::llama_cpp_test_harness::gguf_source::GgufSource::HuggingFace {
+                    key: ::llama_cpp_test_model_provisioning::load_key::LoadKey {
+                        model_source: ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
                             repo: "foo",
                             file: "bar.gguf",
                         },
                         mmproj_source: ::core::option::Option::None,
-                        model_load_params: ::llama_cpp_test_harness::model_load_params::ModelLoadParams {
+                        model_load_params: ::llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams {
                             n_gpu_layers: 0i32,
                             load_mode: ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Mmap,
                         },
@@ -247,11 +300,73 @@ mod tests {
                         embeddings: false,
                     },
                     func: ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Fallible(my_test),
+                    expected_outcome: ::llama_cpp_test_harness::expected_outcome::ExpectedOutcome::Success,
                 }
             }
         };
 
         assert_eq!(expanded.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn a_setup_failure_expectation_emits_its_kind_and_reason() {
+        assert_eq!(
+            build_expected_outcome_literal(&ParsedExpectedOutcome::Failure(
+                ParsedExpectedFailure::PhaseSetup {
+                    kind: Ident::new("ModelDownload", Span::call_site()),
+                    reason: "the repository does not exist".to_owned(),
+                }
+            ))
+            .to_string(),
+            quote! {
+                ::llama_cpp_test_harness::expected_outcome::ExpectedOutcome::Failure {
+                    failure: ::llama_cpp_test_harness::expected_failure::ExpectedFailure::PhaseSetup(
+                        ::llama_cpp_test_model_provisioning::phase_setup_failure_kind::PhaseSetupFailureKind::ModelDownload
+                    ),
+                    reason: "the repository does not exist",
+                }
+            }
+            .to_string()
+        );
+    }
+
+    #[test]
+    fn a_test_failure_expectation_emits_its_reason() {
+        assert_eq!(
+            build_expected_outcome_literal(&ParsedExpectedOutcome::Failure(
+                ParsedExpectedFailure::Test {
+                    reason: "the body bails on purpose".to_owned(),
+                }
+            ))
+            .to_string(),
+            quote! {
+                ::llama_cpp_test_harness::expected_outcome::ExpectedOutcome::Failure {
+                    failure: ::llama_cpp_test_harness::expected_failure::ExpectedFailure::Test,
+                    reason: "the body bails on purpose",
+                }
+            }
+            .to_string()
+        );
+    }
+
+    #[test]
+    fn a_test_failure_expected_of_a_test_that_cannot_return_an_error_is_refused() {
+        assert_eq!(
+            expansion_error(
+                quote! {
+                    model_source = HuggingFace("foo", "bar.gguf"),
+                    n_gpu_layers = 0,
+                    load_mode = Mmap,
+                    n_ctx = 1,
+                    n_batch = 1,
+                    n_ubatch = 1,
+                    expected_failure = TestFailure("the body bails on purpose")
+                },
+                quote! { fn my_test(fixture: &LlamaFixture<'_>) {} }
+            ),
+            "`expected_failure = TestFailure(...)` needs a test that returns a `Result`, because \
+             only an error it returns counts as its failure"
+        );
     }
 
     #[test]
@@ -277,7 +392,7 @@ mod tests {
         assert_eq!(
             build_model_source_literal(&ParsedSource::LocalPath("/abs/local.gguf".to_owned()))
                 .to_string(),
-            quote! { ::llama_cpp_test_harness::gguf_source::GgufSource::LocalPath("/abs/local.gguf") }
+            quote! { ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::LocalPath("/abs/local.gguf") }
                 .to_string()
         );
     }
@@ -291,7 +406,7 @@ mod tests {
             }))
             .to_string(),
             quote! {
-                ::core::option::Option::Some(::llama_cpp_test_harness::gguf_source::GgufSource::HuggingFace {
+                ::core::option::Option::Some(::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
                     repo: "r",
                     file: "mmproj.gguf",
                 })
@@ -308,7 +423,7 @@ mod tests {
             )))
             .to_string(),
             quote! {
-                ::core::option::Option::Some(::llama_cpp_test_harness::gguf_source::GgufSource::LocalPath(
+                ::core::option::Option::Some(::llama_cpp_test_model_provisioning::gguf_source::GgufSource::LocalPath(
                     "/abs/mmproj.gguf"
                 ))
             }
@@ -321,7 +436,8 @@ mod tests {
         assert_eq!(
             expansion_error(quote! { totally_wrong = "x" }, well_formed_function()),
             "unknown field `totally_wrong`; expected one of: model_source, n_gpu_layers, load_mode, \
-             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch"
+             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch, \
+             expected_failure"
         );
     }
 

@@ -7,6 +7,8 @@ mod attribute_accumulator;
 mod expand;
 mod parsed_args;
 mod parsed_context_params;
+mod parsed_expected_failure;
+mod parsed_expected_outcome;
 mod parsed_load_mode;
 mod parsed_model_load_params;
 mod parsed_source;
@@ -43,7 +45,7 @@ mod tests {
         };
         let message = "unknown field `totally_wrong`; expected one of: model_source, \
                        n_gpu_layers, load_mode, n_ctx, n_batch, n_ubatch, mmproj_source, \
-                       embeddings, n_seq_max, n_threads_batch";
+                       embeddings, n_seq_max, n_threads_batch, expected_failure";
 
         assert_eq!(
             dispatch(attribute, item).to_string(),

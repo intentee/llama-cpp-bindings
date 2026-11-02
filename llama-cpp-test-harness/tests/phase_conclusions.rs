@@ -39,7 +39,8 @@ fn phase_a_second_passing_trial(fixture: &LlamaFixture<'_>) {
     load_mode = Mmap,
     n_ctx = 512,
     n_batch = 128,
-    n_ubatch = 64
+    n_ubatch = 64,
+    expected_failure = TestFailure("the body bails to exercise reporting a failing test"),
 )]
 fn phase_a_intentionally_failing_trial(_fixture: &LlamaFixture<'_>) -> Result<()> {
     bail!("intentional failure to exercise the trial-failure dispatch path");
@@ -83,7 +84,11 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) {
     load_mode = Mmap,
     n_ctx = 1,
     n_batch = 1,
-    n_ubatch = 1
+    n_ubatch = 1,
+    expected_failure = SetupFailure(
+        ModelDownload,
+        "the model repository does not exist, so the phase cannot download its model"
+    ),
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
@@ -93,6 +98,10 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
     mmproj_source = HuggingFace("intentee-test-harness/does-not-exist", "no-such-mmproj.gguf"),
+    expected_failure = SetupFailure(
+        MmprojDownload,
+        "the mmproj repository does not exist, so the phase cannot download its mmproj"
+    ),
 )]
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
@@ -102,6 +111,10 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
     mmproj_source = LocalPath("/nonexistent/llama-cpp-test-harness/no-such-mmproj.gguf"),
+    expected_failure = SetupFailure(
+        MmprojLoad,
+        "the local mmproj file does not exist, so llama.cpp cannot load it"
+    ),
 )]
 #[llama_test(
     model_source = LocalPath("Cargo.toml"),
@@ -109,7 +122,11 @@ fn phase_b_second_passing_trial(fixture: &LlamaFixture<'_>) {
     load_mode = Mmap,
     n_ctx = 1,
     n_batch = 1,
-    n_ubatch = 1
+    n_ubatch = 1,
+    expected_failure = SetupFailure(
+        ModelLoad,
+        "Cargo.toml is not a GGUF model, so llama.cpp cannot load it"
+    ),
 )]
 fn phase_a_trial_also_scheduled_into_every_setup_failure_phase(fixture: &LlamaFixture<'_>) {
     assert!(fixture.model_path.exists());
@@ -132,8 +149,6 @@ fn phase_d_passing_trial_with_a_loaded_mmproj(fixture: &LlamaFixture<'_>) {
 }
 
 const EXPECTED_PHASES: usize = 7;
-const EXPECTED_PASSED: u64 = 6;
-const EXPECTED_FAILED: u64 = 5;
 
 fn main() -> ExitCode {
     let conclusions = match run_to_conclusions(Arguments::from_args()) {
@@ -145,29 +160,19 @@ fn main() -> ExitCode {
         }
     };
     let phases = conclusions.len();
-    let total_passed: u64 = conclusions
+    let phases_with_a_failed_trial = conclusions
         .iter()
-        .map(|conclusion| conclusion.num_passed)
-        .sum();
-    let total_failed: u64 = conclusions
-        .iter()
-        .map(|conclusion| conclusion.num_failed)
-        .sum();
+        .filter(|conclusion| conclusion.has_failed())
+        .count();
 
-    if phases == EXPECTED_PHASES
-        && total_passed == EXPECTED_PASSED
-        && total_failed == EXPECTED_FAILED
-    {
-        eprintln!(
-            "phase_conclusions: as expected — phases={phases}, passed={total_passed}, failed={total_failed}"
-        );
+    if phases == EXPECTED_PHASES && phases_with_a_failed_trial == 0 {
         ExitCode::SUCCESS
     } else {
         eprintln!(
-            "phase_conclusions: UNEXPECTED — phases={phases} (want {EXPECTED_PHASES}), \
-             passed={total_passed} (want {EXPECTED_PASSED}), \
-             failed={total_failed} (want {EXPECTED_FAILED})"
+            "phase_conclusions: want {EXPECTED_PHASES} phases without a failed trial; got \
+             {phases} phases, {phases_with_a_failed_trial} of them with a failed trial"
         );
+
         ExitCode::FAILURE
     }
 }

@@ -19,6 +19,7 @@ llama-cpp-ffi-status = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
 llama-cpp-test-harness = { workspace = true }
 llama-cpp-test-harness-macros = { workspace = true }
+llama-cpp-test-model-provisioning = { workspace = true }
 serde_json = { workspace = true }
 toktrie = { workspace = true }
 

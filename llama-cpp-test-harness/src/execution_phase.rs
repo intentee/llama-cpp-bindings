@@ -1,5 +1,6 @@
+use llama_cpp_test_model_provisioning::load_key::LoadKey;
+
 use crate::llama_test_registration::LlamaTestRegistration;
-use crate::load_key::LoadKey;
 
 pub struct ExecutionPhase {
     pub key: LoadKey,
@@ -27,11 +28,11 @@ impl ExecutionPhase {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+    use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
+    use llama_cpp_test_model_provisioning::load_key::LoadKey;
+    use llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams;
 
     use super::ExecutionPhase;
-    use crate::gguf_source::GgufSource;
-    use crate::load_key::LoadKey;
-    use crate::model_load_params::ModelLoadParams;
 
     fn phase_with_source(source: GgufSource) -> ExecutionPhase {
         ExecutionPhase {

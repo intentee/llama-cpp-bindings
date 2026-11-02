@@ -30,11 +30,10 @@ mod tests {
 
     use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
     use llama_cpp_bindings::llama_backend::LlamaBackend;
+    use llama_cpp_test_model_provisioning::backend_init_gate::BACKEND_INIT_GATE;
 
     use super::run_to_conclusions;
-    use crate::harness_arguments_error::HarnessArgumentsError;
     use crate::harness_run_error::HarnessRunError;
-    use crate::test_backend_gate::BACKEND_INIT_GATE;
 
     #[test]
     fn conflicting_arguments_stop_the_run_before_the_backend_starts() {
@@ -44,9 +43,7 @@ mod tests {
                 ..Arguments::default()
             })
             .err(),
-            Some(HarnessRunError::ArgumentParsing(
-                HarnessArgumentsError::ConflictingTestThreads { requested: 8 }
-            ))
+            Some(HarnessRunError::ConflictingTestThreads { requested: 8 })
         );
     }
 
