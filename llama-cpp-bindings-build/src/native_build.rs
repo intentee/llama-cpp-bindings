@@ -116,7 +116,7 @@ mod tests {
                 sources: vec![PathBuf::from(FIXTURES).join("wrapper/wrapper_fixture.cpp")],
                 include_dirs: vec![PathBuf::from(FIXTURES).join("wrapper")],
                 flags: vec![format!("-isystem{FIXTURES}/wrapper/vendor")],
-                cpp_standard_flag: "-std=c++17".to_owned(),
+                cpp_standard: "c++17",
                 defines: vec!["WRAPPER_FIXTURE_DEFINE"],
                 cpp_stdlib_linked_separately: false,
                 target_triple: HOST_TRIPLE.to_owned(),
