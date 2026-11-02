@@ -1,5 +1,6 @@
 use std::ffi::c_char;
 
+use crate::model::params::empty_kv_override::KV_OVERRIDE_TEXT_CAPACITY;
 use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -7,7 +8,7 @@ pub enum ParamOverrideValue {
     Bool(bool),
     Float(f64),
     Int(i64),
-    Str([c_char; 128]),
+    Str([c_char; KV_OVERRIDE_TEXT_CAPACITY]),
 }
 
 impl ParamOverrideValue {
@@ -73,6 +74,8 @@ mod tests {
     use std::mem;
 
     use super::ParamOverrideValue;
+    use crate::model::params::empty_kv_override::EMPTY_KV_OVERRIDE;
+    use crate::model::params::empty_kv_override::KV_OVERRIDE_TEXT_CAPACITY;
     use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
     #[test]
@@ -82,7 +85,7 @@ mod tests {
                 ParamOverrideValue::Bool(true),
                 ParamOverrideValue::Float(1.23),
                 ParamOverrideValue::Int(42),
-                ParamOverrideValue::Str([0; 128]),
+                ParamOverrideValue::Str([0; KV_OVERRIDE_TEXT_CAPACITY]),
             ]
             .map(|value| value.tag()),
             [
@@ -124,11 +127,11 @@ mod tests {
     #[test]
     fn an_int_kv_override_reads_as_an_int_value() {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            key: [0; 128],
             tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_INT,
             __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
                 val_i64: 123,
             },
+            ..EMPTY_KV_OVERRIDE
         };
 
         let value = ParamOverrideValue::try_from(&ffi_override).unwrap();
@@ -139,11 +142,11 @@ mod tests {
     #[test]
     fn a_float_kv_override_reads_as_a_float_value() {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            key: [0; 128],
             tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
             __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
                 val_f64: 1.5,
             },
+            ..EMPTY_KV_OVERRIDE
         };
 
         let value = ParamOverrideValue::try_from(&ffi_override).unwrap();
@@ -154,11 +157,11 @@ mod tests {
     #[test]
     fn a_bool_kv_override_reads_as_a_bool_value() {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            key: [0; 128],
             tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_BOOL,
             __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
                 val_bool: false,
             },
+            ..EMPTY_KV_OVERRIDE
         };
 
         let value = ParamOverrideValue::try_from(&ffi_override).unwrap();
@@ -168,7 +171,7 @@ mod tests {
 
     #[test]
     fn a_str_override_stores_its_bytes_in_the_str_field() {
-        let mut str_data = [0i8; 128];
+        let mut str_data = [0; KV_OVERRIDE_TEXT_CAPACITY];
         str_data[0] = b'h'.cast_signed();
         str_data[1] = b'i'.cast_signed();
 
@@ -182,16 +185,16 @@ mod tests {
 
     #[test]
     fn a_str_kv_override_reads_as_a_str_value() {
-        let mut str_data = [0i8; 128];
+        let mut str_data = [0; KV_OVERRIDE_TEXT_CAPACITY];
         str_data[0] = b'a'.cast_signed();
         str_data[1] = b'b'.cast_signed();
 
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            key: [0; 128],
             tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_STR,
             __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
                 val_str: str_data,
             },
+            ..EMPTY_KV_OVERRIDE
         };
 
         let value = ParamOverrideValue::try_from(&ffi_override).unwrap();
@@ -202,9 +205,9 @@ mod tests {
     #[test]
     fn an_unknown_kv_override_tag_is_reported_with_its_value() {
         let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            key: [0; 128],
             tag: 9999,
             __bindgen_anon_1: unsafe { mem::zeroed() },
+            ..EMPTY_KV_OVERRIDE
         };
 
         assert_eq!(

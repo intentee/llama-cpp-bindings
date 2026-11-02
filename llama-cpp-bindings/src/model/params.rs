@@ -20,11 +20,13 @@ use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 use crate::model::llama_load_mode::LlamaLoadMode;
 use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
+use crate::model::params::empty_kv_override::EMPTY_KV_OVERRIDE;
 use crate::model::params::fit_extra_model::FitExtraModel;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
 use crate::model::split_mode::LlamaSplitMode;
 
+pub mod empty_kv_override;
 pub mod fit_extra_model;
 pub mod fit_result;
 pub mod kv_override_entry;
@@ -32,8 +34,6 @@ pub mod kv_override_value_iterator;
 pub mod kv_overrides;
 pub mod param_override_value;
 pub mod unknown_kv_override_tag;
-
-pub const LLAMA_CPP_MAX_DEVICES: usize = 16;
 
 fn fit_params_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
@@ -130,7 +130,7 @@ pub struct LlamaModelParams {
     kv_overrides: Vec<llama_cpp_bindings_sys::llama_model_kv_override>,
     buft_overrides: Vec<llama_cpp_bindings_sys::llama_model_tensor_buft_override>,
     buft_override_patterns: Vec<CString>,
-    devices: Pin<Box<[llama_cpp_bindings_sys::ggml_backend_dev_t; LLAMA_CPP_MAX_DEVICES]>>,
+    devices: Pin<Box<[llama_cpp_bindings_sys::ggml_backend_dev_t]>>,
     tensor_split: Vec<f32>,
 }
 
@@ -144,7 +144,7 @@ impl Debug for LlamaModelParams {
             .field("load_mode", &self.load_mode())
             .field("load_mtp", &self.params.load_mtp)
             .field("split_mode", &self.split_mode())
-            .field("devices", &self.devices)
+            .field("devices", &self.devices())
             .field("kv_overrides", &"vec of kv_overrides")
             .finish_non_exhaustive()
     }
@@ -174,13 +174,17 @@ impl LlamaModelParams {
             return Err(ModelParamsError::SlotNotEmpty);
         }
 
-        for (i, &byte) in key.to_bytes_with_nul().iter().enumerate() {
-            kv_override.key[i] = c_char::try_from(byte).map_err(|convert_error| {
-                ModelParamsError::InvalidCharacterInKey {
-                    byte,
-                    reason: convert_error.to_string(),
-                }
-            })?;
+        let key_with_nul = key.to_bytes_with_nul();
+
+        if key_with_nul.len() > kv_override.key.len() {
+            return Err(ModelParamsError::KeyTooLong {
+                length_with_nul: key_with_nul.len(),
+                capacity: kv_override.key.len(),
+            });
+        }
+
+        for (slot, &byte) in kv_override.key.iter_mut().zip(key_with_nul) {
+            *slot = c_char::from_ne_bytes([byte]);
         }
 
         kv_override.tag = value.tag();
@@ -194,14 +198,7 @@ impl LlamaModelParams {
     fn push_kv_override_terminator(mut self: Pin<&mut Self>) {
         self.params.kv_overrides = null();
 
-        self.kv_overrides
-            .push(llama_cpp_bindings_sys::llama_model_kv_override {
-                key: [0; 128],
-                tag: 0,
-                __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
-                    val_i64: 0,
-                },
-            });
+        self.kv_overrides.push(EMPTY_KV_OVERRIDE);
 
         self.params.kv_overrides = self.kv_overrides.as_ptr();
     }
@@ -229,15 +226,6 @@ impl LlamaModelParams {
 
         if !buft_override.pattern.is_null() {
             return Err(ModelParamsError::SlotNotEmpty);
-        }
-
-        for &byte in key.to_bytes_with_nul() {
-            c_char::try_from(byte).map_err(|convert_error| {
-                ModelParamsError::InvalidCharacterInKey {
-                    byte,
-                    reason: convert_error.to_string(),
-                }
-            })?;
         }
 
         let pattern = key.to_owned();
@@ -371,7 +359,7 @@ impl LlamaModelParams {
         for dev in self.devices.iter_mut() {
             *dev = ptr::null_mut();
         }
-        let max_devices = max_devices().min(LLAMA_CPP_MAX_DEVICES);
+        let max_devices = max_devices();
         if devices.len() > max_devices {
             return Err(LlamaCppError::MaxDevicesExceeded(max_devices));
         }
@@ -466,19 +454,13 @@ impl Default for LlamaModelParams {
         let default_params = unsafe { llama_cpp_bindings_sys::llama_model_default_params() };
         Self {
             params: default_params,
-            kv_overrides: vec![llama_cpp_bindings_sys::llama_model_kv_override {
-                key: [0; 128],
-                tag: 0,
-                __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
-                    val_i64: 0,
-                },
-            }],
+            kv_overrides: vec![EMPTY_KV_OVERRIDE],
             buft_overrides: vec![llama_cpp_bindings_sys::llama_model_tensor_buft_override {
                 pattern: null(),
                 buft: ptr::null_mut(),
             }],
             buft_override_patterns: Vec::new(),
-            devices: Box::pin([ptr::null_mut(); 16]),
+            devices: Pin::new(vec![ptr::null_mut(); max_devices() + 1].into_boxed_slice()),
             tensor_split: Vec::new(),
         }
     }
@@ -486,13 +468,12 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::params::empty_kv_override::KV_OVERRIDE_TEXT_CAPACITY;
     use std::ffi::CStr;
     use std::ffi::CString;
-    use std::ffi::c_char;
     use std::pin::pin;
     use std::ptr;
 
-    use super::LLAMA_CPP_MAX_DEVICES;
     use super::LlamaModelParams;
     use crate::context::params::LlamaContextParams;
     use crate::error::fit_error::FitError;
@@ -505,17 +486,6 @@ mod tests {
     use crate::model::llama_load_mode::LlamaLoadMode;
     use crate::model::params::param_override_value::ParamOverrideValue;
     use crate::model::split_mode::LlamaSplitMode;
-
-    #[test]
-    fn device_capacity_is_not_smaller_than_the_upstream_limit() {
-        let upstream_limit = max_devices();
-        assert!(
-            LLAMA_CPP_MAX_DEVICES >= upstream_limit,
-            "LLAMA_CPP_MAX_DEVICES ({LLAMA_CPP_MAX_DEVICES}) backs a fixed-size device array and is \
-             clamped against llama_max_devices() ({upstream_limit}); once upstream reports more \
-             devices than the array can hold, the extra devices are dropped without any error"
-        );
-    }
 
     #[test]
     fn default_params_match_the_llama_cpp_model_defaults() {
@@ -653,8 +623,7 @@ mod tests {
             format!("{params:?}"),
             "LlamaModelParams { n_gpu_layers: -1, main_gpu: 0, vocab_only: false, \
              lazy_mode: Ok(On), load_mode: Ok(Auto), load_mtp: false, \
-             split_mode: Ok(Layer), devices: [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, \
-             0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0], \
+             split_mode: Ok(Layer), devices: [], \
              kv_overrides: \"vec of kv_overrides\", .. }"
         );
     }
@@ -768,17 +737,54 @@ mod tests {
     }
 
     #[test]
-    fn with_devices_too_many_returns_max_exceeded() {
-        let too_many: Vec<usize> = (0..17).collect();
-        let result = LlamaModelParams::default().with_devices(&too_many);
-        let device_limit = max_devices().min(LLAMA_CPP_MAX_DEVICES);
+    fn more_devices_than_llama_cpp_supports_are_refused() {
+        let too_many = vec![0; max_devices() + 1];
 
-        assert!(
-            matches!(
-                result,
-                Err(LlamaCppError::MaxDevicesExceeded(max_devices)) if max_devices == device_limit
-            ),
-            "17 devices must exceed the device limit of {device_limit}, got {result:?}"
+        assert_eq!(
+            LlamaModelParams::default().with_devices(&too_many).err(),
+            Some(LlamaCppError::MaxDevicesExceeded(max_devices()))
+        );
+    }
+
+    #[test]
+    fn a_full_device_list_stays_null_terminated() {
+        let params = LlamaModelParams::default()
+            .with_devices(&vec![0; max_devices()])
+            .unwrap();
+
+        assert_eq!(params.devices.len(), max_devices() + 1);
+        assert_eq!(params.devices.last(), Some(&ptr::null_mut()));
+    }
+
+    #[test]
+    fn a_kv_override_key_of_any_bytes_is_stored_as_given() {
+        let key = c"cl\xc3\xa9";
+        let mut params = pin!(LlamaModelParams::default());
+
+        params
+            .as_mut()
+            .append_kv_override(key, ParamOverrideValue::Int(1))
+            .unwrap();
+
+        assert_eq!(
+            unsafe { CStr::from_ptr(params.kv_overrides[0].key.as_ptr()) },
+            key
+        );
+    }
+
+    #[test]
+    fn a_kv_override_key_longer_than_llama_cpp_holds_is_refused() {
+        let key = CString::new("k".repeat(KV_OVERRIDE_TEXT_CAPACITY)).unwrap();
+        let mut params = pin!(LlamaModelParams::default());
+
+        assert_eq!(
+            params
+                .as_mut()
+                .append_kv_override(&key, ParamOverrideValue::Int(1)),
+            Err(ModelParamsError::KeyTooLong {
+                length_with_nul: KV_OVERRIDE_TEXT_CAPACITY + 1,
+                capacity: KV_OVERRIDE_TEXT_CAPACITY,
+            })
         );
     }
 
@@ -808,40 +814,6 @@ mod tests {
                 Err(LlamaCppError::BackendDeviceNotFound(device)) if device == invalid_index
             ),
             "an out-of-range device index must not be found, got {result:?}"
-        );
-    }
-
-    #[test]
-    fn append_kv_override_with_high_byte_returns_invalid_character_error() {
-        let key_bytes: &[u8] = b"\xff\0";
-        let key = CStr::from_bytes_with_nul(key_bytes).unwrap();
-        let mut params = pin!(LlamaModelParams::default());
-        let result = params
-            .as_mut()
-            .append_kv_override(key, ParamOverrideValue::Int(1));
-
-        assert_eq!(
-            result,
-            Err(ModelParamsError::InvalidCharacterInKey {
-                byte: 0xff,
-                reason: c_char::try_from(0xff_u8).unwrap_err().to_string(),
-            })
-        );
-    }
-
-    #[test]
-    fn add_cpu_buft_override_with_high_byte_returns_invalid_character_error() {
-        let key_bytes: &[u8] = b"\xff\0";
-        let key = CStr::from_bytes_with_nul(key_bytes).unwrap();
-        let mut params = pin!(LlamaModelParams::default());
-        let result = params.as_mut().add_cpu_buft_override(key);
-
-        assert_eq!(
-            result,
-            Err(ModelParamsError::InvalidCharacterInKey {
-                byte: 0xff,
-                reason: c_char::try_from(0xff_u8).unwrap_err().to_string(),
-            })
         );
     }
 
