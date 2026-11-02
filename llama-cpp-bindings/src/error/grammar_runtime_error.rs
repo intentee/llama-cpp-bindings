@@ -1,5 +1,7 @@
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum GrammarRuntimeError {
+    #[error("the grammar parser failed a step without stopping: {message}")]
+    FailedWithoutStopping { message: String },
     #[error("the grammar parser reached an internal error state: {message}")]
     InternalParserError { message: String },
     #[error("the grammar lexer became too complex: {message}")]

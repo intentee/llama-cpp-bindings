@@ -37,10 +37,10 @@ fn stop_reason_to_result(
     detail: String,
 ) -> Result<(), GrammarRuntimeError> {
     match stop_reason {
-        StopReason::NotStopped
-        | StopReason::NoExtension
-        | StopReason::NoExtensionBias
-        | StopReason::EndOfSentence => Ok(()),
+        StopReason::NoExtension | StopReason::NoExtensionBias | StopReason::EndOfSentence => Ok(()),
+        StopReason::NotStopped => {
+            Err(GrammarRuntimeError::FailedWithoutStopping { message: detail })
+        }
         StopReason::InternalError => {
             Err(GrammarRuntimeError::InternalParserError { message: detail })
         }
@@ -209,13 +209,22 @@ mod tests {
     #[test]
     fn benign_stop_reasons_are_ok() {
         for reason in [
-            StopReason::NotStopped,
             StopReason::NoExtension,
             StopReason::NoExtensionBias,
             StopReason::EndOfSentence,
         ] {
             assert_eq!(stop_reason_to_result(reason, String::new()), Ok(()));
         }
+    }
+
+    #[test]
+    fn a_failed_step_that_did_not_stop_the_parser_is_an_error() {
+        assert_eq!(
+            stop_reason_to_result(StopReason::NotStopped, "boom".to_string()),
+            Err(GrammarRuntimeError::FailedWithoutStopping {
+                message: "boom".to_string()
+            })
+        );
     }
 
     #[test]
