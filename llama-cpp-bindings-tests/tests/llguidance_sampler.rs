@@ -22,7 +22,6 @@ use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
-use llama_cpp_bindings_tests::yes_or_no_prefixes::YES_OR_NO_PREFIXES;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -447,7 +446,9 @@ fn a_sampler_cloned_through_ffi_keeps_its_own_grammar_state(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn llguidance_chain_samples_a_prefix_of_yes_or_no(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn llguidance_chain_samples_yes_as_the_first_answer_token(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let backend = fixture.backend;
     let mut context = LlamaContext::from_model(
@@ -473,10 +474,7 @@ fn llguidance_chain_samples_a_prefix_of_yes_or_no(fixture: &LlamaFixture<'_>) ->
         None,
     )?;
 
-    assert!(
-        YES_OR_NO_PREFIXES.contains(&piece.as_str()),
-        "the grammar must constrain the sampled token to a prefix of yes or no, got: '{piece}'"
-    );
+    assert_eq!(piece, "yes");
 
     Ok(())
 }

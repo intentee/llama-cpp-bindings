@@ -15,11 +15,12 @@ use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
-use llama_cpp_bindings_tests::yes_or_no_prefixes::YES_OR_NO_PREFIXES;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
+
+const YES_TOKEN_AND_END_OF_GENERATION: u64 = 2;
 
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
@@ -53,7 +54,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn grammar_sampler_constrains_the_first_token_to_a_prefix_of_yes_or_no(
+fn grammar_sampler_constrains_the_first_token_of_the_answer_to_yes(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
@@ -97,10 +98,7 @@ fn grammar_sampler_constrains_the_first_token_to_a_prefix_of_yes_or_no(
 
     let piece = outcome.piece.raw();
 
-    assert!(
-        YES_OR_NO_PREFIXES.contains(&piece.to_lowercase().as_str()),
-        "the grammar must constrain the first token to a prefix of yes or no, got: '{piece}'"
-    );
+    assert_eq!(piece, "Yes");
 
     Ok(())
 }
@@ -137,7 +135,7 @@ fn grammar_sampler_constrains_the_first_token_to_a_prefix_of_yes_or_no(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn grammar_constrained_chat_answer_is_yes_or_no_content_that_ends_generation(
+fn grammar_constrained_chat_answer_is_yes_content_that_ends_generation(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
@@ -174,12 +172,7 @@ fn grammar_constrained_chat_answer_is_yes_or_no_content_that_ends_generation(
     }
     .run();
 
-    let lowercase = outcome.generated.text().to_lowercase();
-    assert!(
-        lowercase == "yes" || lowercase == "no",
-        "Grammar loop should produce 'yes' or 'no', got: '{}'",
-        outcome.generated.text()
-    );
+    assert_eq!(outcome.generated.text(), "yes");
     assert!(
         outcome.eog_seen,
         "loop must terminate via EOG once grammar accepts, not by exhausting the budget; outcome={outcome:?}"
@@ -187,7 +180,7 @@ fn grammar_constrained_chat_answer_is_yes_or_no_content_that_ends_generation(
     assert_eq!(outcome.observed_reasoning, 0);
     assert_eq!(outcome.observed_undeterminable, 0);
     assert_eq!(outcome.observed_tool_call, 0);
-    assert!(outcome.observed_content > 0);
+    assert_eq!(outcome.observed_content, YES_TOKEN_AND_END_OF_GENERATION);
 
     let usage = classifier.into_usage();
     assert_eq!(usage.completion_tokens(), outcome.observed_content);

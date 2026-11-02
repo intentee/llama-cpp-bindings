@@ -25,4 +25,3 @@ pub mod tokenize_prompt_with_synthetic_image;
 pub mod two_sequence_context;
 pub mod user_turn_chat_session;
 pub mod weather_chat_session;
-pub mod yes_or_no_prefixes;
