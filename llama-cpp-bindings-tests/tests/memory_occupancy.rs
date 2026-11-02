@@ -144,7 +144,7 @@ fn memory_seq_keep_removes_every_other_sequence(fixture: &LlamaFixture<'_>) -> R
     let primed_position_max = context.memory_seq_pos_max(0)?;
 
     context.memory_seq_cp(0, 1, None, None)?;
-    context.memory_seq_keep(1);
+    context.memory_seq_keep(1)?;
 
     assert_eq!(context.memory_seq_pos_max(0)?, -1);
     assert_eq!(context.memory_seq_pos_max(1)?, primed_position_max);

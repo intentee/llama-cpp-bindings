@@ -57,8 +57,8 @@ fn memory_edits_without_a_memory_module_trivially_succeed(
     let mut context = fixture.build_context()?;
 
     context.memory_clear();
-    context.memory_seq_keep(0);
 
+    assert_eq!(context.memory_seq_keep(0), Ok(()));
     assert_eq!(context.memory_seq_rm(Some(0), None, None), Ok(()));
 
     Ok(())

@@ -127,11 +127,11 @@ fn memory_seq_cp_copies_a_whole_primed_sequence(fixture: &LlamaFixture<'_>) -> R
     n_ubatch = 128,
 )]
 fn memory_seq_cp_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let mut context = two_sequence_context(fixture)?;
 
     prime_memory(fixture, &mut context)?;
 
-    assert_eq!(context.memory_seq_cp(0, 2, Some(0), Some(1)), Ok(()));
+    assert_eq!(context.memory_seq_cp(0, 1, Some(0), Some(1)), Ok(()));
 
     Ok(())
 }

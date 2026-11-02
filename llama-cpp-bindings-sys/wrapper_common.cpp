@@ -187,10 +187,6 @@ extern "C" auto llama_rs_memory_seq_pos_max(
         if (mem == nullptr) {
             return LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM;
         }
-        uint32_t const n_seq_max = llama_n_seq_max(ctx);
-        if (seq_id < 0 || (uint32_t) seq_id >= n_seq_max) {
-            return LLAMA_RS_MEMORY_SEQ_POS_MAX_SEQ_ID_OUT_OF_RANGE;
-        }
 
         *out_position = llama_memory_seq_pos_max(mem, seq_id);
         return LLAMA_RS_MEMORY_SEQ_POS_MAX_OK;

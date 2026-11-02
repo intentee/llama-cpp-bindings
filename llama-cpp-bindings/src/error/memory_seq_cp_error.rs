@@ -1,5 +1,7 @@
 use std::num::TryFromIntError;
 
+use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
+
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MemorySeqCpError {
     #[error("provided start position is too large for an i32")]
@@ -8,4 +10,6 @@ pub enum MemorySeqCpError {
     P1TooLarge(#[source] TryFromIntError),
     #[error("the context has no memory module attached")]
     MemoryHandleUnavailable,
+    #[error(transparent)]
+    SequenceIdOutOfRange(#[from] SequenceIdOutOfRange),
 }

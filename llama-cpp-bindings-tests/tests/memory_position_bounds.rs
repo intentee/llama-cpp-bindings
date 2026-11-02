@@ -7,6 +7,7 @@ use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
 use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
 use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
 use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
+use llama_cpp_bindings_tests::two_sequence_context::two_sequence_context;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -43,7 +44,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 128,
 )]
 fn memory_seq_cp_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let mut context = two_sequence_context(fixture)?;
 
     let result = context.memory_seq_cp(0, 1, Some(u32::MAX), None);
 
@@ -90,7 +91,7 @@ fn memory_seq_cp_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
     n_ubatch = 128,
 )]
 fn memory_seq_cp_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let mut context = two_sequence_context(fixture)?;
 
     let result = context.memory_seq_cp(0, 1, Some(0), Some(u32::MAX));
 
