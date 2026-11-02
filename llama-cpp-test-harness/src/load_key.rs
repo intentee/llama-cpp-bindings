@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn different_model_load_params_compare_unequal() {
         let mut other = baseline();
-        other.model_load_params.n_gpu_layers = 999;
+        other.model_load_params.n_gpu_layers = -1;
 
         assert_ne!(baseline(), other);
     }
