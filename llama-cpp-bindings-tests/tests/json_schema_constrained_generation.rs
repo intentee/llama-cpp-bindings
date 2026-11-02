@@ -1,6 +1,6 @@
-use anyhow::Context as _;
 use anyhow::Result;
 use serde_json::Value;
+use serde_json::json;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -12,46 +12,13 @@ use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
+use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
 const MAX_ANSWER_TOKENS: i32 = 64;
 
-#[llama_test(
-    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
-    n_gpu_layers = 999,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 512,
-    n_ubatch = 128,
-)]
-fn json_schema_grammar_sampler_constrains_the_answer_to_the_schema(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
+fn json_schema_constrained_answer(fixture: &LlamaFixture<'_>) -> Result<Value> {
     let model = fixture.model;
     let mut context = LlamaContext::from_model(
         model,
@@ -59,8 +26,9 @@ fn json_schema_grammar_sampler_constrains_the_answer_to_the_schema(
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let prompt = "<|im_start|>user\nWhat is 2+2? Respond with a JSON object.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
-    let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
+    let session =
+        closed_reasoning_chat_session(model, "What is 2+2? Respond with a JSON object.", "[]");
+    let tokens = session.tokenize_prompt()?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 
@@ -94,13 +62,73 @@ fn json_schema_grammar_sampler_constrains_the_answer_to_the_schema(
         "the answer must end once the schema is satisfied; outcome={outcome:?}"
     );
 
-    let answer = outcome.generated.text().parse::<Value>()?;
-    let answer_object = answer
-        .as_object()
-        .context("the schema requires the answer to be a JSON object")?;
+    Ok(outcome.generated.text().parse::<Value>()?)
+}
 
-    assert_eq!(answer_object.keys().collect::<Vec<_>>(), ["answer"]);
-    assert!(answer_object["answer"].is_string(), "{answer}");
+#[llama_test(
+    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn deepseek_r1_8b_answers_the_json_schema_with_four(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(
+        json_schema_constrained_answer(fixture)?,
+        json!({"answer": "4"})
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn glm47_flash_answers_the_json_schema_with_a_sentence(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(
+        json_schema_constrained_answer(fixture)?,
+        json!({"answer": "The sum of 2 and 2 is 4."})
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn qwen35_answers_the_json_schema_with_four(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(
+        json_schema_constrained_answer(fixture)?,
+        json!({"answer": "4"})
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = 999,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn qwen36_answers_the_json_schema_with_an_empty_string(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_eq!(
+        json_schema_constrained_answer(fixture)?,
+        json!({"answer": ""})
+    );
 
     Ok(())
 }
@@ -173,39 +201,32 @@ fn an_llguidance_json_schema_constrains_the_answer_to_the_schema(
     "city": { "type": "string" },
     "temperature": { "type": "number" }
   },
-  "required": ["city", "temperature"]
+  "required": ["city", "temperature"],
+  "additionalProperties": false
 }"#;
 
     let llg_sampler = LlamaSampler::llguidance(model, "json", schema)?;
     let mut sampler = LlamaSampler::chain([llg_sampler, LlamaSampler::greedy()?])?;
 
-    let mut n_cur = batch.n_tokens();
-    let mut decoder = encoding_rs::UTF_8.new_decoder();
-    let mut generated = String::new();
-
-    while n_cur <= 128 {
-        let token = SampledToken::Content(sampler.sample(&ctx, batch.n_tokens() - 1)?);
-
-        if model.is_eog_token(&token) {
-            break;
-        }
-
-        let output_string = model.token_to_piece(&token, &mut decoder, true, None)?;
-        generated.push_str(&output_string);
-
-        batch.clear();
-        batch.add(&token, n_cur, &[0], true)?;
-        n_cur += 1;
-        ctx.decode(&batch)?;
+    let initial_position = batch.n_tokens();
+    let outcome = ClassifySampleLoop {
+        classifier: &mut SampledTokenClassifier::undeterminable(model),
+        sampler: &mut sampler,
+        context: &mut ctx,
+        batch: &mut batch,
+        initial_position,
+        max_generated_tokens: MAX_ANSWER_TOKENS,
     }
+    .run();
 
-    let parsed = serde_json::Deserializer::from_str(&generated)
-        .into_iter::<Value>()
-        .next()
-        .context("model produced no JSON value")??;
-
-    assert!(parsed["city"].is_string(), "{parsed}");
-    assert!(parsed["temperature"].is_number(), "{parsed}");
+    assert!(
+        outcome.eog_seen,
+        "the answer must end once the schema is satisfied; outcome={outcome:?}"
+    );
+    assert_eq!(
+        outcome.generated.text().parse::<Value>()?,
+        json!({"city": "Paris", "temperature": 22})
+    );
 
     Ok(())
 }
