@@ -7,7 +7,6 @@ use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
-use llama_cpp_bindings_tests::prompted_reasoning::prompted_reasoning;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
@@ -94,6 +93,16 @@ fn qwen_templates_parse_trimmed_prefill_into_reasoning_and_content(
     Ok(())
 }
 
+fn reasoning_parsed_before_the_end_tag(fixture: &LlamaFixture<'_>) -> Result<ParsedChatMessage> {
+    let session = user_turn_chat_session(fixture.model, "hello", "[]", true)?;
+
+    Ok(recognized_answer(
+        &session,
+        &format!("{GENERATED_REASONING}</think>{GENERATED_CONTENT}"),
+        ChatOutputCompleteness::Finished,
+    ))
+}
+
 #[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -102,6 +111,21 @@ fn qwen_templates_parse_trimmed_prefill_into_reasoning_and_content(
     n_batch = 128,
     n_ubatch = 64,
 )]
+fn deepseek_r1_parses_the_reasoning_after_the_newline_its_generation_prompt_opens(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    assert_eq!(
+        reasoning_parsed_before_the_end_tag(fixture)?,
+        ParsedChatMessage::new(
+            GENERATED_CONTENT.to_owned(),
+            format!("\n{GENERATED_REASONING}"),
+            Vec::new()
+        )
+    );
+
+    Ok(())
+}
+
 #[llama_test(
     model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
     n_gpu_layers = 999,
@@ -129,18 +153,14 @@ fn qwen_templates_parse_trimmed_prefill_into_reasoning_and_content(
 fn parses_the_reasoning_before_the_end_tag_apart_from_the_content(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", "[]", true)?;
-    let parsed = recognized_answer(
-        &session,
-        &format!("{GENERATED_REASONING}</think>{GENERATED_CONTENT}"),
-        ChatOutputCompleteness::Finished,
-    );
-
     assert_eq!(
-        parsed.reasoning_content,
-        format!("{}{GENERATED_REASONING}", prompted_reasoning(&session))
+        reasoning_parsed_before_the_end_tag(fixture)?,
+        ParsedChatMessage::new(
+            GENERATED_CONTENT.to_owned(),
+            GENERATED_REASONING.to_owned(),
+            Vec::new()
+        )
     );
-    assert_eq!(parsed.content, GENERATED_CONTENT);
 
     Ok(())
 }

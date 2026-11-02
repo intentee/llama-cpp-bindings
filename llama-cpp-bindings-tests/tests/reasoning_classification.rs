@@ -62,7 +62,7 @@ fn deepseek_r1_8b_reasoning_streams_match_the_parsed_answer_when_thinking_is_ena
     }
     .run();
 
-    answer.assert_reasoning_matches_parse(&session);
+    answer.assert_reasoning_matches_parse(&session, "\n");
 
     Ok(())
 }
@@ -128,7 +128,7 @@ fn gemma4_reasoning_streams_match_the_parsed_answer_when_reasoning_is_prefilled(
     }
     .run();
 
-    answer.assert_reasoning_matches_parse(&session);
+    answer.assert_reasoning_matches_parse(&session, "The user wants one word.");
 
     Ok(())
 }
@@ -178,7 +178,7 @@ fn glm47_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
     }
     .run();
 
-    answer.assert_reasoning_matches_parse(&session);
+    answer.assert_reasoning_matches_parse(&session, "");
 
     Ok(())
 }
@@ -228,7 +228,7 @@ fn mistral3_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
     }
     .run();
 
-    answer.assert_reasoning_matches_parse(&session);
+    answer.assert_reasoning_matches_parse(&session, "");
 
     Ok(())
 }
@@ -278,7 +278,7 @@ fn qwen35_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
     }
     .run();
 
-    answer.assert_reasoning_matches_parse(&session);
+    answer.assert_reasoning_matches_parse(&session, "");
 
     Ok(())
 }
@@ -328,7 +328,7 @@ fn qwen36_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
     }
     .run();
 
-    answer.assert_reasoning_matches_parse(&session);
+    answer.assert_reasoning_matches_parse(&session, "");
 
     Ok(())
 }

@@ -3,7 +3,6 @@ use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings_types::token_usage::TokenUsage;
 
 use crate::classify_sample_loop_outcome::ClassifySampleLoopOutcome;
-use crate::prompted_reasoning::prompted_reasoning;
 
 fn thinking_tags(session: &ChatSession<'_>) -> Vec<String> {
     let mut tags = session
@@ -57,22 +56,26 @@ impl ChatAnswer {
     }
 
     /// Asserts that the answer reasons, and that the reasoning and content streams are exactly
-    /// what the session's parser extracts, apart from the reasoning text the generation prompt
-    /// itself holds, which the parser shows in front of the first generated text.
+    /// what the session's parser extracts, apart from `prompted_reasoning`, the reasoning text
+    /// the generation prompt itself holds, which the parser shows in front of the first
+    /// generated text.
     ///
     /// # Panics
     ///
     /// Panics when the parser fails on or does not recognize the answer, or when the answer
     /// does not reason, holds a token of no section, leaks a thinking tag, or streams text the
     /// parser does not extract.
-    pub fn assert_reasoning_matches_parse(&self, session: &ChatSession<'_>) {
+    pub fn assert_reasoning_matches_parse(
+        &self,
+        session: &ChatSession<'_>,
+        prompted_reasoning: &str,
+    ) {
         let Self { outcome, usage } = self;
         let parsed = session
             .parse(&outcome.generated, ChatOutputCompleteness::Finished)
             .expect("the session's parser must parse the generated answer")
             .into_recognized()
             .expect("the session's parser must recognize the generated answer");
-        let prompted_reasoning = prompted_reasoning(session);
 
         assert!(outcome.observed_reasoning > 0, "{outcome:?}");
         assert_eq!(outcome.observed_undeterminable, 0, "{outcome:?}");

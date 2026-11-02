@@ -17,7 +17,6 @@ pub mod paris_weather_tool_call;
 pub mod prime_memory;
 pub mod prime_memory_with;
 pub mod prompt_question;
-pub mod prompted_reasoning;
 pub mod recognized_answer;
 pub mod single_token;
 pub mod tokenize_prompt_with_synthetic_image;
