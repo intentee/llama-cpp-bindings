@@ -57,35 +57,25 @@ mod tests {
         }
     }
 
-    fn as_u8(code: ExitCode) -> u8 {
-        let formatted = format!("{code:?}");
-        formatted
-            .chars()
-            .filter(char::is_ascii_digit)
-            .collect::<String>()
-            .parse::<u8>()
-            .unwrap_or(255)
-    }
-
     #[test]
     fn aggregate_exit_code_zero_when_all_pass() {
         let code = aggregate_exit_code(&[passing_conclusion(), passing_conclusion()]);
 
-        assert_eq!(as_u8(code), 0);
+        assert_eq!(code, ExitCode::from(0));
     }
 
     #[test]
     fn aggregate_exit_code_non_zero_when_any_fails() {
         let code = aggregate_exit_code(&[passing_conclusion(), failing_conclusion()]);
 
-        assert_eq!(as_u8(code), 101);
+        assert_eq!(code, ExitCode::from(101));
     }
 
     #[test]
     fn aggregate_exit_code_reports_success_when_no_phase_ran() {
         let code = aggregate_exit_code(&[]);
 
-        assert_eq!(as_u8(code), 0);
+        assert_eq!(code, ExitCode::from(0));
     }
 
     #[test]
@@ -97,6 +87,6 @@ mod tests {
 
         let code = run();
 
-        assert_eq!(as_u8(code), 2);
+        assert_eq!(code, ExitCode::from(2));
     }
 }
