@@ -11,6 +11,7 @@
 
 #include <common/json-schema-to-grammar.h>
 #include <common/json.h>
+#include <ggml-backend.h>
 #include <llama.h>
 #include "wrapper_report_current_exception.h"
 #include "wrapper_utils.h"

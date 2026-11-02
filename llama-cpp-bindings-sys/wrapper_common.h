@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ggml-backend.h>
 #include <llama.h>
 
 #include <stdbool.h>
