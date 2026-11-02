@@ -499,8 +499,6 @@ mod tests {
     use crate::error::llama_cpp_error::LlamaCppError;
     use crate::error::model_params_error::ModelParamsError;
     use crate::llama_backend::LlamaBackend;
-    #[cfg(feature = "dynamic-backends")]
-    use crate::load_backends::load_backends;
     use crate::max_devices::max_devices;
     use crate::model::llama_lazy_mode::LlamaLazyMode;
     use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
@@ -787,7 +785,9 @@ mod tests {
     #[test]
     fn with_devices_sets_devices_when_available() {
         #[cfg(feature = "dynamic-backends")]
-        load_backends().unwrap();
+        unsafe {
+            llama_cpp_bindings_sys::ggml_backend_load_all();
+        }
 
         let dev_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
         assert!(dev_count > 0, "Test requires at least one backend device");

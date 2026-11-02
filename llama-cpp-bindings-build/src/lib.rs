@@ -27,6 +27,7 @@ mod privatized_field;
 mod rebuild_triggers;
 mod target_os;
 mod wrapper_compilation;
+mod x86_ggml_switch;
 
 use std::io::Write;
 

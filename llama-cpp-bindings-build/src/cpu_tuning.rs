@@ -1,9 +1,10 @@
 use crate::build_context::BuildContext;
 use crate::build_environment::BuildEnvironment;
 use crate::build_error::BuildError;
+use crate::build_feature::BuildFeature;
 use crate::cargo_directive::CargoDirective;
 use crate::cmake_define::CmakeDefine;
-use crate::target_os::TargetOs;
+use crate::x86_ggml_switch::X86GgmlSwitch;
 
 fn codegen_options(encoded_rustflags: &str) -> Vec<&str> {
     let mut options = Vec::new();
@@ -31,36 +32,92 @@ fn target_cpu_of(encoded_rustflags: &str) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-fn map_cpu_feature_to_ggml(feature: &str) -> Option<&'static str> {
-    match feature {
-        "avx" => Some("GGML_AVX"),
-        "avx2" => Some("GGML_AVX2"),
-        "avx512bf16" => Some("GGML_AVX512_BF16"),
-        "avx512vbmi" => Some("GGML_AVX512_VBMI"),
-        "avx512vnni" => Some("GGML_AVX512_VNNI"),
-        "avxvnni" => Some("GGML_AVX_VNNI"),
-        "bmi2" => Some("GGML_BMI2"),
-        "f16c" => Some("GGML_F16C"),
-        "fma" => Some("GGML_FMA"),
-        "sse4.2" => Some("GGML_SSE42"),
-        _ => None,
-    }
-}
+const X86_GGML_SWITCHES: [X86GgmlSwitch; 14] = [
+    X86GgmlSwitch {
+        name: "GGML_SSE42",
+        target_features: &["sse4.2"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AVX",
+        target_features: &["avx"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AVX_VNNI",
+        target_features: &["avxvnni"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AVX2",
+        target_features: &["avx2"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_BMI2",
+        target_features: &["bmi2"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_FMA",
+        target_features: &["fma"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_F16C",
+        target_features: &["f16c"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AVX512",
+        target_features: &["avx512f", "avx512cd", "avx512vl", "avx512dq", "avx512bw"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AVX512_VBMI",
+        target_features: &["avx512vbmi"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AVX512_VNNI",
+        target_features: &["avx512vnni"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AVX512_BF16",
+        target_features: &["avx512bf16"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AMX_TILE",
+        target_features: &["amx-tile"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AMX_INT8",
+        target_features: &["amx-int8"],
+    },
+    X86GgmlSwitch {
+        name: "GGML_AMX_BF16",
+        target_features: &["amx-bf16"],
+    },
+];
 
 /// How ggml is compiled for the CPU rustc compiles for, and the debug messages explaining it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CpuTuning {
     pub defines: Vec<CmakeDefine>,
-    pub compiler_flags: Vec<String>,
     pub debug_messages: Vec<CargoDirective>,
 }
 
 impl CpuTuning {
+    /// ggml builds every CPU variant and selects one at runtime when backends load dynamically.
+    /// Otherwise `target-cpu=native` lets ggml detect the CPU, and any other build switches
+    /// every x86 instruction set explicitly on or off, the way rustc's target features describe
+    /// the CPU, because ggml would enable AVX2-class defaults on its own.
+    ///
     /// # Errors
     ///
     /// Returns [`BuildError::Environment`] when the rustflags or the target features are not
     /// Unicode.
     pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Result<Self, BuildError> {
+        if environment.has(BuildFeature::DynamicBackends) {
+            return Ok(Self {
+                defines: vec![CmakeDefine::new("GGML_NATIVE", "OFF")],
+                debug_messages: vec![CargoDirective::Debug(
+                    "Building every CPU variant for ggml to select at runtime".to_owned(),
+                )],
+            });
+        }
+
         let target_cpu = environment
             .optional("CARGO_ENCODED_RUSTFLAGS")?
             .and_then(|rustflags| target_cpu_of(&rustflags));
@@ -68,7 +125,6 @@ impl CpuTuning {
         if target_cpu.as_deref() == Some("native") {
             return Ok(Self {
                 defines: vec![CmakeDefine::new("GGML_NATIVE", "ON")],
-                compiler_flags: Vec::new(),
                 debug_messages: vec![CargoDirective::Debug(
                     "Detected target-cpu=native, compiling with GGML_NATIVE".to_owned(),
                 )],
@@ -78,67 +134,23 @@ impl CpuTuning {
         let target_features = environment
             .optional("CARGO_CFG_TARGET_FEATURE")?
             .unwrap_or_default();
-        let compiler_flags = target_cpu
-            .iter()
-            .map(|cpu| format!("-march={cpu}"))
-            .collect::<Vec<String>>();
+        let enabled_features = target_features.split(',').collect::<Vec<&str>>();
         let mut defines = vec![CmakeDefine::new("GGML_NATIVE", "OFF")];
 
-        defines.extend(
-            target_features
-                .split(',')
-                .filter_map(map_cpu_feature_to_ggml)
-                .map(|ggml_switch| CmakeDefine::new(ggml_switch, "ON")),
-        );
-
-        if context.cargo_cfg_target_arch == "aarch64" && context.target_os == TargetOs::Linux {
-            defines.push(CmakeDefine::new("GGML_CPU_ARM_ARCH", "armv8-a"));
+        if matches!(context.cargo_cfg_target_arch.as_str(), "x86" | "x86_64") {
+            defines.extend(
+                X86_GGML_SWITCHES
+                    .iter()
+                    .map(|switch| switch.define_for(&enabled_features)),
+            );
         }
 
         Ok(Self {
             defines,
-            debug_messages: compiler_flags
-                .iter()
-                .map(|flag| format!("Setting baseline architecture: {flag}"))
-                .chain([format!("Compiling with target features: {target_features}")])
-                .map(CargoDirective::Debug)
-                .collect(),
-            compiler_flags,
+            debug_messages: vec![CargoDirective::Debug(format!(
+                "Compiling with target features: {target_features}"
+            ))],
         })
-    }
-}
-
-#[cfg(test)]
-mod cpu_feature_mapping_tests {
-    use super::map_cpu_feature_to_ggml;
-
-    #[test]
-    fn every_supported_rust_cpu_feature_maps_to_its_ggml_switch() {
-        assert_eq!(map_cpu_feature_to_ggml("avx"), Some("GGML_AVX"));
-        assert_eq!(map_cpu_feature_to_ggml("avx2"), Some("GGML_AVX2"));
-        assert_eq!(
-            map_cpu_feature_to_ggml("avx512bf16"),
-            Some("GGML_AVX512_BF16")
-        );
-        assert_eq!(
-            map_cpu_feature_to_ggml("avx512vbmi"),
-            Some("GGML_AVX512_VBMI")
-        );
-        assert_eq!(
-            map_cpu_feature_to_ggml("avx512vnni"),
-            Some("GGML_AVX512_VNNI")
-        );
-        assert_eq!(map_cpu_feature_to_ggml("avxvnni"), Some("GGML_AVX_VNNI"));
-        assert_eq!(map_cpu_feature_to_ggml("bmi2"), Some("GGML_BMI2"));
-        assert_eq!(map_cpu_feature_to_ggml("f16c"), Some("GGML_F16C"));
-        assert_eq!(map_cpu_feature_to_ggml("fma"), Some("GGML_FMA"));
-        assert_eq!(map_cpu_feature_to_ggml("sse4.2"), Some("GGML_SSE42"));
-    }
-
-    #[test]
-    fn unsupported_rust_cpu_feature_does_not_enable_a_ggml_switch() {
-        assert_eq!(map_cpu_feature_to_ggml("aes"), None);
-        assert_eq!(map_cpu_feature_to_ggml(""), None);
     }
 }
 
@@ -198,25 +210,50 @@ mod cpu_tuning_tests {
     use crate::build_context::tests::cargo_environment;
     use crate::build_context::tests::context_of;
     use crate::build_environment::tests::with_non_unicode;
+    use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_define::CmakeDefine;
 
-    fn tuned(overrides: &[(&str, &str)]) -> CpuTuning {
-        let environment = cargo_environment(BitFlags::empty(), overrides);
+    fn tuned(features: BitFlags<BuildFeature>, overrides: &[(&str, &str)]) -> CpuTuning {
+        let environment = cargo_environment(features, overrides);
 
         CpuTuning::of(&context_of(&environment), &environment).unwrap()
+    }
+
+    fn x86_switches(enabled: &[&'static str]) -> Vec<CmakeDefine> {
+        [
+            "GGML_SSE42",
+            "GGML_AVX",
+            "GGML_AVX_VNNI",
+            "GGML_AVX2",
+            "GGML_BMI2",
+            "GGML_FMA",
+            "GGML_F16C",
+            "GGML_AVX512",
+            "GGML_AVX512_VBMI",
+            "GGML_AVX512_VNNI",
+            "GGML_AVX512_BF16",
+            "GGML_AMX_TILE",
+            "GGML_AMX_INT8",
+            "GGML_AMX_BF16",
+        ]
+        .into_iter()
+        .map(|name| CmakeDefine::switch(name, enabled.contains(&name)))
+        .collect()
     }
 
     #[test]
     fn a_native_target_cpu_lets_ggml_detect_the_cpu() {
         assert_eq!(
-            tuned(&[
-                ("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
-                ("CARGO_CFG_TARGET_FEATURE", "avx2"),
-            ]),
+            tuned(
+                BitFlags::empty(),
+                &[
+                    ("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
+                    ("CARGO_CFG_TARGET_FEATURE", "avx2"),
+                ]
+            ),
             CpuTuning {
                 defines: vec![CmakeDefine::new("GGML_NATIVE", "ON")],
-                compiler_flags: Vec::new(),
                 debug_messages: vec![CargoDirective::Debug(
                     "Detected target-cpu=native, compiling with GGML_NATIVE".to_owned()
                 )],
@@ -225,46 +262,88 @@ mod cpu_tuning_tests {
     }
 
     #[test]
-    fn a_named_target_cpu_sets_the_baseline_and_target_features_enable_their_ggml_switches() {
+    fn a_baseline_x86_build_turns_every_instruction_set_ggml_would_assume_off() {
         assert_eq!(
-            tuned(&[
-                ("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=znver4"),
-                ("CARGO_CFG_TARGET_FEATURE", "aes,avx2,fma"),
-            ]),
+            tuned(
+                BitFlags::empty(),
+                &[("CARGO_CFG_TARGET_FEATURE", "fxsr,sse,sse2")]
+            ),
             CpuTuning {
-                defines: vec![
-                    CmakeDefine::new("GGML_NATIVE", "OFF"),
-                    CmakeDefine::new("GGML_AVX2", "ON"),
-                    CmakeDefine::new("GGML_FMA", "ON"),
-                ],
-                compiler_flags: vec!["-march=znver4".to_owned()],
-                debug_messages: vec![
-                    CargoDirective::Debug(
-                        "Setting baseline architecture: -march=znver4".to_owned()
-                    ),
-                    CargoDirective::Debug(
-                        "Compiling with target features: aes,avx2,fma".to_owned()
-                    ),
-                ],
+                defines: [
+                    vec![CmakeDefine::new("GGML_NATIVE", "OFF")],
+                    x86_switches(&[]),
+                ]
+                .concat(),
+                debug_messages: vec![CargoDirective::Debug(
+                    "Compiling with target features: fxsr,sse,sse2".to_owned()
+                )],
             }
         );
     }
 
     #[test]
-    fn aarch64_linux_without_a_target_cpu_builds_for_the_armv8_baseline() {
+    fn a_named_target_cpu_switches_on_exactly_the_instruction_sets_its_target_features_enable() {
         assert_eq!(
-            tuned(&[
-                ("CARGO_CFG_TARGET_ARCH", "aarch64"),
-                ("TARGET", "aarch64-unknown-linux-gnu"),
-            ]),
+            tuned(
+                BitFlags::empty(),
+                &[
+                    ("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=znver4"),
+                    (
+                        "CARGO_CFG_TARGET_FEATURE",
+                        "avx,avx2,avx512f,avx512cd,avx512vl,avx512dq,bmi2,f16c,fma,sse4.2"
+                    ),
+                ]
+            )
+            .defines,
+            [
+                vec![CmakeDefine::new("GGML_NATIVE", "OFF")],
+                x86_switches(&[
+                    "GGML_SSE42",
+                    "GGML_AVX",
+                    "GGML_AVX2",
+                    "GGML_BMI2",
+                    "GGML_FMA",
+                    "GGML_F16C",
+                ]),
+            ]
+            .concat()
+        );
+    }
+
+    #[test]
+    fn an_aarch64_build_leaves_the_architecture_to_the_compiler_baseline() {
+        assert_eq!(
+            tuned(
+                BitFlags::empty(),
+                &[
+                    ("CARGO_CFG_TARGET_ARCH", "aarch64"),
+                    ("TARGET", "aarch64-unknown-linux-gnu"),
+                ]
+            ),
             CpuTuning {
-                defines: vec![
-                    CmakeDefine::new("GGML_NATIVE", "OFF"),
-                    CmakeDefine::new("GGML_CPU_ARM_ARCH", "armv8-a"),
-                ],
-                compiler_flags: Vec::new(),
+                defines: vec![CmakeDefine::new("GGML_NATIVE", "OFF")],
                 debug_messages: vec![CargoDirective::Debug(
                     "Compiling with target features: ".to_owned()
+                )],
+            }
+        );
+    }
+
+    #[test]
+    fn dynamic_backends_build_every_cpu_variant_without_tuning() {
+        assert_eq!(
+            tuned(
+                BuildFeature::DynamicBackends | BuildFeature::DynamicLink,
+                &[
+                    ("CARGO_CFG_TARGET_ARCH", "aarch64"),
+                    ("TARGET", "aarch64-unknown-linux-gnu"),
+                    ("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
+                ]
+            ),
+            CpuTuning {
+                defines: vec![CmakeDefine::new("GGML_NATIVE", "OFF")],
+                debug_messages: vec![CargoDirective::Debug(
+                    "Building every CPU variant for ggml to select at runtime".to_owned()
                 )],
             }
         );

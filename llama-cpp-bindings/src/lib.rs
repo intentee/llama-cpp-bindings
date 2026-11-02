@@ -50,11 +50,7 @@ pub mod llama_token_attr;
 pub mod llama_token_attrs;
 pub mod llama_token_attrs_from_int_error;
 pub mod llguidance_sampler;
-#[cfg(feature = "dynamic-backends")]
-pub mod load_backends;
-#[cfg(feature = "dynamic-backends")]
 pub mod load_backends_error;
-#[cfg(feature = "dynamic-backends")]
 pub mod load_backends_from_path;
 pub mod log_options;
 pub mod log_record;

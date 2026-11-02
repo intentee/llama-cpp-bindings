@@ -31,7 +31,6 @@ fn base_defines() -> Vec<CmakeDefine> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CmakeConfiguration {
     pub defines: Vec<CmakeDefine>,
-    pub compiler_flags: Vec<String>,
     pub required_directories: Vec<PathBuf>,
     pub directives: Vec<CargoDirective>,
 }
@@ -45,12 +44,10 @@ impl CmakeConfiguration {
     pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Result<Self, BuildError> {
         let CpuTuning {
             defines: cpu_defines,
-            compiler_flags,
             debug_messages,
         } = CpuTuning::of(context, environment)?;
         let mut configuration = Self {
             defines: [base_defines(), cpu_defines].concat(),
-            compiler_flags,
             required_directories: Vec::new(),
             directives: debug_messages,
         };
@@ -141,6 +138,13 @@ impl CmakeConfiguration {
             self.defines.push(CmakeDefine::new("GGML_HIP", "ON"));
         }
 
+        if context.target_os == TargetOs::Apple {
+            self.defines.push(CmakeDefine::switch(
+                "GGML_METAL",
+                environment.has(BuildFeature::Metal),
+            ));
+        }
+
         Ok(())
     }
 
@@ -192,10 +196,6 @@ impl CmakeConfiguration {
                 CmakeDefine::new("GGML_CPU_ALL_VARIANTS", "ON"),
                 CmakeDefine::new("GGML_BACKEND_DIR", backends_dir.clone()),
             ]);
-            self.directives.push(CargoDirective::Metadata {
-                key: "backends_dir",
-                value: backends_dir.display().to_string(),
-            });
             self.required_directories.push(backends_dir);
         }
     }
@@ -216,6 +216,7 @@ mod tests {
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_define::CmakeDefine;
+    use crate::cpu_tuning::CpuTuning;
     use crate::link_kind::LinkKind;
     use crate::native_library::NativeLibrary;
 
@@ -232,9 +233,12 @@ mod tests {
         features: BitFlags<BuildFeature>,
         overrides: &[(&str, &str)],
     ) -> CmakeConfiguration {
-        let mut configuration = configured(features, overrides);
+        let environment = cargo_environment(features, overrides);
+        let context = context_of(&environment);
+        let cpu_defines = CpuTuning::of(&context, &environment).unwrap().defines;
+        let mut configuration = CmakeConfiguration::of(&context, &environment).unwrap();
 
-        configuration.defines.drain(..9);
+        configuration.defines.drain(..9 + cpu_defines.len());
 
         configuration
     }
@@ -266,10 +270,23 @@ mod tests {
                     CmakeDefine::new("MTMD_VIDEO", "OFF"),
                     CmakeDefine::new("LLAMA_OPENSSL", "OFF"),
                     CmakeDefine::new("GGML_NATIVE", "OFF"),
+                    CmakeDefine::new("GGML_SSE42", "OFF"),
+                    CmakeDefine::new("GGML_AVX", "OFF"),
+                    CmakeDefine::new("GGML_AVX_VNNI", "OFF"),
+                    CmakeDefine::new("GGML_AVX2", "OFF"),
+                    CmakeDefine::new("GGML_BMI2", "OFF"),
+                    CmakeDefine::new("GGML_FMA", "OFF"),
+                    CmakeDefine::new("GGML_F16C", "OFF"),
+                    CmakeDefine::new("GGML_AVX512", "OFF"),
+                    CmakeDefine::new("GGML_AVX512_VBMI", "OFF"),
+                    CmakeDefine::new("GGML_AVX512_VNNI", "OFF"),
+                    CmakeDefine::new("GGML_AVX512_BF16", "OFF"),
+                    CmakeDefine::new("GGML_AMX_TILE", "OFF"),
+                    CmakeDefine::new("GGML_AMX_INT8", "OFF"),
+                    CmakeDefine::new("GGML_AMX_BF16", "OFF"),
                     CmakeDefine::new("BUILD_SHARED_LIBS", "OFF"),
                     CmakeDefine::new("GGML_OPENMP", "OFF"),
                 ],
-                compiler_flags: Vec::new(),
                 required_directories: Vec::new(),
                 directives: vec![compiling_with_no_target_features()],
             }
@@ -285,13 +302,12 @@ mod tests {
             ),
             CmakeConfiguration {
                 defines: vec![
-                    CmakeDefine::new("GGML_NATIVE", "OFF"),
                     CmakeDefine::new("BUILD_SHARED_LIBS", "OFF"),
                     CmakeDefine::new("GGML_BLAS", "OFF"),
                     CmakeDefine::new("GGML_VULKAN", "ON"),
+                    CmakeDefine::new("GGML_METAL", "ON"),
                     CmakeDefine::new("GGML_OPENMP", "OFF"),
                 ],
-                compiler_flags: Vec::new(),
                 required_directories: Vec::new(),
                 directives: vec![compiling_with_no_target_features()],
             }
@@ -306,7 +322,6 @@ mod tests {
         let android_defines = |stl: Vec<CmakeDefine>| {
             [
                 vec![
-                    CmakeDefine::new("GGML_NATIVE", "OFF"),
                     CmakeDefine::new("BUILD_SHARED_LIBS", "OFF"),
                     CmakeDefine::new(
                         "CMAKE_TOOLCHAIN_FILE",
@@ -325,7 +340,6 @@ mod tests {
         };
         let android_configuration = |stl: Vec<CmakeDefine>| CmakeConfiguration {
             defines: android_defines(stl),
-            compiler_flags: Vec::new(),
             required_directories: Vec::new(),
             directives: vec![
                 compiling_with_no_target_features(),
@@ -364,7 +378,6 @@ mod tests {
         let gpu_defines = |cuda_architectures: Vec<CmakeDefine>| {
             [
                 vec![
-                    CmakeDefine::new("GGML_NATIVE", "OFF"),
                     CmakeDefine::new("BUILD_SHARED_LIBS", "OFF"),
                     CmakeDefine::new("GGML_VULKAN", "ON"),
                     CmakeDefine::new("GGML_CUDA", "ON"),
@@ -398,7 +411,6 @@ mod tests {
             [
                 CmakeConfiguration {
                     defines: gpu_defines(vec![CmakeDefine::new("CMAKE_CUDA_ARCHITECTURES", "89")]),
-                    compiler_flags: Vec::new(),
                     required_directories: Vec::new(),
                     directives: vulkan_directives(vec![CargoDirective::LinkSearch(PathBuf::from(
                         "/vulkan/lib"
@@ -406,7 +418,6 @@ mod tests {
                 },
                 CmakeConfiguration {
                     defines: gpu_defines(Vec::new()),
-                    compiler_flags: Vec::new(),
                     required_directories: Vec::new(),
                     directives: vulkan_directives(Vec::new()),
                 },
@@ -419,7 +430,6 @@ mod tests {
         assert_eq!(
             after_the_base_switches(BitFlags::from(BuildFeature::Openmp), &[]).defines,
             [
-                CmakeDefine::new("GGML_NATIVE", "OFF"),
                 CmakeDefine::new("BUILD_SHARED_LIBS", "OFF"),
                 CmakeDefine::new("GGML_OPENMP", "ON"),
             ]
@@ -435,13 +445,11 @@ mod tests {
             ),
             CmakeConfiguration {
                 defines: vec![
-                    CmakeDefine::new("GGML_NATIVE", "OFF"),
                     CmakeDefine::new("BUILD_SHARED_LIBS", "OFF"),
                     CmakeDefine::new("GGML_OPENMP", "OFF"),
                     CmakeDefine::new("LLAMA_USE_SYSTEM_GGML", "ON"),
                     CmakeDefine::new("GGML_DIR", "/ggml/lib/cmake/ggml"),
                 ],
-                compiler_flags: Vec::new(),
                 required_directories: Vec::new(),
                 directives: vec![
                     compiling_with_no_target_features(),
@@ -460,22 +468,16 @@ mod tests {
             ),
             CmakeConfiguration {
                 defines: vec![
-                    CmakeDefine::new("GGML_NATIVE", "OFF"),
                     CmakeDefine::new("BUILD_SHARED_LIBS", "ON"),
                     CmakeDefine::new("GGML_OPENMP", "OFF"),
                     CmakeDefine::new("GGML_BACKEND_DL", "ON"),
                     CmakeDefine::new("GGML_CPU_ALL_VARIANTS", "ON"),
                     CmakeDefine::new("GGML_BACKEND_DIR", "/out/cmake/backends"),
                 ],
-                compiler_flags: Vec::new(),
                 required_directories: vec![PathBuf::from("/out/cmake/backends")],
-                directives: vec![
-                    compiling_with_no_target_features(),
-                    CargoDirective::Metadata {
-                        key: "backends_dir",
-                        value: "/out/cmake/backends".to_owned(),
-                    },
-                ],
+                directives: vec![CargoDirective::Debug(
+                    "Building every CPU variant for ggml to select at runtime".to_owned()
+                )],
             }
         );
     }

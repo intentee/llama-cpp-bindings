@@ -29,7 +29,6 @@ impl NativeBuild {
     pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Result<Self, BuildError> {
         let CmakeConfiguration {
             defines,
-            compiler_flags,
             required_directories,
             directives: cmake_directives,
         } = CmakeConfiguration::of(context, environment)?;
@@ -44,7 +43,6 @@ impl NativeBuild {
                 target_triple: context.target_triple.clone(),
                 host_triple: context.host_triple.clone(),
                 defines,
-                compiler_flags,
                 required_directories,
             },
             directives: [
@@ -135,7 +133,6 @@ mod tests {
                 target_triple: HOST_TRIPLE.to_owned(),
                 host_triple: HOST_TRIPLE.to_owned(),
                 defines: vec![CmakeDefine::new("FIXTURE_LIBRARY_NAME", "fixture")],
-                compiler_flags: vec!["-DFIXTURE_VALUE=1".to_owned()],
                 required_directories: vec![root.join("cmake/backends")],
             },
             directives: vec![

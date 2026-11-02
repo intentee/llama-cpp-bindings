@@ -217,10 +217,14 @@ fn openmp_links(context: &BuildContext, environment: &BuildEnvironment) -> Vec<C
 fn platform_links(context: &BuildContext, environment: &BuildEnvironment) -> Vec<CargoDirective> {
     match context.target_os {
         TargetOs::Linux => vec![link(LinkKind::Dylib, "stdc++")],
-        TargetOs::Apple => vec![
+        TargetOs::Apple if environment.has(BuildFeature::Metal) => vec![
             link(LinkKind::Framework, "Foundation"),
             link(LinkKind::Framework, "Metal"),
             link(LinkKind::Framework, "MetalKit"),
+            link(LinkKind::Framework, "Accelerate"),
+            link(LinkKind::Unspecified, "c++"),
+        ],
+        TargetOs::Apple => vec![
             link(LinkKind::Framework, "Accelerate"),
             link(LinkKind::Unspecified, "c++"),
         ],
@@ -582,9 +586,13 @@ mod tests {
     }
 
     #[test]
-    fn apple_and_android_targets_link_their_platform_cxx_runtime() {
+    fn apple_and_android_targets_link_their_platform_cxx_runtime_and_metal_only_with_metal() {
         assert_eq!(
             [
+                platform_libraries(
+                    BitFlags::from(BuildFeature::Metal),
+                    &[("CARGO_CFG_TARGET_OS", "macos")]
+                ),
                 platform_libraries(BitFlags::empty(), &[("CARGO_CFG_TARGET_OS", "macos")]),
                 platform_libraries(
                     BitFlags::from(BuildFeature::StaticStdcxx),
@@ -601,6 +609,10 @@ mod tests {
                     library(LinkKind::Framework, "Foundation"),
                     library(LinkKind::Framework, "Metal"),
                     library(LinkKind::Framework, "MetalKit"),
+                    library(LinkKind::Framework, "Accelerate"),
+                    library(LinkKind::Unspecified, "c++"),
+                ],
+                vec![
                     library(LinkKind::Framework, "Accelerate"),
                     library(LinkKind::Unspecified, "c++"),
                 ],

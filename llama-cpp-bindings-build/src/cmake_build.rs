@@ -15,7 +15,6 @@ pub struct CmakeBuild {
     pub target_triple: String,
     pub host_triple: String,
     pub defines: Vec<CmakeDefine>,
-    pub compiler_flags: Vec<String>,
     pub required_directories: Vec<PathBuf>,
 }
 
@@ -42,17 +41,11 @@ impl CmakeBuild {
             config.define(name, value);
         }
 
-        for compiler_flag in &self.compiler_flags {
-            config.cflag(compiler_flag);
-            config.cxxflag(compiler_flag);
-        }
-
         config
             .target(&self.target_triple)
             .host(&self.host_triple)
             .out_dir(&self.out_dir)
             .profile(&self.profile)
-            .always_configure(false)
             .build();
 
         Ok(())
