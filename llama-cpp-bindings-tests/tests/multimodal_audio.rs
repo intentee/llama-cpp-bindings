@@ -128,21 +128,19 @@ fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result
             }
             .run();
 
-            Ok(outcome.generated.text().to_lowercase())
+            Ok(outcome.generated.text().to_owned())
         },
     )
 }
 
-fn assert_audio_transcription_contains(
+fn assert_audio_transcription(
     fixture: &LlamaFixture<'_>,
     audio_file_name: &str,
-    expected_word: &str,
+    expected_transcript: &str,
 ) -> Result<()> {
-    let transcript = transcribe_audio(fixture, audio_file_name)?;
-
-    assert!(
-        transcript.contains(expected_word),
-        "transcription should echo the spoken word {expected_word:?}; got: {transcript:?}"
+    assert_eq!(
+        transcribe_audio(fixture, audio_file_name)?,
+        expected_transcript
     );
 
     Ok(())
@@ -163,13 +161,14 @@ fn assert_audio_transcription_contains(
         "mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf"
     ),
 )]
-fn audio_reaches_the_model_and_produces_a_response(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let response = transcribe_audio(fixture, "quick_brown_fox.wav")?;
-
-    assert!(
-        !response.is_empty(),
-        "the audio must reach the decoder and produce output; this model is too small to \
-         follow the transcription instruction reliably, so only the pipeline is asserted here"
+fn ultravox_transcribes_the_spoken_sentence_after_a_preamble(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    assert_eq!(
+        transcribe_audio(fixture, "quick_brown_fox.wav")?,
+        "I can provide a transcript of the audio. However, please note that the audio itself is \
+         not provided. Based on the context, I'll attempt to create a verbatim transcript.\n\nThe \
+         quick brown fox jumps over the lazy dog."
     );
 
     Ok(())
@@ -184,8 +183,12 @@ fn audio_reaches_the_model_and_produces_a_response(fixture: &LlamaFixture<'_>) -
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn audio_transcribes_spoken_word(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_audio_transcription_contains(fixture, "quick_brown_fox.wav", "fox")
+fn gemma4_transcribes_the_quick_brown_fox_sentence(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_audio_transcription(
+        fixture,
+        "quick_brown_fox.wav",
+        "The quick brown fox jumps over the lazy dog.",
+    )
 }
 
 #[llama_test(
@@ -197,8 +200,12 @@ fn audio_transcribes_spoken_word(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn audio_transcribes_uncommon_sentence(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_audio_transcription_contains(fixture, "orange_cat.wav", "fence")
+fn gemma4_transcribes_the_orange_cat_sentence(fixture: &LlamaFixture<'_>) -> Result<()> {
+    assert_audio_transcription(
+        fixture,
+        "orange_cat.wav",
+        "The orange cat sat on the wooden fence.",
+    )
 }
 
 #[llama_test(

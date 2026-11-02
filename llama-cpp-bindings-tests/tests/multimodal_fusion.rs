@@ -23,8 +23,6 @@ use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
-const RECOGNIZED_ANIMALS: [&str; 3] = ["llama", "alpaca", "sheep"];
-
 const MAX_GENERATED_TOKENS: i32 = 512;
 const DESCRIBE_INSTRUCTION: &str =
     "Describe the animal shown in the image, then write the exact words spoken in the audio.";
@@ -154,22 +152,10 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
     }
     .run();
 
-    let description = outcome.generated.text().to_lowercase();
-    assert!(
-        !description.is_empty(),
-        "model should generate a description from combined image and audio input"
-    );
-    assert!(
-        RECOGNIZED_ANIMALS
-            .iter()
-            .any(|animal| description.contains(animal)),
-        "the description must name one of the animals a vision encoder plausibly reports for \
-         llamas.jpg ({RECOGNIZED_ANIMALS:?}), which is what proves the image reached the \
-         output; got: {description:?}"
-    );
-    assert!(
-        description.contains("fence"),
-        "description should echo the spoken word \"fence\" from the audio; got: {description:?}"
+    assert!(outcome.eog_seen, "{outcome:?}");
+    assert_eq!(
+        outcome.generated.text(),
+        "Animal: The image shows several sheep.\n\nAudio: The orange cat sat on the wooden fence."
     );
 
     Ok(())
