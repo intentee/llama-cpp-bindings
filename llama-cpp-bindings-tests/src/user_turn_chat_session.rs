@@ -12,6 +12,10 @@ use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 /// # Errors
 ///
 /// Forwards message construction and chat session errors.
+///
+/// # Panics
+///
+/// Panics when the model has no chat templates.
 pub fn user_turn_chat_session<'model>(
     model: &'model LlamaModel,
     content: &str,
@@ -20,7 +24,9 @@ pub fn user_turn_chat_session<'model>(
 ) -> Result<ChatSession<'model>> {
     Ok(ChatSession::new(
         model,
-        model.chat_templates()?,
+        model
+            .chat_templates()
+            .expect("the model must have chat templates"),
         &[LlamaChatMessage::new(
             "user".to_owned(),
             content.to_owned(),

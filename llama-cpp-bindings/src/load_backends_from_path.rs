@@ -27,6 +27,8 @@ mod tests {
     use std::os::unix::ffi::OsStrExt;
     use std::path::PathBuf;
 
+    use std::env;
+
     use super::load_backends_from_path;
     use crate::load_backends_error::LoadBackendsError;
 
@@ -49,6 +51,17 @@ mod tests {
         assert_eq!(
             load_backends_from_path(&path),
             Err(LoadBackendsError::PathNotUtf8(path.clone()))
+        );
+    }
+
+    #[test]
+    fn a_directory_without_backend_libraries_loads_no_backend() {
+        let registered_before = unsafe { llama_cpp_bindings_sys::ggml_backend_reg_count() };
+
+        assert_eq!(load_backends_from_path(&env::temp_dir()), Ok(()));
+        assert_eq!(
+            unsafe { llama_cpp_bindings_sys::ggml_backend_reg_count() },
+            registered_before
         );
     }
 }

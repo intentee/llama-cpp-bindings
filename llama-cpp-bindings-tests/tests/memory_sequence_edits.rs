@@ -162,3 +162,24 @@ fn qwen35_recurrent_memory_refuses_to_remove_part_of_a_sequence(
 
     Ok(())
 }
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn removing_from_every_sequence_empties_the_primed_kv_cache(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+
+    prime_memory(fixture, &mut context)?;
+
+    assert_eq!(context.memory_seq_rm(None, None, None), Ok(()));
+    assert_eq!(context.memory_seq_pos_max(0)?, -1);
+
+    Ok(())
+}

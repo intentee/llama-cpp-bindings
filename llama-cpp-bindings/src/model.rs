@@ -10,6 +10,7 @@ pub mod llama_split_mode_parse_error;
 pub mod lora_adapter_scale;
 pub mod params;
 pub mod parse_special_tokens;
+mod piece_write;
 pub mod rope_type;
 pub mod split_mode;
 pub mod tokenizer_input;
@@ -59,6 +60,7 @@ use crate::model::add_bos::AddBos;
 use crate::model::llama_chat_template::LlamaChatTemplate;
 use crate::model::llama_lora_adapter::LlamaLoraAdapter;
 use crate::model::parse_special_tokens::ParseSpecialTokens;
+use crate::model::piece_write::PieceWrite;
 use crate::model::rope_type::RopeType;
 use crate::model::tokenizer_input::TokenizerInput;
 use crate::model::vocab_type::VocabType;
@@ -381,11 +383,16 @@ impl LlamaModel {
         let token = self.require_vocabulary_token(token)?;
         let buffer_len = c_int::try_from(buffer_size)?;
         let mut buffer: Vec<u8> = vec![0u8; buffer_size];
-        let written = self.write_piece(token, &mut buffer, buffer_len, special, lstrip)?;
+        match self.write_piece(token, &mut buffer, buffer_len, special, lstrip) {
+            PieceWrite::Written(written) => {
+                buffer.truncate(written);
 
-        buffer.truncate(written);
-
-        Ok(buffer)
+                Ok(buffer)
+            }
+            PieceWrite::NeedsBuffer(negated_size) => {
+                Err(TokenToStringError::InsufficientBufferSpace(negated_size))
+            }
+        }
     }
 
     fn write_piece(
@@ -395,8 +402,8 @@ impl LlamaModel {
         buffer_len: c_int,
         special: bool,
         lstrip: Option<NonZeroU16>,
-    ) -> Result<usize, TokenToStringError> {
-        let size = unsafe {
+    ) -> PieceWrite {
+        PieceWrite::from(unsafe {
             llama_cpp_bindings_sys::llama_rs_token_to_piece(
                 self.vocab,
                 token.0,
@@ -405,14 +412,7 @@ impl LlamaModel {
                 lstrip.map_or(0, |strip_count| i32::from(strip_count.get())),
                 special,
             )
-        };
-
-        match size {
-            error_code if error_code.is_negative() => {
-                Err(TokenToStringError::InsufficientBufferSpace(error_code))
-            }
-            size => Ok(size.unsigned_abs() as usize),
-        }
+        })
     }
 
     fn read_piece<TOutput>(
@@ -426,16 +426,10 @@ impl LlamaModel {
         let mut probe = [0_u8; PIECE_PROBE_SIZE];
 
         match self.write_piece(token, &mut probe, PIECE_PROBE_LEN, special, lstrip) {
-            Ok(written) => Ok(read(probe.split_at(written).0)),
-            Err(TokenToStringError::InsufficientBufferSpace(required_size)) => self
-                .token_to_piece_bytes(
-                    token,
-                    required_size.unsigned_abs() as usize,
-                    special,
-                    lstrip,
-                )
+            PieceWrite::Written(written) => Ok(read(probe.split_at(written).0)),
+            PieceWrite::NeedsBuffer(negated_size) => self
+                .token_to_piece_bytes(token, negated_size.unsigned_abs() as usize, special, lstrip)
                 .map(|piece| read(&piece)),
-            Err(probe_error) => Err(probe_error),
         }
     }
 

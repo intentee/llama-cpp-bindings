@@ -233,3 +233,29 @@ fn memory_seq_rm_rejects_a_sequence_outside_the_context_sequences(
 
     Ok(())
 }
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn memory_seq_cp_rejects_a_source_outside_the_context_sequences(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+
+    assert_eq!(
+        context.memory_seq_cp(1, 0, None, None),
+        Err(MemorySeqCpError::SequenceIdOutOfRange(
+            SequenceIdOutOfRange {
+                seq_id: 1,
+                n_seq_max: 1
+            }
+        ))
+    );
+
+    Ok(())
+}
