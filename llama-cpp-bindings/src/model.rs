@@ -15,6 +15,7 @@ pub mod split_mode;
 pub mod tokenizer_input;
 pub mod vocab_type;
 pub mod vocab_type_from_int_error;
+pub mod vocabulary_token;
 
 use std::cmp;
 use std::ffi::c_int;
@@ -62,6 +63,7 @@ use crate::model::rope_type::RopeType;
 use crate::model::tokenizer_input::TokenizerInput;
 use crate::model::vocab_type::VocabType;
 use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
+use crate::model::vocabulary_token::VocabularyToken;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
 
@@ -234,24 +236,20 @@ impl LlamaModel {
         u32::try_from(n_ctx_train)
     }
 
+    /// Every token of the vocabulary, in id order, with the text it decodes to on its own.
     pub fn tokens(
         &self,
         decode_special: bool,
-    ) -> impl Iterator<Item = (LlamaToken, Result<String, TokenToStringError>)> + '_ {
-        (0..self.n_vocab())
-            .map(LlamaToken::new)
-            .map(move |llama_token| {
-                let mut decoder = encoding_rs::UTF_8.new_decoder();
-                (
-                    llama_token,
-                    self.token_to_piece(
-                        &SampledToken::Content(llama_token),
-                        &mut decoder,
-                        decode_special,
-                        None,
-                    ),
-                )
-            })
+    ) -> impl Iterator<Item = Result<VocabularyToken, TokenToStringError>> + '_ {
+        (0..self.n_vocab()).map(LlamaToken::new).map(move |token| {
+            self.token_to_piece(
+                &SampledToken::Content(token),
+                &mut encoding_rs::UTF_8.new_decoder(),
+                decode_special,
+                None,
+            )
+            .map(|piece| VocabularyToken { token, piece })
+        })
     }
 
     #[must_use]
