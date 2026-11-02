@@ -14,6 +14,7 @@ use crate::error::memory_seq_cp_error::MemorySeqCpError;
 use crate::error::memory_seq_div_error::MemorySeqDivError;
 use crate::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
 use crate::error::memory_seq_rm_error::MemorySeqRmError;
+use crate::model::rope_type::RopeType;
 
 fn memory_seq_add_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_memory_seq_add_status,
@@ -21,9 +22,6 @@ fn memory_seq_add_status_to_result(
 ) -> Result<(), MemorySeqAddError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_INCOMPATIBLE_ROPE_TYPE => {
-            Err(MemorySeqAddError::IncompatibleRopeType)
-        }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM => {
             Err(MemorySeqAddError::MemoryHandleUnavailable)
         }
@@ -48,11 +46,6 @@ fn memory_seq_add_status_to_result(
             detail: "was given a null ctx argument",
         }
         .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL => Err(FfiContractError {
-            operation: "llama_rs_memory_seq_add",
-            detail: "was given a null model argument",
-        }
-        .into()),
         other => Err(FfiStatusError {
             operation: "llama_rs_memory_seq_add",
             code: i64::from(other),
@@ -67,9 +60,6 @@ fn memory_seq_div_status_to_result(
 ) -> Result<(), MemorySeqDivError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_INCOMPATIBLE_ROPE_TYPE => {
-            Err(MemorySeqDivError::IncompatibleRopeType)
-        }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM => {
             Err(MemorySeqDivError::MemoryHandleUnavailable)
         }
@@ -92,11 +82,6 @@ fn memory_seq_div_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG => Err(FfiContractError {
             operation: "llama_rs_memory_seq_div",
             detail: "was given a null ctx argument",
-        }
-        .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL => Err(FfiContractError {
-            operation: "llama_rs_memory_seq_div",
-            detail: "was given a null model argument",
         }
         .into()),
         other => Err(FfiStatusError {
@@ -168,6 +153,12 @@ impl LlamaContext<'_> {
     #[must_use]
     pub fn has_memory(&self) -> bool {
         memory_of(self.context).is_some()
+    }
+
+    fn shifts_positions_one_per_embedding(&self) -> bool {
+        self.model
+            .rope_type()
+            .is_none_or(RopeType::has_one_position_per_embedding)
     }
 
     fn required_memory_handle(
@@ -257,6 +248,11 @@ impl LlamaContext<'_> {
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
             .map_err(MemorySeqAddError::P1TooLarge)?;
+
+        if !self.shifts_positions_one_per_embedding() {
+            return Err(MemorySeqAddError::IncompatibleRopeType);
+        }
+
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_memory_seq_add(
@@ -286,6 +282,11 @@ impl LlamaContext<'_> {
         let p1 = p1
             .map_or(Ok(-1), i32::try_from)
             .map_err(MemorySeqDivError::P1TooLarge)?;
+
+        if !self.shifts_positions_one_per_embedding() {
+            return Err(MemorySeqDivError::IncompatibleRopeType);
+        }
+
         let divisor = c_int::from(divisor.get());
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -338,17 +339,6 @@ mod memory_seq_add_status_to_result_tests {
                 ptr::null_mut(),
             ),
             Ok(())
-        );
-    }
-
-    #[test]
-    fn add_incompatible_rope_type_status_maps_to_incompatible_rope_type() {
-        assert_eq!(
-            memory_seq_add_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_INCOMPATIBLE_ROPE_TYPE,
-                ptr::null_mut(),
-            ),
-            Err(MemorySeqAddError::IncompatibleRopeType)
         );
     }
 
@@ -437,24 +427,6 @@ mod memory_seq_add_status_to_result_tests {
     }
 
     #[test]
-    fn memory_seq_add_status_to_result_reports_a_null_model_as_a_contract_violation() {
-        let outcome = memory_seq_add_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(
-                FfiContractError {
-                    operation: "llama_rs_memory_seq_add",
-                    detail: "was given a null model argument",
-                }
-                .into()
-            )
-        );
-    }
-
-    #[test]
     fn memory_seq_add_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = memory_seq_add_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
@@ -482,17 +454,6 @@ mod memory_seq_div_status_to_result_tests {
                 ptr::null_mut(),
             ),
             Ok(())
-        );
-    }
-
-    #[test]
-    fn div_incompatible_rope_type_status_maps_to_incompatible_rope_type() {
-        assert_eq!(
-            memory_seq_div_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_INCOMPATIBLE_ROPE_TYPE,
-                ptr::null_mut(),
-            ),
-            Err(MemorySeqDivError::IncompatibleRopeType)
         );
     }
 
@@ -574,24 +535,6 @@ mod memory_seq_div_status_to_result_tests {
                 FfiContractError {
                     operation: "llama_rs_memory_seq_div",
                     detail: "was given a null ctx argument",
-                }
-                .into()
-            )
-        );
-    }
-
-    #[test]
-    fn memory_seq_div_status_to_result_reports_a_null_model_as_a_contract_violation() {
-        let outcome = memory_seq_div_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(
-                FfiContractError {
-                    operation: "llama_rs_memory_seq_div",
-                    detail: "was given a null model argument",
                 }
                 .into()
             )

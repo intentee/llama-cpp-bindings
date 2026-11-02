@@ -217,14 +217,6 @@ extern "C" auto llama_rs_memory_seq_add(
         return LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG;
     }
     try {
-        const auto * model = llama_get_model(ctx);
-        if (model == nullptr) {
-            return LLAMA_RS_MEMORY_SEQ_ADD_NULL_MODEL;
-        }
-        const auto rope = llama_model_rope_type(model);
-        if (rope == LLAMA_ROPE_TYPE_MROPE || rope == LLAMA_ROPE_TYPE_VISION || rope == LLAMA_ROPE_TYPE_IMROPE) {
-            return LLAMA_RS_MEMORY_SEQ_ADD_INCOMPATIBLE_ROPE_TYPE;
-        }
         auto * mem = llama_get_memory(ctx);
         if (mem == nullptr) {
             return LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM;
@@ -254,14 +246,6 @@ extern "C" auto llama_rs_memory_seq_div(
         return LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG;
     }
     try {
-        const auto * model = llama_get_model(ctx);
-        if (model == nullptr) {
-            return LLAMA_RS_MEMORY_SEQ_DIV_NULL_MODEL;
-        }
-        const auto rope = llama_model_rope_type(model);
-        if (rope == LLAMA_ROPE_TYPE_MROPE || rope == LLAMA_ROPE_TYPE_VISION || rope == LLAMA_ROPE_TYPE_IMROPE) {
-            return LLAMA_RS_MEMORY_SEQ_DIV_INCOMPATIBLE_ROPE_TYPE;
-        }
         auto * mem = llama_get_memory(ctx);
         if (mem == nullptr) {
             return LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM;

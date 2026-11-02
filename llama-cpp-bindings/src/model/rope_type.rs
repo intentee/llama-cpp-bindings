@@ -19,6 +19,16 @@ impl RopeType {
             _ => None,
         }
     }
+
+    /// Whether every embedding carries a single position, which llama.cpp requires before it
+    /// shifts or divides the positions of a sequence in memory.
+    #[must_use]
+    pub const fn has_one_position_per_embedding(self) -> bool {
+        match self {
+            Self::Norm | Self::NeoX | Self::Vision => true,
+            Self::MRope | Self::IMRope => false,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -47,6 +57,21 @@ mod tests {
                 None,
                 None,
             ]
+        );
+    }
+
+    #[test]
+    fn only_multi_section_rope_types_place_several_positions_per_embedding() {
+        assert_eq!(
+            [
+                RopeType::Norm,
+                RopeType::NeoX,
+                RopeType::MRope,
+                RopeType::IMRope,
+                RopeType::Vision,
+            ]
+            .map(RopeType::has_one_position_per_embedding),
+            [true, true, false, false, true]
         );
     }
 }
