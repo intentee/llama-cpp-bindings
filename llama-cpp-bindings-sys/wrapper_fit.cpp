@@ -1,12 +1,12 @@
 #include "wrapper_fit.h"
-#include "llama.h"
-#include "ggml.h"
+#include <llama.h>
+#include <ggml.h>
 #include "wrapper_report_current_exception.h"
 
 #include <cstddef>
 #include <cstdint>
 
-#include "llama.cpp/common/fit.h"
+#include <common/fit.h>
 
 extern "C" auto llama_rs_fit_params(
     const char * path_model,

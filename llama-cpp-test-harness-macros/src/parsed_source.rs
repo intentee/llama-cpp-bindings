@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use syn::Expr;
 use syn::ExprCall;
 use syn::ExprLit;
@@ -58,7 +60,7 @@ impl ParsedSource {
     pub fn display_suffix(&self) -> String {
         match self {
             Self::HuggingFace { file, .. } => file.clone(),
-            Self::LocalPath(path) => std::path::Path::new(path)
+            Self::LocalPath(path) => Path::new(path)
                 .file_name()
                 .and_then(|name| name.to_str())
                 .map_or_else(|| path.clone(), str::to_owned),
@@ -104,7 +106,8 @@ mod tests {
     use super::ParsedSource;
 
     fn parse(source: &str) -> syn::Result<ParsedSource> {
-        let expression: syn::Expr = parse_str(source)?;
+        let expression: syn::Expr =
+            parse_str(source).expect("the test source must be an expression");
         ParsedSource::parse(&expression, "model_source")
     }
 
@@ -137,7 +140,10 @@ mod tests {
             .expect_err("unknown variant must fail")
             .to_string();
 
-        assert!(message.contains("unknown source variant"), "got: {message}");
+        assert_eq!(
+            message,
+            "unknown source variant `Mystery`; expected `HuggingFace` or `LocalPath`"
+        );
     }
 
     #[test]
@@ -146,8 +152,10 @@ mod tests {
             .expect_err("non-call must fail")
             .to_string();
 
-        assert!(message.contains("HuggingFace"), "got: {message}");
-        assert!(message.contains("LocalPath"), "got: {message}");
+        assert_eq!(
+            message,
+            "field `model_source` expects `HuggingFace(repo, file)` or `LocalPath(path)`"
+        );
     }
 
     #[test]
@@ -156,8 +164,10 @@ mod tests {
             .expect_err("arity must fail")
             .to_string();
 
-        assert!(message.contains("HuggingFace"), "got: {message}");
-        assert!(message.contains("2 string"), "got: {message}");
+        assert_eq!(
+            message,
+            "`HuggingFace` expects exactly 2 string arguments (repo, file); got 1"
+        );
     }
 
     #[test]
@@ -166,17 +176,22 @@ mod tests {
             .expect_err("arity must fail")
             .to_string();
 
-        assert!(message.contains("LocalPath"), "got: {message}");
-        assert!(message.contains("1 string"), "got: {message}");
+        assert_eq!(
+            message,
+            "`LocalPath` expects exactly 1 string argument (path); got 2"
+        );
     }
 
     #[test]
-    fn non_string_argument_is_rejected() {
+    fn huggingface_with_non_string_first_argument_is_rejected() {
         let message = parse("HuggingFace(42, \"file\")")
             .expect_err("non-string arg must fail")
             .to_string();
 
-        assert!(message.contains("string literal"), "got: {message}");
+        assert_eq!(
+            message,
+            "`model_source` argument `HuggingFace.repo` expects a string literal"
+        );
     }
 
     #[test]
@@ -185,7 +200,10 @@ mod tests {
             .expect_err("non-string second arg must fail")
             .to_string();
 
-        assert!(message.contains("string literal"), "got: {message}");
+        assert_eq!(
+            message,
+            "`model_source` argument `HuggingFace.file` expects a string literal"
+        );
     }
 
     #[test]
@@ -194,16 +212,9 @@ mod tests {
             .expect_err("non-string LocalPath arg must fail")
             .to_string();
 
-        assert!(message.contains("string literal"), "got: {message}");
-    }
-
-    #[test]
-    fn unparseable_input_returns_err() {
-        let result = parse("@&^!");
-
-        assert!(
-            result.is_err(),
-            "garbage input must fail to parse as syn::Expr"
+        assert_eq!(
+            message,
+            "`model_source` argument `LocalPath.path` expects a string literal"
         );
     }
 
@@ -213,7 +224,10 @@ mod tests {
             .expect_err("non-path func must fail")
             .to_string();
 
-        assert!(message.contains("HuggingFace"), "got: {message}");
+        assert_eq!(
+            message,
+            "field `model_source` expects `HuggingFace(...)` or `LocalPath(...)`"
+        );
     }
 
     #[test]
@@ -222,7 +236,10 @@ mod tests {
             .expect_err("qualified path must fail")
             .to_string();
 
-        assert!(message.contains("bare variant name"), "got: {message}");
+        assert_eq!(
+            message,
+            "field `model_source` expects the bare variant name `HuggingFace` or `LocalPath`"
+        );
     }
 
     #[test]

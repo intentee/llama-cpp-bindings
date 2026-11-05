@@ -22,10 +22,10 @@ impl DerefMut for LlamaTokenAttrs {
     }
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_token_type> for LlamaTokenAttrs {
+impl TryFrom<llama_cpp_bindings_sys::llama_token_attr> for LlamaTokenAttrs {
     type Error = LlamaTokenAttrsFromIntError;
 
-    fn try_from(value: llama_cpp_bindings_sys::llama_vocab_type) -> Result<Self, Self::Error> {
+    fn try_from(value: llama_cpp_bindings_sys::llama_token_attr) -> Result<Self, Self::Error> {
         Ok(Self(BitFlags::from_bits(value).map_err(
             |bit_flag_error| {
                 LlamaTokenAttrsFromIntError::UnknownValue(bit_flag_error.invalid_bits())
@@ -38,36 +38,31 @@ impl TryFrom<llama_cpp_bindings_sys::llama_token_type> for LlamaTokenAttrs {
 mod tests {
     use enumflags2::BitFlags;
 
-    use super::{LlamaTokenAttr, LlamaTokenAttrs, LlamaTokenAttrsFromIntError};
+    use super::LlamaTokenAttr;
+    use super::LlamaTokenAttrs;
+    use super::LlamaTokenAttrsFromIntError;
 
     #[test]
-    fn try_from_valid_single_attribute() {
-        let attrs = LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_NORMAL);
-
-        assert!(attrs.is_ok());
-        assert!(
-            attrs
-                .expect("valid attribute")
-                .contains(LlamaTokenAttr::Normal)
+    fn a_known_attribute_bit_converts_to_its_flag() {
+        assert_eq!(
+            LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_NORMAL),
+            Ok(LlamaTokenAttrs(BitFlags::from_flag(LlamaTokenAttr::Normal)))
         );
     }
 
     #[test]
     fn try_from_zero_produces_empty_flags() {
-        let attrs = LlamaTokenAttrs::try_from(0);
-
-        assert!(attrs.is_ok());
-        assert!(attrs.expect("valid attribute").is_empty());
+        assert_eq!(
+            LlamaTokenAttrs::try_from(0),
+            Ok(LlamaTokenAttrs(BitFlags::empty()))
+        );
     }
 
     #[test]
-    fn try_from_invalid_bits_returns_error() {
-        let err = LlamaTokenAttrs::try_from(!0).unwrap_err();
-        let LlamaTokenAttrsFromIntError::UnknownValue(invalid_bits) = err;
-
-        assert!(
-            invalid_bits > 0,
-            "passing !0 must produce at least one unknown bit"
+    fn unknown_attribute_bits_are_reported() {
+        assert_eq!(
+            LlamaTokenAttrs::try_from(!0),
+            Err(LlamaTokenAttrsFromIntError::UnknownValue(!0x3FF))
         );
     }
 

@@ -59,52 +59,18 @@ mod tests {
             n_ctx: 1024,
             n_batch: 256,
             n_ubatch: 128,
-            ..BASELINE
+            n_seq_max: 4,
+            n_threads_batch: Some(8),
+            embeddings: true,
         }
         .into_llama_context_params();
 
         assert_eq!(params.n_ctx(), NonZeroU32::new(1024));
         assert_eq!(params.n_batch(), 256);
         assert_eq!(params.n_ubatch(), 128);
-    }
-
-    #[test]
-    fn into_llama_context_params_propagates_embeddings_flag() {
-        let off = ContextParams {
-            embeddings: false,
-            ..BASELINE
-        }
-        .into_llama_context_params();
-        let on = ContextParams {
-            embeddings: true,
-            ..BASELINE
-        }
-        .into_llama_context_params();
-
-        assert!(!off.embeddings());
-        assert!(on.embeddings());
-    }
-
-    #[test]
-    fn into_llama_context_params_propagates_n_seq_max() {
-        let params = ContextParams {
-            n_seq_max: 4,
-            ..BASELINE
-        }
-        .into_llama_context_params();
-
-        assert_eq!(params.context_params.n_seq_max, 4);
-    }
-
-    #[test]
-    fn into_llama_context_params_applies_n_threads_batch_when_some() {
-        let params = ContextParams {
-            n_threads_batch: Some(8),
-            ..BASELINE
-        }
-        .into_llama_context_params();
-
-        assert_eq!(params.context_params.n_threads_batch, 8);
+        assert_eq!(params.n_seq_max(), 4);
+        assert_eq!(params.n_threads_batch(), 8);
+        assert!(params.embeddings());
     }
 
     #[test]

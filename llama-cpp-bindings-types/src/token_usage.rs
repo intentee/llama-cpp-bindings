@@ -154,8 +154,43 @@ impl<'usage> Sum<&'usage Self> for TokenUsage {
 
 #[cfg(test)]
 mod tests {
+    use std::iter;
+
     use super::TokenUsage;
     use super::TokenUsageError;
+
+    const LEFT_USAGE: TokenUsage = TokenUsage {
+        prompt_tokens: 20,
+        cached_prompt_tokens: 2,
+        input_image_tokens: 3,
+        input_audio_tokens: 4,
+        content_tokens: 5,
+        reasoning_tokens: 6,
+        tool_call_tokens: 7,
+        undeterminable_tokens: 8,
+    };
+
+    const RIGHT_USAGE: TokenUsage = TokenUsage {
+        prompt_tokens: 200,
+        cached_prompt_tokens: 20,
+        input_image_tokens: 30,
+        input_audio_tokens: 40,
+        content_tokens: 50,
+        reasoning_tokens: 60,
+        tool_call_tokens: 70,
+        undeterminable_tokens: 80,
+    };
+
+    const COMBINED_USAGE: TokenUsage = TokenUsage {
+        prompt_tokens: 220,
+        cached_prompt_tokens: 22,
+        input_image_tokens: 33,
+        input_audio_tokens: 44,
+        content_tokens: 55,
+        reasoning_tokens: 66,
+        tool_call_tokens: 77,
+        undeterminable_tokens: 88,
+    };
 
     #[test]
     fn new_starts_with_all_counters_at_zero() {
@@ -215,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn record_cached_equal_to_prompt_succeeds() {
+    fn caching_every_prompt_token_is_accepted() {
         let mut usage = TokenUsage::new();
         usage.record_prompt_tokens(5);
         usage
@@ -335,48 +370,8 @@ mod tests {
     }
 
     #[test]
-    fn add_combines_field_by_field() {
-        let mut left = TokenUsage::new();
-        left.record_prompt_tokens(2);
-        left.record_cached_prompt_tokens(1)
-            .expect("1 cached <= 2 prompt is valid");
-        left.record_content_token();
-        left.record_reasoning_token();
-        left.record_tool_call_token();
-        left.record_undeterminable_token();
-
-        let mut right = TokenUsage::new();
-        right.record_prompt_tokens(5);
-        right
-            .record_cached_prompt_tokens(2)
-            .expect("2 cached <= 5 prompt is valid");
-        right.record_content_token();
-        right.record_tool_call_token();
-
-        let combined = left + right;
-
-        assert_eq!(combined.prompt_tokens, 7);
-        assert_eq!(combined.cached_prompt_tokens, 3);
-        assert_eq!(combined.content_tokens, 2);
-        assert_eq!(combined.reasoning_tokens, 1);
-        assert_eq!(combined.tool_call_tokens, 2);
-        assert_eq!(combined.undeterminable_tokens, 1);
-    }
-
-    #[test]
-    fn add_combines_image_and_audio_fields_too() {
-        let mut left = TokenUsage::new();
-        left.record_input_image_tokens(3);
-        left.record_input_audio_tokens(7);
-
-        let mut right = TokenUsage::new();
-        right.record_input_image_tokens(4);
-        right.record_input_audio_tokens(1);
-
-        let combined = left + right;
-
-        assert_eq!(combined.input_image_tokens, 7);
-        assert_eq!(combined.input_audio_tokens, 8);
+    fn add_combines_every_field() {
+        assert_eq!(LEFT_USAGE + RIGHT_USAGE, COMBINED_USAGE);
     }
 
     #[test]
@@ -398,17 +393,10 @@ mod tests {
     }
 
     #[test]
-    fn add_ref_combines_field_by_field() {
-        let mut left = TokenUsage::new();
-        left.record_prompt_tokens(2);
+    fn add_ref_combines_every_field() {
+        let right_usage = &RIGHT_USAGE;
 
-        let mut right = TokenUsage::new();
-        right.record_prompt_tokens(5);
-        let right_ref = &right;
-
-        let combined = left + right_ref;
-
-        assert_eq!(combined.prompt_tokens, 7);
+        assert_eq!(LEFT_USAGE + right_usage, COMBINED_USAGE);
     }
 
     #[test]
@@ -442,7 +430,7 @@ mod tests {
 
     #[test]
     fn sum_over_empty_iter_returns_default() {
-        let summed: TokenUsage = std::iter::empty::<TokenUsage>().sum();
+        let summed: TokenUsage = iter::empty::<TokenUsage>().sum();
 
         assert_eq!(summed, TokenUsage::default());
     }

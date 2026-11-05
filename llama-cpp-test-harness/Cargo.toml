@@ -8,11 +8,11 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
-hf-hub = { workspace = true }
 inventory = { workspace = true }
 libtest-mimic = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 llama-cpp-test-harness-macros = { workspace = true }
+llama-cpp-test-model-provisioning = { workspace = true }
 thiserror = { workspace = true }
 
 [features]
@@ -23,7 +23,11 @@ vulkan = ["llama-cpp-bindings/vulkan"]
 rocm = ["llama-cpp-bindings/rocm"]
 
 [[test]]
-name = "harness_self_test"
+name = "duplicate_trial_names"
+harness = false
+
+[[test]]
+name = "phase_conclusions"
 harness = false
 
 [lints]

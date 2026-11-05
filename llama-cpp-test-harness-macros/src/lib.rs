@@ -3,9 +3,12 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+mod attribute_accumulator;
 mod expand;
 mod parsed_args;
 mod parsed_context_params;
+mod parsed_expected_failure;
+mod parsed_expected_outcome;
 mod parsed_load_mode;
 mod parsed_model_load_params;
 mod parsed_source;
@@ -32,6 +35,7 @@ mod tests {
     use quote::quote;
 
     use super::dispatch;
+    use crate::expand::expand;
 
     #[test]
     fn dispatch_on_invalid_attribute_emits_compile_error_tokens() {
@@ -39,16 +43,18 @@ mod tests {
         let item = quote! {
             fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
         };
-        let emitted = dispatch(attribute, item).to_string();
+        let message = "unknown field `totally_wrong`; expected one of: model_source, \
+                       n_gpu_layers, load_mode, n_ctx, n_batch, n_ubatch, mmproj_source, \
+                       embeddings, n_seq_max, n_threads_batch, expected_failure";
 
-        assert!(
-            emitted.contains("compile_error"),
-            "expected compile_error! tokens in emitted output: {emitted}",
+        assert_eq!(
+            dispatch(attribute, item).to_string(),
+            quote! { ::core::compile_error! { #message } }.to_string()
         );
     }
 
     #[test]
-    fn dispatch_on_valid_input_emits_inventory_submission() {
+    fn dispatch_on_valid_input_emits_the_expanded_tokens() {
         let attribute = quote! {
             model_source = HuggingFace("r", "f"),
             n_gpu_layers = 0,
@@ -60,15 +66,8 @@ mod tests {
         let item = quote! {
             fn my_test(fixture: &LlamaFixture<'_>) -> anyhow::Result<()> { Ok(()) }
         };
-        let emitted = dispatch(attribute, item).to_string();
+        let expanded = expand(attribute.clone(), item.clone()).expect("valid input must expand");
 
-        assert!(
-            emitted.contains("inventory"),
-            "expected inventory::submit in emitted output: {emitted}",
-        );
-        assert!(
-            !emitted.contains("compile_error"),
-            "valid input should not emit compile_error: {emitted}",
-        );
+        assert_eq!(dispatch(attribute, item).to_string(), expanded.to_string());
     }
 }

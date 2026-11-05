@@ -23,7 +23,7 @@ impl TokenPiece {
 
 #[cfg(test)]
 mod tests {
-    use super::TokenPiece;
+    use crate::token_piece::TokenPiece;
 
     #[test]
     fn a_marker_is_raw_text_without_a_visible_part() {

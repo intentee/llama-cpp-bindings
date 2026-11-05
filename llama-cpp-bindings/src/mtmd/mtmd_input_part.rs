@@ -11,7 +11,7 @@ pub enum MtmdInputPart<'bitmap> {
 mod tests {
     use std::thread;
 
-    use super::MtmdInputPart;
+    use crate::mtmd::mtmd_input_part::MtmdInputPart;
     use crate::mtmd::mtmd_input_text_part::MtmdInputTextPart;
 
     #[test]

@@ -22,39 +22,46 @@ pub fn load_backends_from_path(path: &Path) -> Result<(), LoadBackendsError> {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::CString;
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    use std::path::PathBuf;
+
+    use std::env;
+
     use super::load_backends_from_path;
     use crate::load_backends_error::LoadBackendsError;
-    use std::path::PathBuf;
 
     #[test]
     fn load_backends_from_path_returns_path_null_byte_for_embedded_null() {
-        use std::ffi::CString;
-        use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt;
-
         let path = PathBuf::from(OsStr::from_bytes(b"/tmp/foo\0bar"));
-        let err = load_backends_from_path(&path).unwrap_err();
-        let representative =
-            LoadBackendsError::PathNullByte(CString::new(b"a\0b".to_vec()).unwrap_err());
 
         assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
+            load_backends_from_path(&path),
+            Err(LoadBackendsError::PathNullByte(
+                CString::new("/tmp/foo\0bar").unwrap_err()
+            ))
         );
     }
 
     #[test]
     fn load_backends_from_path_returns_path_not_utf8_for_invalid_utf8() {
-        use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt;
-
         let path = PathBuf::from(OsStr::from_bytes(b"/tmp/\xff\xfe"));
-        let err = load_backends_from_path(&path).unwrap_err();
-        let representative = LoadBackendsError::PathNotUtf8(PathBuf::new());
 
         assert_eq!(
-            std::mem::discriminant(&err),
-            std::mem::discriminant(&representative)
+            load_backends_from_path(&path),
+            Err(LoadBackendsError::PathNotUtf8(path.clone()))
+        );
+    }
+
+    #[test]
+    fn a_directory_without_backend_libraries_loads_no_backend() {
+        let registered_before = unsafe { llama_cpp_bindings_sys::ggml_backend_reg_count() };
+
+        assert_eq!(load_backends_from_path(&env::temp_dir()), Ok(()));
+        assert_eq!(
+            unsafe { llama_cpp_bindings_sys::ggml_backend_reg_count() },
+            registered_before
         );
     }
 }

@@ -38,17 +38,6 @@ mod tests {
     use crate::recorded_error::RecordedError;
 
     #[test]
-    fn records_and_takes_within_a_scope() {
-        let scope = ErrorScope::enter();
-        record(RecordedError::new("boom".to_string()));
-
-        assert_eq!(
-            scope.take().map(RecordedError::into_message),
-            Some("boom".to_string())
-        );
-    }
-
-    #[test]
     fn keeps_the_first_recorded_error() {
         let scope = ErrorScope::enter();
         record(RecordedError::new("first".to_string()));
@@ -72,7 +61,10 @@ mod tests {
         let scope = ErrorScope::enter();
         record(RecordedError::new("once".to_string()));
 
-        assert!(scope.take().is_some());
+        assert_eq!(
+            scope.take().map(RecordedError::into_message),
+            Some("once".to_string())
+        );
         assert!(scope.take().is_none());
     }
 

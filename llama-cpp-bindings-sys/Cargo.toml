@@ -56,14 +56,15 @@ include = [
     "/llama.cpp/vendor",
 
     "/llama.cpp/CMakeLists.txt",
+    "/llama.cpp/LICENSE",
     "/llama.cpp/common/CMakeLists.txt",
+    "/llama.cpp/common/parsers/sources.cmake",
     "/llama.cpp/ggml/CMakeLists.txt",
     "/llama.cpp/ggml/src/CMakeLists.txt",
     "/llama.cpp/src/CMakeLists.txt",
 
     "/llama.cpp/cmake",
     "/llama.cpp/ggml/cmake",
-    "/llama.cpp/common/cmake",
 ]
 
 [dependencies]
@@ -77,6 +78,7 @@ cuda-no-vmm = ["cuda", "llama-cpp-bindings-build/cuda-no-vmm"]
 metal = ["llama-cpp-bindings-build/metal"]
 dynamic-link = ["llama-cpp-bindings-build/dynamic-link"]
 dynamic-backends = ["dynamic-link", "llama-cpp-bindings-build/dynamic-backends"]
+fault-injection = ["llama-cpp-bindings-build/fault-injection"]
 vulkan = ["llama-cpp-bindings-build/vulkan"]
 openmp = ["llama-cpp-bindings-build/openmp"]
 rocm = ["llama-cpp-bindings-build/rocm"]

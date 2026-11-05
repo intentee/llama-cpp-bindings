@@ -31,23 +31,24 @@ impl WrapperSourcesResponseFile {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
     use std::path::PathBuf;
 
     use super::WrapperSourcesResponseFile;
-    use crate::wrapper_sources_error::WrapperSourcesError;
 
     #[test]
     fn writing_under_a_missing_directory_reports_the_path() {
-        let output_path = "/nonexistent-directory/wrapper_sources.rsp";
         let response_file = WrapperSourcesResponseFile {
-            output_path: PathBuf::from(output_path),
+            output_path: PathBuf::from("/nonexistent-directory/wrapper_sources.rsp"),
             sys_dir: PathBuf::from("/repo/llama-cpp-bindings-sys"),
         };
 
-        assert!(matches!(
-            response_file.write(),
-            Err(WrapperSourcesError::Write { ref path, .. }) if path == Path::new(output_path)
-        ));
+        assert_eq!(
+            response_file.write().err().map(|error| error.to_string()),
+            Some(
+                "wrapper source list could not be written to \
+                 /nonexistent-directory/wrapper_sources.rsp: No such file or directory (os error 2)"
+                    .to_owned()
+            )
+        );
     }
 }

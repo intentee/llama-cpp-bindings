@@ -8,7 +8,14 @@
     )
 )]
 
+use std::ffi::CStr;
+use std::ffi::c_char;
+use std::ffi::c_void;
+use std::sync::PoisonError;
 use std::sync::{Mutex, OnceLock};
+
+use log::log;
+use log::warn;
 
 use llama_cpp_log_decoder::decode_anomaly::DecodeAnomaly;
 use llama_cpp_log_decoder::decode_output::DecodeOutput;
@@ -23,7 +30,7 @@ use crate::log_record::LogRecord;
 struct LogSource {
     decoder: Mutex<LogDecoder>,
     target: &'static str,
-    options: LogOptions,
+    options: Mutex<LogOptions>,
 }
 
 impl LogSource {
@@ -31,8 +38,19 @@ impl LogSource {
         Self {
             decoder: Mutex::new(LogDecoder::new()),
             target,
-            options,
+            options: Mutex::new(options),
         }
+    }
+
+    fn options(&self) -> LogOptions {
+        self.options
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    fn replace_options(&self, options: LogOptions) {
+        *self.options.lock().unwrap_or_else(PoisonError::into_inner) = options;
     }
 }
 
@@ -84,8 +102,8 @@ fn resolve_record(line: LogLine, demote_info_to_debug: bool) -> LogRecord {
 }
 
 fn dispatch_line(source: &LogSource, line: LogLine) {
-    let LogRecord { level, text } = resolve_record(line, source.options.demote_info_to_debug);
-    log::log!(target: source.target, level, "{text}");
+    let LogRecord { level, text } = resolve_record(line, source.options().demote_info_to_debug);
+    log!(target: source.target, level, "{text}");
 }
 
 fn dispatch_output(source: &LogSource, output: DecodeOutput) {
@@ -100,7 +118,7 @@ fn dispatch_output(source: &LogSource, output: DecodeOutput) {
 }
 
 fn dispatch_anomaly(source: &LogSource, anomaly: DecodeAnomaly) {
-    log::warn!(
+    warn!(
         target: source.target,
         "llama.cpp log decoder anomaly: {anomaly:?}",
     );
@@ -108,24 +126,24 @@ fn dispatch_anomaly(source: &LogSource, anomaly: DecodeAnomaly) {
 
 unsafe extern "C" fn logs_to_log(
     raw_level: llama_cpp_bindings_sys::ggml_log_level,
-    text_ptr: *const std::os::raw::c_char,
-    data_ptr: *mut std::os::raw::c_void,
+    text_ptr: *const c_char,
+    data_ptr: *mut c_void,
 ) {
     let source: &LogSource = unsafe { &*data_ptr.cast::<LogSource>() };
 
-    if source.options.disabled {
+    if source.options().disabled {
         return;
     }
 
     if text_ptr.is_null() {
-        log::warn!(
+        warn!(
             target: source.target,
             "received NULL text pointer from llama.cpp log callback",
         );
         return;
     }
 
-    let text_cstr = unsafe { std::ffi::CStr::from_ptr(text_ptr) };
+    let text_cstr = unsafe { CStr::from_ptr(text_ptr) };
     let text = text_cstr.to_string_lossy();
 
     let incoming = ggml_level_to_incoming(raw_level);
@@ -134,7 +152,7 @@ unsafe extern "C" fn logs_to_log(
         let mut decoder = source
             .decoder
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         decoder.feed(incoming, &text)
     };
 
@@ -146,41 +164,56 @@ unsafe extern "C" fn logs_to_log(
 }
 
 pub fn send_logs_to_log(options: LogOptions) {
-    let llama_source: *const LogSource =
-        LLAMA_SOURCE.get_or_init(|| LogSource::new("llama.cpp", options.clone()));
-    let ggml_source: *const LogSource = GGML_SOURCE.get_or_init(|| LogSource::new("ggml", options));
+    let llama_source =
+        LLAMA_SOURCE.get_or_init(|| LogSource::new("llama.cpp", LogOptions::default()));
+    let ggml_source = GGML_SOURCE.get_or_init(|| LogSource::new("ggml", LogOptions::default()));
+
+    llama_source.replace_options(options.clone());
+    ggml_source.replace_options(options);
+
+    let llama_source: *const LogSource = llama_source;
+    let ggml_source: *const LogSource = ggml_source;
 
     unsafe {
         llama_cpp_bindings_sys::llama_log_set(
             Some(logs_to_log),
-            llama_source.cast::<std::os::raw::c_void>().cast_mut(),
+            llama_source.cast::<c_void>().cast_mut(),
         );
         llama_cpp_bindings_sys::ggml_log_set(
             Some(logs_to_log),
-            ggml_source.cast::<std::os::raw::c_void>().cast_mut(),
+            ggml_source.cast::<c_void>().cast_mut(),
         );
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::log_record::LogRecord;
+    use std::ffi::CStr;
+    use std::ffi::c_void;
+    use std::ptr;
+    use std::sync::PoisonError;
     use std::sync::{Mutex, Once};
+    use std::thread;
+
+    use log::{Level, Log, Metadata, Record};
+    use serial_test::serial;
 
     use llama_cpp_log_decoder::decode_output::DecodeOutput;
     use llama_cpp_log_decoder::incoming_log_level::IncomingLogLevel;
     use llama_cpp_log_decoder::log_level::LogLevel;
     use llama_cpp_log_decoder::log_line::LogLine;
-    use log::{Level, Log, Metadata, Record};
-    use serial_test::serial;
 
-    use super::{
-        GGML_SOURCE, LLAMA_SOURCE, LogSource, dispatch_output, ggml_level_to_incoming, logs_to_log,
-        resolve_record, send_logs_to_log,
-    };
+    use super::LLAMA_SOURCE;
+    use super::LogSource;
+    use super::dispatch_output;
+    use super::ggml_level_to_incoming;
+    use super::logs_to_log;
+    use super::resolve_record;
     use crate::log_options::LogOptions;
+    use crate::log_record::LogRecord;
+    use crate::send_logs_to_log::send_logs_to_log;
 
-    #[derive(Clone, Debug)]
+    #[derive(Debug)]
     struct CapturedRecord {
         level: Level,
         target: String,
@@ -197,10 +230,7 @@ mod tests {
         }
 
         fn log(&self, record: &Record) {
-            let mut guard = self
-                .records
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut guard = self.records.lock().unwrap_or_else(PoisonError::into_inner);
             guard.push(CapturedRecord {
                 level: record.level(),
                 target: record.target().to_owned(),
@@ -218,39 +248,46 @@ mod tests {
 
     fn ensure_test_logger_installed() {
         INSTALL.call_once(|| {
-            if log::set_logger(&TEST_LOGGER).is_ok() {
-                log::set_max_level(log::LevelFilter::Trace);
-            }
+            log::set_logger(&TEST_LOGGER).unwrap();
+            log::set_max_level(log::LevelFilter::Trace);
         });
     }
 
-    fn records_for(target: &str) -> Vec<CapturedRecord> {
+    fn records_for(target: &str) -> Vec<LogRecord> {
         let guard = TEST_LOGGER
             .records
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         guard
             .iter()
             .filter(|record| record.target == target)
-            .cloned()
+            .map(|record| LogRecord {
+                level: record.level,
+                text: record.message.clone(),
+            })
+            .collect()
+    }
+
+    fn records_with_text(target: &str, text: &str) -> Vec<LogRecord> {
+        records_for(target)
+            .into_iter()
+            .filter(|record| record.text == text)
             .collect()
     }
 
     fn invoke_callback(
         level: llama_cpp_bindings_sys::ggml_log_level,
-        text: &std::ffi::CStr,
+        text: &CStr,
         source: &LogSource,
     ) {
-        let ptr = std::ptr::from_ref(source)
-            .cast::<std::os::raw::c_void>()
-            .cast_mut();
+        let ptr = ptr::from_ref(source).cast::<c_void>().cast_mut();
         unsafe {
             logs_to_log(level, text.as_ptr(), ptr);
         }
     }
 
     #[test]
-    fn test_logger_enabled_and_flush() {
+    fn the_capturing_logger_enables_every_record() {
         let metadata = Metadata::builder()
             .level(Level::Info)
             .target("test-logger-enabled")
@@ -261,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn ggml_level_to_incoming_known_constants() {
+    fn every_ggml_log_level_maps_to_its_incoming_level() {
         assert_eq!(
             ggml_level_to_incoming(llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE),
             IncomingLogLevel::None,
@@ -289,7 +326,7 @@ mod tests {
     }
 
     #[test]
-    fn ggml_level_to_incoming_unknown_value() {
+    fn an_unknown_ggml_log_level_keeps_its_raw_value() {
         assert_eq!(
             ggml_level_to_incoming(9999),
             IncomingLogLevel::Unknown(9999)
@@ -297,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_when_disabled() {
+    fn disabled_logs_emit_no_record() {
         ensure_test_logger_installed();
 
         let target = "test-dispatch-when-disabled";
@@ -308,11 +345,11 @@ mod tests {
             &source,
         );
 
-        assert!(records_for(target).is_empty());
+        assert_eq!(records_for(target), Vec::<LogRecord>::new());
     }
 
     #[test]
-    fn demote_info_to_debug_on_info() {
+    fn demoting_info_logs_emits_info_as_debug() {
         ensure_test_logger_installed();
 
         let target = "test-demote-info-on-info";
@@ -326,13 +363,17 @@ mod tests {
             &source,
         );
 
-        assert!(records_for(target).iter().any(|record| {
-            record.level == Level::Debug && record.message.contains("info-line")
-        }));
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Debug,
+                text: "info-line".to_owned(),
+            }]
+        );
     }
 
     #[test]
-    fn demote_info_to_debug_on_warn() {
+    fn demoting_info_logs_keeps_warnings_as_warnings() {
         ensure_test_logger_installed();
 
         let target = "test-demote-info-on-warn";
@@ -346,30 +387,34 @@ mod tests {
             &source,
         );
 
-        assert!(
-            records_for(target).iter().any(|record| {
-                record.level == Level::Warn && record.message.contains("warn-line")
-            })
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Warn,
+                text: "warn-line".to_owned(),
+            }]
         );
     }
 
     #[test]
-    fn dispatch_unknown_level() {
+    fn an_unknown_level_is_logged_as_a_warning_naming_it() {
         ensure_test_logger_installed();
 
         let target = "test-dispatch-unknown-level";
         let source = LogSource::new(target, LogOptions::default());
         invoke_callback(9999, c"weird\n", &source);
 
-        assert!(records_for(target).iter().any(|record| {
-            record.level == Level::Warn
-                && record.message.contains("[unknown level 9999]")
-                && record.message.contains("weird")
-        }));
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Warn,
+                text: "[unknown level 9999] weird".to_owned(),
+            }]
+        );
     }
 
     #[test]
-    fn dispatch_orphan_cont_anomaly() {
+    fn an_orphan_continuation_is_logged_with_an_anomaly_warning() {
         ensure_test_logger_installed();
 
         let target = "test-dispatch-orphan-cont";
@@ -380,9 +425,19 @@ mod tests {
             &source,
         );
 
-        assert!(records_for(target).iter().any(|record| {
-            record.level == Level::Warn && record.message.contains("OrphanCont")
-        }));
+        assert_eq!(
+            records_for(target),
+            [
+                LogRecord {
+                    level: Level::Info,
+                    text: "ghost".to_owned(),
+                },
+                LogRecord {
+                    level: Level::Warn,
+                    text: "llama.cpp log decoder anomaly: OrphanCont".to_owned(),
+                },
+            ]
+        );
     }
 
     #[test]
@@ -410,7 +465,7 @@ mod tests {
         let source = LogSource::new(target, LogOptions::default());
         dispatch_output(&source, DecodeOutput::None);
 
-        assert!(records_for(target).is_empty());
+        assert_eq!(records_for(target), Vec::<LogRecord>::new());
     }
 
     #[test]
@@ -433,64 +488,115 @@ mod tests {
             },
         );
 
-        let records = records_for(target);
-        assert!(
-            records
-                .iter()
-                .any(|record| record.message.contains("earlier-line"))
-        );
-        assert!(
-            records
-                .iter()
-                .any(|record| record.message.contains("current-line"))
+        assert_eq!(
+            records_for(target),
+            [
+                LogRecord {
+                    level: Level::Info,
+                    text: "earlier-line".to_owned(),
+                },
+                LogRecord {
+                    level: Level::Warn,
+                    text: "current-line".to_owned(),
+                },
+            ]
         );
     }
 
     #[test]
     #[serial]
-    fn send_logs_to_log_initialization() {
+    fn sending_logs_again_applies_the_new_options() {
         ensure_test_logger_installed();
         send_logs_to_log(LogOptions::default());
+        send_logs_to_log(LogOptions::default().with_logs_enabled(false));
 
-        assert!(LLAMA_SOURCE.get().is_some());
-        assert!(GGML_SOURCE.get().is_some());
+        let mut ggml_callback: llama_cpp_bindings_sys::ggml_log_callback = None;
+        let mut ggml_user_data: *mut c_void = ptr::null_mut();
+
+        unsafe {
+            llama_cpp_bindings_sys::ggml_log_get(&raw mut ggml_callback, &raw mut ggml_user_data);
+            ggml_callback.unwrap()(
+                llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN,
+                c"silenced by the second call\n".as_ptr(),
+                ggml_user_data,
+            );
+        }
+        send_logs_to_log(LogOptions::default());
+
+        assert_eq!(
+            records_with_text("ggml", "silenced by the second call"),
+            Vec::<LogRecord>::new()
+        );
     }
 
     #[test]
-    fn null_text_pointer() {
+    #[serial]
+    fn sending_logs_to_log_creates_the_llama_cpp_source_and_routes_ggml_logs() {
+        ensure_test_logger_installed();
+        send_logs_to_log(LogOptions::default());
+
+        let mut ggml_callback: llama_cpp_bindings_sys::ggml_log_callback = None;
+        let mut ggml_user_data: *mut c_void = ptr::null_mut();
+
+        unsafe {
+            llama_cpp_bindings_sys::ggml_log_get(&raw mut ggml_callback, &raw mut ggml_user_data);
+            ggml_callback.unwrap()(
+                llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN,
+                c"routed through ggml\n".as_ptr(),
+                ggml_user_data,
+            );
+        }
+
+        assert_eq!(
+            LLAMA_SOURCE.get().map(|llama_source| llama_source.target),
+            Some("llama.cpp")
+        );
+        assert_eq!(
+            records_with_text("ggml", "routed through ggml"),
+            [LogRecord {
+                level: Level::Warn,
+                text: "routed through ggml".to_owned(),
+            }]
+        );
+    }
+
+    #[test]
+    fn a_null_text_pointer_is_logged_as_a_warning() {
         ensure_test_logger_installed();
 
         let target = "test-null-text-pointer";
         let source = LogSource::new(target, LogOptions::default());
-        let source_ptr = std::ptr::from_ref(&source)
-            .cast::<std::os::raw::c_void>()
-            .cast_mut();
+        let source_ptr = ptr::from_ref(&source).cast::<c_void>().cast_mut();
         unsafe {
             logs_to_log(
                 llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
-                std::ptr::null(),
+                ptr::null(),
                 source_ptr,
             );
         }
 
-        assert!(records_for(target).iter().any(|record| {
-            record.level == Level::Warn && record.message.contains("NULL text pointer")
-        }));
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Warn,
+                text: "received NULL text pointer from llama.cpp log callback".to_owned(),
+            }]
+        );
     }
 
     #[test]
-    fn decoder_mutex_poison() {
+    fn a_poisoned_decoder_still_decodes_logs() {
         ensure_test_logger_installed();
 
         let target = "test-decoder-mutex-poison";
         let source = LogSource::new(target, LogOptions::default());
 
-        std::thread::scope(|scope| {
+        thread::scope(|scope| {
             let handle = scope.spawn(|| {
                 let _guard = source
                     .decoder
                     .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    .unwrap_or_else(PoisonError::into_inner);
                 panic!("intentional poison");
             });
             let _ = handle.join();
@@ -504,10 +610,12 @@ mod tests {
             &source,
         );
 
-        assert!(
-            records_for(target)
-                .iter()
-                .any(|record| record.message.contains("after-poison"))
+        assert_eq!(
+            records_for(target),
+            [LogRecord {
+                level: Level::Info,
+                text: "after-poison".to_owned(),
+            }]
         );
     }
 }

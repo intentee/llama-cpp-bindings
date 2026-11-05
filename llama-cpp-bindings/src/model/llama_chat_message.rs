@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use crate::NewLlamaChatMessageError;
+use crate::error::new_llama_chat_message_error::NewLlamaChatMessageError;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct LlamaChatMessage {
@@ -21,33 +21,39 @@ impl LlamaChatMessage {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaChatMessage;
+    use std::ffi::CString;
+
+    use crate::error::new_llama_chat_message_error::NewLlamaChatMessageError;
+    use crate::model::llama_chat_message::LlamaChatMessage;
 
     #[test]
-    fn valid_construction() {
-        let message = LlamaChatMessage::new("user".to_string(), "hello".to_string());
-
-        assert!(message.is_ok());
+    fn a_role_and_content_without_nul_bytes_form_a_message() {
+        assert_eq!(
+            LlamaChatMessage::new("user".to_string(), "hello".to_string()),
+            Ok(LlamaChatMessage {
+                role: c"user".to_owned(),
+                content: c"hello".to_owned(),
+            })
+        );
     }
 
     #[test]
-    fn null_byte_in_role_returns_error() {
-        let message = LlamaChatMessage::new("us\0er".to_string(), "hello".to_string());
-
-        assert!(message.is_err());
+    fn a_nul_byte_in_the_role_is_reported() {
+        assert_eq!(
+            LlamaChatMessage::new("us\0er".to_string(), "hello".to_string()),
+            Err(NewLlamaChatMessageError::NulError(
+                CString::new("us\0er").unwrap_err()
+            ))
+        );
     }
 
     #[test]
-    fn null_byte_in_content_returns_error() {
-        let message = LlamaChatMessage::new("user".to_string(), "hel\0lo".to_string());
-
-        assert!(message.is_err());
-    }
-
-    #[test]
-    fn empty_strings_are_valid() {
-        let message = LlamaChatMessage::new(String::new(), String::new());
-
-        assert!(message.is_ok());
+    fn a_nul_byte_in_the_content_is_reported() {
+        assert_eq!(
+            LlamaChatMessage::new("user".to_string(), "hel\0lo".to_string()),
+            Err(NewLlamaChatMessageError::NulError(
+                CString::new("hel\0lo").unwrap_err()
+            ))
+        );
     }
 }

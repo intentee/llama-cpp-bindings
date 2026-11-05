@@ -11,7 +11,4 @@ pub enum LoadSessionError {
 
     #[error("failed to convert path {0} to str")]
     PathToStrError(PathBuf),
-
-    #[error("max_length is not large enough to hold {n_out} (was {max_tokens})")]
-    InsufficientMaxLength { n_out: usize, max_tokens: usize },
 }

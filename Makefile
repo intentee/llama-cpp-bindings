@@ -19,12 +19,8 @@ WRAPPER_SOURCES_RESPONSE_FILE = target/wrapper_sources.rsp
 WRAPPER_SOURCES_CRATE = llama-cpp-wrapper-sources
 
 WRAPPER_SOURCES_CRATE_FILES = \
-	$(WRAPPER_SOURCES_CRATE)/src/compile_commands_file.rs \
-	$(WRAPPER_SOURCES_CRATE)/src/cpp_standard.rs \
-	$(WRAPPER_SOURCES_CRATE)/src/wrapper_include_dirs.rs \
-	$(WRAPPER_SOURCES_CRATE)/src/wrapper_source_paths.rs \
-	$(WRAPPER_SOURCES_CRATE)/src/wrapper_sources.rs \
-	$(WRAPPER_SOURCES_CRATE)/src/wrapper_sources_response_file.rs
+	$(WRAPPER_SOURCES_CRATE)/Cargo.toml \
+	$(wildcard $(WRAPPER_SOURCES_CRATE)/src/*.rs)
 
 EMIT_WRAPPER_BUILD_INPUTS = cargo run --quiet --package $(WRAPPER_SOURCES_CRATE) -- \
 	$(CURDIR)/llama-cpp-bindings-sys $(COMPILE_COMMANDS) $(WRAPPER_SOURCES_RESPONSE_FILE)
@@ -76,14 +72,18 @@ coverage: node_modules
 	cargo llvm-cov report
 	./node_modules/.bin/rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
-		--gated llama-cpp-bindings=98 \
+		--gated llama-cpp-bindings=100 \
+		--gated llama-cpp-bindings-build=100 \
+		--gated llama-cpp-bindings-tests=100 \
 		--gated llama-cpp-bindings-types=100 \
 		--gated llama-cpp-error-recorder=100 \
+		--gated llama-cpp-fault-injection=100 \
 		--gated llama-cpp-ffi-status=100 \
 		--gated llama-cpp-gbnf=100 \
 		--gated llama-cpp-log-decoder=100 \
-		--gated llama-cpp-test-harness=99 \
+		--gated llama-cpp-test-harness=100 \
 		--gated llama-cpp-test-harness-macros=100 \
+		--gated llama-cpp-test-model-provisioning=100 \
 		--gated llama-cpp-wrapper-sources=100
 
 .PHONY: coverage-clean
@@ -123,7 +123,8 @@ test: test.llms
 
 .PHONY: test.harness
 test.harness: clippy
-	cargo test -p llama-cpp-test-harness-macros -p llama-cpp-test-harness $(DEVICE_FEATURE)
+	cargo test -p llama-cpp-test-harness-macros -p llama-cpp-test-harness \
+		-p llama-cpp-test-model-provisioning $(DEVICE_FEATURE)
 
 .PHONY: test.llms
 test.llms: clippy test.harness test.unit
@@ -131,5 +132,6 @@ test.llms: clippy test.harness test.unit
 
 .PHONY: test.unit
 test.unit: clippy
-	cargo test -p llama-cpp-bindings -p llama-cpp-bindings-build -p llama-cpp-gbnf \
+	cargo test -p llama-cpp-bindings -p llama-cpp-bindings-build -p llama-cpp-bindings-types \
+		-p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf \
 		-p llama-cpp-log-decoder -p llama-cpp-wrapper-sources $(DEVICE_FEATURE)

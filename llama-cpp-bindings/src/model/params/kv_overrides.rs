@@ -26,12 +26,13 @@ impl<'model_params> IntoIterator for KvOverrides<'model_params> {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::params::kv_override_entry::KvOverrideEntry;
     use std::ffi::CString;
     use std::pin::pin;
 
     use crate::model::params::LlamaModelParams;
+    use crate::model::params::kv_override_entry::KvOverrideEntry;
     use crate::model::params::param_override_value::ParamOverrideValue;
+    use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
     #[test]
     fn kv_overrides_empty_by_default() {
@@ -65,15 +66,6 @@ mod tests {
     }
 
     #[test]
-    fn kv_overrides_new_creates_view() {
-        let params = LlamaModelParams::default();
-        let overrides = super::KvOverrides::new(&params);
-        let count = overrides.into_iter().count();
-
-        assert_eq!(count, 0);
-    }
-
-    #[test]
     fn kv_overrides_preserves_unknown_tag_error() {
         let mut params = pin!(LlamaModelParams::default());
         let key = CString::new("valid_key").unwrap();
@@ -91,9 +83,6 @@ mod tests {
             .next()
             .expect("one override must be present");
 
-        assert_eq!(
-            entry.unwrap_err(),
-            crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag(9999)
-        );
+        assert_eq!(entry.unwrap_err(), UnknownKvOverrideTag(9999));
     }
 }

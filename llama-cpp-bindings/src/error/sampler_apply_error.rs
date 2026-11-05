@@ -1,9 +1,15 @@
+use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 pub enum SamplerApplyError {
     #[error(transparent)]
-    FfiStatus(#[from] crate::FfiStatusError),
+    CppString(#[from] CppStringError),
     #[error(transparent)]
-    FfiContract(#[from] crate::FfiContractError),
+    FfiStatus(#[from] FfiStatusError),
+    #[error(transparent)]
+    FfiContract(#[from] FfiContractError),
     #[error("the sampler pointer was null when applying to the token data array")]
     NullSampler,
     #[error("the sampler excluded every candidate, leaving no token to select")]

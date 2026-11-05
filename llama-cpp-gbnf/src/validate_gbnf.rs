@@ -1,19 +1,18 @@
 use std::ffi::{CString, c_char};
 use std::ptr;
 
-use llama_cpp_ffi_status::FfiContractError;
-use llama_cpp_ffi_status::FfiStatusError;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
-
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_EMPTY_RULE_SET;
-use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_OK;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ROOT_SYMBOL_MISSING;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR;
 use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
+use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
 use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
 use llama_cpp_bindings_sys::llama_rs_validate_gbnf;
 use llama_cpp_bindings_sys::llama_vocab;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::gbnf_validation_error::GbnfValidationError;
 
@@ -31,7 +30,9 @@ fn validation_status_to_result(
                 root: root.to_owned(),
             })
         }
-        LLAMA_RS_GBNF_VALIDATION_LEFT_RECURSION => Err(GbnfValidationError::LeftRecursion),
+        LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR => {
+            Err(GbnfValidationError::UnsupportedGrammar)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG => {
             Err(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -103,15 +104,18 @@ pub fn validate_gbnf(
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ffi::CString;
+    use std::fmt::Write;
+    use std::ptr;
 
-    use llama_cpp_ffi_status::FfiContractError;
-    use llama_cpp_ffi_status::FfiStatusError;
+    use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::validate_gbnf;
     use super::validation_status_to_result;
     use crate::gbnf_validation_error::GbnfValidationError;
-    use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
 
     #[test]
     fn valid_grammar_is_accepted() {
@@ -151,7 +155,21 @@ mod tests {
     fn left_recursive_grammar_is_rejected() {
         assert_eq!(
             validate_gbnf(None, r#"root ::= root "x""#, "root"),
-            Err(GbnfValidationError::LeftRecursion)
+            Err(GbnfValidationError::UnsupportedGrammar)
+        );
+    }
+
+    #[test]
+    fn grammar_chaining_rules_past_the_recursion_limit_is_rejected() {
+        let mut grammar = String::from("root ::= rule0\n");
+        for rule_index in 0..300 {
+            writeln!(grammar, "rule{rule_index} ::= rule{}", rule_index + 1).unwrap();
+        }
+        grammar.push_str("rule300 ::= \"x\"\n");
+
+        assert_eq!(
+            validate_gbnf(None, &grammar, "root"),
+            Err(GbnfValidationError::UnsupportedGrammar)
         );
     }
 
@@ -180,17 +198,19 @@ mod tests {
     }
 
     #[test]
-    fn exception_status_without_message_maps_to_unknown_reported_error() {
+    fn exception_status_without_message_is_a_contract_error() {
         assert_eq!(
             validation_status_to_result(
                 LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
-            Err(GbnfValidationError::FfiContract(FfiContractError {
-                operation: "llama_rs_validate_gbnf",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(GbnfValidationError::CppString(CppStringError::Missing(
+                FfiContractError {
+                    operation: "llama_rs_validate_gbnf",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            )))
         );
     }
 
@@ -219,7 +239,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::FfiContract(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -234,7 +254,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::FfiContract(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -249,7 +269,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::FfiContract(FfiContractError {
                 operation: "llama_rs_validate_gbnf",
@@ -259,12 +279,12 @@ mod tests {
     }
 
     #[test]
-    fn llama_cpp_out_of_memory_status_is_distinct_from_error_string_allocation() {
+    fn llama_cpp_out_of_memory_status_maps_to_llama_cpp_out_of_memory() {
         assert_eq!(
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::LlamaCppOutOfMemory)
         );
@@ -276,7 +296,7 @@ mod tests {
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED,
                 "root",
-                std::ptr::null_mut(),
+                ptr::null_mut(),
             ),
             Err(GbnfValidationError::NotEnoughMemory)
         );
@@ -285,7 +305,7 @@ mod tests {
     #[test]
     fn unknown_status_is_preserved() {
         assert_eq!(
-            validation_status_to_result(255, "root", std::ptr::null_mut(),),
+            validation_status_to_result(255, "root", ptr::null_mut(),),
             Err(GbnfValidationError::FfiStatus(FfiStatusError {
                 operation: "llama_rs_validate_gbnf",
                 code: 255,

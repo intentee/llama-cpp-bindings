@@ -75,20 +75,24 @@ mod tests {
     }
 
     #[test]
-    fn message_with_all_three_fields_populated_is_not_empty() {
-        let parsed = ParsedChatMessage::new(
-            "hello".to_owned(),
-            "thinking".to_owned(),
-            vec![ParsedToolCall::new(
-                ParsedToolCallId::NotProvidedByModel,
-                "tool".to_owned(),
-                ToolCallArguments::ValidJson(json!({})),
-            )],
+    fn new_places_each_argument_in_its_field() {
+        let tool_call = ParsedToolCall::new(
+            ParsedToolCallId::NotProvidedByModel,
+            "tool".to_owned(),
+            ToolCallArguments::ValidJson(json!({})),
         );
 
-        assert!(!parsed.is_empty());
-        assert_eq!(parsed.content, "hello");
-        assert_eq!(parsed.reasoning_content, "thinking");
-        assert_eq!(parsed.tool_calls.len(), 1);
+        assert_eq!(
+            ParsedChatMessage::new(
+                "hello".to_owned(),
+                "thinking".to_owned(),
+                vec![tool_call.clone()]
+            ),
+            ParsedChatMessage {
+                content: "hello".to_owned(),
+                reasoning_content: "thinking".to_owned(),
+                tool_calls: vec![tool_call],
+            }
+        );
     }
 }

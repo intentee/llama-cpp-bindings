@@ -41,7 +41,8 @@ impl From<LlamaLoadMode> for llama_cpp_bindings_sys::llama_load_mode {
 
 #[cfg(test)]
 mod tests {
-    use super::LlamaLoadMode;
+    use crate::model::llama_load_mode::LlamaLoadMode;
+    use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 
     const LOAD_MODES: &[(LlamaLoadMode, llama_cpp_bindings_sys::llama_load_mode)] = &[
         (
@@ -91,7 +92,7 @@ mod tests {
     fn unknown_ffi_load_mode_preserves_its_value() {
         assert_eq!(
             LlamaLoadMode::try_from(i32::MAX),
-            Err(super::LlamaLoadModeParseError { value: i32::MAX })
+            Err(LlamaLoadModeParseError { value: i32::MAX })
         );
     }
 }

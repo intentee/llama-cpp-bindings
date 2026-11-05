@@ -2,16 +2,27 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::invalid_arguments_json::InvalidArgumentsJson;
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ToolCallArguments {
     ValidJson(Value),
-    InvalidJson(String),
+    InvalidJson {
+        raw: String,
+        error: InvalidArgumentsJson,
+    },
 }
 
 impl ToolCallArguments {
     #[must_use]
     pub fn from_string(raw: String) -> Self {
-        serde_json::from_str::<Value>(&raw).map_or_else(|_| Self::InvalidJson(raw), Self::ValidJson)
+        match serde_json::from_str::<Value>(&raw) {
+            Ok(value) => Self::ValidJson(value),
+            Err(error) => Self::InvalidJson {
+                raw,
+                error: error.into(),
+            },
+        }
     }
 }
 
@@ -20,6 +31,7 @@ mod tests {
     use serde_json::json;
 
     use super::ToolCallArguments;
+    use crate::invalid_arguments_json::InvalidArgumentsJson;
 
     #[test]
     fn from_string_object_returns_valid() {
@@ -46,17 +58,34 @@ mod tests {
     }
 
     #[test]
-    fn from_string_unparseable_returns_invalid() {
+    fn unparseable_arguments_keep_their_text_and_where_parsing_failed() {
         let raw = "{not really json".to_owned();
-        let result = ToolCallArguments::from_string(raw.clone());
 
-        assert_eq!(result, ToolCallArguments::InvalidJson(raw));
+        assert_eq!(
+            ToolCallArguments::from_string(raw.clone()),
+            ToolCallArguments::InvalidJson {
+                raw,
+                error: InvalidArgumentsJson {
+                    message: "key must be a string at line 1 column 2".to_owned(),
+                    line: 1,
+                    column: 2,
+                },
+            }
+        );
     }
 
     #[test]
-    fn from_string_empty_returns_invalid() {
-        let result = ToolCallArguments::from_string(String::new());
-
-        assert_eq!(result, ToolCallArguments::InvalidJson(String::new()));
+    fn empty_arguments_are_invalid_at_their_end() {
+        assert_eq!(
+            ToolCallArguments::from_string(String::new()),
+            ToolCallArguments::InvalidJson {
+                raw: String::new(),
+                error: InvalidArgumentsJson {
+                    message: "EOF while parsing a value at line 1 column 0".to_owned(),
+                    line: 1,
+                    column: 0,
+                },
+            }
+        );
     }
 }

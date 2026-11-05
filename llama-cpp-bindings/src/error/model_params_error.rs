@@ -4,6 +4,9 @@ pub enum ModelParamsError {
     NoAvailableSlot,
     #[error("Override slot is not empty")]
     SlotNotEmpty,
-    #[error("Invalid character in key: byte {byte}, {reason}")]
-    InvalidCharacterInKey { byte: u8, reason: String },
+    #[error("the key needs {length_with_nul} bytes with its NUL, but llama.cpp holds {capacity}")]
+    KeyTooLong {
+        length_with_nul: usize,
+        capacity: usize,
+    },
 }

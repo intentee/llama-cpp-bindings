@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::fmt::Display;
 use std::panic::AssertUnwindSafe;
 use std::panic::catch_unwind;
 
@@ -6,12 +7,8 @@ use llguidance::TokenParser;
 use llguidance::api::StopReason;
 
 use crate::error::grammar_runtime_error::GrammarRuntimeError;
+use crate::grammar_matcher_step_outcome::GrammarMatcherStepOutcome;
 use crate::mask_outcome::MaskOutcome;
-
-enum StepOutcome<TValue> {
-    Produced(TValue),
-    BenignStop,
-}
 
 fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
     if let Some(message) = payload.downcast_ref::<&'static str>() {
@@ -25,15 +22,25 @@ fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
     "the parser panicked with a payload that carries no message".to_owned()
 }
 
+fn catch_step_panic<TValue>(
+    operation: &'static str,
+    step: impl FnOnce() -> TValue,
+) -> Result<TValue, GrammarRuntimeError> {
+    catch_unwind(AssertUnwindSafe(step)).map_err(|panic_payload| GrammarRuntimeError::Panicked {
+        operation,
+        message: panic_payload_message(panic_payload.as_ref()),
+    })
+}
+
 fn stop_reason_to_result(
     stop_reason: StopReason,
     detail: String,
 ) -> Result<(), GrammarRuntimeError> {
     match stop_reason {
-        StopReason::NotStopped
-        | StopReason::NoExtension
-        | StopReason::NoExtensionBias
-        | StopReason::EndOfSentence => Ok(()),
+        StopReason::NoExtension | StopReason::NoExtensionBias | StopReason::EndOfSentence => Ok(()),
+        StopReason::NotStopped => {
+            Err(GrammarRuntimeError::FailedWithoutStopping { message: detail })
+        }
         StopReason::InternalError => {
             Err(GrammarRuntimeError::InternalParserError { message: detail })
         }
@@ -76,8 +83,8 @@ impl GrammarMatcher {
     /// state (distinct from a benign grammar completion).
     pub fn compute_mask(&mut self) -> Result<MaskOutcome, GrammarRuntimeError> {
         match self.run("compute_mask", TokenParser::compute_mask)? {
-            StepOutcome::Produced(mask) => Ok(MaskOutcome::Constrained(mask)),
-            StepOutcome::BenignStop => Ok(MaskOutcome::GrammarComplete),
+            GrammarMatcherStepOutcome::Produced(mask) => Ok(MaskOutcome::Constrained(mask)),
+            GrammarMatcherStepOutcome::BenignStop => Ok(MaskOutcome::GrammarComplete),
         }
     }
 
@@ -87,7 +94,9 @@ impl GrammarMatcher {
     /// benign stop and yields `Ok(())`.
     pub fn consume_token(&mut self, token: u32) -> Result<(), GrammarRuntimeError> {
         match self.run("consume_token", |parser| parser.consume_token(token))? {
-            StepOutcome::Produced(_) | StepOutcome::BenignStop => Ok(()),
+            GrammarMatcherStepOutcome::Produced(_) | GrammarMatcherStepOutcome::BenignStop => {
+                Ok(())
+            }
         }
     }
 
@@ -95,59 +104,101 @@ impl GrammarMatcher {
     /// Returns [`GrammarRuntimeError`] when the parser cannot be reset.
     pub fn reset(&mut self) -> Result<(), GrammarRuntimeError> {
         match self.run("reset", TokenParser::reset)? {
-            StepOutcome::Produced(()) | StepOutcome::BenignStop => Ok(()),
+            GrammarMatcherStepOutcome::Produced(()) | GrammarMatcherStepOutcome::BenignStop => {
+                Ok(())
+            }
         }
     }
 
-    fn run<TValue, TError: std::fmt::Display>(
+    fn run<TValue, TError: Display>(
         &mut self,
         operation: &'static str,
         step: impl FnOnce(&mut TokenParser) -> Result<TValue, TError>,
-    ) -> Result<StepOutcome<TValue>, GrammarRuntimeError> {
-        match catch_unwind(AssertUnwindSafe(|| step(&mut self.parser))) {
-            Ok(Ok(value)) => Ok(StepOutcome::Produced(value)),
-            Ok(Err(step_error)) => {
+    ) -> Result<GrammarMatcherStepOutcome<TValue>, GrammarRuntimeError> {
+        match catch_step_panic(operation, || step(&mut self.parser))? {
+            Ok(value) => Ok(GrammarMatcherStepOutcome::Produced(value)),
+            Err(step_error) => {
                 let detail = self
                     .parser
                     .error_message()
                     .unwrap_or_else(|| step_error.to_string());
                 stop_reason_to_result(self.parser.stop_reason(), detail)?;
 
-                Ok(StepOutcome::BenignStop)
+                Ok(GrammarMatcherStepOutcome::BenignStop)
             }
-            Err(panic_payload) => Err(GrammarRuntimeError::Panicked {
-                operation,
-                message: panic_payload_message(panic_payload.as_ref()),
-            }),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llguidance::api::StopReason;
+    use std::any::Any;
 
+    use llguidance::ParserFactory;
+    use llguidance::TokenParser;
+    use llguidance::api::StopReason;
+    use llguidance::api::TopLevelGrammar;
+    use toktrie::ApproximateTokEnv;
+
+    use super::GrammarMatcher;
     use super::panic_payload_message;
     use super::stop_reason_to_result;
     use crate::error::grammar_runtime_error::GrammarRuntimeError;
 
+    fn letters_a_then_b_parser() -> TokenParser {
+        ParserFactory::new_simple(&ApproximateTokEnv::single_byte_env())
+            .unwrap()
+            .create_parser(TopLevelGrammar::from_regex("ab"))
+            .unwrap()
+    }
+
+    #[test]
+    fn a_started_parser_keeps_the_tokens_it_consumed() {
+        let mut parser = letters_a_then_b_parser();
+
+        parser.start_without_prompt();
+        parser.consume_token(u32::from(b'a')).unwrap();
+
+        assert_eq!(
+            GrammarMatcher::new(parser).consume_token(u32::from(b'b')),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn a_panicking_parser_step_is_reported_with_its_operation_and_message() {
+        let mut matcher = GrammarMatcher::new(letters_a_then_b_parser());
+
+        assert_eq!(
+            matcher
+                .run("compute_mask", |_parser| -> Result<(), String> {
+                    panic!("parser exploded")
+                })
+                .err(),
+            Some(GrammarRuntimeError::Panicked {
+                operation: "compute_mask",
+                message: "parser exploded".to_owned(),
+            })
+        );
+    }
+
     #[test]
     fn a_static_str_panic_payload_is_preserved() {
-        let payload: Box<dyn std::any::Any + Send> = Box::new("parser exploded");
+        let payload: Box<dyn Any + Send> = Box::new("parser exploded");
 
         assert_eq!(panic_payload_message(payload.as_ref()), "parser exploded");
     }
 
     #[test]
     fn an_owned_string_panic_payload_is_preserved() {
-        let payload: Box<dyn std::any::Any + Send> = Box::new("lexer exploded".to_owned());
+        let payload: Box<dyn Any + Send> = Box::new("lexer exploded".to_owned());
 
         assert_eq!(panic_payload_message(payload.as_ref()), "lexer exploded");
     }
 
     #[test]
     fn a_payload_without_a_message_is_described() {
-        let payload: Box<dyn std::any::Any + Send> = Box::new(42_u32);
+        let payload: Box<dyn Any + Send> = Box::new(42_u32);
 
         assert_eq!(
             panic_payload_message(payload.as_ref()),
@@ -158,13 +209,22 @@ mod tests {
     #[test]
     fn benign_stop_reasons_are_ok() {
         for reason in [
-            StopReason::NotStopped,
             StopReason::NoExtension,
             StopReason::NoExtensionBias,
             StopReason::EndOfSentence,
         ] {
-            assert!(stop_reason_to_result(reason, String::new()).is_ok());
+            assert_eq!(stop_reason_to_result(reason, String::new()), Ok(()));
         }
+    }
+
+    #[test]
+    fn a_failed_step_that_did_not_stop_the_parser_is_an_error() {
+        assert_eq!(
+            stop_reason_to_result(StopReason::NotStopped, "boom".to_string()),
+            Err(GrammarRuntimeError::FailedWithoutStopping {
+                message: "boom".to_string()
+            })
+        );
     }
 
     #[test]

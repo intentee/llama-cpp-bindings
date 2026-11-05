@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 
+use log::error;
+
 use crate::recorded_error::RecordedError;
 
 thread_local! {
@@ -27,15 +29,13 @@ impl FrameStack {
         FRAMES.with(|cell| {
             let mut frames = cell.borrow_mut();
             let Some(top) = frames.last_mut() else {
-                log::error!("an FFI callback failed outside any error scope: {error}");
+                error!("an FFI callback failed outside any error scope: {error}");
 
                 return;
             };
 
             if top.is_some() {
-                log::error!(
-                    "an FFI callback failed again after the root cause was recorded: {error}"
-                );
+                error!("an FFI callback failed again after the root cause was recorded: {error}");
 
                 return;
             }

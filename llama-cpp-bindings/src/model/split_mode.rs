@@ -42,58 +42,41 @@ impl From<LlamaSplitMode> for llama_cpp_bindings_sys::llama_split_mode {
 #[cfg(test)]
 mod tests {
     use super::LlamaSplitMode;
+    use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
 
     #[test]
     fn try_from_invalid_reports_the_value() {
-        let result = LlamaSplitMode::try_from(99);
-
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().value, 99);
-    }
-
-    #[test]
-    fn try_from_none_roundtrip() {
-        let mode = LlamaSplitMode::try_from(llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_NONE).unwrap();
-
-        assert_eq!(mode, LlamaSplitMode::None);
         assert_eq!(
-            llama_cpp_bindings_sys::llama_split_mode::from(mode),
-            llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_NONE
+            LlamaSplitMode::try_from(99),
+            Err(LlamaSplitModeParseError {
+                value: 99,
+                context: "unknown split mode value: 99".to_owned(),
+            })
         );
     }
 
     #[test]
-    fn try_from_layer_roundtrip() {
-        let mode =
-            LlamaSplitMode::try_from(llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_LAYER).unwrap();
+    fn every_llama_cpp_split_mode_converts_to_its_variant_and_back() {
+        let llama_cpp_split_modes = [
+            llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_NONE,
+            llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_LAYER,
+            llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_ROW,
+            llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_TENSOR,
+        ];
+        let modes = llama_cpp_split_modes.map(LlamaSplitMode::try_from);
 
-        assert_eq!(mode, LlamaSplitMode::Layer);
         assert_eq!(
-            llama_cpp_bindings_sys::llama_split_mode::from(mode),
-            llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_LAYER
+            modes,
+            [
+                Ok(LlamaSplitMode::None),
+                Ok(LlamaSplitMode::Layer),
+                Ok(LlamaSplitMode::Row),
+                Ok(LlamaSplitMode::Tensor),
+            ]
         );
-    }
-
-    #[test]
-    fn try_from_row_roundtrip() {
-        let mode = LlamaSplitMode::try_from(llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_ROW).unwrap();
-
-        assert_eq!(mode, LlamaSplitMode::Row);
         assert_eq!(
-            llama_cpp_bindings_sys::llama_split_mode::from(mode),
-            llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_ROW
-        );
-    }
-
-    #[test]
-    fn try_from_tensor_roundtrip() {
-        let mode =
-            LlamaSplitMode::try_from(llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_TENSOR).unwrap();
-
-        assert_eq!(mode, LlamaSplitMode::Tensor);
-        assert_eq!(
-            llama_cpp_bindings_sys::llama_split_mode::from(mode),
-            llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_TENSOR
+            modes.map(|mode| mode.map(llama_cpp_bindings_sys::llama_split_mode::from)),
+            llama_cpp_split_modes.map(Ok)
         );
     }
 

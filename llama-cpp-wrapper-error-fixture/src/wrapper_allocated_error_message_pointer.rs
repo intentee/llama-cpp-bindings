@@ -20,7 +20,6 @@ pub fn wrapper_allocated_error_message_pointer() -> *mut c_char {
     let status = unsafe {
         llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar(
             schema.as_ptr(),
-            false,
             &raw mut out_grammar,
             &raw mut out_error,
         )
@@ -28,7 +27,7 @@ pub fn wrapper_allocated_error_message_pointer() -> *mut c_char {
 
     assert_eq!(
         status,
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
+        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON,
         "the fixture depends on the llama.cpp json parser rejecting this schema"
     );
     assert!(

@@ -1,59 +1,9 @@
 use std::ptr;
 
-use crate::error::SamplerApplyError;
-use crate::error::TokenSamplingError;
-use crate::sampling::LlamaSampler;
-use crate::token::data::LlamaTokenData;
+use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 
 use super::LlamaToken;
-use llama_cpp_ffi_status::read_and_free_cpp_string;
-
-fn sampler_apply_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_sampler_apply_status,
-    out_error: *mut std::os::raw::c_char,
-) -> Result<(), SamplerApplyError> {
-    match status {
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_SAMPLER_ARG => {
-            Err(SamplerApplyError::NullSampler)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(SamplerApplyError::NotEnoughMemory)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(SamplerApplyError::LlamaCppOutOfMemory)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                read_and_free_cpp_string(
-                    out_error,
-                    "llama_rs_sampler_apply",
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
-            Err(SamplerApplyError::Reported { message })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_sampler_apply",
-                detail: "was given a null data_array argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG => {
-            Err(crate::FfiContractError {
-                operation: "llama_rs_sampler_apply",
-                detail: "was given a null out_error argument",
-            }
-            .into())
-        }
-        other => Err(crate::FfiStatusError {
-            operation: "llama_rs_sampler_apply",
-            code: i64::from(other),
-        }
-        .into()),
-    }
-}
+use crate::token::data::LlamaTokenData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LlamaTokenDataArray {
@@ -72,13 +22,6 @@ impl LlamaTokenDataArray {
         }
     }
 
-    pub fn from_iter<TIterator>(data: TIterator, sorted: bool) -> Self
-    where
-        TIterator: IntoIterator<Item = LlamaTokenData>,
-    {
-        Self::new(data.into_iter().collect(), sorted)
-    }
-
     pub fn replace_candidates<TIterator>(&mut self, candidates: TIterator)
     where
         TIterator: IntoIterator<Item = LlamaTokenData>,
@@ -93,12 +36,49 @@ impl LlamaTokenDataArray {
     pub fn selected_token(&self) -> Option<LlamaToken> {
         self.data.get(self.selected?).map(LlamaTokenData::id)
     }
+
+    /// Whether a sampler left at least one candidate it could still select.
+    #[must_use]
+    pub fn has_selectable_candidate(&self) -> bool {
+        self.data
+            .iter()
+            .any(|candidate| candidate.logit() > f32::NEG_INFINITY)
+    }
 }
 
 impl LlamaTokenDataArray {
+    fn c_selection(&self) -> Result<i64, FfiContractError> {
+        let Some(selected_index) = self.selected else {
+            return Ok(-1);
+        };
+
+        self.data
+            .get(selected_index)
+            .and_then(|_selected_candidate| i64::try_from(selected_index).ok())
+            .ok_or(FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the token data array selects a token outside itself",
+            })
+    }
+
+    fn selection_of(&self, c_selected: i64) -> Result<Option<usize>, FfiContractError> {
+        if c_selected == -1 {
+            return Ok(None);
+        }
+
+        usize::try_from(c_selected)
+            .ok()
+            .filter(|&selected_index| selected_index < self.data.len())
+            .map(Some)
+            .ok_or(FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the llama.cpp sampler selected a token outside the token data array",
+            })
+    }
+
     /// # Errors
     ///
-    /// Returns [`crate::FfiContractError`] when the llama.cpp sampler grows the array beyond the
+    /// Returns [`llama_cpp_ffi_status::ffi_contract_error::FfiContractError`] when the llama.cpp sampler grows the array beyond the
     /// capacity this buffer was allocated with, which would make the following `set_len`
     /// undefined behaviour.
     ///
@@ -110,7 +90,7 @@ impl LlamaTokenDataArray {
     pub unsafe fn modify_as_c_llama_token_data_array<TResult>(
         &mut self,
         modify: impl FnOnce(&mut llama_cpp_bindings_sys::llama_token_data_array) -> TResult,
-    ) -> Result<TResult, crate::FfiContractError> {
+    ) -> Result<TResult, FfiContractError> {
         let size = self.data.len();
         let data = self
             .data
@@ -120,17 +100,14 @@ impl LlamaTokenDataArray {
         let mut c_llama_token_data_array = llama_cpp_bindings_sys::llama_token_data_array {
             data,
             size,
-            selected: self
-                .selected
-                .and_then(|selected_index| selected_index.try_into().ok())
-                .unwrap_or(-1),
+            selected: self.c_selection()?,
             sorted: self.sorted,
         };
 
         let result = modify(&mut c_llama_token_data_array);
 
         if c_llama_token_data_array.size > self.data.capacity() {
-            return Err(crate::FfiContractError {
+            return Err(FfiContractError {
                 operation: "modify_as_c_llama_token_data_array",
                 detail: "the llama.cpp sampler grew the token data array beyond its capacity",
             });
@@ -148,198 +125,19 @@ impl LlamaTokenDataArray {
         }
 
         self.sorted = c_llama_token_data_array.sorted;
-        self.selected = c_llama_token_data_array
-            .selected
-            .try_into()
-            .ok()
-            .filter(|&selected_index| selected_index < self.data.len());
+        self.selected = self.selection_of(c_llama_token_data_array.selected)?;
 
         Ok(result)
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplerApplyError`] if the sampler pointer is null, the llama.cpp
-    /// sampler runs out of memory, it throws a C++ exception while applying, or it
-    /// excludes every candidate so that no token is left to select.
-    pub fn apply_sampler(&mut self, sampler: &LlamaSampler) -> Result<(), SamplerApplyError> {
-        let applied = unsafe {
-            self.modify_as_c_llama_token_data_array(|c_llama_token_data_array| {
-                let mut out_error: *mut std::os::raw::c_char = ptr::null_mut();
-                let status = llama_cpp_bindings_sys::llama_rs_sampler_apply(
-                    sampler.as_ptr(),
-                    c_llama_token_data_array,
-                    &raw mut out_error,
-                );
-                sampler_apply_status_to_result(status, out_error)
-            })?
-        };
-
-        applied.and_then(|()| self.ensure_a_candidate_remains())
-    }
-
-    fn ensure_a_candidate_remains(&self) -> Result<(), SamplerApplyError> {
-        if self
-            .data
-            .iter()
-            .any(|candidate| candidate.logit() > f32::NEG_INFINITY)
-        {
-            Ok(())
-        } else {
-            Err(SamplerApplyError::EveryCandidateExcluded)
-        }
-    }
-
-    /// # Errors
-    /// Returns [`SamplerApplyError`] if applying the sampler fails.
-    pub fn with_sampler(mut self, sampler: &mut LlamaSampler) -> Result<Self, SamplerApplyError> {
-        self.apply_sampler(sampler)?;
-        Ok(self)
-    }
-
-    /// # Errors
-    /// Returns [`TokenSamplingError::SamplerApply`] if applying the sampler fails, or
-    /// [`TokenSamplingError::NoTokenSelected`] if the sampler fails to select a token.
-    pub fn sample_token(&mut self, seed: u32) -> Result<LlamaToken, TokenSamplingError> {
-        let sampler = LlamaSampler::dist(seed)?;
-        self.apply_sampler(&sampler)?;
-        self.selected_token()
-            .ok_or(TokenSamplingError::NoTokenSelected)
-    }
-
-    /// # Errors
-    /// Returns [`TokenSamplingError::SamplerApply`] if applying the sampler fails, or
-    /// [`TokenSamplingError::NoTokenSelected`] if the sampler fails to select a token.
-    pub fn sample_token_greedy(&mut self) -> Result<LlamaToken, TokenSamplingError> {
-        let sampler = LlamaSampler::greedy()?;
-        self.apply_sampler(&sampler)?;
-        self.selected_token()
-            .ok_or(TokenSamplingError::NoTokenSelected)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
     use super::LlamaTokenDataArray;
-    use crate::error::SamplerApplyError;
     use crate::token::LlamaToken;
     use crate::token::data::LlamaTokenData;
-
-    #[test]
-    fn a_sampler_excluding_every_candidate_leaves_nothing_to_select() {
-        use crate::sampling::LlamaSampler;
-        use crate::token::logit_bias::LlamaLogitBias;
-
-        let mut array = LlamaTokenDataArray::new(
-            vec![
-                LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0),
-                LlamaTokenData::new(LlamaToken::new(1), 2.0, 0.0),
-            ],
-            false,
-        );
-        let excluding_sampler = LlamaSampler::logit_bias(
-            2,
-            &[
-                LlamaLogitBias::new(LlamaToken::new(0), f32::NEG_INFINITY),
-                LlamaLogitBias::new(LlamaToken::new(1), f32::NEG_INFINITY),
-            ],
-        )
-        .expect("the logit bias sampler must initialize");
-
-        assert_eq!(
-            array.apply_sampler(&excluding_sampler),
-            Err(SamplerApplyError::EveryCandidateExcluded)
-        );
-    }
-
-    #[test]
-    fn apply_greedy_sampler_selects_highest_logit() {
-        use crate::sampling::LlamaSampler;
-
-        let mut array = LlamaTokenDataArray::new(
-            vec![
-                LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0),
-                LlamaTokenData::new(LlamaToken::new(1), 5.0, 0.0),
-                LlamaTokenData::new(LlamaToken::new(2), 3.0, 0.0),
-            ],
-            false,
-        );
-
-        let sampler = LlamaSampler::greedy().expect("greedy sampler must initialize");
-        array
-            .apply_sampler(&sampler)
-            .expect("test: greedy sampler must apply");
-
-        assert_eq!(array.selected_token(), Some(LlamaToken::new(1)));
-    }
-
-    #[test]
-    fn with_sampler_builder_pattern() {
-        use crate::sampling::LlamaSampler;
-
-        let mut sampler = LlamaSampler::greedy().expect("greedy sampler must initialize");
-        let array = LlamaTokenDataArray::new(
-            vec![
-                LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0),
-                LlamaTokenData::new(LlamaToken::new(1), 5.0, 0.0),
-            ],
-            false,
-        )
-        .with_sampler(&mut sampler)
-        .expect("test: building with greedy sampler must succeed");
-
-        assert_eq!(array.selected_token(), Some(LlamaToken::new(1)));
-    }
-
-    #[test]
-    fn sample_token_greedy_returns_highest() {
-        let mut array = LlamaTokenDataArray::new(
-            vec![
-                LlamaTokenData::new(LlamaToken::new(10), 0.1, 0.0),
-                LlamaTokenData::new(LlamaToken::new(20), 9.9, 0.0),
-            ],
-            false,
-        );
-
-        let token = array
-            .sample_token_greedy()
-            .expect("test: greedy sampler should select a token");
-
-        assert_eq!(token, LlamaToken::new(20));
-    }
-
-    #[test]
-    fn from_iter_creates_array_from_iterator() {
-        let array = LlamaTokenDataArray::from_iter(
-            [
-                LlamaTokenData::new(LlamaToken::new(0), 0.0, 0.0),
-                LlamaTokenData::new(LlamaToken::new(1), 1.0, 0.0),
-                LlamaTokenData::new(LlamaToken::new(2), 2.0, 0.0),
-            ],
-            false,
-        );
-
-        assert_eq!(array.data.len(), 3);
-        assert!(!array.sorted);
-        assert!(array.selected.is_none());
-    }
-
-    #[test]
-    fn sample_token_with_seed_selects_a_token() {
-        let mut array = LlamaTokenDataArray::new(
-            vec![
-                LlamaTokenData::new(LlamaToken::new(10), 1.0, 0.0),
-                LlamaTokenData::new(LlamaToken::new(20), 1.0, 0.0),
-            ],
-            false,
-        );
-
-        let token = array
-            .sample_token(42)
-            .expect("test: dist sampler should select a token");
-
-        assert!(token == LlamaToken::new(10) || token == LlamaToken::new(20));
-    }
 
     #[test]
     fn selected_token_returns_none_when_no_selection() {
@@ -348,7 +146,7 @@ mod tests {
             false,
         );
 
-        assert!(array.selected_token().is_none());
+        assert_eq!(array.selected_token(), None);
     }
 
     #[test]
@@ -359,7 +157,7 @@ mod tests {
             sorted: false,
         };
 
-        assert!(array.selected_token().is_none());
+        assert_eq!(array.selected_token(), None);
     }
 
     #[test]
@@ -403,37 +201,45 @@ mod tests {
     }
 
     #[test]
-    fn modify_clears_selection_when_index_is_out_of_range() {
+    fn a_sampler_selecting_a_token_outside_the_array_is_a_contract_violation() {
         let mut array = LlamaTokenDataArray::new(
             vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
             false,
         );
 
-        unsafe {
-            array
-                .modify_as_c_llama_token_data_array(|c_array| {
-                    c_array.selected = 5;
-                })
-                .expect("the array is left at its original size");
-        }
+        let result = unsafe {
+            array.modify_as_c_llama_token_data_array(|c_array| {
+                c_array.selected = 5;
+            })
+        };
 
-        assert_eq!(array.selected, None);
+        assert_eq!(
+            result,
+            Err(FfiContractError {
+                operation: "modify_as_c_llama_token_data_array",
+                detail: "the llama.cpp sampler selected a token outside the token data array",
+            })
+        );
     }
 
     #[test]
-    fn selected_overflow_uses_negative_one() {
-        let mut array = LlamaTokenDataArray {
-            data: vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
-            selected: Some(usize::MAX),
-            sorted: false,
-        };
+    fn a_selection_outside_the_array_is_refused_before_reaching_llama_cpp() {
+        for selected in [1, usize::MAX] {
+            let mut array = LlamaTokenDataArray {
+                data: vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
+                selected: Some(selected),
+                sorted: false,
+            };
 
-        unsafe {
-            array
-                .modify_as_c_llama_token_data_array(|c_array| {
-                    assert_eq!(c_array.selected, -1);
+            let result = unsafe { array.modify_as_c_llama_token_data_array(|_c_array| ()) };
+
+            assert_eq!(
+                result,
+                Err(FfiContractError {
+                    operation: "modify_as_c_llama_token_data_array",
+                    detail: "the token data array selects a token outside itself",
                 })
-                .expect("the array is left at its original size");
+            );
         }
     }
 
@@ -453,7 +259,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(crate::FfiContractError {
+            Err(FfiContractError {
                 operation: "modify_as_c_llama_token_data_array",
                 detail: "the llama.cpp sampler grew the token data array beyond its capacity",
             })
@@ -481,106 +287,5 @@ mod tests {
         }
 
         assert_eq!(array.selected, Some(1));
-    }
-}
-
-#[cfg(test)]
-mod sampler_apply_status_to_result_tests {
-    use std::ptr;
-
-    use super::sampler_apply_status_to_result;
-    use crate::error::SamplerApplyError;
-
-    #[test]
-    fn sampler_apply_status_allocation_failed_returns_not_enough_memory() {
-        assert_eq!(
-            sampler_apply_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED,
-                ptr::null_mut(),
-            ),
-            Err(SamplerApplyError::NotEnoughMemory),
-        );
-    }
-
-    #[test]
-    fn sampler_apply_status_cxx_exception_without_a_message_is_a_contract_error() {
-        assert_eq!(
-            sampler_apply_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                ptr::null_mut(),
-            ),
-            Err(crate::FfiContractError {
-                operation: "llama_rs_sampler_apply",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into()),
-        );
-    }
-
-    #[test]
-    fn sampler_apply_unknown_status_is_preserved() {
-        let result = sampler_apply_status_to_result(255, ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(SamplerApplyError::FfiStatus(crate::FfiStatusError {
-                operation: "llama_rs_sampler_apply",
-                code: 255,
-            }))
-        );
-    }
-
-    #[test]
-    fn sampler_apply_status_to_result_maps_null_sampler_arg() {
-        let outcome = sampler_apply_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_SAMPLER_ARG,
-            ptr::null_mut(),
-        );
-        assert_eq!(outcome.err(), Some(SamplerApplyError::NullSampler));
-    }
-
-    #[test]
-    fn sampler_apply_status_to_result_maps_null_data_array_arg() {
-        let outcome = sampler_apply_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_sampler_apply",
-                    detail: "was given a null data_array argument",
-                }
-                .into()
-            )
-        );
-    }
-
-    #[test]
-    fn sampler_apply_status_to_result_maps_null_out_error_arg() {
-        let outcome = sampler_apply_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(
-                crate::FfiContractError {
-                    operation: "llama_rs_sampler_apply",
-                    detail: "was given a null out_error argument",
-                }
-                .into()
-            )
-        );
-    }
-
-    #[test]
-    fn sampler_apply_status_to_result_maps_llama_cpp_out_of_memory() {
-        let outcome = sampler_apply_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_OUT_OF_MEMORY,
-            ptr::null_mut(),
-        );
-        assert_eq!(outcome.err(), Some(SamplerApplyError::LlamaCppOutOfMemory));
     }
 }

@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io;
 use std::os::unix::fs::FileExt as _;
 use std::path::{Path, PathBuf};
+use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
@@ -34,7 +35,7 @@ impl GgufContext {
 
         let init_params = llama_cpp_bindings_sys::gguf_init_params {
             no_alloc: true,
-            ctx: std::ptr::null_mut(),
+            ctx: ptr::null_mut(),
         };
 
         let raw =
@@ -400,9 +401,20 @@ impl Drop for GgufContext {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::ffi::CString;
+    use std::ffi::OsStr;
+    use std::fs;
+    use std::fs::File;
+    use std::io;
+    use std::io::Write as _;
     use std::mem::Discriminant;
+    use std::mem::discriminant;
+    use std::os::unix::ffi::OsStrExt;
+    use std::path::Path;
     use std::path::PathBuf;
+    use std::process;
+    use std::str;
 
     use super::GgufContext;
     use crate::gguf_context_error::GgufContextError;
@@ -418,28 +430,28 @@ mod tests {
     }
 
     fn init_failed_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::InitFailed(PathBuf::new()))
+        discriminant(&GgufContextError::InitFailed(PathBuf::new()))
     }
 
     fn key_not_found_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::KeyNotFound { key: String::new() })
+        discriminant(&GgufContextError::KeyNotFound { key: String::new() })
     }
 
     fn nul_error_disc() -> Discriminant<GgufContextError> {
         let nul_err = CString::new(b"a\0b".to_vec()).unwrap_err();
-        std::mem::discriminant(&GgufContextError::NulError(nul_err))
+        discriminant(&GgufContextError::NulError(nul_err))
     }
 
     fn path_to_str_error_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::PathToStrError(PathBuf::new()))
+        discriminant(&GgufContextError::PathToStrError(PathBuf::new()))
     }
 
     fn key_id_out_of_range_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::KeyIdOutOfRange { key_id: 0, n_kv: 0 })
+        discriminant(&GgufContextError::KeyIdOutOfRange { key_id: 0, n_kv: 0 })
     }
 
     fn value_type_mismatch_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::ValueTypeMismatch {
+        discriminant(&GgufContextError::ValueTypeMismatch {
             key_id: 0,
             expected: GgufType::Uint32,
             actual: GgufType::Uint32,
@@ -447,20 +459,20 @@ mod tests {
     }
 
     fn tensor_not_found_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::TensorNotFound {
+        discriminant(&GgufContextError::TensorNotFound {
             name: String::new(),
         })
     }
 
     fn tensor_is_not_f32_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::TensorIsNotF32 {
+        discriminant(&GgufContextError::TensorIsNotF32 {
             name: String::new(),
             ggml_type: 0,
         })
     }
 
     fn array_element_type_mismatch_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::ArrayElementTypeMismatch {
+        discriminant(&GgufContextError::ArrayElementTypeMismatch {
             key_id: 0,
             expected: GgufType::Int32,
             actual_raw_type: 0,
@@ -480,14 +492,14 @@ mod tests {
     }
 
     fn source_file_read_failed_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::SourceFileReadFailed {
+        discriminant(&GgufContextError::SourceFileReadFailed {
             path: PathBuf::new(),
-            source: std::io::Error::other("discriminant"),
+            source: io::Error::other("discriminant"),
         })
     }
 
     fn source_file_truncated_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::SourceFileTruncated {
+        discriminant(&GgufContextError::SourceFileTruncated {
             path: PathBuf::new(),
             data_offset: 0,
             file_size: 0,
@@ -495,32 +507,32 @@ mod tests {
     }
 
     fn destination_file_write_failed_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::DestinationFileWriteFailed {
+        discriminant(&GgufContextError::DestinationFileWriteFailed {
             path: PathBuf::new(),
-            source: std::io::Error::other("discriminant"),
+            source: io::Error::other("discriminant"),
         })
     }
 
     fn rewritten_gguf_path(test_name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!(
+        env::temp_dir().join(format!(
             "llama_cpp_bindings_rewritten_{}_{}.gguf",
-            std::process::id(),
+            process::id(),
             test_name,
         ))
     }
 
     fn tensor_read_failed_disc() -> Discriminant<GgufContextError> {
-        std::mem::discriminant(&GgufContextError::TensorReadFailed {
+        discriminant(&GgufContextError::TensorReadFailed {
             name: String::new(),
             path: PathBuf::new(),
-            source: std::io::Error::other("discriminant"),
+            source: io::Error::other("discriminant"),
         })
     }
 
     fn utf8_error_disc() -> Discriminant<GgufContextError> {
         let invalid_utf8_bytes: Vec<u8> = vec![0xFF];
-        let utf8_err = std::str::from_utf8(&invalid_utf8_bytes).unwrap_err();
-        std::mem::discriminant(&GgufContextError::Utf8Error(utf8_err))
+        let utf8_err = str::from_utf8(&invalid_utf8_bytes).unwrap_err();
+        discriminant(&GgufContextError::Utf8Error(utf8_err))
     }
 
     struct SyntheticTensor {
@@ -603,15 +615,13 @@ mod tests {
 
     impl SyntheticGgufFile {
         fn from_bytes(test_name: &str, bytes: &[u8]) -> Self {
-            use std::io::Write as _;
-
-            let path = std::env::temp_dir().join(format!(
+            let path = env::temp_dir().join(format!(
                 "llama_cpp_bindings_synthetic_{}_{}.gguf",
-                std::process::id(),
+                process::id(),
                 test_name,
             ));
 
-            let mut file = std::fs::File::create(&path).unwrap();
+            let mut file = File::create(&path).unwrap();
             file.write_all(bytes).unwrap();
 
             Self { path }
@@ -620,8 +630,7 @@ mod tests {
 
     impl Drop for SyntheticGgufFile {
         fn drop(&mut self) {
-            std::fs::remove_file(&self.path)
-                .unwrap_or_else(|error| panic!("failed to remove synthetic GGUF: {error}"));
+            fs::remove_file(&self.path).unwrap();
         }
     }
 
@@ -632,34 +641,30 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn from_file_opens_valid_gguf() {
-        let context = GgufContext::from_file(fixture_path());
-
-        assert!(context.is_ok());
+    fn bias_and_weight_tensors(test_name: &str) -> SyntheticGgufFile {
+        SyntheticGgufBuilder::default()
+            .tensor(b"synthetic.bias", &[2], GGML_TYPE_F16, vec![0; 4])
+            .tensor(
+                b"synthetic.weight",
+                &[3, 2],
+                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+            )
+            .write(test_name)
     }
 
     #[test]
     fn from_file_nonexistent_returns_init_failed() {
         let err = GgufContext::from_file("/nonexistent/file.gguf").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), init_failed_disc());
+        assert_eq!(discriminant(&err), init_failed_disc());
     }
 
     #[test]
-    fn n_kv_returns_positive_count() {
+    fn n_kv_counts_every_key_of_the_file() {
         let context = GgufContext::from_file(fixture_path()).unwrap();
 
-        assert!(context.n_kv() > 0);
-    }
-
-    #[test]
-    fn find_key_returns_valid_index_for_known_key() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
-        let index = context.find_key("general.architecture");
-
-        assert!(index.is_ok());
-        assert!(index.unwrap() >= 0);
+        assert_eq!(context.n_kv(), 20);
     }
 
     #[test]
@@ -667,7 +672,7 @@ mod tests {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let err = context.find_key("nonexistent.key").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), key_not_found_disc());
+        assert_eq!(discriminant(&err), key_not_found_disc());
     }
 
     #[test]
@@ -684,7 +689,7 @@ mod tests {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let err = context.key_at(context.n_kv()).unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), key_id_out_of_range_disc());
+        assert_eq!(discriminant(&err), key_id_out_of_range_disc());
     }
 
     #[test]
@@ -692,7 +697,7 @@ mod tests {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let err = context.val_u32(-1).unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), key_id_out_of_range_disc());
+        assert_eq!(discriminant(&err), key_id_out_of_range_disc());
     }
 
     #[test]
@@ -704,30 +709,27 @@ mod tests {
     }
 
     #[test]
-    fn val_str_returns_architecture_value() {
+    fn val_str_reads_the_architecture_stored_in_the_file() {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let index = context.find_key("general.architecture").unwrap();
         let value = context.val_str(index).unwrap();
 
-        assert_ne!(value, "");
+        assert_eq!(value, "bert");
     }
 
     #[test]
     fn from_file_non_utf8_path_returns_error() {
-        use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt;
-
-        let non_utf8_path = std::path::Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
+        let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
         let err = GgufContext::from_file(non_utf8_path).unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), path_to_str_error_disc());
+        assert_eq!(discriminant(&err), path_to_str_error_disc());
     }
 
     #[test]
     fn from_file_with_null_byte_in_path_returns_error() {
         let err = GgufContext::from_file("/tmp/foo\0bar.gguf").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), nul_error_disc());
+        assert_eq!(discriminant(&err), nul_error_disc());
     }
 
     #[test]
@@ -735,11 +737,11 @@ mod tests {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let err = context.find_key("foo\0bar").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), nul_error_disc());
+        assert_eq!(discriminant(&err), nul_error_disc());
     }
 
     #[test]
-    fn typed_values_round_trip_through_synthetic_fixture() {
+    fn typed_getters_read_the_values_a_gguf_file_stores() {
         let fixture = SyntheticGgufBuilder::default()
             .value(
                 b"synthetic.i32_value",
@@ -791,10 +793,7 @@ mod tests {
         ];
 
         for mismatch in mismatches {
-            assert_eq!(
-                std::mem::discriminant(&mismatch),
-                value_type_mismatch_disc()
-            );
+            assert_eq!(discriminant(&mismatch), value_type_mismatch_disc());
         }
     }
 
@@ -808,7 +807,7 @@ mod tests {
         let value_index = context.find_key("synthetic.str_value").unwrap();
         let err = context.val_str(value_index).unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), utf8_error_disc());
+        assert_eq!(discriminant(&err), utf8_error_disc());
     }
 
     #[test]
@@ -820,25 +819,24 @@ mod tests {
 
         let err = context.key_at(0).unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), utf8_error_disc());
+        assert_eq!(discriminant(&err), utf8_error_disc());
+    }
+
+    #[test]
+    fn n_tensors_counts_every_tensor_of_the_file() {
+        let fixture = bias_and_weight_tensors("n_tensors_counts_every_tensor_of_the_file");
+        let context = GgufContext::from_file(&fixture.path).unwrap();
+
+        assert_eq!(context.n_tensors(), 2);
     }
 
     #[test]
     fn read_tensor_f32_returns_shape_and_values() {
-        let fixture = SyntheticGgufBuilder::default()
-            .tensor(b"synthetic.bias", &[2], GGML_TYPE_F16, vec![0; 4])
-            .tensor(
-                b"synthetic.weight",
-                &[3, 2],
-                llama_cpp_bindings_sys::GGML_TYPE_F32,
-                f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
-            )
-            .write("read_tensor_f32_returns_shape_and_values");
+        let fixture = bias_and_weight_tensors("read_tensor_f32_returns_shape_and_values");
         let context = GgufContext::from_file(&fixture.path).unwrap();
 
         let tensor = context.read_tensor_f32("synthetic.weight").unwrap();
 
-        assert_eq!(context.n_tensors(), 2);
         assert_eq!(tensor.shape, [3, 2, 1, 1]);
         assert_eq!(tensor.values, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
@@ -848,7 +846,7 @@ mod tests {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let err = context.read_tensor_f32("synthetic.missing").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), tensor_not_found_disc());
+        assert_eq!(discriminant(&err), tensor_not_found_disc());
     }
 
     #[test]
@@ -859,7 +857,7 @@ mod tests {
         let context = GgufContext::from_file(&fixture.path).unwrap();
         let err = context.read_tensor_f32("synthetic.half").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), tensor_is_not_f32_disc());
+        assert_eq!(discriminant(&err), tensor_is_not_f32_disc());
     }
 
     #[test]
@@ -874,11 +872,11 @@ mod tests {
             .write("read_tensor_f32_reports_a_file_truncated_after_opening");
         let context = GgufContext::from_file(&fixture.path).unwrap();
 
-        std::fs::write(&fixture.path, b"").unwrap();
+        fs::write(&fixture.path, b"").unwrap();
 
         let err = context.read_tensor_f32("synthetic.weight").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), tensor_read_failed_disc());
+        assert_eq!(discriminant(&err), tensor_read_failed_disc());
     }
 
     #[test]
@@ -893,14 +891,14 @@ mod tests {
             .write("read_tensor_f32_reports_a_file_removed_after_opening");
         let context = GgufContext::from_file(&fixture.path).unwrap();
 
-        std::fs::remove_file(&fixture.path).unwrap();
+        fs::remove_file(&fixture.path).unwrap();
 
         let result = context.read_tensor_f32("synthetic.weight");
 
-        std::fs::write(&fixture.path, b"").unwrap();
+        fs::write(&fixture.path, b"").unwrap();
 
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
+            discriminant(&result.unwrap_err()),
             tensor_read_failed_disc()
         );
     }
@@ -910,7 +908,7 @@ mod tests {
         let context = GgufContext::from_file(fixture_path()).unwrap();
         let err = context.read_tensor_f32("foo\0bar").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), nul_error_disc());
+        assert_eq!(discriminant(&err), nul_error_disc());
     }
 
     #[test]
@@ -934,7 +932,7 @@ mod tests {
         let index = context.find_key("general.architecture").unwrap();
         let err = context.val_arr_i32(index).unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), value_type_mismatch_disc());
+        assert_eq!(discriminant(&err), value_type_mismatch_disc());
     }
 
     #[test]
@@ -951,10 +949,7 @@ mod tests {
         let array_index = context.find_key("synthetic.u8_array").unwrap();
         let err = context.val_arr_i32(array_index).unwrap_err();
 
-        assert_eq!(
-            std::mem::discriminant(&err),
-            array_element_type_mismatch_disc()
-        );
+        assert_eq!(discriminant(&err), array_element_type_mismatch_disc());
     }
 
     #[test]
@@ -962,7 +957,7 @@ mod tests {
         let mut context = GgufContext::from_file(fixture_path()).unwrap();
         let err = context.remove_key("nonexistent.key").unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), key_not_found_disc());
+        assert_eq!(discriminant(&err), key_not_found_disc());
     }
 
     #[test]
@@ -989,11 +984,11 @@ mod tests {
         let removed_err = rewritten.find_key("synthetic.removed").unwrap_err();
         let tensor = rewritten.read_tensor_f32("synthetic.weight").unwrap();
 
-        std::fs::remove_file(&rewritten_path).unwrap();
+        fs::remove_file(&rewritten_path).unwrap();
 
         assert_eq!(rewritten.n_kv(), 1);
         assert_eq!(rewritten.val_str(kept_index).unwrap(), "kept value");
-        assert_eq!(std::mem::discriminant(&removed_err), key_not_found_disc());
+        assert_eq!(discriminant(&removed_err), key_not_found_disc());
         assert_eq!(tensor.shape, [3, 2, 1, 1]);
         assert_eq!(tensor.values, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
@@ -1021,7 +1016,7 @@ mod tests {
         let str_index = rewritten.find_key("synthetic.str_value").unwrap();
         let array_index = rewritten.find_key("synthetic.i32_array").unwrap();
 
-        std::fs::remove_file(&rewritten_path).unwrap();
+        fs::remove_file(&rewritten_path).unwrap();
 
         assert_eq!(rewritten.val_u32(u32_index).unwrap(), 4096);
         assert_eq!(rewritten.val_str(str_index).unwrap(), "set value");
@@ -1035,16 +1030,16 @@ mod tests {
             .write("write_to_file_reports_a_source_file_removed_after_opening");
         let context = GgufContext::from_file(&fixture.path).unwrap();
 
-        std::fs::remove_file(&fixture.path).unwrap();
+        fs::remove_file(&fixture.path).unwrap();
 
         let result = context.write_to_file(rewritten_gguf_path(
             "write_to_file_reports_a_source_file_removed_after_opening",
         ));
 
-        std::fs::write(&fixture.path, b"").unwrap();
+        fs::write(&fixture.path, b"").unwrap();
 
         assert_eq!(
-            std::mem::discriminant(&result.unwrap_err()),
+            discriminant(&result.unwrap_err()),
             source_file_read_failed_disc()
         );
     }
@@ -1061,7 +1056,7 @@ mod tests {
             .write("write_to_file_reports_a_source_file_truncated_before_its_tensor_data");
         let context = GgufContext::from_file(&fixture.path).unwrap();
 
-        std::fs::write(&fixture.path, b"").unwrap();
+        fs::write(&fixture.path, b"").unwrap();
 
         let err = context
             .write_to_file(rewritten_gguf_path(
@@ -1069,7 +1064,7 @@ mod tests {
             ))
             .unwrap_err();
 
-        assert_eq!(std::mem::discriminant(&err), source_file_truncated_disc());
+        assert_eq!(discriminant(&err), source_file_truncated_disc());
     }
 
     #[test]
@@ -1079,9 +1074,6 @@ mod tests {
             .write_to_file("/nonexistent/directory/rewritten.gguf")
             .unwrap_err();
 
-        assert_eq!(
-            std::mem::discriminant(&err),
-            destination_file_write_failed_disc()
-        );
+        assert_eq!(discriminant(&err), destination_file_write_failed_disc());
     }
 }

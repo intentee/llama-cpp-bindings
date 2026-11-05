@@ -5,10 +5,10 @@ pub fn llama_time_us() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::llama_time_us;
+    use crate::llama_time_us::llama_time_us;
 
     #[test]
-    fn returns_positive_value() {
+    fn llama_time_is_positive() {
         let time_microseconds = llama_time_us();
 
         assert!(time_microseconds > 0);

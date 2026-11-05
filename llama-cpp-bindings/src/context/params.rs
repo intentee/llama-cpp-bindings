@@ -1,18 +1,16 @@
+use std::ffi::c_void;
 use std::fmt::Debug;
 use std::num::NonZeroU32;
 
-pub use crate::context::kv_cache_type::KvCacheType;
-pub use crate::context::llama_attention_type::LlamaAttentionType;
-pub use crate::context::llama_pooling_type::LlamaPoolingType;
-pub use crate::context::rope_scaling_type::RopeScalingType;
+use crate::context::kv_cache_type::KvCacheType;
+use crate::context::llama_attention_type::LlamaAttentionType;
+use crate::context::llama_pooling_type::LlamaPoolingType;
+use crate::context::rope_scaling_type::RopeScalingType;
+use crate::error::unknown_attention_type::UnknownAttentionType;
+use crate::error::unknown_pooling_type::UnknownPoolingType;
+use crate::error::unknown_rope_scaling_type::UnknownRopeScalingType;
 
 #[derive(Debug, Clone, Copy)]
-#[expect(
-    missing_docs,
-    reason = "field meanings mirror llama.cpp's `llama_context_params` C struct; restating each \
-              one inline would risk drift from the upstream spec — the doc-comment on the struct \
-              points at the canonical reference"
-)]
 pub struct LlamaContextParams {
     pub context_params: llama_cpp_bindings_sys::llama_context_params,
 }
@@ -85,9 +83,12 @@ impl LlamaContextParams {
         self
     }
 
-    #[must_use]
-    pub fn rope_scaling_type(&self) -> RopeScalingType {
-        RopeScalingType::from(self.context_params.rope_scaling_type)
+    /// # Errors
+    ///
+    /// Returns [`UnknownRopeScalingType`] when the raw params hold a value llama.cpp does not
+    /// define.
+    pub fn rope_scaling_type(&self) -> Result<RopeScalingType, UnknownRopeScalingType> {
+        RopeScalingType::try_from(self.context_params.rope_scaling_type)
     }
 
     #[must_use]
@@ -155,10 +156,7 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn with_cb_eval_user_data(
-        mut self,
-        cb_eval_user_data: *mut std::ffi::c_void,
-    ) -> Self {
+    pub const fn with_cb_eval_user_data(mut self, cb_eval_user_data: *mut c_void) -> Self {
         self.context_params.cb_eval_user_data = cb_eval_user_data;
         self
     }
@@ -169,9 +167,11 @@ impl LlamaContextParams {
         self
     }
 
-    #[must_use]
-    pub fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::from(self.context_params.pooling_type)
+    /// # Errors
+    ///
+    /// Returns [`UnknownPoolingType`] when the raw params hold a value llama.cpp does not define.
+    pub fn pooling_type(&self) -> Result<LlamaPoolingType, UnknownPoolingType> {
+        LlamaPoolingType::try_from(self.context_params.pooling_type)
     }
 
     #[must_use]
@@ -217,15 +217,31 @@ impl LlamaContextParams {
         KvCacheType::from(self.context_params.type_v)
     }
 
+    /// Bytes of device memory caching the experts kept in host memory, split among the devices
+    /// like the layers; `0` disables the cache.
+    #[must_use]
+    pub const fn with_moe_cache_size(mut self, moe_cache_size: usize) -> Self {
+        self.context_params.moe_cache_size = moe_cache_size;
+        self
+    }
+
+    #[must_use]
+    pub const fn moe_cache_size(&self) -> usize {
+        self.context_params.moe_cache_size
+    }
+
     #[must_use]
     pub fn with_attention_type(mut self, attention_type: LlamaAttentionType) -> Self {
         self.context_params.attention_type = i32::from(attention_type);
         self
     }
 
-    #[must_use]
-    pub fn attention_type(&self) -> LlamaAttentionType {
-        LlamaAttentionType::from(self.context_params.attention_type)
+    /// # Errors
+    ///
+    /// Returns [`UnknownAttentionType`] when the raw params hold a value llama.cpp does not
+    /// define.
+    pub fn attention_type(&self) -> Result<LlamaAttentionType, UnknownAttentionType> {
+        LlamaAttentionType::try_from(self.context_params.attention_type)
     }
 
     #[must_use]
@@ -284,17 +300,6 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn with_no_perf(mut self, no_perf: bool) -> Self {
-        self.context_params.no_perf = no_perf;
-        self
-    }
-
-    #[must_use]
-    pub const fn no_perf(&self) -> bool {
-        self.context_params.no_perf
-    }
-
-    #[must_use]
     pub const fn with_op_offload(mut self, op_offload: bool) -> Self {
         self.context_params.op_offload = op_offload;
         self
@@ -326,29 +331,35 @@ impl Default for LlamaContextParams {
 
 #[cfg(test)]
 mod tests {
-    use super::{KvCacheType, LlamaAttentionType, LlamaPoolingType, RopeScalingType};
+    use std::ffi::c_void;
+    use std::num::NonZeroU32;
+    use std::ptr;
+
+    use super::KvCacheType;
+    use super::LlamaAttentionType;
+    use super::LlamaPoolingType;
+    use super::RopeScalingType;
 
     #[test]
-    fn default_params_have_expected_values() {
+    fn default_params_match_the_llama_cpp_context_defaults() {
         let params = super::LlamaContextParams::default();
 
-        assert_eq!(params.n_ctx(), std::num::NonZeroU32::new(512));
+        assert_eq!(params.n_ctx(), NonZeroU32::new(512));
         assert_eq!(params.n_batch(), 2048);
         assert_eq!(params.n_ubatch(), 512);
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::Unspecified);
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Unspecified);
+        assert_eq!(params.rope_scaling_type(), Ok(RopeScalingType::Unspecified));
+        assert_eq!(params.pooling_type(), Ok(LlamaPoolingType::Unspecified));
     }
 
     #[test]
     fn with_n_ctx_sets_value() {
-        let params =
-            super::LlamaContextParams::default().with_n_ctx(std::num::NonZeroU32::new(2048));
+        let params = super::LlamaContextParams::default().with_n_ctx(NonZeroU32::new(2048));
 
-        assert_eq!(params.n_ctx(), std::num::NonZeroU32::new(2048));
+        assert_eq!(params.n_ctx(), NonZeroU32::new(2048));
     }
 
     #[test]
-    fn with_n_ctx_none_sets_zero() {
+    fn with_n_ctx_none_reads_back_as_no_context_size() {
         let params = super::LlamaContextParams::default().with_n_ctx(None);
 
         assert_eq!(params.n_ctx(), None);
@@ -384,7 +395,9 @@ mod tests {
 
     #[test]
     fn with_embeddings_disables() {
-        let params = super::LlamaContextParams::default().with_embeddings(false);
+        let params = super::LlamaContextParams::default()
+            .with_embeddings(true)
+            .with_embeddings(false);
 
         assert!(!params.embeddings());
     }
@@ -398,7 +411,9 @@ mod tests {
 
     #[test]
     fn with_offload_kqv_enables() {
-        let params = super::LlamaContextParams::default().with_offload_kqv(true);
+        let params = super::LlamaContextParams::default()
+            .with_offload_kqv(false)
+            .with_offload_kqv(true);
 
         assert!(params.offload_kqv());
     }
@@ -412,33 +427,29 @@ mod tests {
 
     #[test]
     fn with_swa_full_enables() {
-        let params = super::LlamaContextParams::default().with_swa_full(true);
+        let params = super::LlamaContextParams::default()
+            .with_swa_full(false)
+            .with_swa_full(true);
 
         assert!(params.swa_full());
     }
 
     #[test]
-    fn with_rope_scaling_type_linear() {
-        let params =
-            super::LlamaContextParams::default().with_rope_scaling_type(RopeScalingType::Linear);
+    fn with_rope_scaling_type_sets_each_scaling_type() {
+        let scaling_types = [
+            RopeScalingType::Linear,
+            RopeScalingType::Yarn,
+            RopeScalingType::None,
+        ];
 
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::Linear);
-    }
-
-    #[test]
-    fn with_rope_scaling_type_yarn() {
-        let params =
-            super::LlamaContextParams::default().with_rope_scaling_type(RopeScalingType::Yarn);
-
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::Yarn);
-    }
-
-    #[test]
-    fn with_rope_scaling_type_none() {
-        let params =
-            super::LlamaContextParams::default().with_rope_scaling_type(RopeScalingType::None);
-
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::None);
+        assert_eq!(
+            scaling_types.map(|scaling_type| {
+                super::LlamaContextParams::default()
+                    .with_rope_scaling_type(scaling_type)
+                    .rope_scaling_type()
+            }),
+            scaling_types.map(Ok)
+        );
     }
 
     #[test]
@@ -470,69 +481,67 @@ mod tests {
     }
 
     #[test]
-    fn with_pooling_type_mean() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::Mean);
+    fn with_pooling_type_sets_each_pooling_type() {
+        let pooling_types = [
+            LlamaPoolingType::Mean,
+            LlamaPoolingType::Cls,
+            LlamaPoolingType::Last,
+            LlamaPoolingType::Rank,
+            LlamaPoolingType::None,
+        ];
 
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Mean);
-    }
-
-    #[test]
-    fn with_pooling_type_cls() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::Cls);
-
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Cls);
-    }
-
-    #[test]
-    fn with_pooling_type_last() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::Last);
-
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Last);
-    }
-
-    #[test]
-    fn with_pooling_type_rank() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::Rank);
-
-        assert_eq!(params.pooling_type(), LlamaPoolingType::Rank);
-    }
-
-    #[test]
-    fn with_pooling_type_none() {
-        let params = super::LlamaContextParams::default().with_pooling_type(LlamaPoolingType::None);
-
-        assert_eq!(params.pooling_type(), LlamaPoolingType::None);
+        assert_eq!(
+            pooling_types.map(|pooling_type| {
+                super::LlamaContextParams::default()
+                    .with_pooling_type(pooling_type)
+                    .pooling_type()
+            }),
+            pooling_types.map(Ok)
+        );
     }
 
     #[test]
     fn with_type_k_sets_value() {
-        let params = super::LlamaContextParams::default().with_type_k(KvCacheType::Q4_0);
+        let params = super::LlamaContextParams::default().with_type_k(KvCacheType::Q40);
 
-        assert_eq!(params.type_k(), KvCacheType::Q4_0);
+        assert_eq!(params.type_k(), KvCacheType::Q40);
     }
 
     #[test]
     fn with_type_v_sets_value() {
-        let params = super::LlamaContextParams::default().with_type_v(KvCacheType::Q4_1);
+        let params = super::LlamaContextParams::default().with_type_v(KvCacheType::Q41);
 
-        assert_eq!(params.type_v(), KvCacheType::Q4_1);
+        assert_eq!(params.type_v(), KvCacheType::Q41);
     }
 
     #[test]
-    fn with_flash_attention_policy_sets_value() {
-        let params = super::LlamaContextParams::default()
-            .with_flash_attention_policy(llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED);
+    fn with_moe_cache_size_sets_value() {
+        let params = super::LlamaContextParams::default().with_moe_cache_size(1 << 30);
+
+        assert_eq!(params.moe_cache_size(), 1 << 30);
+    }
+
+    #[test]
+    fn with_flash_attention_policy_sets_each_policy() {
+        let policies = [
+            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED,
+            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_DISABLED,
+        ];
 
         assert_eq!(
-            params.flash_attention_policy(),
-            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED
+            policies.map(|policy| {
+                super::LlamaContextParams::default()
+                    .with_flash_attention_policy(policy)
+                    .flash_attention_policy()
+            }),
+            policies
         );
     }
 
     #[test]
     fn builder_chaining_preserves_all_values() {
         let params = super::LlamaContextParams::default()
-            .with_n_ctx(std::num::NonZeroU32::new(1024))
+            .with_n_ctx(NonZeroU32::new(1024))
             .with_n_batch(4096)
             .with_n_ubatch(256)
             .with_n_threads(8)
@@ -543,71 +552,60 @@ mod tests {
             .with_rope_freq_base(5000.0)
             .with_rope_freq_scale(0.25);
 
-        assert_eq!(params.n_ctx(), std::num::NonZeroU32::new(1024));
+        assert_eq!(params.n_ctx(), NonZeroU32::new(1024));
         assert_eq!(params.n_batch(), 4096);
         assert_eq!(params.n_ubatch(), 256);
         assert_eq!(params.n_threads(), 8);
         assert_eq!(params.n_threads_batch(), 12);
         assert!(params.embeddings());
         assert!(!params.offload_kqv());
-        assert_eq!(params.rope_scaling_type(), RopeScalingType::Yarn);
+        assert_eq!(params.rope_scaling_type(), Ok(RopeScalingType::Yarn));
         assert!((params.rope_freq_base() - 5000.0).abs() < f32::EPSILON);
         assert!((params.rope_freq_scale() - 0.25).abs() < f32::EPSILON);
     }
 
     #[test]
-    fn with_cb_eval_sets_callback() {
-        extern "C" fn test_cb_eval(
+    fn with_cb_eval_installs_the_given_callback() {
+        extern "C" fn echo_whether_asked(
             _tensor: *mut llama_cpp_bindings_sys::ggml_tensor,
-            _ask: bool,
-            _user_data: *mut std::ffi::c_void,
+            ask: bool,
+            _user_data: *mut c_void,
         ) -> bool {
-            false
+            ask
         }
 
-        let result = test_cb_eval(std::ptr::null_mut(), false, std::ptr::null_mut());
+        let params = super::LlamaContextParams::default().with_cb_eval(Some(echo_whether_asked));
 
-        assert!(!result);
-
-        let params = super::LlamaContextParams::default().with_cb_eval(Some(test_cb_eval));
-
-        assert!(params.context_params.cb_eval.is_some());
+        assert_eq!(
+            params
+                .context_params
+                .cb_eval
+                .map(|cb_eval| unsafe { cb_eval(ptr::null_mut(), true, ptr::null_mut()) }),
+            Some(true)
+        );
     }
 
     #[test]
     fn with_cb_eval_user_data_sets_pointer() {
         let mut value: i32 = 42;
-        let user_data = (&raw mut value).cast::<std::ffi::c_void>();
+        let user_data = (&raw mut value).cast::<c_void>();
         let params = super::LlamaContextParams::default().with_cb_eval_user_data(user_data);
 
         assert_eq!(params.context_params.cb_eval_user_data, user_data);
     }
 
     #[test]
-    fn with_flash_attention_policy_disabled() {
-        let params = super::LlamaContextParams::default()
-            .with_flash_attention_policy(llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_DISABLED);
+    fn with_attention_type_sets_each_attention_type() {
+        let attention_types = [LlamaAttentionType::Causal, LlamaAttentionType::NonCausal];
 
         assert_eq!(
-            params.flash_attention_policy(),
-            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_DISABLED
+            attention_types.map(|attention_type| {
+                super::LlamaContextParams::default()
+                    .with_attention_type(attention_type)
+                    .attention_type()
+            }),
+            attention_types.map(Ok)
         );
-    }
-
-    #[test]
-    fn with_attention_type_causal() {
-        let params =
-            super::LlamaContextParams::default().with_attention_type(LlamaAttentionType::Causal);
-
-        assert_eq!(params.attention_type(), LlamaAttentionType::Causal);
-    }
-
-    #[test]
-    fn with_attention_type_non_causal() {
-        let params =
-            super::LlamaContextParams::default().with_attention_type(LlamaAttentionType::NonCausal);
-
-        assert_eq!(params.attention_type(), LlamaAttentionType::NonCausal);
     }
 
     #[test]
@@ -646,22 +644,10 @@ mod tests {
     }
 
     #[test]
-    fn with_no_perf_enables() {
-        let params = super::LlamaContextParams::default().with_no_perf(true);
-
-        assert!(params.no_perf());
-    }
-
-    #[test]
-    fn with_no_perf_disables() {
-        let params = super::LlamaContextParams::default().with_no_perf(false);
-
-        assert!(!params.no_perf());
-    }
-
-    #[test]
     fn with_op_offload_enables() {
-        let params = super::LlamaContextParams::default().with_op_offload(true);
+        let params = super::LlamaContextParams::default()
+            .with_op_offload(false)
+            .with_op_offload(true);
 
         assert!(params.op_offload());
     }
@@ -682,7 +668,9 @@ mod tests {
 
     #[test]
     fn with_kv_unified_disables() {
-        let params = super::LlamaContextParams::default().with_kv_unified(false);
+        let params = super::LlamaContextParams::default()
+            .with_kv_unified(true)
+            .with_kv_unified(false);
 
         assert!(!params.kv_unified());
     }

@@ -17,15 +17,14 @@ llama-cpp-gbnf = { workspace = true }
 llama-cpp-log-decoder = { workspace = true }
 llguidance = { workspace = true }
 log = { workspace = true }
-nom = { workspace = true }
 once_cell = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 toktrie = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+llama-cpp-fault-injection = { workspace = true }
 llama-cpp-wrapper-error-fixture = { workspace = true }
 serial_test = { workspace = true }
 
@@ -44,7 +43,7 @@ android-static-stdcxx = ["llama-cpp-bindings-sys/static-stdcxx"]
 system-ggml = ["llama-cpp-bindings-sys/system-ggml"]
 system-ggml-static = ["system-ggml", "llama-cpp-bindings-sys/system-ggml-static"]
 
-[target.'cfg(all(target_os = "macos", any(target_arch = "aarch64", target_arch = "arm64")))'.dependencies]
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
 llama-cpp-bindings-sys = { workspace = true, features = ["metal"] }
 
 [lints]

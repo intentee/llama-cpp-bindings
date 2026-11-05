@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 use crate::compile_command::CompileCommand;
 use crate::cpp_standard::CPP_STANDARD;
+use crate::fault_injection_define::FAULT_INJECTION_DEFINE;
+use crate::system_include_flags::system_include_flags;
 use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
 use crate::wrapper_source_paths::wrapper_source_paths;
 use crate::wrapper_sources_error::WrapperSourcesError;
@@ -25,11 +27,17 @@ impl CompileCommandsFile {
         wrapper_source_paths(&self.sys_dir)
             .into_iter()
             .map(|file| {
-                let mut arguments = vec![CPP_COMPILER.to_owned(), format!("-std={CPP_STANDARD}")];
+                let mut arguments = vec![
+                    CPP_COMPILER.to_owned(),
+                    format!("-std={CPP_STANDARD}"),
+                    format!("-D{FAULT_INJECTION_DEFINE}"),
+                ];
 
                 for include_dir in WRAPPER_INCLUDE_DIRS {
                     arguments.push(format!("-I{}", absolute_path(&self.sys_dir, include_dir)));
                 }
+
+                arguments.extend(system_include_flags(&self.sys_dir));
 
                 arguments.push("-c".to_owned());
                 arguments.push(file.display().to_string());
@@ -69,9 +77,9 @@ mod tests {
     use std::path::PathBuf;
 
     use super::CompileCommandsFile;
+    use crate::system_include_flags::system_include_flags;
     use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
     use crate::wrapper_source_paths::wrapper_source_paths;
-    use crate::wrapper_sources_error::WrapperSourcesError;
 
     fn database_for(output_path: &str) -> CompileCommandsFile {
         CompileCommandsFile {
@@ -122,7 +130,28 @@ mod tests {
     }
 
     #[test]
-    fn the_compiler_and_standard_lead_the_command_line() {
+    fn every_command_includes_the_vendored_headers_as_system_headers() {
+        let commands = database_for("/unused").commands();
+
+        assert_eq!(
+            commands
+                .iter()
+                .map(|command| command
+                    .arguments
+                    .iter()
+                    .filter(|argument| argument.starts_with("-isystem"))
+                    .cloned()
+                    .collect::<Vec<String>>())
+                .collect::<Vec<Vec<String>>>(),
+            vec![
+                system_include_flags(Path::new("/repo/llama-cpp-bindings-sys"));
+                wrapper_source_paths(Path::new("/repo/llama-cpp-bindings-sys")).len()
+            ]
+        );
+    }
+
+    #[test]
+    fn the_compiler_standard_and_fault_injection_lead_the_command_line() {
         let commands = database_for("/unused").commands();
 
         assert_eq!(
@@ -131,30 +160,46 @@ mod tests {
                 .map(|command| command
                     .arguments
                     .iter()
-                    .take(2)
+                    .take(3)
                     .cloned()
                     .collect::<Vec<String>>())
                 .unwrap_or_default(),
-            vec!["c++".to_owned(), "-std=c++17".to_owned()]
+            vec![
+                "c++".to_owned(),
+                "-std=c++17".to_owned(),
+                "-DLLAMA_RS_FAULT_INJECTION".to_owned()
+            ]
         );
     }
 
     #[test]
     fn creating_the_database_under_a_missing_directory_reports_the_path() {
-        let output_path = "/nonexistent-directory/compile_commands.json";
-
-        assert!(matches!(
-            database_for(output_path).write(),
-            Err(WrapperSourcesError::Create { ref path, .. }) if path == Path::new(output_path)
-        ));
+        assert_eq!(
+            database_for("/nonexistent-directory/compile_commands.json")
+                .write()
+                .err()
+                .map(|error| error.to_string()),
+            Some(
+                "compilation database file /nonexistent-directory/compile_commands.json could \
+                 not be created: No such file or directory (os error 2)"
+                    .to_owned()
+            )
+        );
     }
 
     #[cfg(target_os = "linux")]
     #[test]
     fn a_destination_that_cannot_absorb_the_bytes_reports_the_path() {
-        assert!(matches!(
-            database_for("/dev/full").write(),
-            Err(WrapperSourcesError::Serialize { ref path, .. }) if path == Path::new("/dev/full")
-        ));
+        assert_eq!(
+            database_for("/dev/full")
+                .write()
+                .err()
+                .map(|error| error.to_string()),
+            Some(
+                "compilation database could not be written to /dev/full: No space left on \
+                 device (os error 28)"
+                    .to_owned()
+            )
+        );
     }
 }

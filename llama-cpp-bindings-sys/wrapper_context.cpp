@@ -1,87 +1,52 @@
 #include "wrapper_context.h"
+#include "wrapper_fault_injection.h"
 
+#include <cstddef>
 #include <cstdint>
 
-#include "llama.cpp/include/llama.h"
-#include "llama.cpp/src/llama-context.h"
-#include "llama.cpp/src/llama-ext.h"
-#include "llama.cpp/src/llama-memory.h"
-#include "llama.cpp/src/llama-model.h"
-#include "wrapper_report_current_exception.h"
-
-extern "C" auto llama_rs_context_decodes_batches_in_one_micro_batch(const struct llama_context * ctx) -> bool {
-    return llama_get_memory(ctx) == nullptr || !ctx->get_cparams().causal_attn;
-}
-
-extern "C" auto llama_rs_context_embeddings_enabled(const struct llama_context * ctx) -> bool {
-    return ctx->get_cparams().embeddings;
-}
-
-extern "C" auto llama_rs_context_embeddings_nextn_enabled(const struct llama_context * ctx) -> bool {
-    return ctx->get_cparams().embeddings_nextn;
-}
-
-extern "C" auto llama_rs_context_embeddings_nextn_masked(const struct llama_context * ctx) -> bool {
-    return ctx->get_cparams().embeddings_nextn_masked;
-}
-
-extern "C" void llama_rs_set_embeddings_nextn(struct llama_context * ctx, bool value, bool masked) {
-    llama_set_embeddings_nextn(ctx, value, masked);
-}
-
-extern "C" auto llama_rs_get_embeddings_nextn_ith(struct llama_context * ctx, int32_t token_index) -> float * {
-    return llama_get_embeddings_nextn_ith(ctx, token_index);
-}
-
-extern "C" auto llama_rs_context_graph_produces_nextn_hidden_state(
-    struct llama_context * ctx,
-    bool * out_produces_nextn_hidden_state,
-    char ** out_error) -> llama_rs_context_nextn_hidden_state_probe_status {
-    if (out_produces_nextn_hidden_state != nullptr) {
-        *out_produces_nextn_hidden_state = false;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (ctx == nullptr) {
-        return LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_CTX_ARG;
-    }
-    if (out_produces_nextn_hidden_state == nullptr) {
-        return LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_PRODUCES_NEXTN_HIDDEN_STATE_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_NULL_OUT_ERROR_ARG;
-    }
-    try {
-        constexpr uint32_t smallest_ubatch_tokens = 1;
-        constexpr uint32_t smallest_ubatch_sequences = 1;
-        constexpr uint32_t smallest_ubatch_outputs = 1;
-        constexpr bool split_graph_without_allocating_buffers = true;
-
-        llama_memory_context_ptr memory_context;
-        llama_memory_t memory = llama_get_memory(ctx);
-        if (memory != nullptr) {
-            memory_context = memory->init_full();
-        }
-        if (ctx->graph_reserve(
-                smallest_ubatch_tokens,
-                smallest_ubatch_sequences,
-                smallest_ubatch_outputs,
-                memory_context.get(),
-                split_graph_without_allocating_buffers) == nullptr) {
-            return LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_FAILED_TO_RESERVE_GRAPH;
-        }
-        *out_produces_nextn_hidden_state = ctx->get_gf_res_reserve()->get_h_nextn() != nullptr;
-        return LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_OK;
-    } catch (...) {
-        return llama_rs_report_current_exception(
-            out_error,
-            LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            LLAMA_RS_CONTEXT_NEXTN_HIDDEN_STATE_PROBE_ERROR_STRING_ALLOCATION_FAILED);
-    }
-}
+#include <llama.h>
+#include <src/llama-model.h>
 
 extern "C" auto llama_rs_model_causal_attn(const struct llama_model * model) -> bool {
     return model->hparams.causal_attn;
+}
+
+extern "C" auto llama_rs_pooling_type(const struct llama_context * ctx) -> int32_t {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_POOLING_TYPE_UNKNOWN)) {
+        return LLAMA_POOLING_TYPE_RANK + 1;
+    }
+
+    return llama_pooling_type(ctx);
+}
+
+extern "C" auto llama_rs_model_rope_type(const struct llama_model * model) -> int32_t {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN)) {
+        return LLAMA_ROPE_TYPE_IMROPE + 1;
+    }
+
+    return llama_model_rope_type(model);
+}
+
+extern "C" auto llama_rs_context_produced_logits(struct llama_context * ctx) -> bool {
+    return llama_get_logits(ctx) != nullptr;
+}
+
+extern "C" auto llama_rs_get_logits_ith(struct llama_context * ctx, int32_t token_index) -> float * {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_GET_LOGITS_ITH_RETURNS_NULL)) {
+        return nullptr;
+    }
+
+    return llama_get_logits_ith(ctx, token_index);
+}
+
+extern "C" auto llama_rs_set_adapters_lora(
+    struct llama_context * ctx,
+    struct llama_adapter_lora ** adapters,
+    size_t n_adapters,
+    float * scales) -> int32_t {
+    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_SET_ADAPTERS_LORA_FAILS)) {
+        return -1;
+    }
+
+    return llama_set_adapters_lora(ctx, adapters, n_adapters, scales);
 }

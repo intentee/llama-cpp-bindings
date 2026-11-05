@@ -1,4 +1,4 @@
-use llama_cpp_bindings_types::ParsedChatMessage;
+use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 
 use crate::raw_chat_message::RawChatMessage;
 
@@ -8,51 +8,51 @@ pub enum ChatMessageParseOutcome {
     Unrecognized(RawChatMessage),
 }
 
+impl ChatMessageParseOutcome {
+    /// The recognized message, or the raw answer the parser did not recognize.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`RawChatMessage`] when the answer does not match the template's format.
+    pub fn into_recognized(self) -> Result<ParsedChatMessage, RawChatMessage> {
+        match self {
+            Self::Recognized(message) => Ok(message),
+            Self::Unrecognized(raw) => Err(raw),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ParsedChatMessage;
-    use llama_cpp_bindings_types::ParsedToolCall;
+    use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 
-    use super::ChatMessageParseOutcome;
+    use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
+    use crate::chat_output_completeness::ChatOutputCompleteness;
     use crate::raw_chat_message::RawChatMessage;
 
-    #[test]
-    fn both_variants_destructure_to_their_inner_payloads() {
-        let outcomes = [
-            ChatMessageParseOutcome::Recognized(ParsedChatMessage::new(
-                "content".to_owned(),
-                "reasoning".to_owned(),
-                Vec::new(),
-            )),
-            ChatMessageParseOutcome::Unrecognized(RawChatMessage {
-                text: "raw input".to_owned(),
-                is_partial: false,
-                ffi_error_message: "parser bailed".to_owned(),
-            }),
-        ];
-
-        let mut saw_recognized = false;
-        let mut saw_unrecognized = false;
-        for outcome in outcomes {
-            match outcome {
-                ChatMessageParseOutcome::Recognized(parsed) => {
-                    assert_eq!(parsed.content, "content");
-                    assert_eq!(parsed.reasoning_content, "reasoning");
-                    assert_eq!(parsed.tool_calls, Vec::<ParsedToolCall>::new());
-                    saw_recognized = true;
-                }
-                ChatMessageParseOutcome::Unrecognized(raw) => {
-                    assert_eq!(raw.text, "raw input");
-                    assert!(!raw.is_partial);
-                    assert_eq!(raw.ffi_error_message, "parser bailed");
-                    saw_unrecognized = true;
-                }
-            }
+    fn odd_answer() -> RawChatMessage {
+        RawChatMessage {
+            text: "<odd>Paris.".to_owned(),
+            completeness: ChatOutputCompleteness::Finished,
+            ffi_error_message: "the format differs".to_owned(),
         }
+    }
 
-        assert!(
-            saw_recognized && saw_unrecognized,
-            "both variants must dispatch through the match"
+    #[test]
+    fn a_recognized_answer_is_its_message() {
+        let message = ParsedChatMessage::new("Paris.".to_owned(), String::new(), Vec::new());
+
+        assert_eq!(
+            ChatMessageParseOutcome::Recognized(message.clone()).into_recognized(),
+            Ok(message)
+        );
+    }
+
+    #[test]
+    fn an_unrecognized_answer_is_its_raw_message() {
+        assert_eq!(
+            ChatMessageParseOutcome::Unrecognized(odd_answer()).into_recognized(),
+            Err(odd_answer())
         );
     }
 }

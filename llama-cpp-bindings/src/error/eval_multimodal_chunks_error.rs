@@ -1,6 +1,6 @@
-use crate::mtmd::MtmdEvalError;
+use crate::mtmd::mtmd_eval_error::MtmdEvalError;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum EvalMultimodalChunksError {
     #[error("{0}")]
     EvalFailed(#[from] MtmdEvalError),

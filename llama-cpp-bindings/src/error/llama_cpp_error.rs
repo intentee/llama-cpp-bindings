@@ -8,7 +8,7 @@ use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
 use crate::error::llama_context_load_error::LlamaContextLoadError;
 use crate::error::llama_model_load_error::LlamaModelLoadError;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum LlamaCppError {
     #[error("BackendAlreadyInitialized")]
     BackendAlreadyInitialized,

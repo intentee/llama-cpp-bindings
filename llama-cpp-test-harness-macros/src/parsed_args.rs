@@ -4,14 +4,19 @@ use proc_macro2::Ident;
 use proc_macro2::Span;
 use syn::Expr;
 use syn::ExprLit;
+use syn::ExprUnary;
 use syn::Lit;
 use syn::Meta;
 use syn::Token;
+use syn::UnOp;
 use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 
+use crate::attribute_accumulator::AttributeAccumulator;
 use crate::parsed_context_params::ParsedContextParams;
+use crate::parsed_expected_failure::ParsedExpectedFailure;
+use crate::parsed_expected_outcome::ParsedExpectedOutcome;
 use crate::parsed_load_mode::ParsedLoadMode;
 use crate::parsed_model_load_params::ParsedModelLoadParams;
 use crate::parsed_source::ParsedSource;
@@ -30,7 +35,7 @@ const OPTIONAL_FIELDS: &[&str] = &[
     "embeddings",
     "n_seq_max",
     "n_threads_batch",
-    "void_logs",
+    "expected_failure",
 ];
 
 fn literal_from_expression(expression: &Expr) -> syn::Result<&Lit> {
@@ -78,6 +83,41 @@ fn require_i32_lit(literal: &Lit, field: &str) -> syn::Result<i32> {
     }
 }
 
+fn require_negated_i32_lit(literal: &Lit, field: &str) -> syn::Result<i32> {
+    let Lit::Int(int_literal) = literal else {
+        return Err(syn::Error::new_spanned(
+            literal,
+            format!("field `{field}` expects an integer literal"),
+        ));
+    };
+    let magnitude = int_literal.base10_parse::<u32>().map_err(|parse_error| {
+        syn::Error::new_spanned(
+            literal,
+            format!("field `{field}` expects an integer that fits in i32: {parse_error}"),
+        )
+    })?;
+
+    0_i32.checked_sub_unsigned(magnitude).ok_or_else(|| {
+        syn::Error::new_spanned(
+            literal,
+            format!("field `{field}` expects an integer that fits in i32: -{magnitude} is below its minimum"),
+        )
+    })
+}
+
+fn require_i32_value(expression: &Expr, field: &str) -> syn::Result<i32> {
+    if let Expr::Unary(ExprUnary {
+        op: UnOp::Neg(_),
+        expr: negated,
+        ..
+    }) = expression
+    {
+        require_negated_i32_lit(literal_from_expression(negated)?, field)
+    } else {
+        require_i32_lit(literal_from_expression(expression)?, field)
+    }
+}
+
 fn require_bool_lit(literal: &Lit, field: &str) -> syn::Result<bool> {
     if let Lit::Bool(bool_literal) = literal {
         Ok(bool_literal.value())
@@ -91,21 +131,6 @@ fn require_bool_lit(literal: &Lit, field: &str) -> syn::Result<bool> {
 
 fn require<TValue>(value: Option<TValue>, field: &str, span: Span) -> syn::Result<TValue> {
     value.ok_or_else(|| syn::Error::new(span, format!("missing required field `{field}`")))
-}
-
-#[derive(Default)]
-struct AttributeAccumulator {
-    model_source: Option<ParsedSource>,
-    mmproj_source: Option<ParsedSource>,
-    n_gpu_layers: Option<i32>,
-    load_mode: Option<ParsedLoadMode>,
-    n_ctx: Option<u32>,
-    n_batch: Option<u32>,
-    n_ubatch: Option<u32>,
-    embeddings: Option<bool>,
-    n_seq_max: Option<u32>,
-    n_threads_batch: Option<i32>,
-    void_logs: Option<bool>,
 }
 
 fn dispatch_field(
@@ -122,10 +147,7 @@ fn dispatch_field(
             accumulator.mmproj_source = Some(ParsedSource::parse(value, "mmproj_source")?);
         }
         "n_gpu_layers" => {
-            accumulator.n_gpu_layers = Some(require_i32_lit(
-                literal_from_expression(value)?,
-                "n_gpu_layers",
-            )?);
+            accumulator.n_gpu_layers = Some(require_i32_value(value, "n_gpu_layers")?);
         }
         "n_ctx" => {
             accumulator.n_ctx = Some(require_int_lit(literal_from_expression(value)?, "n_ctx")?);
@@ -168,16 +190,10 @@ fn dispatch_field(
             )?);
         }
         "n_threads_batch" => {
-            accumulator.n_threads_batch = Some(require_i32_lit(
-                literal_from_expression(value)?,
-                "n_threads_batch",
-            )?);
+            accumulator.n_threads_batch = Some(require_i32_value(value, "n_threads_batch")?);
         }
-        "void_logs" => {
-            accumulator.void_logs = Some(require_bool_lit(
-                literal_from_expression(value)?,
-                "void_logs",
-            )?);
+        "expected_failure" => {
+            accumulator.expected_failure = Some(ParsedExpectedFailure::parse(value)?);
         }
         "repo" | "file" | "mmproj_file" => {
             return Err(syn::Error::new_spanned(
@@ -207,7 +223,7 @@ pub struct ParsedArgs {
     pub mmproj_source: Option<ParsedSource>,
     pub model_load_params: ParsedModelLoadParams,
     pub context_params: ParsedContextParams,
-    pub void_logs: bool,
+    pub expected_outcome: ParsedExpectedOutcome,
 }
 
 impl Parse for ParsedArgs {
@@ -253,7 +269,10 @@ impl Parse for ParsedArgs {
                 n_threads_batch: accumulator.n_threads_batch,
                 embeddings: accumulator.embeddings.unwrap_or(false),
             },
-            void_logs: accumulator.void_logs.unwrap_or(false),
+            expected_outcome: accumulator.expected_failure.map_or(
+                ParsedExpectedOutcome::Success,
+                ParsedExpectedOutcome::Failure,
+            ),
         })
     }
 }
@@ -263,6 +282,7 @@ mod tests {
     use syn::parse_str;
 
     use super::ParsedArgs;
+    use crate::parsed_load_mode::ParsedLoadMode;
     use crate::parsed_source::ParsedSource;
 
     const ALL_REQUIRED: &str = "\
@@ -289,10 +309,7 @@ mod tests {
             },
         );
         assert_eq!(parsed.model_load_params.n_gpu_layers, 0);
-        assert_eq!(
-            parsed.model_load_params.load_mode,
-            crate::parsed_load_mode::ParsedLoadMode::Mmap
-        );
+        assert_eq!(parsed.model_load_params.load_mode, ParsedLoadMode::Mmap);
         assert_eq!(parsed.context_params.n_ctx, 512);
         assert_eq!(parsed.context_params.n_batch, 128);
         assert_eq!(parsed.context_params.n_ubatch, 64);
@@ -350,10 +367,7 @@ mod tests {
             .expect_err("missing model_source must fail")
             .to_string();
 
-        assert!(
-            message.contains("missing required field `model_source`"),
-            "got: {message}"
-        );
+        assert_eq!(message, "missing required field `model_source`");
     }
 
     #[test]
@@ -363,10 +377,7 @@ mod tests {
             .expect_err("missing n_ctx must fail")
             .to_string();
 
-        assert!(
-            message.contains("missing required field `n_ctx`"),
-            "got: {message}"
-        );
+        assert_eq!(message, "missing required field `n_ctx`");
     }
 
     #[test]
@@ -377,7 +388,11 @@ mod tests {
             .expect_err("legacy repo must be rejected")
             .to_string();
 
-        assert!(message.contains("model_source"), "got: {message}");
+        assert_eq!(
+            message,
+            "field `repo` was removed; use `model_source = HuggingFace(repo, file)` or \
+             `model_source = LocalPath(path)` (and `mmproj_source` for mmproj)"
+        );
     }
 
     #[test]
@@ -387,7 +402,24 @@ mod tests {
             .expect_err("legacy mmproj_file must be rejected")
             .to_string();
 
-        assert!(message.contains("mmproj_source"), "got: {message}");
+        assert_eq!(
+            message,
+            "field `mmproj_file` was removed; use `model_source = HuggingFace(repo, file)` or \
+             `model_source = LocalPath(path)` (and `mmproj_source` for mmproj)"
+        );
+    }
+
+    #[test]
+    fn an_expected_failure_that_cannot_be_parsed_is_rejected() {
+        let source = format!("{ALL_REQUIRED}, expected_failure = Whatever(\"reason\")");
+
+        assert_eq!(
+            parse(&source)
+                .expect_err("an unknown expected failure must fail")
+                .to_string(),
+            "field `expected_failure` expects `SetupFailure(kind, \"reason\")` or \
+             `TestFailure(\"reason\")`"
+        );
     }
 
     #[test]
@@ -397,9 +429,11 @@ mod tests {
             .expect_err("unknown field must fail")
             .to_string();
 
-        assert!(
-            message.contains("unknown field `surprise`"),
-            "got: {message}"
+        assert_eq!(
+            message,
+            "unknown field `surprise`; expected one of: model_source, n_gpu_layers, load_mode, \
+             n_ctx, n_batch, n_ubatch, mmproj_source, embeddings, n_seq_max, n_threads_batch, \
+             expected_failure"
         );
     }
 
@@ -408,10 +442,7 @@ mod tests {
         let source = format!("{ALL_REQUIRED}, model_source = HuggingFace(\"other\", \"o.gguf\")");
         let message = parse(&source).expect_err("duplicate must fail").to_string();
 
-        assert!(
-            message.contains("duplicate field `model_source`"),
-            "got: {message}"
-        );
+        assert_eq!(message, "duplicate field `model_source`");
     }
 
     #[test]
@@ -419,39 +450,7 @@ mod tests {
         let source = "model_source, file = \"x\"";
         let message = parse(source).expect_err("bare ident must fail").to_string();
 
-        assert!(message.contains("name = value"), "got: {message}");
-    }
-
-    #[test]
-    fn non_literal_value_for_scalar_field_is_rejected() {
-        let source = "\
-            model_source = HuggingFace(\"x\", \"y\"), \
-            n_gpu_layers = some_const, \
-            load_mode = Mmap, \
-            n_ctx = 1, \
-            n_batch = 1, \
-            n_ubatch = 1";
-        let message = parse(source)
-            .expect_err("non-literal value must fail")
-            .to_string();
-
-        assert!(message.contains("literal"), "got: {message}");
-    }
-
-    #[test]
-    fn wrong_literal_kind_for_int_field_is_rejected() {
-        let source = "\
-            model_source = HuggingFace(\"x\", \"y\"), \
-            n_gpu_layers = \"nine\", \
-            load_mode = Mmap, \
-            n_ctx = 1, \
-            n_batch = 1, \
-            n_ubatch = 1";
-        let message = parse(source)
-            .expect_err("string for int field must fail")
-            .to_string();
-
-        assert!(message.contains("integer literal"), "got: {message}");
+        assert_eq!(message, "expected `name = value` form");
     }
 
     #[test]
@@ -467,7 +466,7 @@ mod tests {
             .expect_err("literal load mode must fail")
             .to_string();
 
-        assert!(message.contains("load-mode identifier"), "got: {message}");
+        assert_eq!(message, "expected a load-mode identifier");
     }
 
     #[test]
@@ -483,11 +482,107 @@ mod tests {
             .expect_err("qualified load mode must fail")
             .to_string();
 
-        assert!(message.contains("load-mode identifier"), "got: {message}");
+        assert_eq!(message, "expected a load-mode identifier");
     }
 
     #[test]
-    fn negative_int_for_u32_field_is_rejected() {
+    fn negative_i32_fields_are_parsed() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -1, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1, \
+            n_threads_batch = -2";
+        let parsed = parse(source).expect("negative i32 fields must parse");
+
+        assert_eq!(
+            [
+                parsed.model_load_params.n_gpu_layers,
+                parsed
+                    .context_params
+                    .n_threads_batch
+                    .expect("n_threads_batch was given")
+            ],
+            [-1, -2]
+        );
+    }
+
+    #[test]
+    fn a_negative_i32_field_below_i32_min_is_rejected() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -2147483649, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1";
+
+        assert_eq!(
+            parse(source)
+                .expect_err("an i32 below i32::MIN must fail")
+                .to_string(),
+            "field `n_gpu_layers` expects an integer that fits in i32: -2147483649 is below its minimum"
+        );
+    }
+
+    #[test]
+    fn a_negative_i32_field_whose_magnitude_exceeds_u32_is_rejected() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -4294967296, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1";
+
+        assert_eq!(
+            parse(source)
+                .expect_err("a magnitude beyond u32 must fail")
+                .to_string(),
+            "field `n_gpu_layers` expects an integer that fits in i32: number too large to fit in target type"
+        );
+    }
+
+    #[test]
+    fn a_negated_i32_field_that_is_not_an_integer_is_rejected() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -1.5, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1";
+
+        assert_eq!(
+            parse(source)
+                .expect_err("a negated float must fail")
+                .to_string(),
+            "field `n_gpu_layers` expects an integer literal"
+        );
+    }
+
+    #[test]
+    fn a_negated_i32_field_that_is_not_a_literal_is_rejected() {
+        let source = "\
+            model_source = HuggingFace(\"x\", \"y\"), \
+            n_gpu_layers = -layers, \
+            load_mode = Mmap, \
+            n_ctx = 1, \
+            n_batch = 1, \
+            n_ubatch = 1";
+
+        assert_eq!(
+            parse(source)
+                .expect_err("a negated identifier must fail")
+                .to_string(),
+            "expected a literal (string, integer, or bool)"
+        );
+    }
+
+    #[test]
+    fn negative_int_for_u32_field_is_rejected_as_a_non_literal() {
         let source = "\
             model_source = HuggingFace(\"x\", \"y\"), \
             n_gpu_layers = 0, \
@@ -499,7 +594,7 @@ mod tests {
             .expect_err("negative int must fail")
             .to_string();
 
-        assert!(message.contains("literal"), "got: {message}");
+        assert_eq!(message, "expected a literal (string, integer, or bool)");
     }
 
     #[test]
@@ -516,7 +611,7 @@ mod tests {
             .expect_err("path field name must fail")
             .to_string();
 
-        assert!(message.contains("simple identifier"), "got: {message}");
+        assert_eq!(message, "expected a simple identifier");
     }
 
     #[test]
@@ -530,7 +625,11 @@ mod tests {
             n_ubatch = 1";
         let message = parse(source).expect_err("overflow must fail").to_string();
 
-        assert!(message.contains("u32"), "got: {message}");
+        assert_eq!(
+            message,
+            "field `n_ctx` expects a non-negative integer that fits in u32: \
+             number too large to fit in target type"
+        );
     }
 
     #[test]
@@ -540,7 +639,11 @@ mod tests {
             .expect_err("i32 overflow must fail")
             .to_string();
 
-        assert!(message.contains("i32"), "got: {message}");
+        assert_eq!(
+            message,
+            "field `n_threads_batch` expects an integer that fits in i32: \
+             number too large to fit in target type"
+        );
     }
 
     #[test]
@@ -555,10 +658,7 @@ mod tests {
             .expect_err("missing n_gpu_layers must fail")
             .to_string();
 
-        assert!(
-            message.contains("missing required field `n_gpu_layers`"),
-            "got: {message}"
-        );
+        assert_eq!(message, "missing required field `n_gpu_layers`");
     }
 
     #[test]
@@ -573,10 +673,7 @@ mod tests {
             .expect_err("missing load_mode must fail")
             .to_string();
 
-        assert!(
-            message.contains("missing required field `load_mode`"),
-            "got: {message}"
-        );
+        assert_eq!(message, "missing required field `load_mode`");
     }
 
     #[test]
@@ -592,7 +689,10 @@ mod tests {
             .expect_err("unknown load mode must fail")
             .to_string();
 
-        assert!(message.contains("MmapMlock"), "got: {message}");
+        assert_eq!(
+            message,
+            "expected one of: Auto, None, Mmap, Mlock, MmapMlock, DirectIo"
+        );
     }
 
     #[test]
@@ -607,10 +707,7 @@ mod tests {
             .expect_err("missing n_batch must fail")
             .to_string();
 
-        assert!(
-            message.contains("missing required field `n_batch`"),
-            "got: {message}"
-        );
+        assert_eq!(message, "missing required field `n_batch`");
     }
 
     #[test]
@@ -625,10 +722,7 @@ mod tests {
             .expect_err("missing n_ubatch must fail")
             .to_string();
 
-        assert!(
-            message.contains("missing required field `n_ubatch`"),
-            "got: {message}"
-        );
+        assert_eq!(message, "missing required field `n_ubatch`");
     }
 
     #[test]
@@ -647,21 +741,16 @@ mod tests {
     }
 
     #[test]
-    fn optional_embeddings_false_is_parsed() {
-        let source = format!("{ALL_REQUIRED}, embeddings = false");
-        let parsed = parse(&source).expect("embeddings = false must parse");
-
-        assert!(!parsed.context_params.embeddings);
-    }
-
-    #[test]
     fn optional_embeddings_rejects_non_bool_literal() {
         let source = format!("{ALL_REQUIRED}, embeddings = 1");
         let message = parse(&source)
             .expect_err("embeddings with int must fail")
             .to_string();
 
-        assert!(message.contains("bool literal"), "got: {message}");
+        assert_eq!(
+            message,
+            "field `embeddings` expects a bool literal (`true` or `false`)"
+        );
     }
 
     #[test]
@@ -701,22 +790,10 @@ mod tests {
             .expect_err("string for n_threads_batch must fail")
             .to_string();
 
-        assert!(message.contains("integer literal"), "got: {message}");
-    }
-
-    #[test]
-    fn optional_void_logs_defaults_to_false_when_absent() {
-        let parsed = parse(ALL_REQUIRED).expect("required-only must parse");
-
-        assert!(!parsed.void_logs);
-    }
-
-    #[test]
-    fn optional_void_logs_true_is_parsed() {
-        let source = format!("{ALL_REQUIRED}, void_logs = true");
-        let parsed = parse(&source).expect("void_logs = true must parse");
-
-        assert!(parsed.void_logs);
+        assert_eq!(
+            message,
+            "field `n_threads_batch` expects an integer literal"
+        );
     }
 
     fn override_field(field: &str, replacement: &str) -> String {
@@ -748,7 +825,10 @@ mod tests {
             let source = override_field(field, "some_const");
             let message = parse(&source).expect_err(field).to_string();
 
-            assert!(message.contains("literal"), "{field}: {message}");
+            assert_eq!(
+                message, "expected a literal (string, integer, or bool)",
+                "{field}"
+            );
         }
     }
 
@@ -758,7 +838,10 @@ mod tests {
             let source = override_field(field, "\"not-an-int\"");
             let message = parse(&source).expect_err(field).to_string();
 
-            assert!(message.contains("integer literal"), "{field}: {message}");
+            assert_eq!(
+                message,
+                format!("field `{field}` expects an integer literal")
+            );
         }
     }
 
@@ -769,7 +852,7 @@ mod tests {
             .expect_err("n_seq_max non-literal must fail")
             .to_string();
 
-        assert!(message.contains("literal"), "got: {message}");
+        assert_eq!(message, "expected a literal (string, integer, or bool)");
     }
 
     #[test]
@@ -779,7 +862,7 @@ mod tests {
             .expect_err("n_seq_max wrong-kind must fail")
             .to_string();
 
-        assert!(message.contains("integer literal"), "got: {message}");
+        assert_eq!(message, "field `n_seq_max` expects an integer literal");
     }
 
     #[test]
@@ -789,7 +872,7 @@ mod tests {
             .expect_err("n_threads_batch non-literal must fail")
             .to_string();
 
-        assert!(message.contains("literal"), "got: {message}");
+        assert_eq!(message, "expected a literal (string, integer, or bool)");
     }
 
     #[test]
@@ -799,27 +882,7 @@ mod tests {
             .expect_err("embeddings non-literal must fail")
             .to_string();
 
-        assert!(message.contains("literal"), "got: {message}");
-    }
-
-    #[test]
-    fn optional_void_logs_rejects_non_literal_value() {
-        let source = append_field("void_logs", "some_const");
-        let message = parse(&source)
-            .expect_err("void_logs non-literal must fail")
-            .to_string();
-
-        assert!(message.contains("literal"), "got: {message}");
-    }
-
-    #[test]
-    fn optional_void_logs_rejects_wrong_literal_kind() {
-        let source = append_field("void_logs", "1");
-        let message = parse(&source)
-            .expect_err("void_logs wrong-kind must fail")
-            .to_string();
-
-        assert!(message.contains("bool literal"), "got: {message}");
+        assert_eq!(message, "expected a literal (string, integer, or bool)");
     }
 
     #[test]
@@ -829,7 +892,10 @@ mod tests {
             .expect_err("mmproj_source unknown variant must fail")
             .to_string();
 
-        assert!(message.contains("unknown source variant"), "got: {message}");
+        assert_eq!(
+            message,
+            "unknown source variant `Mystery`; expected `HuggingFace` or `LocalPath`"
+        );
     }
 
     #[test]
@@ -845,16 +911,18 @@ mod tests {
             .expect_err("model_source unknown variant must fail")
             .to_string();
 
-        assert!(message.contains("unknown source variant"), "got: {message}");
+        assert_eq!(
+            message,
+            "unknown source variant `Mystery`; expected `HuggingFace` or `LocalPath`"
+        );
     }
 
     #[test]
     fn unparseable_attribute_token_stream_is_rejected() {
-        let result = parse("@&^!");
+        let message = parse("@&^!")
+            .expect_err("garbage attribute body must fail")
+            .to_string();
 
-        assert!(
-            result.is_err(),
-            "garbage attribute body must fail to parse as Punctuated<Meta, ,>"
-        );
+        assert_eq!(message, "expected identifier");
     }
 }
