@@ -4,7 +4,7 @@ use llama_cpp_ffi_status::cpp_string_error::CppStringError;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ParseChatMessageError {
     #[error(transparent)]
     CppString(#[from] CppStringError),
@@ -18,6 +18,8 @@ pub enum ParseChatMessageError {
     LlamaCppOutOfMemory,
     #[error("text llama.cpp parsed out of the answer is not valid UTF-8: {0}")]
     ParsedTextNotUtf8(#[source] Utf8Error),
+    #[error("the name of the chat format llama.cpp expected is not valid UTF-8: {0}")]
+    FormatNameNotUtf8(#[source] Utf8Error),
     #[error("{message}")]
     Reported { message: String },
 }

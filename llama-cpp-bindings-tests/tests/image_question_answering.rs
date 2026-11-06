@@ -78,7 +78,7 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
         "vision input must produce at least one image chunk"
     );
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

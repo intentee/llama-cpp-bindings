@@ -27,8 +27,8 @@ fn json_schema_constrained_answer(fixture: &LlamaFixture<'_>) -> Result<Value> {
     )?;
 
     let session =
-        closed_reasoning_chat_session(model, "What is 2+2? Respond with a JSON object.", "[]");
-    let tokens = session.tokenize_prompt()?;
+        closed_reasoning_chat_session(model, "What is 2+2? Respond with a JSON object.", &[]);
+    let tokens = session.tokenize_prompt(fixture.model)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 

@@ -111,7 +111,7 @@ pub fn eval_chunk(
         out_llama_cpp_return_code,
         out_error,
     )?;
-    llama_ctx.record_helper_decode(logits_last);
+    llama_ctx.record_helper_decode(chunk.n_tokens() as u64, logits_last);
 
     Ok(next_position)
 }

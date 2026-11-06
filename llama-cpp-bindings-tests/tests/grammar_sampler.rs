@@ -145,11 +145,11 @@ fn grammar_constrained_chat_answer_is_yes_content_that_ends_generation(
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", "[]");
-    let tokens = session.tokenize_prompt()?;
+    let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", &[]);
+    let tokens = session.tokenize_prompt(fixture.model)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     context.decode(&batch)?;

@@ -2,7 +2,7 @@ use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 
 use crate::raw_chat_message::RawChatMessage;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ChatMessageParseOutcome {
     Recognized(ParsedChatMessage),
     Unrecognized(RawChatMessage),
@@ -34,7 +34,7 @@ mod tests {
         RawChatMessage {
             text: "<odd>Paris.".to_owned(),
             completeness: ChatOutputCompleteness::Finished,
-            ffi_error_message: "the format differs".to_owned(),
+            expected_format: "peg-native".to_owned(),
         }
     }
 

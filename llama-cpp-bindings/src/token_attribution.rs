@@ -1,6 +1,6 @@
 use crate::chat_session_attribution::ChatSessionAttribution;
 
-pub enum TokenAttribution<'session, 'model> {
+pub enum TokenAttribution {
     Undeterminable,
-    ChatSession(ChatSessionAttribution<'session, 'model>),
+    ChatSession(Box<ChatSessionAttribution>),
 }

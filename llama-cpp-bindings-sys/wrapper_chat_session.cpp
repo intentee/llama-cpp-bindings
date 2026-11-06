@@ -29,7 +29,7 @@
 #include <vector>
 
 struct llama_rs_chat_session {
-    common_chat_session session;
+    std::shared_ptr<const common_chat_session> session;
     common_chat_input generation_prompt;
     std::vector<llama_token> generation_prompt_tokens;
     common_params_sampling sampling;
@@ -37,9 +37,16 @@ struct llama_rs_chat_session {
     std::unordered_set<std::string> trigger_rules;
 };
 
-struct llama_rs_chat_spans {
+struct llama_rs_chat_reading {
+    std::shared_ptr<const common_chat_session> session;
+    bool is_partial = false;
+    size_t generation_prompt_length = 0;
+    common_peg_parse_context context;
+    common_peg_parse_result result;
+    bool matches_format = false;
     size_t parsed_length = 0;
     std::vector<llama_rs_chat_span> spans;
+    std::string format_name;
 };
 
 namespace {
@@ -138,8 +145,36 @@ auto chat_input_of(
     return input;
 }
 
-auto parse_flags_of(bool is_partial) -> common_peg_parse_flags {
-    return is_partial ? COMMON_PEG_PARSE_FLAG_LENIENT : COMMON_PEG_PARSE_FLAG_COMPLETE;
+auto finished_output_of(const llama_rs_chat_reading & reading) -> common_chat_input {
+    common_chat_input output;
+    output.text = reading.context.input.substr(reading.generation_prompt_length);
+    output.tokens.assign(
+        reading.context.tokens.begin() + static_cast<std::ptrdiff_t>(reading.generation_prompt_length),
+        reading.context.tokens.end());
+
+    return output;
+}
+
+auto finished_output_parser_params_of(const llama_rs_chat_reading & reading) -> common_chat_parser_params {
+    common_chat_parser_params parser_params;
+    parser_params.format = reading.session->format();
+    parser_params.generation_prompt.text = reading.context.input.substr(0, reading.generation_prompt_length);
+    parser_params.generation_prompt.tokens.assign(
+        reading.context.tokens.begin(),
+        reading.context.tokens.begin() + static_cast<std::ptrdiff_t>(reading.generation_prompt_length));
+
+    return parser_params;
+}
+
+auto mapper_of(common_chat_format format, common_chat_msg & message) -> std::unique_ptr<common_chat_peg_mapper> {
+    if (format == COMMON_CHAT_FORMAT_PEG_GEMMA4) {
+        return std::make_unique<common_chat_peg_gemma4_mapper>(message);
+    }
+    if (format == COMMON_CHAT_FORMAT_PEG_MINIMAX_M3) {
+        return std::make_unique<common_chat_peg_minimax_m3_mapper>(message);
+    }
+
+    return std::make_unique<common_chat_peg_mapper>(message);
 }
 }  // namespace
 
@@ -147,7 +182,9 @@ extern "C" auto llama_rs_chat_session_create(
     llama_rs_chat_templates_handle templates,
     const struct llama_vocab * vocab,
     const char * messages_json,
+    size_t messages_json_length,
     const char * tools_json,
+    size_t tools_json_length,
     llama_rs_chat_session_options options,
     llama_rs_chat_session_handle * out_session,
     char ** out_error) -> llama_rs_chat_session_create_status {
@@ -179,19 +216,11 @@ extern "C" auto llama_rs_chat_session_create(
     try {
         common_chat_templates_inputs inputs;
 
-        inputs.messages = common_chat_msgs_parse_oaicompat(common_json::parse(messages_json));
+        inputs.messages = common_chat_msgs_parse_oaicompat(
+            common_json::parse(std::string(messages_json, messages_json_length)));
 
-        try {
-            inputs.tools = common_chat_tools_parse_oaicompat(common_json::parse(tools_json));
-        } catch (const common_json_error & err) {
-            return llama_rs_report_exception_message(
-                out_error, err.what(), LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_NOT_JSON,
-                LLAMA_RS_CHAT_SESSION_CREATE_ERROR_STRING_ALLOCATION_FAILED);
-        } catch (const std::runtime_error & err) {
-            return llama_rs_report_exception_message(
-                out_error, err.what(), LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_INVALID,
-                LLAMA_RS_CHAT_SESSION_CREATE_ERROR_STRING_ALLOCATION_FAILED);
-        }
+        inputs.tools = common_chat_tools_parse_oaicompat(
+            common_json::parse(std::string(tools_json, tools_json_length)));
 
         inputs.add_generation_prompt = options.assistant_turn == LLAMA_RS_CHAT_ASSISTANT_TURN_NEW;
         inputs.continue_final_message = continuation_of(options.assistant_turn);
@@ -203,7 +232,7 @@ extern "C" auto llama_rs_chat_session_create(
         auto chat_session = std::make_unique<llama_rs_chat_session>();
 
         try {
-            chat_session->session = common_chat_session(templates->templates.get(), vocab, inputs);
+            chat_session->session = std::make_shared<const common_chat_session>(templates->templates.get(), vocab, inputs);
         } catch (const std::bad_alloc &) {
             throw;
         } catch (const std::exception & err) {
@@ -212,16 +241,16 @@ extern "C" auto llama_rs_chat_session_create(
                 LLAMA_RS_CHAT_SESSION_CREATE_ERROR_STRING_ALLOCATION_FAILED);
         }
 
-        chat_session->generation_prompt = common_chat_input_tokenize(vocab, chat_session->session.generation_prompt());
+        chat_session->generation_prompt = common_chat_input_tokenize(vocab, chat_session->session->generation_prompt());
         for (const llama_token token : chat_session->generation_prompt.tokens) {
             if (token != LLAMA_TOKEN_NULL) {
                 chat_session->generation_prompt_tokens.push_back(token);
             }
         }
-        chat_session->session.apply_sampling(chat_session->sampling);
+        chat_session->session->apply_sampling(chat_session->sampling);
         chat_session->preserved_tokens.assign(
             chat_session->sampling.preserved_tokens.begin(), chat_session->sampling.preserved_tokens.end());
-        chat_session->trigger_rules = trigger_rules_of(chat_session->session.parser());
+        chat_session->trigger_rules = trigger_rules_of(chat_session->session->parser());
 
         *out_session = chat_session.release();
 
@@ -240,7 +269,7 @@ extern "C" auto llama_rs_chat_session_free(llama_rs_chat_session_handle session)
 }
 
 extern "C" auto llama_rs_chat_session_prompt_part_count(llama_rs_chat_session_handle session) -> size_t {
-    return session->session.prompt().parts.size();
+    return session->session->prompt().parts.size();
 }
 
 extern "C" auto llama_rs_chat_session_prompt_part_text(
@@ -249,19 +278,19 @@ extern "C" auto llama_rs_chat_session_prompt_part_text(
     size_t * out_length) -> const char * {
     return llama_rs_text_view_unless_fault_injected(
         LLAMA_RS_FAULT_POINT_CHAT_SESSION_PROMPT_PART_TEXT_NOT_UTF8,
-        session->session.prompt().parts.at(index).text,
+        session->session->prompt().parts.at(index).text,
         out_length);
 }
 
 extern "C" auto llama_rs_chat_session_prompt_part_is_input(llama_rs_chat_session_handle session, size_t index)
     -> bool {
-    return session->session.prompt().parts.at(index).is_input;
+    return session->session->prompt().parts.at(index).is_input;
 }
 
 extern "C" auto llama_rs_chat_session_grammar(llama_rs_chat_session_handle session, size_t * out_length)
     -> const char * {
     return llama_rs_text_view_unless_fault_injected(
-        LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8, session->session.grammar(), out_length);
+        LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8, session->session->grammar(), out_length);
 }
 
 extern "C" auto llama_rs_chat_session_grammar_lazy(llama_rs_chat_session_handle session) -> bool {
@@ -318,7 +347,7 @@ extern "C" auto llama_rs_chat_session_preserved_token(llama_rs_chat_session_hand
 
 extern "C" auto llama_rs_chat_session_generation_prompt(llama_rs_chat_session_handle session, size_t * out_length)
     -> const char * {
-    return llama_rs_string_view(session->session.generation_prompt(), out_length);
+    return llama_rs_string_view(session->session->generation_prompt(), out_length);
 }
 
 extern "C" auto llama_rs_chat_session_generation_prompt_token_count(llama_rs_chat_session_handle session) -> size_t {
@@ -332,162 +361,164 @@ extern "C" auto llama_rs_chat_session_generation_prompt_token(llama_rs_chat_sess
 
 extern "C" auto llama_rs_chat_session_thinking_start_tag(llama_rs_chat_session_handle session, size_t * out_length)
     -> const char * {
-    return llama_rs_string_view(session->session.thinking_start_tag(), out_length);
+    return llama_rs_string_view(session->session->thinking_start_tag(), out_length);
 }
 
 extern "C" auto llama_rs_chat_session_thinking_end_tag_count(llama_rs_chat_session_handle session) -> size_t {
-    return session->session.thinking_end_tags().size();
+    return session->session->thinking_end_tags().size();
 }
 
 extern "C" auto llama_rs_chat_session_thinking_end_tag(
     llama_rs_chat_session_handle session,
     size_t index,
     size_t * out_length) -> const char * {
-    return llama_rs_string_view(session->session.thinking_end_tags().at(index), out_length);
+    return llama_rs_string_view(session->session->thinking_end_tags().at(index), out_length);
 }
 
-extern "C" auto llama_rs_chat_session_parse(
+extern "C" auto llama_rs_chat_session_read(
     llama_rs_chat_session_handle session,
     const char * text,
     size_t text_length,
     const llama_token * byte_tokens,
     bool is_partial,
-    llama_rs_parsed_chat_handle * out_handle,
-    char ** out_error) -> llama_rs_chat_session_parse_status {
-    if (out_handle != nullptr) {
-        *out_handle = nullptr;
+    llama_rs_chat_reading_handle * out_reading,
+    char ** out_error) -> llama_rs_chat_session_read_status {
+    if (out_reading != nullptr) {
+        *out_reading = nullptr;
     }
     if (out_error != nullptr) {
         *out_error = nullptr;
     }
     if (session == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_PARSE_NULL_SESSION_ARG;
+        return LLAMA_RS_CHAT_SESSION_READ_NULL_SESSION_ARG;
     }
     if (text == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_PARSE_NULL_TEXT_ARG;
+        return LLAMA_RS_CHAT_SESSION_READ_NULL_TEXT_ARG;
     }
     if (byte_tokens == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_PARSE_NULL_BYTE_TOKENS_ARG;
+        return LLAMA_RS_CHAT_SESSION_READ_NULL_BYTE_TOKENS_ARG;
     }
-    if (out_handle == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_PARSE_NULL_OUT_HANDLE_ARG;
+    if (out_reading == nullptr) {
+        return LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_READING_ARG;
     }
     if (out_error == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_PARSE_NULL_OUT_ERROR_ARG;
+        return LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_ERROR_ARG;
     }
 
     try {
-        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_SESSION_PARSE_THROWS);
-
-        common_chat_parser_params parser_params;
-        parser_params.format = session->session.format();
-        parser_params.generation_prompt = session->generation_prompt;
-
-        auto parsed = std::make_unique<llama_rs_parsed_chat>();
-
-        try {
-            parsed->message = common_chat_peg_parse(
-                session->session.parser(),
-                chat_input_of(common_chat_input(), text, text_length, byte_tokens),
-                is_partial,
-                parser_params);
-        } catch (const std::bad_alloc &) {
-            throw;
-        } catch (const std::runtime_error & err) {
-            return llama_rs_report_exception_message(
-                out_error, err.what(), LLAMA_RS_CHAT_SESSION_PARSE_OUTPUT_DOES_NOT_MATCH_FORMAT,
-                LLAMA_RS_CHAT_SESSION_PARSE_ERROR_STRING_ALLOCATION_FAILED);
-        }
-
-        *out_handle = parsed.release();
-
-        return LLAMA_RS_CHAT_SESSION_PARSE_OK;
-    } catch (...) {
-        return llama_rs_report_current_exception(
-            out_error,
-            LLAMA_RS_CHAT_SESSION_PARSE_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_CHAT_SESSION_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            LLAMA_RS_CHAT_SESSION_PARSE_ERROR_STRING_ALLOCATION_FAILED);
-    }
-}
-
-extern "C" auto llama_rs_chat_session_classify(
-    llama_rs_chat_session_handle session,
-    const char * text,
-    size_t text_length,
-    const llama_token * byte_tokens,
-    bool is_partial,
-    llama_rs_chat_spans_handle * out_spans,
-    char ** out_error) -> llama_rs_chat_session_classify_status {
-    if (out_spans != nullptr) {
-        *out_spans = nullptr;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (session == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_SESSION_ARG;
-    }
-    if (text == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_TEXT_ARG;
-    }
-    if (byte_tokens == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_BYTE_TOKENS_ARG;
-    }
-    if (out_spans == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_OUT_SPANS_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_OUT_ERROR_ARG;
-    }
-
-    try {
-        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_SESSION_CLASSIFY_THROWS);
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
 
         common_chat_input parse_input = chat_input_of(session->generation_prompt, text, text_length, byte_tokens);
         const size_t generation_prompt_length = session->generation_prompt.size();
+        auto reading = std::make_unique<llama_rs_chat_reading>();
 
-        common_peg_parse_context context(
-            std::move(parse_input.text), std::move(parse_input.tokens), parse_flags_of(is_partial));
-        const common_peg_parse_result result = session->session.parser().parse(context);
+        reading->session = session->session;
+        reading->is_partial = is_partial;
+        reading->generation_prompt_length = generation_prompt_length;
+        reading->context.input = std::move(parse_input.text);
+        reading->context.tokens = std::move(parse_input.tokens);
+        reading->context.flags = is_partial ? COMMON_PEG_PARSE_FLAG_LENIENT : COMMON_PEG_PARSE_FLAG_COMPLETE;
 
-        if (result.fail() && (!is_partial || result.end == 0)) {
-            return LLAMA_RS_CHAT_SESSION_CLASSIFY_OUTPUT_DOES_NOT_MATCH_FORMAT;
+        reading->result = session->session->parser().parse(reading->context);
+        reading->matches_format = is_partial
+            ? !reading->result.fail() || reading->result.end > 0
+            : !reading->result.fail() && reading->result.end == reading->context.input.size();
+
+        if (!reading->matches_format) {
+            reading->format_name = common_chat_format_name(session->session->format());
+            *out_reading = reading.release();
+
+            return LLAMA_RS_CHAT_SESSION_READ_OK;
         }
 
-        auto spans = std::make_unique<llama_rs_chat_spans>();
-        spans->parsed_length = result.end > generation_prompt_length ? result.end - generation_prompt_length : 0;
+        reading->parsed_length =
+            reading->result.end > generation_prompt_length ? reading->result.end - generation_prompt_length : 0;
 
-        context.ast.visit(result, [&](const common_peg_ast_node & node) -> void {
+        reading->context.ast.visit(reading->result, [&](const common_peg_ast_node & node) -> void {
             const auto kind = span_kind_of_node(session->trigger_rules, node);
             if (!kind || node.end <= generation_prompt_length) {
                 return;
             }
-            spans->spans.push_back({
+            reading->spans.push_back({
                 *kind,
                 node.start > generation_prompt_length ? node.start - generation_prompt_length : 0,
                 node.end - generation_prompt_length,
             });
         });
 
-        *out_spans = spans.release();
+        *out_reading = reading.release();
 
-        return LLAMA_RS_CHAT_SESSION_CLASSIFY_OK;
+        return LLAMA_RS_CHAT_SESSION_READ_OK;
     } catch (...) {
         return llama_rs_report_current_exception(
             out_error,
-            LLAMA_RS_CHAT_SESSION_CLASSIFY_LLAMA_CPP_OUT_OF_MEMORY,
-            LLAMA_RS_CHAT_SESSION_CLASSIFY_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            LLAMA_RS_CHAT_SESSION_CLASSIFY_ERROR_STRING_ALLOCATION_FAILED);
+            LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_CHAT_SESSION_READ_ERROR_STRING_ALLOCATION_FAILED);
     }
 }
 
-extern "C" auto llama_rs_chat_spans_view_of(llama_rs_chat_spans_handle spans) -> llama_rs_chat_spans_view {
-    return {spans->spans.data(), spans->spans.size(), spans->parsed_length};
+extern "C" auto llama_rs_chat_reading_matches_format(llama_rs_chat_reading_handle reading) -> bool {
+    return reading->matches_format;
 }
 
-extern "C" auto llama_rs_chat_spans_free(llama_rs_chat_spans_handle spans) -> void {
-    std::unique_ptr<llama_rs_chat_spans>(spans).reset();
+extern "C" auto llama_rs_chat_reading_spans_view(llama_rs_chat_reading_handle reading) -> llama_rs_chat_spans_view {
+    return {reading->spans.data(), reading->spans.size(), reading->parsed_length};
+}
+
+extern "C" auto llama_rs_chat_reading_format_name(llama_rs_chat_reading_handle reading, size_t * out_length)
+    -> const char * {
+    return llama_rs_text_view_unless_fault_injected(
+        LLAMA_RS_FAULT_POINT_CHAT_READING_FORMAT_NAME_NOT_UTF8, reading->format_name, out_length);
+}
+
+extern "C" auto llama_rs_chat_reading_parse(
+    llama_rs_chat_reading_handle reading,
+    llama_rs_parsed_chat_handle * out_handle,
+    char ** out_error) -> llama_rs_chat_reading_parse_status {
+    if (out_handle != nullptr) {
+        *out_handle = nullptr;
+    }
+    if (out_error != nullptr) {
+        *out_error = nullptr;
+    }
+    if (reading == nullptr) {
+        return LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG;
+    }
+    if (out_handle == nullptr) {
+        return LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG;
+    }
+    if (out_error == nullptr) {
+        return LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG;
+    }
+
+    try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_READING_PARSE_THROWS);
+
+        auto parsed = std::make_unique<llama_rs_parsed_chat>();
+        parsed->message.role = "assistant";
+
+        if (reading->is_partial) {
+            mapper_of(reading->session->format(), parsed->message)->from_ast(reading->context.ast, reading->result);
+        } else {
+            parsed->message = common_chat_peg_parse(
+                reading->session->parser(), finished_output_of(*reading), false, finished_output_parser_params_of(*reading));
+        }
+
+        *out_handle = parsed.release();
+
+        return LLAMA_RS_CHAT_READING_PARSE_OK;
+    } catch (...) {
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED);
+    }
+}
+
+extern "C" auto llama_rs_chat_reading_free(llama_rs_chat_reading_handle reading) -> void {
+    std::unique_ptr<llama_rs_chat_reading>(reading).reset();
 }
 
 extern "C" auto llama_rs_regex_escape(

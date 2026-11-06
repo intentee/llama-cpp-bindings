@@ -7,8 +7,8 @@ use llama_cpp_bindings::sampling::LlamaSampler;
 
 use crate::classify_sample_loop_outcome::ClassifySampleLoopOutcome;
 
-pub struct ClassifySampleLoop<'borrow, 'session, 'model> {
-    pub classifier: &'borrow mut SampledTokenClassifier<'session, 'model>,
+pub struct ClassifySampleLoop<'borrow, 'model> {
+    pub classifier: &'borrow mut SampledTokenClassifier<'model>,
     pub sampler: &'borrow mut LlamaSampler,
     pub context: &'borrow mut LlamaContext<'model>,
     pub batch: &'borrow mut LlamaBatch,
@@ -16,9 +16,10 @@ pub struct ClassifySampleLoop<'borrow, 'session, 'model> {
     pub max_generated_tokens: i32,
 }
 
-impl ClassifySampleLoop<'_, '_, '_> {
+impl ClassifySampleLoop<'_, '_> {
     /// Samples and classifies tokens until the end of generation or until
-    /// `max_generated_tokens` are generated.
+    /// `max_generated_tokens` are generated, settling the pending tokens of a generation the
+    /// limit stops; an end-of-generation token settles them itself.
     ///
     /// # Panics
     ///
@@ -58,9 +59,11 @@ impl ClassifySampleLoop<'_, '_, '_> {
                 .expect("decoding the sampled token must succeed");
         }
 
-        self.classifier
-            .finish(&mut ingest_outcomes)
-            .expect("finishing the classification must succeed");
+        if !outcome.eog_seen {
+            self.classifier
+                .finish(&mut ingest_outcomes)
+                .expect("finishing the classification must succeed");
+        }
 
         for ingest_outcome in &ingest_outcomes {
             outcome.record_outcome(ingest_outcome);

@@ -281,6 +281,7 @@ pub struct LlamaContext<'model> {
     limits: ContextLimits,
     keeps_no_memory: bool,
     embeddings: bool,
+    evaluated_tokens: u64,
 }
 
 impl Debug for LlamaContext<'_> {
@@ -336,6 +337,7 @@ impl<'model> LlamaContext<'model> {
             },
             keeps_no_memory,
             embeddings,
+            evaluated_tokens: 0,
         })
     }
 
@@ -442,10 +444,19 @@ impl<'model> LlamaContext<'model> {
         }
     }
 
-    /// Records the rows a llama.cpp helper wrote when it decoded on this context without one of
-    /// this context's batches, such as the mtmd helper decoding media chunks.
-    pub fn record_helper_decode(&mut self, logits_last: bool) {
+    /// Records the tokens and the rows a llama.cpp helper evaluated and wrote when it decoded on
+    /// this context without one of this context's batches, such as the mtmd helper decoding media
+    /// chunks.
+    pub fn record_helper_decode(&mut self, evaluated_tokens: u64, logits_last: bool) {
+        self.evaluated_tokens += evaluated_tokens;
         self.decoded_outputs.rows = DecodedOutputRows::of_helper_decode(logits_last);
+    }
+
+    /// The tokens llama.cpp evaluated on this context: every token of each batch it decoded or
+    /// encoded successfully, and every token the mtmd helper decoded.
+    #[must_use]
+    pub const fn evaluated_tokens(&self) -> u64 {
+        self.evaluated_tokens
     }
 
     fn record_batch_output_rows(&mut self, output_token_indices: &[i32]) {
@@ -492,6 +503,7 @@ impl<'model> LlamaContext<'model> {
         };
 
         process_status_to_result::<TProcessError>(status, out_llama_cpp_return_code, out_error)?;
+        self.evaluated_tokens += u64::from(batch.n_tokens().unsigned_abs());
         self.record_batch_output_rows(batch.output_token_indices());
 
         Ok(())

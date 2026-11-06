@@ -9,7 +9,6 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
@@ -19,6 +18,8 @@ use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsage;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
+use llama_cpp_bindings_tests::system_message::system_message;
+use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -29,7 +30,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
     fixture: &LlamaFixture<'model>,
     audio_file_name: &str,
     after_evaluation: impl FnOnce(
-        &mut SampledTokenClassifier<'_, 'model>,
+        &mut SampledTokenClassifier<'model>,
         &mut LlamaContext<'model>,
         ChunkTokenBreakdown,
         i32,
@@ -49,14 +50,14 @@ fn evaluate_audio_prompt<'model, TOutcome>(
 
     let marker = mtmd_default_marker()?;
     let messages = [
-        LlamaChatMessage::new("system".to_string(), TRANSCRIBE_SYSTEM_PROMPT.to_string())?,
-        LlamaChatMessage::new("user".to_string(), marker.to_owned())?,
+        system_message(TRANSCRIBE_SYSTEM_PROMPT),
+        user_message(marker),
     ];
     let session = ChatSession::new(
         model,
         model.chat_templates()?,
         &messages,
-        "[]",
+        &[],
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: true,
@@ -88,7 +89,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
         "tokenization should produce at least one chunk"
     );
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

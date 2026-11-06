@@ -13,7 +13,7 @@ use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 /// Panics when tokenizing or classifying fails, or when the classifier ends the generation
 /// before the end-of-sequence token, or does not end it on that token.
 pub fn ingested_generation(
-    classifier: &mut SampledTokenClassifier<'_, '_>,
+    classifier: &mut SampledTokenClassifier<'_>,
     model: &LlamaModel,
     generated_text: &str,
 ) -> Vec<IngestOutcome> {

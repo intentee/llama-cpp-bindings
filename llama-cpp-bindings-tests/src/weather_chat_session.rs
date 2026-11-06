@@ -3,9 +3,9 @@ use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 
-use crate::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
+use crate::get_weather_tools::get_weather_tools;
+use crate::user_message::user_message;
 
 /// A chat session that asks for the weather in Paris, offering the weather tool with
 /// `tool_choice`.
@@ -14,18 +14,14 @@ use crate::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
 ///
 /// Panics when the model's template cannot serve the request.
 #[must_use]
-pub fn weather_chat_session(model: &LlamaModel, tool_choice: ChatToolChoice) -> ChatSession<'_> {
+pub fn weather_chat_session(model: &LlamaModel, tool_choice: ChatToolChoice) -> ChatSession {
     ChatSession::new(
         model,
         model
             .chat_templates()
             .expect("the model must have chat templates"),
-        &[LlamaChatMessage::new(
-            "user".to_owned(),
-            "What is the weather in Paris?".to_owned(),
-        )
-        .expect("the question holds no NUL byte")],
-        GET_WEATHER_TOOLS_JSON,
+        &[user_message("What is the weather in Paris?")],
+        &get_weather_tools(),
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: false,

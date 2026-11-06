@@ -4,7 +4,9 @@ use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
+use llama_cpp_bindings_types::chat_tool::ChatTool;
+
+use crate::user_message::user_message;
 
 const PREFILLED_REASONING: &str = "\nThe question is simple, so I answer it directly.\n";
 const PREFILLED_CONTENT: &str = "\n\n";
@@ -16,23 +18,20 @@ const PREFILLED_CONTENT: &str = "\n\n";
 ///
 /// # Panics
 ///
-/// Panics when the question holds a NUL byte or the model's template cannot serve the request.
+/// Panics when the model's template cannot serve the request.
 #[must_use]
-pub fn closed_reasoning_chat_session<'model>(
-    model: &'model LlamaModel,
+pub fn closed_reasoning_chat_session(
+    model: &LlamaModel,
     question: &str,
-    tools_json: &str,
-) -> ChatSession<'model> {
+    tools: &[ChatTool],
+) -> ChatSession {
     ChatSession::new(
         model,
         model
             .chat_templates()
             .expect("the model must have chat templates"),
-        &[
-            LlamaChatMessage::new("user".to_owned(), question.to_owned())
-                .expect("the question must hold no NUL byte"),
-        ],
-        tools_json,
+        &[user_message(question)],
+        tools,
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::ContinueContent(ChatAssistantPrefill {
                 reasoning_content: PREFILLED_REASONING.to_owned(),

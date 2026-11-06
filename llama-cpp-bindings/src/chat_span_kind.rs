@@ -42,7 +42,7 @@ impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
                 Ok(Self::ToolCallMarker)
             }
             other => Err(FfiStatusError {
-                operation: "llama_rs_chat_spans_view_of",
+                operation: "llama_rs_chat_reading_spans_view",
                 code: i64::from(other),
             }),
         }
@@ -112,7 +112,7 @@ mod tests {
         assert_eq!(
             ChatSpanKind::try_from(99),
             Err(FfiStatusError {
-                operation: "llama_rs_chat_spans_view_of",
+                operation: "llama_rs_chat_reading_spans_view",
                 code: 99,
             })
         );

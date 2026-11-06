@@ -8,10 +8,24 @@ use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use crate::chat_answer::ChatAnswer;
 use crate::classify_sample_loop::ClassifySampleLoop;
 
+fn thinking_tags(session: &ChatSession) -> Vec<String> {
+    let mut tags = session
+        .thinking_end_tags()
+        .expect("the session's thinking end tags must be UTF-8");
+
+    tags.push(
+        session
+            .thinking_start_tag()
+            .expect("the session's thinking start tag must be UTF-8"),
+    );
+
+    tags
+}
+
 /// Generates the answer to a chat session from its tokenized prompt, classifying every token.
 pub struct ChatAnswerGeneration<'borrow, 'model> {
     pub fixture: &'borrow LlamaFixture<'model>,
-    pub session: &'borrow ChatSession<'model>,
+    pub session: ChatSession,
     pub sampler: &'borrow mut LlamaSampler,
     pub max_generated_tokens: i32,
 }
@@ -19,8 +33,8 @@ pub struct ChatAnswerGeneration<'borrow, 'model> {
 impl ChatAnswerGeneration<'_, '_> {
     /// # Panics
     ///
-    /// Panics when creating the context, tokenizing or decoding the prompt, or generating the
-    /// answer fails.
+    /// Panics when creating the context, tokenizing or decoding the prompt, generating the
+    /// answer, or parsing the classifier's final reading fails.
     #[must_use]
     pub fn run(self) -> ChatAnswer {
         let Self {
@@ -33,9 +47,11 @@ impl ChatAnswerGeneration<'_, '_> {
             .build_context()
             .expect("the fixture's context must build");
         let prompt_tokens = session
-            .tokenize_prompt()
+            .tokenize_prompt(fixture.model)
             .expect("the session's prompt must tokenize");
-        let mut classifier = SampledTokenClassifier::for_chat_session(session);
+        let thinking_tags = thinking_tags(&session);
+        let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)
+            .expect("the session must read its empty answer");
         let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
         classifier
@@ -57,9 +73,18 @@ impl ChatAnswerGeneration<'_, '_> {
         }
         .run();
 
+        let parse = classifier
+            .latest_reading()
+            .expect("a generated answer must have been read")
+            .parse()
+            .cloned()
+            .expect("the classifier's final reading must parse");
+
         ChatAnswer {
             outcome,
             usage: classifier.into_usage(),
+            thinking_tags,
+            parse,
         }
     }
 }
