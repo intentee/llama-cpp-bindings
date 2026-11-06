@@ -5,8 +5,33 @@
 #include <common/chat.h>
 #include <llama.h>
 
+#include <exception>
 #include <memory>
+#include <new>
 #include <string>
+
+namespace {
+auto default_template_source_of(const struct llama_model * model, const char * template_override) -> std::string {
+    if (*template_override != '\0') {
+        return template_override;
+    }
+
+    return llama_model_chat_template(model, nullptr);
+}
+
+auto templates_reporting_the_parse_error(const struct llama_model * model, const char * template_override)
+    -> common_chat_templates_ptr {
+    try {
+        return common_chat_templates_init(model, std::string(template_override));
+    } catch (const std::bad_alloc &) {
+        throw;
+    } catch (const std::exception &) {
+        const auto reparsed_template = std::make_unique<common_chat_template>(
+            default_template_source_of(model, template_override), std::string(), std::string());
+        throw;
+    }
+}
+}  // namespace
 
 extern "C" auto llama_rs_chat_templates_init(
     const struct llama_model * model,
@@ -37,7 +62,7 @@ extern "C" auto llama_rs_chat_templates_init(
 
     try {
         auto templates = std::make_unique<llama_rs_chat_templates>();
-        templates->templates = common_chat_templates_init(model, std::string(template_override));
+        templates->templates = templates_reporting_the_parse_error(model, template_override);
 
         *out_templates = templates.release();
 

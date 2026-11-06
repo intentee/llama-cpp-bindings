@@ -70,6 +70,7 @@ mod special_tokens;
 mod state_snapshots;
 mod token_attributes;
 mod token_candidates;
+mod token_evaluation_accounting;
 mod tokenization;
 mod tool_call_classification;
 mod tool_call_grammar;

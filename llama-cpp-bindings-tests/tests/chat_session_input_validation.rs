@@ -8,11 +8,10 @@ use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::error::new_llama_chat_message_error::NewLlamaChatMessageError;
 use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
-use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
+use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
-use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
+use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -24,100 +23,14 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 64,
     n_ubatch = 64,
 )]
-fn chat_message_reports_the_nul_byte_position_after_the_media_marker(
+fn a_question_holding_a_nul_character_is_rendered_into_the_prompt_after_the_media_marker(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let Err(failure) = media_question_chat_session(fixture.model, "describe\0this") else {
-        bail!("an interior NUL byte in the question must refuse the message");
-    };
-    let NewLlamaChatMessageError::NulError(nul_error) =
-        failure.downcast::<NewLlamaChatMessageError>()?;
+    let prompt = media_question_chat_session(fixture.model, "describe\0this")?.prompt()?;
 
-    assert_eq!(nul_error.nul_position(), "<__media__>describe".len());
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn chat_session_refuses_a_tool_missing_its_function_name(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let tools_json = r#"[{"type":"function","function":{"description":"reports the weather"}}]"#;
-    let result = user_turn_chat_session(fixture.model, "hello", tools_json, false);
-    let Err(failure) = result else {
-        bail!("a tool without a function name must refuse the chat session");
-    };
-
-    assert_eq!(
-        failure.downcast::<ChatSessionError>()?,
-        ChatSessionError::ToolsInvalid {
-            message: "Failed to parse tools: [json.exception.out_of_range.403] key 'name' not \
-                      found; tools = [\n  {\n    \"type\": \"function\",\n    \"function\": {\n      \
-                      \"description\": \"reports the weather\"\n    }\n  }\n]"
-                .to_owned(),
-        }
-    );
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn chat_session_refuses_tools_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
-    assert_eq!(
-        user_turn_chat_session(fixture.model, "hello", "[\0]", false)
-            .err()
-            .and_then(|failure| failure.downcast::<ChatSessionError>().ok()),
-        CString::new("[\0]")
-            .err()
-            .map(ChatSessionError::RequestContainsNul)
-    );
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn chat_session_refuses_a_message_that_is_not_utf8(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let not_utf8 = CString::new([0xff])?;
-    let message = LlamaChatMessage {
-        role: CString::new("user")?,
-        content: not_utf8.clone(),
-    };
-
-    assert_eq!(
-        ChatSession::new(
-            fixture.model,
-            fixture.model.chat_templates()?,
-            &[message],
-            "[]",
-            &ChatSessionOptions {
-                assistant_turn: ChatAssistantTurn::New,
-                enable_thinking: false,
-                parallel_tool_calls: false,
-                tool_choice: ChatToolChoice::Auto,
-            },
-        )
-        .err(),
-        not_utf8
-            .to_str()
-            .err()
-            .map(ChatSessionError::MessageNotUtf8)
+    assert!(
+        prompt.contains(&format!("{}describe\0this", mtmd_default_marker()?)),
+        "{prompt:?}"
     );
 
     Ok(())
@@ -137,11 +50,8 @@ fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
     let session = ChatSession::new(
         fixture.model,
         fixture.model.chat_templates()?,
-        &[LlamaChatMessage::new(
-            "user".to_owned(),
-            "hello".to_owned(),
-        )?],
-        "[]",
+        &[user_message("hello")],
+        &[],
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::ContinueReasoning("a\0b".to_owned()),
             enable_thinking: true,
@@ -158,7 +68,7 @@ fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
     };
 
     assert_eq!(
-        session.tokenize_prompt().err(),
+        session.tokenize_prompt(fixture.model).err(),
         Some(ChatSessionError::PromptTokenization(
             StringToTokenError::NulError(nul_error)
         ))
@@ -181,11 +91,8 @@ fn a_conversation_the_template_raises_on_is_refused_with_the_template_message(
     let result = ChatSession::new(
         fixture.model,
         fixture.model.chat_templates()?,
-        &[
-            LlamaChatMessage::new("user".to_owned(), "hello".to_owned())?,
-            LlamaChatMessage::new("user".to_owned(), "are you there?".to_owned())?,
-        ],
-        "[]",
+        &[user_message("hello"), user_message("are you there?")],
+        &[],
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: false,

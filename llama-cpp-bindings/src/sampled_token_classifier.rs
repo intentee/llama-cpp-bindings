@@ -9,12 +9,14 @@ use crate::batch_add_error::BatchAddError;
 use crate::chat_output::ChatOutput;
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_piece_role::ChatPieceRole;
+use crate::chat_reading::ChatReading;
 use crate::chat_session::ChatSession;
 use crate::chat_session_attribution::ChatSessionAttribution;
 use crate::classified_sample::ClassifiedSample;
 use crate::context::LlamaContext;
 use crate::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use crate::error::ingest_error::IngestError;
+use crate::error::parse_chat_message_error::ParseChatMessageError;
 use crate::error::sample_error::SampleError;
 use crate::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use crate::generation_progress::GenerationProgress;
@@ -48,16 +50,16 @@ const fn outcome_of(token: LlamaToken, role: ChatPieceRole, piece: String) -> In
 /// Attributes every generated token to reasoning, content, or a tool call, the way llama.cpp's
 /// parse of the chat template attributes the text the token decoded to, and counts the tokens
 /// of each section.
-pub struct SampledTokenClassifier<'session, 'model> {
+pub struct SampledTokenClassifier<'model> {
     model: &'model LlamaModel,
-    attribution: TokenAttribution<'session, 'model>,
+    attribution: TokenAttribution,
     decoder: encoding_rs::Decoder,
     section: SampledTokenSection,
     pending_prompt_tokens: u64,
     usage: TokenUsage,
 }
 
-impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
+impl<'model> SampledTokenClassifier<'model> {
     /// A classifier for generation outside of a chat template, whose tokens belong to no
     /// section.
     #[must_use]
@@ -72,22 +74,34 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
         }
     }
 
-    /// A classifier for the answer to `session`.
-    #[must_use]
-    pub fn for_chat_session(session: &'session ChatSession<'model>) -> Self {
-        Self {
-            model: session.model(),
-            attribution: TokenAttribution::ChatSession(ChatSessionAttribution {
-                session,
+    /// A classifier for the answer to `session`, which was created for `model`. The classifier
+    /// owns the session for as long as the answer is generated, starting from the session's
+    /// reading of an answer with nothing generated yet.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseChatMessageError`] when llama.cpp fails while reading the empty answer.
+    pub fn for_chat_session(
+        model: &'model LlamaModel,
+        session: ChatSession,
+    ) -> Result<Self, ParseChatMessageError> {
+        let output = ChatOutput::default();
+        let latest_reading = session.read(&output, ChatOutputCompleteness::Partial)?;
+
+        Ok(Self {
+            model,
+            attribution: TokenAttribution::ChatSession(Box::new(ChatSessionAttribution {
                 preserved_tokens: session.preserved_tokens(),
-                output: ChatOutput::default(),
+                session,
+                output,
                 pending_pieces: VecDeque::new(),
-            }),
+                latest_reading,
+            })),
             decoder: encoding_rs::UTF_8.new_decoder(),
             section: SampledTokenSection::Pending,
             pending_prompt_tokens: 0,
             usage: TokenUsage::new(),
-        }
+        })
     }
 
     /// Classifies a generated token and appends every outcome it settles to `outcomes`. An
@@ -156,9 +170,10 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
         let TokenAttribution::ChatSession(attribution) = &mut self.attribution else {
             return Ok(());
         };
-        let classification = attribution
+        let reading = attribution
             .session
-            .classify(&attribution.output, completeness)?;
+            .read(&attribution.output, completeness)?;
+        let classification = reading.classification();
         let mut released = Vec::new();
 
         while let Some(pending_piece) = attribution.pending_pieces.pop_front() {
@@ -169,6 +184,8 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
 
             released.push(outcome_of(pending_piece.token, role, pending_piece.piece));
         }
+
+        attribution.latest_reading = reading;
 
         for outcome in released {
             self.section = outcome.sampled_token.section();
@@ -356,5 +373,16 @@ impl<'session, 'model> SampledTokenClassifier<'session, 'model> {
     #[must_use]
     pub const fn current_section(&self) -> SampledTokenSection {
         self.section
+    }
+
+    /// The template parser's latest reading of the answer, the one that attributed the most
+    /// recent outcomes, or `None` for generation outside of a chat template. Parsing it maps
+    /// that same parse into the answer's message.
+    #[must_use]
+    pub fn latest_reading(&self) -> Option<&ChatReading> {
+        match &self.attribution {
+            TokenAttribution::Undeterminable => None,
+            TokenAttribution::ChatSession(attribution) => Some(&attribution.latest_reading),
+        }
     }
 }

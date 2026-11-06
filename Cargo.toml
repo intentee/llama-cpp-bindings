@@ -46,7 +46,7 @@ llama-cpp-log-decoder = { path = "llama-cpp-log-decoder", version = "=0.27.0" }
 llama-cpp-test-harness = { path = "llama-cpp-test-harness", version = "=0.27.0" }
 llama-cpp-test-harness-macros = { path = "llama-cpp-test-harness-macros", version = "=0.27.0" }
 llama-cpp-test-model-provisioning = { path = "llama-cpp-test-model-provisioning", version = "=0.27.0" }
-llama-cpp-fault-injection = { path = "llama-cpp-fault-injection" }
+llama-cpp-fault-injection = { path = "llama-cpp-fault-injection", version = "=0.27.0" }
 llama-cpp-wrapper-error-fixture = { path = "llama-cpp-wrapper-error-fixture" }
 llama-cpp-wrapper-sources = { path = "llama-cpp-wrapper-sources", version = "=0.27.0" }
 llguidance = "=1.7.0"

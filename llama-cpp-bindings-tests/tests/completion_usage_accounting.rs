@@ -9,11 +9,11 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
+use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -177,15 +177,12 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let messages = [LlamaChatMessage::new(
-        "user".to_string(),
-        "Hello! How are you?".to_string(),
-    )?];
+    let messages = [user_message("Hello! How are you?")];
     let session = ChatSession::new(
         model,
         model.chat_templates()?,
         &messages,
-        "[]",
+        &[],
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: true,
@@ -194,8 +191,8 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         },
     )?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
-    let tokens = session.tokenize_prompt()?;
+    let tokens = session.tokenize_prompt(fixture.model)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));

@@ -1,7 +1,5 @@
 use anyhow::Result;
-use anyhow::bail;
 
-use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
@@ -18,17 +16,12 @@ use llama_cpp_test_harness_macros::llama_test;
 const GENERATED_REASONING: &str = "step one, step two";
 const GENERATED_CONTENT: &str = "actual response";
 
-fn parsed_content_after_closed_reasoning(fixture: &LlamaFixture<'_>) -> Result<ParsedChatMessage> {
-    let outcome = closed_reasoning_chat_session(fixture.model, "hello", "[]").parse(
-        &ChatOutput::from("hello world"),
+fn parsed_content_after_closed_reasoning(fixture: &LlamaFixture<'_>) -> ParsedChatMessage {
+    recognized_answer(
+        &closed_reasoning_chat_session(fixture.model, "hello", &[]),
+        "hello world",
         ChatOutputCompleteness::Finished,
-    )?;
-
-    let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
-        bail!("expected Recognized for plain content; got Unrecognized");
-    };
-
-    Ok(parsed)
+    )
 }
 
 #[llama_test(
@@ -49,17 +42,15 @@ fn parsed_content_after_closed_reasoning(fixture: &LlamaFixture<'_>) -> Result<P
 )]
 fn templates_that_keep_prefill_whitespace_parse_it_into_reasoning_and_content(
     fixture: &LlamaFixture<'_>,
-) -> Result<()> {
+) {
     assert_eq!(
-        parsed_content_after_closed_reasoning(fixture)?,
+        parsed_content_after_closed_reasoning(fixture),
         ParsedChatMessage::new(
             "\n\nhello world".to_owned(),
             "\nThe question is simple, so I answer it directly.\n".to_owned(),
             Vec::new()
         )
     );
-
-    Ok(())
 }
 
 #[llama_test(
@@ -78,23 +69,19 @@ fn templates_that_keep_prefill_whitespace_parse_it_into_reasoning_and_content(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn qwen_templates_parse_trimmed_prefill_into_reasoning_and_content(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
+fn qwen_templates_parse_trimmed_prefill_into_reasoning_and_content(fixture: &LlamaFixture<'_>) {
     assert_eq!(
-        parsed_content_after_closed_reasoning(fixture)?,
+        parsed_content_after_closed_reasoning(fixture),
         ParsedChatMessage::new(
             "hello world".to_owned(),
             "The question is simple, so I answer it directly.\n".to_owned(),
             Vec::new()
         )
     );
-
-    Ok(())
 }
 
 fn reasoning_parsed_before_the_end_tag(fixture: &LlamaFixture<'_>) -> Result<ParsedChatMessage> {
-    let session = user_turn_chat_session(fixture.model, "hello", "[]", true)?;
+    let session = user_turn_chat_session(fixture.model, "hello", &[], true)?;
 
     Ok(recognized_answer(
         &session,
@@ -198,13 +185,12 @@ fn parses_the_reasoning_before_the_end_tag_apart_from_the_content(
     n_ubatch = 64,
 )]
 fn parses_an_empty_answer_into_an_empty_message(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let outcome = user_turn_chat_session(fixture.model, "hello", "[]", false)?
-        .parse(&ChatOutput::from(""), ChatOutputCompleteness::Finished)?;
+    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
 
-    let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
-        bail!("expected Recognized for empty input; got Unrecognized");
-    };
-    assert_eq!(parsed, ParsedChatMessage::default());
+    assert_eq!(
+        recognized_answer(&session, "", ChatOutputCompleteness::Finished),
+        ParsedChatMessage::default()
+    );
 
     Ok(())
 }
@@ -218,16 +204,12 @@ fn parses_an_empty_answer_into_an_empty_message(fixture: &LlamaFixture<'_>) -> R
     n_ubatch = 64,
 )]
 fn parses_an_answer_with_a_nul_byte_as_content(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let outcome = user_turn_chat_session(fixture.model, "hello", "[]", false)?.parse(
-        &ChatOutput::from("hello\0world"),
-        ChatOutputCompleteness::Finished,
-    )?;
+    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
 
-    let ChatMessageParseOutcome::Recognized(parsed) = outcome else {
-        bail!("an answer with a NUL byte must be recognized as content");
-    };
-
-    assert_eq!(parsed.content, "hello\0world");
+    assert_eq!(
+        recognized_answer(&session, "hello\0world", ChatOutputCompleteness::Finished).content,
+        "hello\0world"
+    );
 
     Ok(())
 }
@@ -241,16 +223,13 @@ fn parses_an_answer_with_a_nul_byte_as_content(fixture: &LlamaFixture<'_>) -> Re
     n_ubatch = 64,
 )]
 fn qwen35_chat_session_parses_every_answer_it_is_given(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", "[]", false)?;
+    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
 
     for answer in ["the first answer", "the second answer"] {
-        let ChatMessageParseOutcome::Recognized(parsed) =
-            session.parse(&ChatOutput::from(answer), ChatOutputCompleteness::Finished)?
-        else {
-            bail!("expected {answer:?} to be recognized as content");
-        };
-
-        assert_eq!(parsed.content, answer);
+        assert_eq!(
+            recognized_answer(&session, answer, ChatOutputCompleteness::Finished).content,
+            answer
+        );
     }
 
     Ok(())
@@ -282,12 +261,35 @@ fn every_parsed_field_refuses_text_that_is_not_utf8(fixture: &LlamaFixture<'_>) 
 
     assert_eq!(
         fault_points.map(|fault_point| {
+            let reading = session
+                .read(&answer, ChatOutputCompleteness::Finished)
+                .expect("the weather answer must be read");
             let _fault = ArmedFault::at(fault_point);
 
-            session
-                .parse(&answer, ChatOutputCompleteness::Finished)
-                .err()
+            reading.parse().err().cloned()
         }),
         fault_points.map(|_fault_point| Some(ParseChatMessageError::ParsedTextNotUtf8(not_utf8)))
     );
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn a_reading_maps_its_parse_once_and_keeps_it(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let reading = user_turn_chat_session(fixture.model, "hello", &[], false)?.read(
+        &ChatOutput::from("Hello there."),
+        ChatOutputCompleteness::Finished,
+    )?;
+    let first_parse = reading.parse().cloned();
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_READING_PARSE_THROWS);
+
+    assert_eq!(reading.parse().cloned(), first_parse);
+
+    Ok(())
 }

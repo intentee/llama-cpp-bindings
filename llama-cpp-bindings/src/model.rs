@@ -1,5 +1,4 @@
 pub mod add_bos;
-pub mod llama_chat_message;
 pub mod llama_chat_template;
 pub mod llama_lazy_mode;
 pub mod llama_lazy_mode_parse_error;

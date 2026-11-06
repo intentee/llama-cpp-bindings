@@ -100,6 +100,17 @@ impl ChatSpans {
         })
     }
 
+    /// The section the parsed output ends in, or [`SampledTokenSection::Pending`] when the parse
+    /// attributes no text to a section.
+    #[must_use]
+    pub fn trailing_section(&self) -> SampledTokenSection {
+        self.segments
+            .last()
+            .map_or(SampledTokenSection::Pending, |segment| {
+                segment.role.section()
+            })
+    }
+
     /// Returns how llama.cpp's parse attributes the token whose text occupies `bytes` of the
     /// output, or `None` while the parse has not settled the token yet.
     #[must_use]
@@ -154,6 +165,22 @@ mod tests {
             ],
             completeness,
         )
+    }
+
+    #[test]
+    fn an_output_ends_in_the_section_of_its_last_span() {
+        assert_eq!(
+            reasoning_then_content(ChatOutputCompleteness::Partial).trailing_section(),
+            SampledTokenSection::Content
+        );
+    }
+
+    #[test]
+    fn an_output_without_spans_ends_in_no_section() {
+        assert_eq!(
+            ChatSpans::new(0, &[], ChatOutputCompleteness::Partial).trailing_section(),
+            SampledTokenSection::Pending
+        );
     }
 
     #[test]

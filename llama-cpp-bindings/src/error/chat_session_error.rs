@@ -1,4 +1,3 @@
-use std::ffi::NulError;
 use std::str::Utf8Error;
 
 use llama_cpp_ffi_status::cpp_string_error::CppStringError;
@@ -17,14 +16,6 @@ pub enum ChatSessionError {
     FfiStatus(#[from] FfiStatusError),
     #[error(transparent)]
     FfiContract(#[from] FfiContractError),
-    #[error("a chat message is not valid UTF-8")]
-    MessageNotUtf8(#[source] Utf8Error),
-    #[error("the chat request contains an interior NUL byte")]
-    RequestContainsNul(#[source] NulError),
-    #[error("the tools are not valid JSON: {message}")]
-    ToolsNotJson { message: String },
-    #[error("the tools are not valid tool definitions: {message}")]
-    ToolsInvalid { message: String },
     #[error("the chat template cannot serve the request: {message}")]
     TemplateCannotServeRequest { message: String },
     #[error("text the chat session holds is not valid UTF-8")]

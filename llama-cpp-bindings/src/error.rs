@@ -26,7 +26,6 @@ pub mod memory_seq_pos_max_error;
 pub mod memory_seq_rm_error;
 pub mod meta_val_error;
 pub mod model_params_error;
-pub mod new_llama_chat_message_error;
 pub mod parse_chat_message_error;
 pub mod process_failure;
 pub mod sample_error;

@@ -2,15 +2,19 @@ use anyhow::Result;
 use serde_json::json;
 
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
+use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
-use llama_cpp_bindings_tests::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
+use llama_cpp_bindings::raw_chat_message::RawChatMessage;
+use llama_cpp_bindings_tests::get_weather_tools::get_weather_tools;
 use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
+use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
+use llama_cpp_bindings_types::chat_tool::ChatTool;
 use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
 use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
 use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
@@ -18,39 +22,8 @@ use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
 const WEATHER_QUESTION: &str = "What is the weather in Paris?";
+const MALFORMED_QWEN_XML_TOOL_CALL: &str = "<tool_call>garbage</tool_call>";
 const PLAIN_CONTENT_REFUSAL: &str = "Sorry, I cannot help with that.";
-
-const NEGOTIATE_WITH_CAT_TOOLS_JSON: &str = r#"[
-    {
-        "type": "function",
-        "function": {
-            "name": "negotiate_with_cat",
-            "description": "Attempt to negotiate with a cat. Outcomes are not guaranteed and may include the silent treatment.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "topic": {
-                        "type": "string",
-                        "description": "What you are trying to negotiate, e.g. 'get off the keyboard' or 'stop knocking things off the table'"
-                    },
-                    "bribe": {
-                        "type": "string",
-                        "enum": ["tuna", "salmon", "treats", "ear_scritches", "cardboard_box", "none"],
-                        "description": "What you are offering in exchange"
-                    },
-                    "desperation_level": {
-                        "type": "integer",
-                        "description": "How desperate you are, on a scale from 1 (mildly annoyed human) to 10 (it is 3am)",
-                        "minimum": 1,
-                        "maximum": 10
-                    }
-                },
-                "required": ["topic"],
-                "additionalProperties": false
-            }
-        }
-    }
-]"#;
 
 const QWEN_XML_PARIS_WEATHER_CALL: &str = "<tool_call>\n\
 <function=get_weather>\n\
@@ -60,13 +33,38 @@ Paris\n\
 </function>\n\
 </tool_call>";
 
+fn negotiate_with_cat_tools() -> Vec<ChatTool> {
+    vec![ChatTool {
+        name: "negotiate_with_cat".to_owned(),
+        description: "Attempt to negotiate with a cat. Outcomes are not guaranteed and may include the silent treatment.".to_owned(),
+        parameters: Some(json!({
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "What you are trying to negotiate, e.g. 'get off the keyboard' or 'stop knocking things off the table'"
+                },
+                "bribe": {
+                    "type": "string",
+                    "enum": ["tuna", "salmon", "treats", "ear_scritches", "cardboard_box", "none"],
+                    "description": "What you are offering in exchange"
+                },
+                "desperation_level": {
+                    "type": "integer",
+                    "description": "How desperate you are, on a scale from 1 (mildly annoyed human) to 10 (it is 3am)",
+                    "minimum": 1,
+                    "maximum": 10
+                }
+            },
+            "required": ["topic"],
+            "additionalProperties": false
+        })),
+    }]
+}
+
 fn assert_parses_to_paris_weather_call(fixture: &LlamaFixture<'_>, answer: &str) -> Result<()> {
-    let session = user_turn_chat_session(
-        fixture.model,
-        WEATHER_QUESTION,
-        GET_WEATHER_TOOLS_JSON,
-        false,
-    )?;
+    let session =
+        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
     let parsed = recognized_answer(&session, answer, ChatOutputCompleteness::Finished);
 
     assert_eq!(parsed.tool_calls, [paris_weather_tool_call()]);
@@ -145,7 +143,7 @@ fn qwen35_parses_tool_call_arguments_into_their_schema_types(
     let session = user_turn_chat_session(
         fixture.model,
         "Get the cat off the keyboard.",
-        NEGOTIATE_WITH_CAT_TOOLS_JSON,
+        &negotiate_with_cat_tools(),
         false,
     )?;
     let parsed = recognized_answer(
@@ -193,12 +191,8 @@ tuna\n\
 fn qwen35_parses_a_tool_call_cut_inside_its_arguments_as_a_named_call(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(
-        fixture.model,
-        WEATHER_QUESTION,
-        GET_WEATHER_TOOLS_JSON,
-        false,
-    )?;
+    let session =
+        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
     let parsed = recognized_answer(
         &session,
         "<tool_call>\n<function=get_weather>\n<parameter=lo",
@@ -229,11 +223,8 @@ fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> 
     let session = ChatSession::new(
         fixture.model,
         fixture.model.chat_templates()?,
-        &[LlamaChatMessage::new(
-            "user".to_owned(),
-            "What is the weather in Paris and in Berlin?".to_owned(),
-        )?],
-        GET_WEATHER_TOOLS_JSON,
+        &[user_message("What is the weather in Paris and in Berlin?")],
+        &get_weather_tools(),
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: false,
@@ -284,12 +275,8 @@ fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> 
 fn plain_content_answering_a_tool_request_parses_without_tool_calls(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(
-        fixture.model,
-        WEATHER_QUESTION,
-        GET_WEATHER_TOOLS_JSON,
-        false,
-    )?;
+    let session =
+        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
     let parsed = recognized_answer(
         &session,
         PLAIN_CONTENT_REFUSAL,
@@ -312,10 +299,41 @@ fn plain_content_answering_a_tool_request_parses_without_tool_calls(
 fn deepseek_r1_8b_plain_content_without_tools_parses_without_tool_calls(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "Hello!", "[]", false)?;
+    let session = user_turn_chat_session(fixture.model, "Hello!", &[], false)?;
     let parsed = recognized_answer(&session, "Hello there.", ChatOutputCompleteness::Finished);
 
     assert_eq!(parsed.tool_calls, []);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_reports_a_finished_tool_call_its_parser_stops_short_of_with_the_format_it_expected(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session =
+        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+
+    assert_eq!(
+        session
+            .read(
+                &ChatOutput::from(MALFORMED_QWEN_XML_TOOL_CALL),
+                ChatOutputCompleteness::Finished
+            )?
+            .parse(),
+        Ok(&ChatMessageParseOutcome::Unrecognized(RawChatMessage {
+            text: MALFORMED_QWEN_XML_TOOL_CALL.to_owned(),
+            completeness: ChatOutputCompleteness::Finished,
+            expected_format: "peg-native".to_owned(),
+        }))
+    );
 
     Ok(())
 }

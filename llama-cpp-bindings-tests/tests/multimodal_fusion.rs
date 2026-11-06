@@ -10,7 +10,6 @@ use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
 use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
@@ -20,6 +19,7 @@ use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
+use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -27,16 +27,16 @@ const MAX_GENERATED_TOKENS: i32 = 512;
 const DESCRIBE_INSTRUCTION: &str =
     "Describe the animal shown in the image, then write the exact words spoken in the audio.";
 
-fn describe_image_and_audio_chat_session(model: &LlamaModel) -> Result<ChatSession<'_>> {
+fn describe_image_and_audio_chat_session(model: &LlamaModel) -> Result<ChatSession> {
     let marker = mtmd_default_marker()?;
     let user_content = format!("Image: {marker}\nAudio: {marker}\n{DESCRIBE_INSTRUCTION}");
-    let messages = [LlamaChatMessage::new("user".to_string(), user_content)?];
+    let messages = [user_message(&user_content)];
 
     Ok(ChatSession::new(
         model,
         model.chat_templates()?,
         &messages,
-        "[]",
+        &[],
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: false,
@@ -118,7 +118,7 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
     .with_context(|| "unable to create llama context")?;
 
     let n_batch = i32::try_from(context.n_batch())?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

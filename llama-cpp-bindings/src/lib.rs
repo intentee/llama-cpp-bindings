@@ -14,6 +14,7 @@ pub mod chat_output;
 pub mod chat_output_completeness;
 pub mod chat_piece_role;
 pub mod chat_prompt_part;
+pub mod chat_reading;
 pub mod chat_session;
 mod chat_session_attribution;
 pub mod chat_session_options;

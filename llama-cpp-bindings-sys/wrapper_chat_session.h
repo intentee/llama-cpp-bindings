@@ -15,8 +15,8 @@ extern "C" {
 struct llama_rs_chat_session;
 typedef struct llama_rs_chat_session * llama_rs_chat_session_handle;
 
-struct llama_rs_chat_spans;
-typedef struct llama_rs_chat_spans * llama_rs_chat_spans_handle;
+struct llama_rs_chat_reading;
+typedef struct llama_rs_chat_reading * llama_rs_chat_reading_handle;
 
 typedef enum llama_rs_chat_tool_choice {
     LLAMA_RS_CHAT_TOOL_CHOICE_AUTO = 0,
@@ -46,8 +46,6 @@ typedef enum llama_rs_chat_session_create_status {
     LLAMA_RS_CHAT_SESSION_CREATE_NULL_TOOLS_JSON_ARG,
     LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_SESSION_ARG,
     LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_ERROR_ARG,
-    LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_NOT_JSON,
-    LLAMA_RS_CHAT_SESSION_CREATE_TOOLS_INVALID,
     LLAMA_RS_CHAT_SESSION_CREATE_TEMPLATE_CANNOT_SERVE_REQUEST,
     LLAMA_RS_CHAT_SESSION_CREATE_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_CHAT_SESSION_CREATE_LLAMA_CPP_OUT_OF_MEMORY,
@@ -58,7 +56,9 @@ llama_rs_chat_session_create_status llama_rs_chat_session_create(
     llama_rs_chat_templates_handle templates,
     const struct llama_vocab * vocab,
     const char * messages_json,
+    size_t messages_json_length,
     const char * tools_json,
+    size_t tools_json_length,
     llama_rs_chat_session_options options,
     llama_rs_chat_session_handle * out_session,
     char ** out_error);
@@ -118,28 +118,6 @@ const char * llama_rs_chat_session_thinking_end_tag(
     size_t index,
     size_t * out_length);
 
-typedef enum llama_rs_chat_session_parse_status {
-    LLAMA_RS_CHAT_SESSION_PARSE_OK = 0,
-    LLAMA_RS_CHAT_SESSION_PARSE_NULL_SESSION_ARG,
-    LLAMA_RS_CHAT_SESSION_PARSE_NULL_TEXT_ARG,
-    LLAMA_RS_CHAT_SESSION_PARSE_NULL_BYTE_TOKENS_ARG,
-    LLAMA_RS_CHAT_SESSION_PARSE_NULL_OUT_HANDLE_ARG,
-    LLAMA_RS_CHAT_SESSION_PARSE_NULL_OUT_ERROR_ARG,
-    LLAMA_RS_CHAT_SESSION_PARSE_OUTPUT_DOES_NOT_MATCH_FORMAT,
-    LLAMA_RS_CHAT_SESSION_PARSE_ERROR_STRING_ALLOCATION_FAILED,
-    LLAMA_RS_CHAT_SESSION_PARSE_LLAMA_CPP_OUT_OF_MEMORY,
-    LLAMA_RS_CHAT_SESSION_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-} llama_rs_chat_session_parse_status;
-
-llama_rs_chat_session_parse_status llama_rs_chat_session_parse(
-    llama_rs_chat_session_handle session,
-    const char * text,
-    size_t text_length,
-    const llama_token * byte_tokens,
-    bool is_partial,
-    llama_rs_parsed_chat_handle * out_handle,
-    char ** out_error);
-
 typedef enum llama_rs_chat_span_kind {
     LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK = 0,
     LLAMA_RS_CHAT_SPAN_KIND_REASONING,
@@ -160,31 +138,49 @@ typedef struct llama_rs_chat_spans_view {
     size_t parsed_length;
 } llama_rs_chat_spans_view;
 
-typedef enum llama_rs_chat_session_classify_status {
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_OK = 0,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_SESSION_ARG,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_TEXT_ARG,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_BYTE_TOKENS_ARG,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_OUT_SPANS_ARG,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_NULL_OUT_ERROR_ARG,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_OUTPUT_DOES_NOT_MATCH_FORMAT,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_ERROR_STRING_ALLOCATION_FAILED,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_LLAMA_CPP_OUT_OF_MEMORY,
-    LLAMA_RS_CHAT_SESSION_CLASSIFY_LLAMA_CPP_THREW_CXX_EXCEPTION,
-} llama_rs_chat_session_classify_status;
+typedef enum llama_rs_chat_session_read_status {
+    LLAMA_RS_CHAT_SESSION_READ_OK = 0,
+    LLAMA_RS_CHAT_SESSION_READ_NULL_SESSION_ARG,
+    LLAMA_RS_CHAT_SESSION_READ_NULL_TEXT_ARG,
+    LLAMA_RS_CHAT_SESSION_READ_NULL_BYTE_TOKENS_ARG,
+    LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_READING_ARG,
+    LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_ERROR_ARG,
+    LLAMA_RS_CHAT_SESSION_READ_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_chat_session_read_status;
 
-llama_rs_chat_session_classify_status llama_rs_chat_session_classify(
+llama_rs_chat_session_read_status llama_rs_chat_session_read(
     llama_rs_chat_session_handle session,
     const char * text,
     size_t text_length,
     const llama_token * byte_tokens,
     bool is_partial,
-    llama_rs_chat_spans_handle * out_spans,
+    llama_rs_chat_reading_handle * out_reading,
     char ** out_error);
 
-llama_rs_chat_spans_view llama_rs_chat_spans_view_of(llama_rs_chat_spans_handle spans);
+bool llama_rs_chat_reading_matches_format(llama_rs_chat_reading_handle reading);
 
-void llama_rs_chat_spans_free(llama_rs_chat_spans_handle spans);
+llama_rs_chat_spans_view llama_rs_chat_reading_spans_view(llama_rs_chat_reading_handle reading);
+
+const char * llama_rs_chat_reading_format_name(llama_rs_chat_reading_handle reading, size_t * out_length);
+
+typedef enum llama_rs_chat_reading_parse_status {
+    LLAMA_RS_CHAT_READING_PARSE_OK = 0,
+    LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG,
+    LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG,
+    LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG,
+    LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_chat_reading_parse_status;
+
+llama_rs_chat_reading_parse_status llama_rs_chat_reading_parse(
+    llama_rs_chat_reading_handle reading,
+    llama_rs_parsed_chat_handle * out_handle,
+    char ** out_error);
+
+void llama_rs_chat_reading_free(llama_rs_chat_reading_handle reading);
 
 typedef enum llama_rs_regex_escape_status {
     LLAMA_RS_REGEX_ESCAPE_OK = 0,

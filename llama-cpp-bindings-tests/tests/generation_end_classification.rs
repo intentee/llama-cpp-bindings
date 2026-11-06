@@ -32,8 +32,8 @@ fn qwen35_classifier_ends_generation_without_emitting_the_end_of_generation_toke
 ) -> Result<()> {
     const GENERATED_TEXT: &str = "The answer is four.";
 
-    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", false)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", &[], false)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
 
     assert_eq!(
         visible_text(&ingested_generation(
@@ -69,8 +69,8 @@ fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_co
     const SETTLED_REASONING: &str = "Let me think";
     const UNSETTLED_TAIL: &str = "</thi";
 
-    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", true)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", &[], true)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let mut outcomes = Vec::new();
 
     for token in fixture.model.str_to_token(
@@ -113,8 +113,8 @@ fn gemma3_whose_template_cannot_render_tool_calls_keeps_a_bare_json_tool_call_as
 ) -> Result<()> {
     const GENERATED_TEXT: &str = r#"{"name": "get_weather", "arguments": {"location": "Paris"}}"#;
 
-    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", "[]", false)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", &[], false)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT);
 
     assert_eq!(

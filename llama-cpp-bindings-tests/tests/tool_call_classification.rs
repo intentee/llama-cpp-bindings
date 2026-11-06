@@ -1,12 +1,11 @@
+use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings_tests::get_weather_tools_json::GET_WEATHER_TOOLS_JSON;
+use llama_cpp_bindings_tests::get_weather_tools::get_weather_tools;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
-use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -42,13 +41,20 @@ fn qwen35_reasoning_closed_by_a_tool_call_is_attributed_to_each_section(
     let session = user_turn_chat_session(
         fixture.model,
         "What is the weather in Paris?",
-        GET_WEATHER_TOOLS_JSON,
+        &get_weather_tools(),
         true,
     )?;
     let answer = format!("{REASONING_BEFORE_THE_CALL}{QWEN_XML_PARIS_WEATHER_CALL}");
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let outcomes = ingested_generation(&mut classifier, fixture.model, &answer);
-    let parsed = recognized_answer(&session, &answer, ChatOutputCompleteness::Finished);
+    let parsed = classifier
+        .latest_reading()
+        .context("the classifier must have read the answer")?
+        .parse()
+        .cloned()
+        .map_err(Clone::clone)?
+        .into_recognized()
+        .expect("the answer must be recognized");
 
     assert_eq!(
         raw_text_where(&outcomes, |token| matches!(

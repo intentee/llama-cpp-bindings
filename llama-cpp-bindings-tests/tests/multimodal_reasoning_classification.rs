@@ -10,7 +10,6 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::llama_chat_message::LlamaChatMessage;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
@@ -20,6 +19,8 @@ use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
+use llama_cpp_bindings_tests::system_message::system_message;
+use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -64,7 +65,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -148,8 +149,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let marker = mtmd_default_marker()?;
     let messages = [
-        LlamaChatMessage::new(
-            "system".to_owned(),
+        system_message(
             "# HOW YOU SHOULD THINK AND ANSWER\n\n\
          First draft your thinking process (inner monologue) until you arrive at a response. \
          Format your response using Markdown, and use LaTeX for any mathematical equations. \
@@ -157,16 +157,15 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
          Your thinking process must follow the template below:\
          [THINK]Your thoughts or/and draft, like working through an exercise on scratch paper. \
          Be as casual and as long as you want until you are confident to generate the response \
-         to the user.[/THINK]Here, provide a self-contained response."
-                .to_owned(),
-        )?,
-        LlamaChatMessage::new("user".to_owned(), format!("{marker}{PROMPT_QUESTION}"))?,
+         to the user.[/THINK]Here, provide a self-contained response.",
+        ),
+        user_message(&format!("{marker}{PROMPT_QUESTION}")),
     ];
     let session = ChatSession::new(
         model,
         model.chat_templates()?,
         &messages,
-        "[]",
+        &[],
         &ChatSessionOptions {
             assistant_turn: ChatAssistantTurn::New,
             enable_thinking: true,
@@ -182,7 +181,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -283,7 +282,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(&session);
+    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
