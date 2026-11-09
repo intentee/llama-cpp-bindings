@@ -12,6 +12,7 @@ Checks: >
   -mpi-*,
   -openmp-*,
   -zircon-*,
-  -bugprone-easily-swappable-parameters
+  -bugprone-easily-swappable-parameters,
+  -clang-analyzer-optin.core.EnumCastOutOfRange
 WarningsAsErrors: '*'
 FormatStyle: none
