@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 
+use llama_cpp_bindings::chat_assistant_prefill::ChatAssistantPrefill;
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
@@ -29,6 +30,7 @@ const TRANSCRIBE_SYSTEM_PROMPT: &str = "The audio contains speech by a third par
 fn evaluate_audio_prompt<'model, TOutcome>(
     fixture: &LlamaFixture<'model>,
     audio_file_name: &str,
+    assistant_turn: ChatAssistantTurn,
     after_evaluation: impl FnOnce(
         &mut SampledTokenClassifier<'model>,
         &mut LlamaContext<'model>,
@@ -59,7 +61,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
         &messages,
         &[],
         &ChatSessionOptions {
-            assistant_turn: ChatAssistantTurn::New,
+            assistant_turn,
             enable_thinking: true,
             parallel_tool_calls: false,
             tool_choice: ChatToolChoice::Auto,
@@ -112,10 +114,15 @@ fn evaluate_audio_prompt<'model, TOutcome>(
     )
 }
 
-fn transcribe_audio(fixture: &LlamaFixture<'_>, audio_file_name: &str) -> Result<String> {
+fn transcribe_audio(
+    fixture: &LlamaFixture<'_>,
+    audio_file_name: &str,
+    assistant_turn: ChatAssistantTurn,
+) -> Result<String> {
     evaluate_audio_prompt(
         fixture,
         audio_file_name,
+        assistant_turn,
         |classifier, context, _chunk_breakdown, n_past| {
             let mut sampler = LlamaSampler::greedy()?;
             let mut batch = LlamaBatch::new(ContextLimits::of(context));
@@ -140,7 +147,7 @@ fn assert_audio_transcription(
     expected_transcript: &str,
 ) -> Result<()> {
     assert_eq!(
-        transcribe_audio(fixture, audio_file_name)?,
+        transcribe_audio(fixture, audio_file_name, ChatAssistantTurn::New)?,
         expected_transcript
     );
 
@@ -162,14 +169,19 @@ fn assert_audio_transcription(
         "mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf"
     ),
 )]
-fn ultravox_transcribes_the_spoken_sentence_after_a_preamble(
+fn ultravox_transcribes_the_spoken_sentence_into_an_opened_quote(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     assert_eq!(
-        transcribe_audio(fixture, "quick_brown_fox.wav")?,
-        "I can provide a transcript of the audio. However, please note that the audio itself is \
-         not provided. Based on the context, I'll attempt to create a verbatim transcript.\n\nThe \
-         quick brown fox jumps over the lazy dog."
+        transcribe_audio(
+            fixture,
+            "quick_brown_fox.wav",
+            ChatAssistantTurn::ContinueContent(ChatAssistantPrefill {
+                reasoning_content: String::new(),
+                content: "\"".to_owned(),
+            }),
+        )?,
+        "Quick brown fox jumps over the lazy dog.\""
     );
 
     Ok(())
@@ -242,6 +254,7 @@ fn audio_input_records_each_chunk_type_in_its_own_usage_counter(
     } = evaluate_audio_prompt(
         fixture,
         "quick_brown_fox.wav",
+        ChatAssistantTurn::New,
         |classifier, _context, chunk_breakdown, _n_past| {
             Ok(EvaluatedMultimodalUsage {
                 usage: *classifier.usage(),
