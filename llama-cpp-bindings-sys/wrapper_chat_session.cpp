@@ -417,7 +417,8 @@ extern "C" auto llama_rs_chat_session_read(
         reading->generation_prompt_length = generation_prompt_length;
         reading->context.input = std::move(parse_input.text);
         reading->context.tokens = std::move(parse_input.tokens);
-        reading->context.flags = is_partial ? COMMON_PEG_PARSE_FLAG_LENIENT : COMMON_PEG_PARSE_FLAG_COMPLETE;
+        reading->context.flags = is_partial ? COMMON_PEG_PARSE_FLAG_LENIENT
+                                            : COMMON_PEG_PARSE_FLAG_LENIENT | COMMON_PEG_PARSE_FLAG_COMPLETE;
 
         reading->result = session->session->parser().parse(reading->context);
         reading->matches_format = is_partial

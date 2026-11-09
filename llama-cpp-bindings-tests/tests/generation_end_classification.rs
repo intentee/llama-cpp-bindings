@@ -63,7 +63,7 @@ fn visible_text_in(outcomes: &[IngestOutcome], section: SampledTokenSection) -> 
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_content(
+fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_reasoning(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     const SETTLED_REASONING: &str = "Let me think";
@@ -90,8 +90,8 @@ fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_co
             visible_text_in(&outcomes, SampledTokenSection::Pending),
         ],
         [
-            SETTLED_REASONING.to_owned(),
-            UNSETTLED_TAIL.to_owned(),
+            format!("{SETTLED_REASONING}{UNSETTLED_TAIL}"),
+            String::new(),
             String::new(),
             String::new()
         ]
