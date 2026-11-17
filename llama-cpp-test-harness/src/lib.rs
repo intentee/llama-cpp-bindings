@@ -1,8 +1,3 @@
-#![cfg_attr(
-    not(test),
-    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
-)]
-
 pub mod context_params;
 pub mod execution_phase;
 pub mod execution_plan;

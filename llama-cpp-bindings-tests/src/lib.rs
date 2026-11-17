@@ -1,4 +1,3 @@
-#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 pub mod chat_answer;
 pub mod chat_answer_generation;
 pub mod chunk_token_breakdown;

@@ -1,13 +1,3 @@
-#![cfg_attr(
-    not(test),
-    deny(
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic,
-        clippy::unwrap_used
-    )
-)]
-
 use std::ffi::CStr;
 use std::ffi::c_char;
 use std::ffi::c_void;

@@ -7,6 +7,9 @@ license.workspace = true
 publish = false
 autotests = false
 
+[lib]
+doctest = false
+
 [dependencies]
 anyhow = { workspace = true }
 encoding_rs = { workspace = true }

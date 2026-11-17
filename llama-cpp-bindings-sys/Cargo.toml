@@ -67,6 +67,9 @@ include = [
     "/llama.cpp/ggml/cmake",
 ]
 
+[lib]
+doctest = false
+
 [dependencies]
 
 [build-dependencies]

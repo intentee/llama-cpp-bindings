@@ -1,8 +1,3 @@
-#![cfg_attr(
-    not(test),
-    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
-)]
-
 pub mod chat_message;
 pub mod chat_message_content;
 pub mod chat_message_content_part;

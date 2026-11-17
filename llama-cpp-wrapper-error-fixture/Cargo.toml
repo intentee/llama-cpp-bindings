@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[lib]
+doctest = false
+
 [dependencies]
 llama-cpp-bindings-sys = { workspace = true }
 

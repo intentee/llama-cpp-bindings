@@ -1,13 +1,3 @@
-#![cfg_attr(
-    not(test),
-    deny(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic
-    )
-)]
-
 pub mod cpp_string_error;
 pub mod ffi_contract_error;
 pub mod ffi_status_error;

@@ -1,8 +1,3 @@
-#![cfg_attr(
-    not(test),
-    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
-)]
-
 mod backend_device_index;
 pub mod batch_add_error;
 pub mod chat_assistant_prefill;

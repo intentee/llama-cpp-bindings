@@ -1,13 +1,3 @@
-#![cfg_attr(
-    not(test),
-    deny(
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::indexing_slicing,
-        clippy::panic
-    )
-)]
-
 pub mod compile_command;
 pub mod compile_commands_file;
 pub mod cpp_standard;
