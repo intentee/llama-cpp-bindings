@@ -1,4 +1,4 @@
-use crate::sampled_token_section::SampledTokenSection;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ChatPieceRole {

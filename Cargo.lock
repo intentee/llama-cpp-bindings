@@ -1197,13 +1197,12 @@ dependencies = [
  "llama-cpp-fault-injection",
  "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
- "llama-cpp-gguf",
+ "llama-cpp-model",
  "llama-cpp-params",
  "llama-cpp-token-usage",
  "llama-cpp-wrapper-error-fixture",
  "llguidance",
  "log",
- "once_cell",
  "serde_json",
  "thiserror",
  "toktrie",
@@ -1246,6 +1245,7 @@ dependencies = [
  "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
  "llama-cpp-gguf",
+ "llama-cpp-model",
  "llama-cpp-params",
  "llama-cpp-test-harness",
  "llama-cpp-test-harness-macros",
@@ -1317,6 +1317,22 @@ name = "llama-cpp-log-decoder"
 version = "0.29.0"
 
 [[package]]
+name = "llama-cpp-model"
+version = "0.29.0"
+dependencies = [
+ "encoding_rs",
+ "enumflags2",
+ "llama-cpp-backend",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-ffi-status",
+ "llama-cpp-gguf",
+ "llama-cpp-params",
+ "once_cell",
+ "thiserror",
+ "toktrie",
+]
+
+[[package]]
 name = "llama-cpp-params"
 version = "0.29.0"
 dependencies = [
@@ -1335,6 +1351,7 @@ dependencies = [
  "libtest-mimic",
  "llama-cpp-backend",
  "llama-cpp-bindings",
+ "llama-cpp-model",
  "llama-cpp-params",
  "llama-cpp-test-harness-macros",
  "llama-cpp-test-model-provisioning",
@@ -1357,6 +1374,7 @@ dependencies = [
  "hf-hub",
  "llama-cpp-backend",
  "llama-cpp-bindings",
+ "llama-cpp-model",
  "llama-cpp-params",
  "thiserror",
 ]

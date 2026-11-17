@@ -2,9 +2,9 @@ use anyhow::Result;
 use anyhow::ensure;
 
 use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
-use llama_cpp_bindings::token::data::LlamaTokenData;
-use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::llama_token_data::LlamaTokenData;
+use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 
 #[test]
 fn sampler_chain_applies_without_initialized_backend() -> Result<()> {

@@ -1,9 +1,8 @@
-use std::ffi::CStr;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
+use std::ffi::CStr;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -11,17 +10,17 @@ use llama_cpp_bindings::error::grammar_error::GrammarError;
 use llama_cpp_bindings::error::grammar_runtime_error::GrammarRuntimeError;
 use llama_cpp_bindings::error::sample_error::SampleError;
 use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
-use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::model_error::ModelError;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -685,7 +684,7 @@ fn creating_a_sampler_reports_a_vocabulary_llama_cpp_cannot_render(
     ensure!(
         LlamaSampler::llguidance(&model, "regex", REGEX_GRAMMAR).err()
             == Some(GrammarError::TokEnvUnavailable(
-                TokenToStringError::InsufficientBufferSpace(-34)
+                ModelError::PieceInsufficientBufferSpace(-34)
             ))
     );
 
@@ -708,7 +707,7 @@ fn the_tokenizer_environment_reports_a_control_token_llama_cpp_cannot_render(
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SPECIAL_TOKEN_TO_PIECE_FAILS);
 
     ensure!(
-        model.approximate_tok_env().err() == Some(TokenToStringError::InsufficientBufferSpace(-34))
+        model.approximate_tok_env().err() == Some(ModelError::PieceInsufficientBufferSpace(-34))
     );
 
     Ok(())

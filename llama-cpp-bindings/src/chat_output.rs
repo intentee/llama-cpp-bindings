@@ -2,8 +2,7 @@ use std::ops::Range;
 
 use llama_cpp_bindings_sys::LLAMA_TOKEN_NULL;
 use llama_cpp_bindings_sys::llama_token;
-
-use crate::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ChatOutput {
@@ -54,9 +53,9 @@ impl ChatOutput {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_sys::LLAMA_TOKEN_NULL;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use crate::chat_output::ChatOutput;
-    use crate::token::LlamaToken;
 
     #[test]
     fn each_token_owns_the_bytes_of_its_piece_and_marks_its_first_byte() {

@@ -5,6 +5,8 @@ use std::ptr;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_model::model_error::ModelError;
+use llama_cpp_model::rope_type::RopeType;
 
 use crate::context::LlamaContext;
 use crate::context::memory_of;
@@ -14,8 +16,6 @@ use crate::error::memory_seq_div_error::MemorySeqDivError;
 use crate::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
 use crate::error::memory_seq_rm_error::MemorySeqRmError;
 use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
-use crate::error::unknown_rope_type::UnknownRopeType;
-use crate::model::rope_type::RopeType;
 
 fn memory_seq_add_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_memory_seq_add_status,
@@ -339,7 +339,7 @@ impl LlamaContext<'_> {
         memory_of(self.context).ok_or(MemorySeqCpError::MemoryHandleUnavailable)
     }
 
-    fn shifts_positions_one_per_embedding(&self) -> Result<bool, UnknownRopeType> {
+    fn shifts_positions_one_per_embedding(&self) -> Result<bool, ModelError> {
         self.model
             .rope_type()
             .map(RopeType::has_one_position_per_embedding)
@@ -353,13 +353,10 @@ mod tests {
     use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::memory_seq_add_status_to_result;
-
     use super::memory_seq_div_status_to_result;
-    use crate::error::memory_seq_add_error::MemorySeqAddError;
-
     use super::memory_seq_pos_max_status_to_result;
+    use crate::error::memory_seq_add_error::MemorySeqAddError;
     use crate::error::memory_seq_div_error::MemorySeqDivError;
-
     use crate::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
 
     #[test]

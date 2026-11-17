@@ -1,12 +1,13 @@
+use llama_cpp_model::llama_token::LlamaToken;
+
 use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
-use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
 
 #[derive(thiserror::Error, Clone, Debug, PartialEq, Eq)]
 pub enum BatchAddError {
     #[error("the batch already holds the {n_batch} tokens one decode of the context takes")]
     BatchFull { n_batch: u32 },
-    #[error(transparent)]
-    TokenOutsideVocabulary(#[from] TokenOutsideVocabulary),
+    #[error("token {token} is outside the vocabulary of {n_vocab} tokens")]
+    TokenOutsideVocabulary { token: LlamaToken, n_vocab: i32 },
     #[error("a token must belong to at least one sequence")]
     NoSequenceIds,
     #[error(transparent)]

@@ -2,8 +2,8 @@ use std::ptr;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
 
-use super::LlamaToken;
-use crate::token::data::LlamaTokenData;
+use crate::llama_token::LlamaToken;
+use crate::llama_token_data::LlamaTokenData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LlamaTokenDataArray {
@@ -136,8 +136,8 @@ mod tests {
     use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::LlamaTokenDataArray;
-    use crate::token::LlamaToken;
-    use crate::token::data::LlamaTokenData;
+    use crate::llama_token::LlamaToken;
+    use crate::llama_token_data::LlamaTokenData;
 
     #[test]
     fn selected_token_returns_none_when_no_selection() {

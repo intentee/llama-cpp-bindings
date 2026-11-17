@@ -1,3 +1,5 @@
+use anyhow::Result;
+use anyhow::ensure;
 use std::env;
 use std::ffi::CString;
 use std::ffi::OsStr;
@@ -6,11 +8,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 
-use anyhow::Result;
-use anyhow::ensure;
-
-use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
-use llama_cpp_bindings::model::LlamaModel;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -31,7 +30,7 @@ fn load_model_with_a_missing_file_reports_it_not_found(
 
     assert_eq!(
         result.err(),
-        Some(LlamaModelLoadError::FileNotFound(PathBuf::from(
+        Some(ModelError::ModelFileNotFound(PathBuf::from(
             "/nonexistent/model.gguf"
         )))
     );
@@ -54,7 +53,7 @@ fn load_model_with_invalid_file_content_reports_it_unloadable(
 
     let result = LlamaModel::load_from_file(backend, &dummy_path, &model_params);
 
-    ensure!(result.err() == Some(LlamaModelLoadError::Unloadable));
+    ensure!(result.err() == Some(ModelError::ModelUnloadable));
     fs::remove_file(&dummy_path)?;
     Ok(())
 }
@@ -75,9 +74,7 @@ fn load_model_refuses_a_path_that_is_not_utf8(&LlamaFixture { backend, .. }: &Ll
 
     assert_eq!(
         result.err(),
-        Some(LlamaModelLoadError::PathToStrError(
-            non_utf8_path.to_path_buf()
-        ))
+        Some(ModelError::PathNotUtf8(non_utf8_path.to_path_buf()))
     );
 }
 
@@ -99,6 +96,6 @@ fn load_model_refuses_a_path_with_a_nul_byte(&LlamaFixture { backend, .. }: &Lla
         .err(),
         CString::new("/models/model\0.gguf")
             .err()
-            .map(LlamaModelLoadError::NullError)
+            .map(ModelError::PathContainsNulByte)
     );
 }

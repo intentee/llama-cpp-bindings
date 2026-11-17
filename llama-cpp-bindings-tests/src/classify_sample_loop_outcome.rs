@@ -3,8 +3,8 @@ use anyhow::Result;
 
 use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
 fn increment(observed: &mut u64) -> Result<()> {
     *observed = observed
@@ -75,10 +75,10 @@ impl ClassifySampleLoopOutcome {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-    use llama_cpp_bindings::sampled_token::SampledToken;
-    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-    use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token_piece::TokenPiece;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::sampled_token::SampledToken;
+    use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
     use super::ClassifySampleLoopOutcome;
 

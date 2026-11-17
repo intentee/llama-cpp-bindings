@@ -1,10 +1,10 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 
 /// # Errors
 /// Fails when `text` cannot be tokenized or does not tokenize into exactly one token.

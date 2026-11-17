@@ -1,8 +1,7 @@
-use std::ffi::CString;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
+use std::ffi::CString;
 
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_input_chunk::MtmdInputChunk;
@@ -11,10 +10,10 @@ use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_bindings::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
-use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_prompt_with_synthetic_image;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

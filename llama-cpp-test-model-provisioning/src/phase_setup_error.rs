@@ -1,9 +1,8 @@
+use hf_hub::api::sync::ApiError;
 use std::path::PathBuf;
 
-use hf_hub::api::sync::ApiError;
-
-use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
 use llama_cpp_bindings::mtmd::mtmd_init_error::MtmdInitError;
+use llama_cpp_model::model_error::ModelError;
 
 use crate::gguf_source::GgufSource;
 use crate::phase_setup_failure_kind::PhaseSetupFailureKind;
@@ -28,7 +27,7 @@ pub enum PhaseSetupError {
     ModelLoad {
         model_path: PathBuf,
         #[source]
-        cause: LlamaModelLoadError,
+        cause: ModelError,
     },
     #[error("the mmproj {} could not be loaded: {cause}", mmproj_path.display())]
     MmprojLoad {

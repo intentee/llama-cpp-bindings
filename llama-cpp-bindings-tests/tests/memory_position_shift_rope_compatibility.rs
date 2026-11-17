@@ -1,14 +1,13 @@
-use std::num::NonZeroU8;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
+use std::num::NonZeroU8;
 
 use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
 use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
-use llama_cpp_bindings::error::unknown_rope_type::UnknownRopeType;
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -148,9 +147,9 @@ fn memory_seq_add_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
 
     ensure!(
         context.memory_seq_add(0, None, None, 1)
-            == Err(MemorySeqAddError::UnknownRopeType(UnknownRopeType(
-                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1
-            )))
+            == Err(MemorySeqAddError::UnknownRopeType(
+                ModelError::UnknownRopeType(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1)
+            ))
     );
 
     Ok(())
@@ -172,9 +171,9 @@ fn memory_seq_div_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
 
     ensure!(
         context.memory_seq_div(0, None, None, NonZeroU8::MIN)
-            == Err(MemorySeqDivError::UnknownRopeType(UnknownRopeType(
-                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1
-            )))
+            == Err(MemorySeqDivError::UnknownRopeType(
+                ModelError::UnknownRopeType(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1)
+            ))
     );
 
     Ok(())

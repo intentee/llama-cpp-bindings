@@ -1,5 +1,5 @@
+use crate::llama_token::LlamaToken;
 use crate::sampled_token_section::SampledTokenSection;
-use crate::token::LlamaToken;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum SampledToken {
@@ -43,9 +43,9 @@ impl SampledToken {
 
 #[cfg(test)]
 mod tests {
+    use crate::llama_token::LlamaToken;
     use crate::sampled_token::SampledToken;
     use crate::sampled_token_section::SampledTokenSection;
-    use crate::token::LlamaToken;
 
     #[test]
     fn every_section_carries_the_sampled_token() {

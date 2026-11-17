@@ -1,9 +1,9 @@
 use std::num::TryFromIntError;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_model::model_error::ModelError;
 
 use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
-use crate::error::unknown_rope_type::UnknownRopeType;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MemorySeqAddError {
@@ -20,7 +20,7 @@ pub enum MemorySeqAddError {
     #[error(transparent)]
     SequenceIdOutOfRange(#[from] SequenceIdOutOfRange),
     #[error(transparent)]
-    UnknownRopeType(#[from] UnknownRopeType),
+    UnknownRopeType(#[from] ModelError),
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]

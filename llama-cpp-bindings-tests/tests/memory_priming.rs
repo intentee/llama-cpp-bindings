@@ -1,14 +1,13 @@
-use std::ffi::CString;
-
 use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
+use std::ffi::CString;
 
 use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::error::decode_error::DecodeError;
-use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_bindings_tests::prime_memory_with::prime_memory_with;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -27,10 +26,10 @@ fn priming_memory_surfaces_a_tokenization_error(fixture: &LlamaFixture<'_>) -> R
     };
 
     ensure!(
-        Some(failure.downcast::<StringToTokenError>()?)
+        Some(failure.downcast::<ModelError>()?)
             == CString::new("Hello\0world")
                 .err()
-                .map(StringToTokenError::NulError)
+                .map(ModelError::TokenizeTextContainsNulByte)
     );
 
     Ok(())

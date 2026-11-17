@@ -1,21 +1,14 @@
-use std::fs;
-use std::path::PathBuf;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
+use std::fs;
+use std::path::PathBuf;
 
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_templates::ChatTemplates;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::error::chat_templates_error::ChatTemplatesError;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::llama_chat_template::LlamaChatTemplate;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::get_weather_tools::get_weather_tools;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
@@ -23,6 +16,12 @@ use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::chat_templates::ChatTemplates;
+use llama_cpp_model::llama_chat_template::LlamaChatTemplate;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::model_error::ModelError;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -71,7 +70,7 @@ fn token_count(model: &LlamaModel, text: &str) -> Result<u64> {
 fn deepseek_r1_served_with_the_llama_cpp_template_parses_its_tool_call(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let templates = ChatTemplates::with_override(model, &llama_cpp_deepseek_r1_template()?)?;
+    let templates = model.chat_templates_with_override(&llama_cpp_deepseek_r1_template()?)?;
     let session = weather_session(model, &templates)?;
 
     ensure!(
@@ -100,7 +99,7 @@ fn deepseek_r1_served_with_the_llama_cpp_template_parses_its_tool_call(
 fn deepseek_r1_served_with_the_llama_cpp_template_streams_its_tool_call_tokens_as_a_tool_call(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let templates = ChatTemplates::with_override(model, &llama_cpp_deepseek_r1_template()?)?;
+    let templates = model.chat_templates_with_override(&llama_cpp_deepseek_r1_template()?)?;
     let session = weather_session(model, &templates)?;
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
 
@@ -137,8 +136,10 @@ fn an_empty_template_override_is_refused(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     ensure!(
-        ChatTemplates::with_override(model, &LlamaChatTemplate::new("")?).err()
-            == Some(ChatTemplatesError::EmptyTemplateOverride)
+        model
+            .chat_templates_with_override(&LlamaChatTemplate::new("")?)
+            .err()
+            == Some(ModelError::EmptyTemplateOverride)
     );
 
     Ok(())
@@ -155,11 +156,10 @@ fn an_empty_template_override_is_refused(
 fn a_template_override_llama_cpp_cannot_parse_reports_its_parse_error(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    ensure!(ChatTemplates::with_override(
-            model,
+    ensure!(model.chat_templates_with_override(
             &LlamaChatTemplate::new("{{invalid jinja template")?
         )
-        .err() == Some(ChatTemplatesError::Reported {
+        .err() == Some(ModelError::ChatTemplatesReported {
             message: "parser: Parser Error: Expected }} (Got jinja)\n...{{invalid jinja template...\n             ^".to_owned(),
         }));
 

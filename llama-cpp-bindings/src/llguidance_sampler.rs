@@ -1,11 +1,10 @@
+use llguidance::api::TopLevelGrammar;
+use llguidance::earley::SlicedBiasComputer;
 use std::ffi::c_char;
 use std::ffi::c_void;
 use std::ptr;
 use std::slice;
 use std::sync::Arc;
-
-use llguidance::api::TopLevelGrammar;
-use llguidance::earley::SlicedBiasComputer;
 use toktrie::ApproximateTokEnv;
 use toktrie::InferenceCapabilities;
 
@@ -183,7 +182,6 @@ pub fn llguidance_sampler(
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-
     use toktrie::ApproximateTokEnv;
     use toktrie::INVALID_TOKEN;
     use toktrie::InferenceCapabilities;
@@ -191,6 +189,9 @@ mod tests {
     use toktrie::TokTrie;
 
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::llama_token_data::LlamaTokenData;
+    use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 
     use super::UNCOMPILABLE_BIAS_SLICE;
     use super::llguidance_sampler;
@@ -199,9 +200,6 @@ mod tests {
     use crate::error::sample_error::SampleError;
     use crate::error::sampler_accept_error::SamplerAcceptError;
     use crate::sampling::LlamaSampler;
-    use crate::token::LlamaToken;
-    use crate::token::data::LlamaTokenData;
-    use crate::token::data_array::LlamaTokenDataArray;
 
     const LETTER_A: LlamaToken = LlamaToken::new(0);
     const LETTER_B: LlamaToken = LlamaToken::new(1);

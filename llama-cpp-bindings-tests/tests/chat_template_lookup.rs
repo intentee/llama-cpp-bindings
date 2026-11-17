@@ -1,10 +1,9 @@
-use std::ffi::CString;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
+use std::ffi::CString;
 
-use llama_cpp_bindings::error::chat_template_error::ChatTemplateError;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -84,7 +83,7 @@ fn chat_template_with_nonexistent_name_returns_error(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let result = model.chat_template(Some("nonexistent_template_name_xyz"));
-    ensure!(result.err().context("the operation must fail")? == ChatTemplateError::MissingTemplate);
+    ensure!(result.err().context("the operation must fail")? == ModelError::ChatTemplateMissing);
 
     Ok(())
 }
@@ -104,6 +103,6 @@ fn chat_template_with_a_nul_byte_in_the_name_returns_error(
         model.chat_template(Some("tool\0use")).err(),
         CString::new("tool\0use")
             .err()
-            .map(ChatTemplateError::NullError)
+            .map(ModelError::ChatTemplateNameContainsNulByte)
     );
 }

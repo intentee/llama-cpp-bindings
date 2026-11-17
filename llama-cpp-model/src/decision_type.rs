@@ -1,4 +1,4 @@
-use crate::error::unknown_decision_type::UnknownDecisionType;
+use crate::model_error::ModelError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecisionType {
@@ -23,7 +23,7 @@ pub enum DecisionType {
 }
 
 impl TryFrom<llama_cpp_bindings_sys::llama_rs_decision_type> for DecisionType {
-    type Error = UnknownDecisionType;
+    type Error = ModelError;
 
     fn try_from(
         value: llama_cpp_bindings_sys::llama_rs_decision_type,
@@ -53,15 +53,15 @@ impl TryFrom<llama_cpp_bindings_sys::llama_rs_decision_type> for DecisionType {
             llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_LFM3_D1 => Ok(Self::Lfm3D1),
             llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_LFM3_D1_OMNI => Ok(Self::Lfm3D1Omni),
             llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_UNKNOWN => Ok(Self::Unknown),
-            unknown => Err(UnknownDecisionType(unknown)),
+            unknown => Err(ModelError::UnknownDecisionType(unknown)),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::error::unknown_decision_type::UnknownDecisionType;
-    use crate::model::decision_type::DecisionType;
+    use crate::decision_type::DecisionType;
+    use crate::model_error::ModelError;
 
     #[test]
     fn every_wrapper_decision_type_converts_to_its_variant() {
@@ -112,6 +112,9 @@ mod tests {
 
     #[test]
     fn a_value_the_wrapper_does_not_define_is_refused() {
-        assert_eq!(DecisionType::try_from(9999), Err(UnknownDecisionType(9999)));
+        assert_eq!(
+            DecisionType::try_from(9999),
+            Err(ModelError::UnknownDecisionType(9999))
+        );
     }
 }

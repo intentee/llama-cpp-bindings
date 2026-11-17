@@ -1,4 +1,4 @@
-use crate::error::unknown_rope_type::UnknownRopeType;
+use crate::model_error::ModelError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RopeType {
@@ -11,7 +11,7 @@ pub enum RopeType {
 }
 
 impl TryFrom<llama_cpp_bindings_sys::llama_rope_type> for RopeType {
-    type Error = UnknownRopeType;
+    type Error = ModelError;
 
     fn try_from(value: llama_cpp_bindings_sys::llama_rope_type) -> Result<Self, Self::Error> {
         match value {
@@ -21,7 +21,7 @@ impl TryFrom<llama_cpp_bindings_sys::llama_rope_type> for RopeType {
             llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_MROPE => Ok(Self::MRope),
             llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE => Ok(Self::IMRope),
             llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_VISION => Ok(Self::Vision),
-            unknown => Err(UnknownRopeType(unknown)),
+            unknown => Err(ModelError::UnknownRopeType(unknown)),
         }
     }
 }
@@ -40,8 +40,8 @@ impl RopeType {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::unknown_rope_type::UnknownRopeType;
-    use crate::model::rope_type::RopeType;
+    use crate::model_error::ModelError;
+    use crate::rope_type::RopeType;
 
     #[test]
     fn every_llama_cpp_rope_type_converts_to_its_variant() {
@@ -68,7 +68,10 @@ mod tests {
 
     #[test]
     fn a_value_llama_cpp_does_not_define_is_refused() {
-        assert_eq!(RopeType::try_from(9999), Err(UnknownRopeType(9999)));
+        assert_eq!(
+            RopeType::try_from(9999),
+            Err(ModelError::UnknownRopeType(9999))
+        );
     }
 
     #[test]

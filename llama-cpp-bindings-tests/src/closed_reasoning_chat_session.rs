@@ -6,8 +6,8 @@ use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings_types::chat_tool::ChatTool;
+use llama_cpp_model::llama_model::LlamaModel;
 
 use crate::user_message::user_message;
 

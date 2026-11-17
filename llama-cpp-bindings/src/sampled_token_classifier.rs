@@ -2,6 +2,10 @@ use std::collections::VecDeque;
 
 use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_sys::llama_seq_id;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
 use llama_cpp_token_usage::token_usage::TokenUsage;
 use llama_cpp_token_usage::token_usage_error::TokenUsageError;
 
@@ -22,7 +26,6 @@ use crate::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use crate::generation_progress::GenerationProgress;
 use crate::ingest_outcome::IngestOutcome;
 use crate::llama_batch::LlamaBatch;
-use crate::model::LlamaModel;
 use crate::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use crate::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use crate::mtmd::mtmd_context::MtmdContext;
@@ -30,10 +33,7 @@ use crate::mtmd::mtmd_eval_limits::MtmdEvalLimits;
 use crate::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
 use crate::pending_chat_piece::PendingChatPiece;
-use crate::sampled_token::SampledToken;
-use crate::sampled_token_section::SampledTokenSection;
 use crate::sampling::LlamaSampler;
-use crate::token::LlamaToken;
 use crate::token_attribution::TokenAttribution;
 use crate::token_piece::TokenPiece;
 

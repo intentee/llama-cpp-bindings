@@ -5,13 +5,13 @@ use std::ptr::NonNull;
 use llama_cpp_bindings_sys::{llama_pos, llama_rs_batch_entry, llama_seq_id};
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::sampled_token::SampledToken;
 
 use crate::batch_add_error::BatchAddError;
 use crate::context::context_limits::ContextLimits;
 use crate::decision_order::DecisionOrder;
 use crate::error::batch_transfer_error::BatchTransferError;
-use crate::sampled_token::SampledToken;
-use crate::token::LlamaToken;
 
 fn batch_ext_assign_entries_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_batch_ext_assign_entries_status,
@@ -286,25 +286,16 @@ mod tests {
 
     use llama_cpp_bindings_sys::llama_rs_batch_entry;
     use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::sampled_token::SampledToken;
 
     use super::LlamaBatch;
-
-    use crate::batch_add_error::BatchAddError;
-
-    use crate::context::context_limits::ContextLimits;
-
-    use crate::decision_order::DecisionOrder;
-
-    use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
-
-    use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
-
-    use crate::sampled_token::SampledToken;
-
     use super::batch_ext_assign_entries_status_to_result;
-    use crate::token::LlamaToken;
-
+    use crate::batch_add_error::BatchAddError;
+    use crate::context::context_limits::ContextLimits;
+    use crate::decision_order::DecisionOrder;
     use crate::error::batch_transfer_error::BatchTransferError;
+    use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 
     const LIMITS: ContextLimits = ContextLimits {
         batch: 4,
@@ -433,12 +424,10 @@ mod tests {
 
         assert_eq!(
             batch.add(content(100), 0, &[0], false),
-            Err(BatchAddError::TokenOutsideVocabulary(
-                TokenOutsideVocabulary {
-                    token: LlamaToken::new(100),
-                    n_vocab: 100,
-                }
-            ))
+            Err(BatchAddError::TokenOutsideVocabulary {
+                token: LlamaToken::new(100),
+                n_vocab: 100,
+            })
         );
     }
 

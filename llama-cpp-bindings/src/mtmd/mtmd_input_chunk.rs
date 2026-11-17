@@ -6,6 +6,7 @@ use std::str::Utf8Error;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
@@ -15,7 +16,6 @@ use super::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 use super::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 use super::optional_mtmd_id::optional_mtmd_id;
 use crate::context::LlamaContext;
-use crate::token::LlamaToken;
 
 /// # Safety
 ///
@@ -336,23 +336,17 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_error::FfiError;
-
     use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
-
+    use llama_cpp_model::llama_token::LlamaToken;
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
 
-    use super::tokens_from_raw_ptr;
-
-    use super::non_causal_chunk_micro_batch_error;
-    use crate::token::LlamaToken;
-
-    use crate::mtmd::mtmd_eval_error::MtmdEvalError;
-
-    use super::input_chunk_copy_status_to_result;
-    use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
-
     use super::eval_chunk_single_status_to_result;
+    use super::input_chunk_copy_status_to_result;
+    use super::non_causal_chunk_micro_batch_error;
+    use super::tokens_from_raw_ptr;
+    use crate::mtmd::mtmd_eval_error::MtmdEvalError;
     use crate::mtmd::mtmd_input_chunk_error::MtmdInputChunkError;
+    use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 
     const OPERATION: &str = "llama_rs_mtmd_input_chunk_copy";
 

@@ -13,6 +13,7 @@ doctest = false
 hf-hub = { workspace = true }
 llama-cpp-backend = { workspace = true }
 llama-cpp-bindings = { workspace = true }
+llama-cpp-model = { workspace = true }
 llama-cpp-params = { workspace = true }
 thiserror = { workspace = true }
 

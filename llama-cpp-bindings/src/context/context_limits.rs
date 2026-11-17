@@ -1,11 +1,11 @@
 use std::num::NonZeroU32;
 
 use llama_cpp_bindings_sys::llama_seq_id;
+use llama_cpp_model::llama_token::LlamaToken;
 
+use crate::batch_add_error::BatchAddError;
 use crate::context::LlamaContext;
 use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
-use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
-use crate::token::LlamaToken;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ContextLimits {
@@ -37,12 +37,20 @@ impl ContextLimits {
 
     /// # Errors
     ///
-    /// Returns [`TokenOutsideVocabulary`] when `token` is not in the vocabulary of the model.
-    pub fn ensure_token_in_vocabulary(
+    /// Returns [`BatchAddError::TokenOutsideVocabulary`] when `token` is not in the vocabulary
+    /// of the model.
+    pub const fn ensure_token_in_vocabulary(
         &self,
         token: LlamaToken,
-    ) -> Result<LlamaToken, TokenOutsideVocabulary> {
-        TokenOutsideVocabulary::of(token, self.vocabulary_size).map_or(Ok(token), Err)
+    ) -> Result<LlamaToken, BatchAddError> {
+        if token.is_within_vocabulary(self.vocabulary_size) {
+            Ok(token)
+        } else {
+            Err(BatchAddError::TokenOutsideVocabulary {
+                token,
+                n_vocab: self.vocabulary_size,
+            })
+        }
     }
 
     /// Returns how many tokens a single decode of `batch_tokens` evaluates: the smaller of
@@ -63,10 +71,11 @@ impl ContextLimits {
 mod tests {
     use std::num::NonZeroU32;
 
+    use llama_cpp_model::llama_token::LlamaToken;
+
     use super::ContextLimits;
+    use crate::batch_add_error::BatchAddError;
     use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
-    use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
-    use crate::token::LlamaToken;
 
     const LIMITS: ContextLimits = ContextLimits {
         batch: 512,
@@ -114,7 +123,7 @@ mod tests {
     fn a_token_past_the_vocabulary_is_rejected() {
         assert_eq!(
             LIMITS.ensure_token_in_vocabulary(LlamaToken::new(100)),
-            Err(TokenOutsideVocabulary {
+            Err(BatchAddError::TokenOutsideVocabulary {
                 token: LlamaToken::new(100),
                 n_vocab: 100,
             })
@@ -125,7 +134,7 @@ mod tests {
     fn a_negative_token_is_rejected() {
         assert_eq!(
             LIMITS.ensure_token_in_vocabulary(LlamaToken::new(-1)),
-            Err(TokenOutsideVocabulary {
+            Err(BatchAddError::TokenOutsideVocabulary {
                 token: LlamaToken::new(-1),
                 n_vocab: 100,
             })

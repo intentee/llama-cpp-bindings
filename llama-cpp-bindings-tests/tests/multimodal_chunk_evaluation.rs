@@ -9,8 +9,6 @@ use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunk
 use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
@@ -21,7 +19,6 @@ use llama_cpp_bindings::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeErr
 use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
@@ -32,6 +29,9 @@ use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_pro
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_params::llama_attention_type::LlamaAttentionType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;

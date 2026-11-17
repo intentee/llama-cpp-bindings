@@ -4,9 +4,9 @@ use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_model::sampled_token::SampledToken;
 
 use crate::classify_sample_loop_outcome::ClassifySampleLoopOutcome;
 

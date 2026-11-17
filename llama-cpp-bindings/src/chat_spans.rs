@@ -1,11 +1,12 @@
 use std::cmp::Reverse;
 use std::ops::Range;
 
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
+
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_piece_role::ChatPieceRole;
 use crate::chat_span::ChatSpan;
 use crate::chat_span_segment::ChatSpanSegment;
-use crate::sampled_token_section::SampledTokenSection;
 
 fn innermost_role_at(spans: &[ChatSpan], byte: usize) -> Option<ChatPieceRole> {
     spans
@@ -146,12 +147,13 @@ impl ChatSpans {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_model::sampled_token_section::SampledTokenSection;
+
     use super::ChatSpans;
     use crate::chat_output_completeness::ChatOutputCompleteness;
     use crate::chat_piece_role::ChatPieceRole;
     use crate::chat_span::ChatSpan;
     use crate::chat_span_kind::ChatSpanKind;
-    use crate::sampled_token_section::SampledTokenSection;
 
     fn span(kind: ChatSpanKind, start: usize, end: usize) -> ChatSpan {
         ChatSpan {

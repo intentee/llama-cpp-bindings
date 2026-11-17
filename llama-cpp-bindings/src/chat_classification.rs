@@ -1,10 +1,11 @@
 use std::ops::Range;
 
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
+
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_piece_role::ChatPieceRole;
 use crate::chat_spans::ChatSpans;
 use crate::raw_chat_message::RawChatMessage;
-use crate::sampled_token_section::SampledTokenSection;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ChatClassification {
@@ -44,6 +45,8 @@ impl ChatClassification {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_model::sampled_token_section::SampledTokenSection;
+
     use crate::chat_classification::ChatClassification;
     use crate::chat_output_completeness::ChatOutputCompleteness;
     use crate::chat_piece_role::ChatPieceRole;
@@ -51,7 +54,6 @@ mod tests {
     use crate::chat_span_kind::ChatSpanKind;
     use crate::chat_spans::ChatSpans;
     use crate::raw_chat_message::RawChatMessage;
-    use crate::sampled_token_section::SampledTokenSection;
 
     fn unrecognized(completeness: ChatOutputCompleteness) -> ChatClassification {
         ChatClassification::OutputDoesNotMatchFormat(RawChatMessage {

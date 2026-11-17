@@ -1,4 +1,4 @@
-use crate::token::LlamaToken;
+use crate::llama_token::LlamaToken;
 
 /// A token of the model's vocabulary with the text it decodes to.
 #[derive(Clone, Debug, Eq, PartialEq)]

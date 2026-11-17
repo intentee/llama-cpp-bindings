@@ -1,0 +1,27 @@
+[package]
+name = "llama-cpp-model"
+description = "A loaded llama.cpp model and what it holds: its file's metadata, vocabulary and tokenization, chat templates, decision head and LoRA adapters"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+encoding_rs = { workspace = true }
+enumflags2 = { workspace = true }
+llama-cpp-backend = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-ffi-status = { workspace = true }
+llama-cpp-params = { workspace = true }
+once_cell = { workspace = true }
+thiserror = { workspace = true }
+toktrie = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-gguf = { workspace = true }
+
+[lints]
+workspace = true

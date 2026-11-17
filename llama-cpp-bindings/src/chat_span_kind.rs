@@ -1,7 +1,7 @@
 use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
 use crate::chat_piece_role::ChatPieceRole;
-use crate::sampled_token_section::SampledTokenSection;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ChatSpanKind {
@@ -52,10 +52,10 @@ impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
 #[cfg(test)]
 mod tests {
     use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
     use super::ChatSpanKind;
     use crate::chat_piece_role::ChatPieceRole;
-    use crate::sampled_token_section::SampledTokenSection;
 
     #[test]
     fn text_spans_attribute_their_bytes_as_visible_text_of_their_section() {

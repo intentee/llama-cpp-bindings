@@ -6,8 +6,8 @@ use llama_cpp_bindings_sys::llama_rs_gguf_info;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
-use crate::error::gguf_info_error::GgufInfoError;
-use crate::model::decision_type::DecisionType;
+use crate::decision_type::DecisionType;
+use crate::model_error::ModelError;
 use crate::path_c_string::path_c_string;
 
 /// # Safety
@@ -22,8 +22,8 @@ unsafe fn read_gguf_info_status_to_result(
         has_chat_template,
     }: llama_rs_gguf_info,
     out_error: *mut c_char,
-) -> Result<GgufInfo, GgufInfoError> {
-    let contract_violation = |detail: &'static str| -> Result<GgufInfo, GgufInfoError> {
+) -> Result<GgufInfo, ModelError> {
+    let contract_violation = |detail: &'static str| -> Result<GgufInfo, ModelError> {
         Err(FfiError::ContractViolated {
             operation: "llama_rs_read_gguf_info",
             detail,
@@ -38,10 +38,10 @@ unsafe fn read_gguf_info_status_to_result(
             has_chat_template,
         }),
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(GgufInfoError::NotEnoughMemory)
+            Err(ModelError::GgufInfoNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(GgufInfoError::LlamaCppOutOfMemory)
+            Err(ModelError::GgufInfoLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -51,7 +51,7 @@ unsafe fn read_gguf_info_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(GgufInfoError::Reported { message })
+            Err(ModelError::GgufInfoReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_PATH_ARG => {
             contract_violation("was given a null path argument")
@@ -80,9 +80,9 @@ pub struct GgufInfo {
 impl GgufInfo {
     /// # Errors
     ///
-    /// Returns [`GgufInfoError`] when `path` is not UTF-8 or contains a NUL byte, the wrapper
+    /// Returns [`ModelError`] when `path` is not UTF-8 or contains a NUL byte, the wrapper
     /// fails, or it reports a decision type it does not define.
-    pub fn read(path: &Path) -> Result<Self, GgufInfoError> {
+    pub fn read(path: &Path) -> Result<Self, ModelError> {
         let path_c_string = path_c_string(path)?;
         let mut out_info = llama_rs_gguf_info {
             decision_type: llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_UNKNOWN,
@@ -105,31 +105,20 @@ impl GgufInfo {
 #[cfg(test)]
 mod tests {
     use std::env;
-
     use std::ffi::CString;
-
     use std::fs;
-
     use std::path::Path;
-
     use std::process;
     use std::ptr;
 
     use llama_cpp_bindings_sys::llama_rs_gguf_info;
-
     use llama_cpp_ffi_status::ffi_error::FfiError;
     use llama_cpp_gguf::gguf_context::GgufContext;
 
     use super::GgufInfo;
-
-    use crate::error::gguf_info_error::GgufInfoError;
-
-    use crate::error::path_c_string_error::PathCStringError;
-
     use super::read_gguf_info_status_to_result;
-    use crate::model::decision_type::DecisionType;
-
-    use crate::error::unknown_decision_type::UnknownDecisionType;
+    use crate::decision_type::DecisionType;
+    use crate::model_error::ModelError;
 
     const VOCABULARY_FIXTURE_PATH: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -185,9 +174,9 @@ mod tests {
 
         assert_eq!(
             GgufInfo::read(Path::new(path)),
-            Err(GgufInfoError::Path(PathCStringError::ContainsNulByte(
+            Err(ModelError::PathContainsNulByte(
                 CString::new(path).unwrap_err()
-            )))
+            ))
         );
     }
 
@@ -204,12 +193,7 @@ mod tests {
             )
         };
 
-        assert_eq!(
-            result,
-            Err(GgufInfoError::UnknownDecisionType(UnknownDecisionType(
-                9999
-            )))
-        );
+        assert_eq!(result, Err(ModelError::UnknownDecisionType(9999)));
     }
 
     #[test]
@@ -232,7 +216,7 @@ mod tests {
                 unsafe {
                     read_gguf_info_status_to_result(status, NOT_A_DECISION_MODEL, ptr::null_mut())
                 },
-                Err(GgufInfoError::Ffi(FfiError::ContractViolated {
+                Err(ModelError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_read_gguf_info",
                     detail,
                 }))
@@ -251,8 +235,8 @@ mod tests {
                 read_gguf_info_status_to_result(status, NOT_A_DECISION_MODEL, ptr::null_mut())
             }),
             [
-                Err(GgufInfoError::NotEnoughMemory),
-                Err(GgufInfoError::LlamaCppOutOfMemory),
+                Err(ModelError::GgufInfoNotEnoughMemory),
+                Err(ModelError::GgufInfoLlamaCppOutOfMemory),
             ]
         );
     }
@@ -270,7 +254,7 @@ mod tests {
                     out_error,
                 )
             },
-            Err(GgufInfoError::Reported {
+            Err(ModelError::GgufInfoReported {
                 message: "metadata read threw".to_owned()
             })
         );
@@ -286,7 +270,7 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(GgufInfoError::Ffi(FfiError::ContractViolated {
+            Err(ModelError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_read_gguf_info",
                 detail: "reported a thrown C++ exception without an error message",
             }))
@@ -297,7 +281,7 @@ mod tests {
     fn reading_gguf_info_preserves_an_unknown_status() {
         assert_eq!(
             unsafe { read_gguf_info_status_to_result(255, NOT_A_DECISION_MODEL, ptr::null_mut()) },
-            Err(GgufInfoError::Ffi(FfiError::UnknownStatus {
+            Err(ModelError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_read_gguf_info",
                 code: 255,
             }))

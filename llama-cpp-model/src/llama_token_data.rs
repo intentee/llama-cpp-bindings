@@ -1,4 +1,4 @@
-use crate::token::LlamaToken;
+use crate::llama_token::LlamaToken;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(transparent)]
@@ -48,7 +48,7 @@ impl LlamaTokenData {
 #[cfg(test)]
 mod tests {
     use super::LlamaTokenData;
-    use crate::token::LlamaToken;
+    use crate::llama_token::LlamaToken;
 
     #[test]
     fn new_stores_all_fields() {

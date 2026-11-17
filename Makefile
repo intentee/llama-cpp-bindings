@@ -85,6 +85,7 @@ coverage: node_modules
 		--gated llama-cpp-gbnf=100 \
 		--gated llama-cpp-gguf=100 \
 		--gated llama-cpp-log-decoder=100 \
+		--gated llama-cpp-model=100 \
 		--gated llama-cpp-params=100 \
 		--gated llama-cpp-test-harness=100 \
 		--gated llama-cpp-test-harness-macros=100 \
@@ -141,6 +142,6 @@ test.unit: clippy
 	cargo test -p llama-cpp-backend -p llama-cpp-backend-tests -p llama-cpp-bindings \
 		-p llama-cpp-bindings-build -p llama-cpp-bindings-types -p llama-cpp-capturing-logger \
 		-p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf -p llama-cpp-gguf \
-		-p llama-cpp-log-decoder -p llama-cpp-params -p llama-cpp-token-usage \
+		-p llama-cpp-log-decoder -p llama-cpp-model -p llama-cpp-params -p llama-cpp-token-usage \
 		-p llama-cpp-wrapper-sources \
 		$(DEVICE_FEATURE)

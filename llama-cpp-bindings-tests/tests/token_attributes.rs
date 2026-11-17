@@ -2,7 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::llama_token_attrs::LlamaTokenAttrs;
+use llama_cpp_model::llama_token_attrs::LlamaTokenAttrs;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

@@ -1,9 +1,9 @@
 use std::ffi::NulError;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_model::model_error::ModelError;
 
 use crate::error::sampling_error::SamplingError;
-use crate::error::token_to_string_error::TokenToStringError;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GrammarError {
@@ -11,8 +11,8 @@ pub enum GrammarError {
     Ffi(#[from] FfiError),
     #[error("sampler initialization failed: {0}")]
     SamplerInitialization(#[from] SamplingError),
-    #[error("the approximate token environment could not be built: {0}")]
-    TokEnvUnavailable(#[from] TokenToStringError),
+    #[error("the approximate token environment could not be built")]
+    TokEnvUnavailable(#[from] ModelError),
     #[error("grammar root not found in grammar string")]
     RootNotFound,
     #[error("the grammar was rejected by the GBNF parser: {0}")]

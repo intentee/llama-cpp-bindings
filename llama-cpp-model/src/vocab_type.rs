@@ -1,4 +1,4 @@
-use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
+use crate::model_error::ModelError;
 
 #[repr(u32)]
 #[derive(Debug, Eq, Copy, Clone, PartialEq)]
@@ -15,7 +15,7 @@ pub enum VocabType {
 }
 
 impl TryFrom<llama_cpp_bindings_sys::llama_vocab_type> for VocabType {
-    type Error = VocabTypeFromIntError;
+    type Error = ModelError;
 
     fn try_from(value: llama_cpp_bindings_sys::llama_vocab_type) -> Result<Self, Self::Error> {
         match value {
@@ -28,15 +28,15 @@ impl TryFrom<llama_cpp_bindings_sys::llama_vocab_type> for VocabType {
             llama_cpp_bindings_sys::LLAMA_VOCAB_TYPE_PLAMO2 => Ok(Self::Plamo2),
             llama_cpp_bindings_sys::LLAMA_VOCAB_TYPE_TEST => Ok(Self::Test),
             llama_cpp_bindings_sys::LLAMA_VOCAB_TYPE_PLAMO3 => Ok(Self::Plamo3),
-            unknown => Err(VocabTypeFromIntError::UnknownValue(unknown)),
+            unknown => Err(ModelError::UnknownVocabType(unknown)),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::model::vocab_type::VocabType;
-    use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
+    use crate::model_error::ModelError;
+    use crate::vocab_type::VocabType;
 
     #[test]
     fn every_llama_cpp_vocab_type_maps_to_its_variant() {
@@ -73,6 +73,6 @@ mod tests {
     fn a_vocab_type_unknown_to_llama_cpp_is_refused() {
         let result = VocabType::try_from(99999);
 
-        assert_eq!(result, Err(VocabTypeFromIntError::UnknownValue(99999)));
+        assert_eq!(result, Err(ModelError::UnknownVocabType(99999)));
     }
 }

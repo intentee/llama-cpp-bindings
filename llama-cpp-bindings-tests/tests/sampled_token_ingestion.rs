@@ -8,24 +8,23 @@ use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::ingest_error::IngestError;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings::error::sample_error::SampleError;
-use llama_cpp_bindings::error::token_outside_vocabulary::TokenOutsideVocabulary;
-use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
 use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings::token_piece::TokenPiece;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::model_error::ModelError;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -233,10 +232,10 @@ fn ingesting_a_token_outside_the_vocabulary_reports_it_in_every_classifier(
     let session = user_turn_chat_session(model, "hello", &[], false)?;
     let mut outcomes = Vec::new();
     let expected = Err(IngestError::Detokenize(
-        TokenToStringError::TokenOutsideVocabulary(TokenOutsideVocabulary {
+        ModelError::TokenOutsideVocabulary {
             token,
             n_vocab: model.n_vocab(),
-        }),
+        },
     ));
 
     ensure!(SampledTokenClassifier::undeterminable(model).ingest(token, &mut outcomes) == expected);

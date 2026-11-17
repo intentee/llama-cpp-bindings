@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
-use super::LlamaModel;
 unsafe fn free_lora_adapter(adapter: *mut llama_cpp_bindings_sys::llama_adapter_lora) {
     unsafe { llama_cpp_bindings_sys::llama_adapter_lora_free(adapter) }
 }
@@ -10,7 +9,7 @@ unsafe fn free_lora_adapter(adapter: *mut llama_cpp_bindings_sys::llama_adapter_
 #[repr(transparent)]
 pub struct LlamaLoraAdapter<'model> {
     lora_adapter: *mut llama_cpp_bindings_sys::llama_adapter_lora,
-    model: PhantomData<&'model LlamaModel>,
+    model: PhantomData<&'model llama_cpp_bindings_sys::llama_model>,
 }
 
 impl LlamaLoraAdapter<'_> {
@@ -45,10 +44,9 @@ impl Drop for LlamaLoraAdapter<'_> {
 #[cfg(test)]
 mod tests {
     use std::marker::PhantomData;
-
     use std::ptr;
 
-    use crate::model::llama_lora_adapter::LlamaLoraAdapter;
+    use crate::llama_lora_adapter::LlamaLoraAdapter;
 
     #[test]
     fn dropping_an_adapter_holding_a_null_pointer_is_tolerated() {

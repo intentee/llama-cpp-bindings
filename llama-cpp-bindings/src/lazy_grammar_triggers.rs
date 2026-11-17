@@ -3,10 +3,10 @@ use std::ptr;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use crate::chat_grammar_trigger::ChatGrammarTrigger;
 use crate::error::grammar_error::GrammarError;
-use crate::token::LlamaToken;
 
 fn anchored_pattern(pattern: &str) -> String {
     if pattern.is_empty() {
@@ -133,13 +133,13 @@ mod tests {
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
     use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
     use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use super::LazyGrammarTriggers;
     use super::anchored_pattern;
     use super::regex_escape_status_to_result;
     use crate::chat_grammar_trigger::ChatGrammarTrigger;
     use crate::error::grammar_error::GrammarError;
-    use crate::token::LlamaToken;
 
     #[test]
     fn regex_escape_status_to_result_maps_every_status_to_the_escaped_word_or_its_error() {

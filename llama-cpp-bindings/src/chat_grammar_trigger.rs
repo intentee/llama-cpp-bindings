@@ -1,6 +1,5 @@
 use llama_cpp_ffi_status::ffi_error::FfiError;
-
-use crate::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ChatGrammarTrigger {
@@ -46,9 +45,9 @@ impl ChatGrammarTrigger {
 #[cfg(test)]
 mod tests {
     use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use crate::chat_grammar_trigger::ChatGrammarTrigger;
-    use crate::token::LlamaToken;
 
     fn trigger_of(
         trigger_type: llama_cpp_bindings_sys::llama_rs_chat_grammar_trigger_type,

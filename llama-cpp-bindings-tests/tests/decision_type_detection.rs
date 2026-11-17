@@ -1,7 +1,7 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::model::decision_type::DecisionType;
+use llama_cpp_model::decision_type::DecisionType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

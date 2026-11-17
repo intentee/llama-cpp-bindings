@@ -12,6 +12,7 @@ mod sequence_output_capacity;
 pub mod session;
 pub mod state_data_error;
 
+use log::debug;
 use std::ffi::c_char;
 use std::ffi::c_void;
 use std::fmt;
@@ -24,11 +25,14 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-use log::debug;
-
 use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::llama_token_data::LlamaTokenData;
+use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
+use llama_cpp_model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_params::llama_context_params::LlamaContextParams;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 
@@ -45,11 +49,6 @@ use crate::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
 use crate::error::logits_error::LogitsError;
 use crate::error::process_failure::ProcessFailure;
 use crate::llama_batch::LlamaBatch;
-use crate::model::LlamaModel;
-use crate::model::lora_adapter_scale::LoraAdapterScale;
-use crate::token::LlamaToken;
-use crate::token::data::LlamaTokenData;
-use crate::token::data_array::LlamaTokenDataArray;
 
 const fn check_lora_adapters_result(err_code: i32) -> Result<(), LlamaLoraAdaptersError> {
     if err_code != 0 {
@@ -752,23 +751,17 @@ mod tests {
 
     use llama_cpp_ffi_status::ffi_error::FfiError;
 
-    use super::check_lora_adapters_result;
-
-    use super::new_context_with_model_status_to_result;
-    use crate::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
-
     use super::batch_ext_init_status_to_result;
-    use super::process_status_to_result;
-    use crate::error::llama_context_load_error::LlamaContextLoadError;
-
-    use crate::error::decode_error::DecodeError;
-
-    use crate::error::encode_error::EncodeError;
-
+    use super::check_lora_adapters_result;
     use super::logits_slice;
-    use crate::error::process_failure::ProcessFailure;
-
+    use super::new_context_with_model_status_to_result;
+    use super::process_status_to_result;
+    use crate::error::decode_error::DecodeError;
+    use crate::error::encode_error::EncodeError;
+    use crate::error::llama_context_load_error::LlamaContextLoadError;
+    use crate::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
     use crate::error::logits_error::LogitsError;
+    use crate::error::process_failure::ProcessFailure;
 
     const OPERATION: &str = "llama_rs_process";
 

@@ -1,16 +1,5 @@
-pub mod add_bos;
-pub mod decision_type;
-pub mod llama_chat_template;
-pub mod llama_lora_adapter;
-pub mod lora_adapter_scale;
-pub mod parse_special_tokens;
-mod piece_write;
-pub mod rope_type;
-pub mod tokenizer_input;
-pub mod vocab_type;
-pub mod vocab_type_from_int_error;
-pub mod vocabulary_token;
-
+use encoding_rs::CoderResult;
+use once_cell::sync::OnceCell;
 use std::cmp;
 use std::ffi::c_int;
 use std::ffi::{CStr, CString, c_char};
@@ -23,9 +12,6 @@ use std::path::Path;
 use std::ptr;
 use std::ptr::NonNull;
 use std::sync::Arc;
-
-use encoding_rs::CoderResult;
-use once_cell::sync::OnceCell;
 use toktrie::ApproximateTokEnv;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokRxInfo;
@@ -36,46 +22,34 @@ use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 
+use crate::add_bos::AddBos;
 use crate::chat_templates::ChatTemplates;
-use crate::error::chat_template_error::ChatTemplateError;
-use crate::error::chat_templates_error::ChatTemplatesError;
-use crate::error::decision_labels_error::DecisionLabelsError;
-use crate::error::decision_type_error::DecisionTypeError;
-use crate::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
-use crate::error::llama_model_load_error::LlamaModelLoadError;
-use crate::error::meta_val_error::MetaValError;
-use crate::error::string_to_token_error::StringToTokenError;
-use crate::error::token_attr_error::TokenAttrError;
-use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
-use crate::error::token_to_string_error::TokenToStringError;
-use crate::error::unknown_rope_type::UnknownRopeType;
+use crate::decision_type::DecisionType;
+use crate::llama_chat_template::LlamaChatTemplate;
+use crate::llama_lora_adapter::LlamaLoraAdapter;
+use crate::llama_token::LlamaToken;
 use crate::llama_token_attrs::LlamaTokenAttrs;
-use crate::model::add_bos::AddBos;
-use crate::model::decision_type::DecisionType;
-use crate::model::llama_chat_template::LlamaChatTemplate;
-use crate::model::llama_lora_adapter::LlamaLoraAdapter;
-use crate::model::parse_special_tokens::ParseSpecialTokens;
-use crate::model::piece_write::PieceWrite;
-use crate::model::rope_type::RopeType;
-use crate::model::tokenizer_input::TokenizerInput;
-use crate::model::vocab_type::VocabType;
-use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
-use crate::model::vocabulary_token::VocabularyToken;
+use crate::model_error::ModelError;
+use crate::parse_special_tokens::ParseSpecialTokens;
 use crate::path_c_string::path_c_string;
+use crate::piece_write::PieceWrite;
+use crate::rope_type::RopeType;
 use crate::sampled_token::SampledToken;
-use crate::token::LlamaToken;
+use crate::tokenizer_input::TokenizerInput;
+use crate::vocab_type::VocabType;
+use crate::vocabulary_token::VocabularyToken;
 
 const PIECE_PROBE_LEN: c_int = 32;
 
 const PIECE_PROBE_SIZE: usize = PIECE_PROBE_LEN.unsigned_abs() as usize;
 
-fn checked_tokenizer_length(length: usize) -> Result<c_int, StringToTokenError> {
-    Ok(c_int::try_from(length)?)
+fn checked_tokenizer_length(length: usize) -> Result<c_int, ModelError> {
+    c_int::try_from(length).map_err(ModelError::TokenizeIntConversion)
 }
 
-fn cstring_with_validated_len(text: &str) -> Result<TokenizerInput, StringToTokenError> {
+fn cstring_with_validated_len(text: &str) -> Result<TokenizerInput, ModelError> {
     let length = checked_tokenizer_length(text.len())?;
-    let c_string = CString::new(text)?;
+    let c_string = CString::new(text).map_err(ModelError::TokenizeTextContainsNulByte)?;
 
     Ok(TokenizerInput {
         text: c_string,
@@ -120,11 +94,11 @@ unsafe fn load_model_from_file_status_to_result(
     out_model: *mut llama_cpp_bindings_sys::llama_model,
     out_error: *mut c_char,
     path: &Path,
-) -> Result<LlamaModel, LlamaModelLoadError> {
+) -> Result<LlamaModel, ModelError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_OK => {
             let model = NonNull::new(out_model).ok_or_else(|| {
-                LlamaModelLoadError::from(FfiError::ContractViolated {
+                ModelError::from(FfiError::ContractViolated {
                     operation: "llama_rs_load_model_from_file",
                     detail: "success status contained a null model",
                 })
@@ -141,16 +115,16 @@ unsafe fn load_model_from_file_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_RETURNED_NULL => {
             if path.exists() {
-                Err(LlamaModelLoadError::Unloadable)
+                Err(ModelError::ModelUnloadable)
             } else {
-                Err(LlamaModelLoadError::FileNotFound(path.to_path_buf()))
+                Err(ModelError::ModelFileNotFound(path.to_path_buf()))
             }
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(LlamaModelLoadError::NotEnoughMemory)
+            Err(ModelError::LoadNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(LlamaModelLoadError::LlamaCppOutOfMemory)
+            Err(ModelError::LoadLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -160,7 +134,7 @@ unsafe fn load_model_from_file_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(LlamaModelLoadError::Reported { message })
+            Err(ModelError::LoadReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG => {
             Err(FfiError::ContractViolated {
@@ -199,8 +173,8 @@ unsafe fn model_decision_type_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_model_decision_type_status,
     out_decision_type: llama_cpp_bindings_sys::llama_rs_decision_type,
     out_error: *mut c_char,
-) -> Result<DecisionType, DecisionTypeError> {
-    let contract_violation = |detail: &'static str| -> Result<DecisionType, DecisionTypeError> {
+) -> Result<DecisionType, ModelError> {
+    let contract_violation = |detail: &'static str| -> Result<DecisionType, ModelError> {
         Err(FfiError::ContractViolated {
             operation: "llama_rs_model_decision_type",
             detail,
@@ -210,13 +184,13 @@ unsafe fn model_decision_type_status_to_result(
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_OK => {
-            Ok(DecisionType::try_from(out_decision_type)?)
+            DecisionType::try_from(out_decision_type)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(DecisionTypeError::NotEnoughMemory)
+            Err(ModelError::DecisionTypeNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(DecisionTypeError::LlamaCppOutOfMemory)
+            Err(ModelError::DecisionTypeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -226,7 +200,7 @@ unsafe fn model_decision_type_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(DecisionTypeError::Reported { message })
+            Err(ModelError::DecisionTypeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_MODEL_ARG => {
             contract_violation("was given a null model argument")
@@ -251,7 +225,7 @@ unsafe fn model_decision_type_status_to_result(
 /// stays valid until this function returns.
 unsafe fn collect_decision_labels(
     read_label: impl Fn(u32) -> *const c_char,
-) -> Result<Vec<String>, DecisionLabelsError> {
+) -> Result<Vec<String>, ModelError> {
     (0..=u32::MAX)
         .map_while(|index| {
             let label = read_label(index);
@@ -264,7 +238,7 @@ unsafe fn collect_decision_labels(
                 unsafe { CStr::from_ptr(label) }
                     .to_str()
                     .map(str::to_owned)
-                    .map_err(|source| DecisionLabelsError::LabelNotUtf8 { index, source }),
+                    .map_err(|source| ModelError::DecisionLabelNotUtf8 { index, source }),
             )
         })
         .collect()
@@ -272,14 +246,12 @@ unsafe fn collect_decision_labels(
 
 fn initialize_lora_adapter<'model>(
     initialize: impl FnOnce() -> *mut llama_cpp_bindings_sys::llama_adapter_lora,
-) -> Result<LlamaLoraAdapter<'model>, LlamaLoraAdapterInitError> {
-    let adapter = NonNull::new(initialize()).ok_or(LlamaLoraAdapterInitError::Unloadable)?;
+) -> Result<LlamaLoraAdapter<'model>, ModelError> {
+    let adapter = NonNull::new(initialize()).ok_or(ModelError::LoraAdapterUnloadable)?;
     Ok(unsafe { LlamaLoraAdapter::new(adapter) })
 }
 
-fn build_approximate_tok_env(
-    model: &LlamaModel,
-) -> Result<Arc<ApproximateTokEnv>, TokenToStringError> {
+fn build_approximate_tok_env(model: &LlamaModel) -> Result<Arc<ApproximateTokEnv>, ModelError> {
     let n_vocab = model.n_vocab().cast_unsigned();
     let end_of_generation_token = present_special_token(unsafe {
         llama_cpp_bindings_sys::llama_vocab_eot(model.vocab_ptr())
@@ -323,14 +295,14 @@ unsafe fn tokenize_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_tokenize_status,
     out_count: c_int,
     out_error: *mut c_char,
-) -> Result<c_int, StringToTokenError> {
+) -> Result<c_int, ModelError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_OK => Ok(out_count),
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(StringToTokenError::NotEnoughMemory)
+            Err(ModelError::TokenizeNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(StringToTokenError::LlamaCppOutOfMemory)
+            Err(ModelError::TokenizeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -340,7 +312,7 @@ unsafe fn tokenize_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(StringToTokenError::Reported { message })
+            Err(ModelError::TokenizeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
@@ -393,7 +365,7 @@ fn invoke_rs_tokenize(
     n_tokens_max: c_int,
     add_bos: bool,
     parse_special: bool,
-) -> Result<c_int, StringToTokenError> {
+) -> Result<c_int, ModelError> {
     let mut out_count: i32 = 0;
     let mut out_error: *mut c_char = ptr::null_mut();
     let status = unsafe {
@@ -412,17 +384,14 @@ fn invoke_rs_tokenize(
     unsafe { tokenize_status_to_result(status, out_count, out_error) }
 }
 
-fn checked_token_count(size: i32) -> Result<usize, StringToTokenError> {
-    Ok(usize::try_from(size)?)
+fn checked_token_count(size: i32) -> Result<usize, ModelError> {
+    usize::try_from(size).map_err(ModelError::TokenizeIntConversion)
 }
 
 fn tokenize_into_buffer(
     estimated_capacity: usize,
-    invoke: impl Fn(
-        *mut llama_cpp_bindings_sys::llama_token,
-        c_int,
-    ) -> Result<c_int, StringToTokenError>,
-) -> Result<Vec<LlamaToken>, StringToTokenError> {
+    invoke: impl Fn(*mut llama_cpp_bindings_sys::llama_token, c_int) -> Result<c_int, ModelError>,
+) -> Result<Vec<LlamaToken>, ModelError> {
     let buffer_capacity = checked_tokenizer_length(estimated_capacity)?;
     let mut buffer: Vec<LlamaToken> = Vec::with_capacity(estimated_capacity);
 
@@ -457,7 +426,7 @@ fn tokenize_into_buffer(
 fn extract_meta_string<TCFunction>(
     c_function: TCFunction,
     capacity: usize,
-) -> Result<String, MetaValError>
+) -> Result<String, ModelError>
 where
     TCFunction: Fn(*mut c_char, usize) -> i32,
 {
@@ -465,7 +434,7 @@ where
     let result = c_function(buffer.as_mut_ptr().cast::<c_char>(), buffer.len());
 
     if result < 0 {
-        return Err(MetaValError::NegativeReturn(result));
+        return Err(ModelError::MetaNegativeReturn(result));
     }
 
     let returned_len = result.cast_unsigned() as usize;
@@ -475,12 +444,12 @@ where
     }
 
     if buffer.get(returned_len) != Some(&0) {
-        return Err(MetaValError::NegativeReturn(-1));
+        return Err(ModelError::MetaNegativeReturn(-1));
     }
 
     buffer.truncate(returned_len);
 
-    Ok(String::from_utf8(buffer)?)
+    String::from_utf8(buffer).map_err(ModelError::MetaValueNotUtf8)
 }
 
 pub struct LlamaModel {
@@ -507,7 +476,7 @@ unsafe impl Sync for LlamaModel {}
 impl LlamaModel {
     /// # Errors
     ///
-    /// See [`LlamaModelLoadError`] for more information.
+    /// See [`ModelError`] for more information.
     ///
     /// # Panics
     ///
@@ -516,12 +485,12 @@ impl LlamaModel {
         _: &LlamaBackend,
         path: impl AsRef<Path>,
         LlamaModelParams { params, .. }: &LlamaModelParams,
-    ) -> Result<Self, LlamaModelLoadError> {
+    ) -> Result<Self, ModelError> {
         let path = path.as_ref();
         let cstr = path_c_string(path)?;
 
         if !path.exists() {
-            return Err(LlamaModelLoadError::FileNotFound(path.to_path_buf()));
+            return Err(ModelError::ModelFileNotFound(path.to_path_buf()));
         }
         let mut out_model: *mut llama_cpp_bindings_sys::llama_model = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
@@ -543,20 +512,20 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`ChatTemplateError::NullError`] when `name` contains a NUL byte, or
-    /// [`ChatTemplateError::MissingTemplate`] when the model has no chat template by that name.
-    pub fn chat_template(
-        &self,
-        name: Option<&str>,
-    ) -> Result<LlamaChatTemplate, ChatTemplateError> {
-        let name_cstr = name.map(CString::new).transpose()?;
+    /// Returns [`ModelError::ChatTemplateNameContainsNulByte`] when `name` contains a NUL byte,
+    /// or [`ModelError::ChatTemplateMissing`] when the model has no chat template by that name.
+    pub fn chat_template(&self, name: Option<&str>) -> Result<LlamaChatTemplate, ModelError> {
+        let name_cstr = name
+            .map(CString::new)
+            .transpose()
+            .map_err(ModelError::ChatTemplateNameContainsNulByte)?;
         let name_ptr = name_cstr.as_ref().map_or(ptr::null(), |name| name.as_ptr());
         let result = unsafe {
             llama_cpp_bindings_sys::llama_model_chat_template(self.model.as_ptr(), name_ptr)
         };
 
         if result.is_null() {
-            Err(ChatTemplateError::MissingTemplate)
+            Err(ModelError::ChatTemplateMissing)
         } else {
             let chat_template_cstr = unsafe { CStr::from_ptr(result) };
 
@@ -573,8 +542,8 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`DecisionLabelsError::LabelNotUtf8`] when a label is not valid UTF-8.
-    pub fn decision_labels(&self) -> Result<Vec<String>, DecisionLabelsError> {
+    /// Returns [`ModelError::DecisionLabelNotUtf8`] when a label is not valid UTF-8.
+    pub fn decision_labels(&self) -> Result<Vec<String>, ModelError> {
         unsafe {
             collect_decision_labels(|index| {
                 llama_cpp_bindings_sys::llama_rs_model_decision_label(self.model.as_ptr(), index)
@@ -584,9 +553,9 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`DecisionTypeError`] when the wrapper fails or reports a decision type it does
+    /// Returns [`ModelError`] when the wrapper fails or reports a decision type it does
     /// not define.
-    pub fn decision_type(&self) -> Result<DecisionType, DecisionTypeError> {
+    pub fn decision_type(&self) -> Result<DecisionType, ModelError> {
         let mut out_decision_type = llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -634,20 +603,20 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// See [`LlamaLoraAdapterInitError`] for more information.
+    /// See [`ModelError`] for more information.
     pub fn lora_adapter_init(
         &self,
         path: impl AsRef<Path>,
-    ) -> Result<LlamaLoraAdapter<'_>, LlamaLoraAdapterInitError> {
+    ) -> Result<LlamaLoraAdapter<'_>, ModelError> {
         let path = path.as_ref();
 
         let path_str = path
             .to_str()
-            .ok_or_else(|| LlamaLoraAdapterInitError::PathToStrError(path.to_path_buf()))?;
-        let cstr = CString::new(path_str)?;
+            .ok_or_else(|| ModelError::LoraAdapterPathNotUtf8(path.to_path_buf()))?;
+        let cstr = CString::new(path_str).map_err(ModelError::LoraAdapterPathContainsNulByte)?;
 
         if !path.exists() {
-            return Err(LlamaLoraAdapterInitError::FileNotFound(path.to_path_buf()));
+            return Err(ModelError::LoraAdapterFileNotFound(path.to_path_buf()));
         }
         initialize_lora_adapter(|| unsafe {
             llama_cpp_bindings_sys::llama_adapter_lora_init(self.model.as_ptr(), cstr.as_ptr())
@@ -661,7 +630,7 @@ impl LlamaModel {
 
     /// # Errors
     /// Returns an error if the index is out of range or the key is not valid UTF-8.
-    pub fn meta_key_by_index(&self, index: i32) -> Result<String, MetaValError> {
+    pub fn meta_key_by_index(&self, index: i32) -> Result<String, ModelError> {
         extract_meta_string(
             |buf_ptr, buf_len| unsafe {
                 llama_cpp_bindings_sys::llama_model_meta_key_by_index(
@@ -677,8 +646,8 @@ impl LlamaModel {
 
     /// # Errors
     /// Returns an error if the key is not found or the value is not valid UTF-8.
-    pub fn meta_val_str(&self, key: &str) -> Result<String, MetaValError> {
-        let key_cstring = CString::new(key)?;
+    pub fn meta_val_str(&self, key: &str) -> Result<String, ModelError> {
+        let key_cstring = CString::new(key).map_err(ModelError::MetaKeyContainsNulByte)?;
         let key_ptr = key_cstring.as_ptr();
 
         extract_meta_string(
@@ -696,7 +665,7 @@ impl LlamaModel {
 
     /// # Errors
     /// Returns an error if the index is out of range or the value is not valid UTF-8.
-    pub fn meta_val_str_by_index(&self, index: i32) -> Result<String, MetaValError> {
+    pub fn meta_val_str_by_index(&self, index: i32) -> Result<String, ModelError> {
         extract_meta_string(
             |buf_ptr, buf_len| unsafe {
                 llama_cpp_bindings_sys::llama_model_meta_val_str_by_index(
@@ -768,8 +737,9 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`UnknownRopeType`] when llama.cpp reports a rope type it does not define.
-    pub fn rope_type(&self) -> Result<RopeType, UnknownRopeType> {
+    /// Returns [`ModelError::UnknownRopeType`] when llama.cpp reports a rope type it does not
+    /// define.
+    pub fn rope_type(&self) -> Result<RopeType, ModelError> {
         RopeType::try_from(unsafe {
             llama_cpp_bindings_sys::llama_rs_model_rope_type(self.model.as_ptr())
         })
@@ -789,7 +759,7 @@ impl LlamaModel {
         str: &str,
         add_bos: AddBos,
         parse_special_tokens: ParseSpecialTokens,
-    ) -> Result<Vec<LlamaToken>, StringToTokenError> {
+    ) -> Result<Vec<LlamaToken>, ModelError> {
         let add_bos = match add_bos {
             AddBos::Always => true,
             AddBos::Never => false,
@@ -821,15 +791,15 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`TokenAttrError::TokenOutsideVocabulary`] when the token is not part of this
-    /// model's vocabulary, or [`TokenAttrError::UnknownAttributes`] when llama.cpp reports
+    /// Returns [`ModelError::TokenOutsideVocabulary`] when the token is not part of this
+    /// model's vocabulary, or [`ModelError::UnknownTokenAttributes`] when llama.cpp reports
     /// attributes this library does not know.
-    pub fn token_attr(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
+    pub fn token_attr(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, ModelError> {
         let LlamaToken(id) = self.require_vocabulary_token(token)?;
         let token_attr =
             unsafe { llama_cpp_bindings_sys::llama_vocab_get_attr(self.vocab_ptr(), id) };
 
-        LlamaTokenAttrs::try_from(token_attr).map_err(TokenAttrError::UnknownAttributes)
+        LlamaTokenAttrs::try_from(token_attr)
     }
 
     #[must_use]
@@ -859,8 +829,9 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`TokenOutsideVocabulary`] when the token is not part of this model's vocabulary.
-    pub fn token_text_bytes(&self, token: LlamaToken) -> Result<Vec<u8>, TokenOutsideVocabulary> {
+    /// Returns [`ModelError::TokenOutsideVocabulary`] when the token is not part of this model's
+    /// vocabulary.
+    pub fn token_text_bytes(&self, token: LlamaToken) -> Result<Vec<u8>, ModelError> {
         let LlamaToken(id) = self.require_vocabulary_token(token)?;
         let text = unsafe { llama_cpp_bindings_sys::llama_vocab_get_text(self.vocab_ptr(), id) };
 
@@ -878,7 +849,7 @@ impl LlamaModel {
         decoder: &mut encoding_rs::Decoder,
         special: bool,
         lstrip: Option<NonZeroU16>,
-    ) -> Result<String, TokenToStringError> {
+    ) -> Result<String, ModelError> {
         self.read_piece(token.token(), special, lstrip, |piece| {
             decode_piece(decoder, piece)
         })
@@ -896,9 +867,9 @@ impl LlamaModel {
         buffer_size: usize,
         special: bool,
         lstrip: Option<NonZeroU16>,
-    ) -> Result<Vec<u8>, TokenToStringError> {
+    ) -> Result<Vec<u8>, ModelError> {
         let token = self.require_vocabulary_token(token)?;
-        let buffer_len = c_int::try_from(buffer_size)?;
+        let buffer_len = c_int::try_from(buffer_size).map_err(ModelError::PieceIntConversion)?;
         let mut buffer: Vec<u8> = vec![0u8; buffer_size];
         match self.write_piece(token, &mut buffer, buffer_len, special, lstrip) {
             PieceWrite::Written(written) => {
@@ -907,7 +878,7 @@ impl LlamaModel {
                 Ok(buffer)
             }
             PieceWrite::NeedsBuffer(negated_size) => {
-                Err(TokenToStringError::InsufficientBufferSpace(negated_size))
+                Err(ModelError::PieceInsufficientBufferSpace(negated_size))
             }
         }
     }
@@ -916,7 +887,7 @@ impl LlamaModel {
     pub fn tokens(
         &self,
         decode_special: bool,
-    ) -> impl Iterator<Item = Result<VocabularyToken, TokenToStringError>> + '_ {
+    ) -> impl Iterator<Item = Result<VocabularyToken, ModelError>> + '_ {
         (0..self.n_vocab()).map(LlamaToken::new).map(move |token| {
             self.token_to_piece(
                 SampledToken::Content(token),
@@ -936,7 +907,7 @@ impl LlamaModel {
     /// # Errors
     ///
     /// Returns an error if llama.cpp emits a vocab type that is not known to this library.
-    pub fn vocab_type(&self) -> Result<VocabType, VocabTypeFromIntError> {
+    pub fn vocab_type(&self) -> Result<VocabType, ModelError> {
         let vocab_type = unsafe { llama_cpp_bindings_sys::llama_vocab_type(self.vocab_ptr()) };
 
         VocabType::try_from(vocab_type)
@@ -948,7 +919,7 @@ impl LlamaModel {
         special: bool,
         lstrip: Option<NonZeroU16>,
         read: impl FnOnce(&[u8]) -> TOutput,
-    ) -> Result<TOutput, TokenToStringError> {
+    ) -> Result<TOutput, ModelError> {
         let token = self.require_vocabulary_token(token)?;
         let mut probe = [0_u8; PIECE_PROBE_SIZE];
 
@@ -960,11 +931,15 @@ impl LlamaModel {
         }
     }
 
-    fn require_vocabulary_token(
-        &self,
-        token: LlamaToken,
-    ) -> Result<LlamaToken, TokenOutsideVocabulary> {
-        TokenOutsideVocabulary::of(token, self.n_vocab()).map_or(Ok(token), Err)
+    const fn require_vocabulary_token(&self, token: LlamaToken) -> Result<LlamaToken, ModelError> {
+        if token.is_within_vocabulary(self.n_vocab()) {
+            Ok(token)
+        } else {
+            Err(ModelError::TokenOutsideVocabulary {
+                token,
+                n_vocab: self.n_vocab(),
+            })
+        }
     }
 
     fn write_piece(
@@ -990,11 +965,11 @@ impl LlamaModel {
 
 impl LlamaModel {
     /// # Errors
-    /// Returns [`TokenToStringError`] when a token's byte piece cannot be
+    /// Returns [`ModelError`] when a token's byte piece cannot be
     /// retrieved. The legitimate "this token has no byte piece" case is treated
     /// as empty (not an error); a piece that overflows the probe buffer is
     /// re-read at the exact size rather than dropped.
-    pub fn approximate_tok_env(&self) -> Result<Arc<ApproximateTokEnv>, TokenToStringError> {
+    pub fn approximate_tok_env(&self) -> Result<Arc<ApproximateTokEnv>, ModelError> {
         self.tok_env
             .get_or_try_init(|| build_approximate_tok_env(self))
             .map(Arc::clone)
@@ -1004,11 +979,25 @@ impl LlamaModel {
     ///
     /// # Errors
     ///
-    /// Returns [`ChatTemplatesError`] when the model has no chat template or llama.cpp cannot
-    /// prepare it.
-    pub fn chat_templates(&self) -> Result<&ChatTemplates, ChatTemplatesError> {
+    /// Returns [`ModelError`] when the model has no chat template or llama.cpp cannot prepare
+    /// it.
+    pub fn chat_templates(&self) -> Result<&ChatTemplates, ModelError> {
         self.chat_templates
-            .get_or_try_init(|| ChatTemplates::new(self))
+            .get_or_try_init(|| unsafe { ChatTemplates::new(self.model) })
+    }
+
+    /// `template` in place of the model's own chat templates, the way llama.cpp serves a model
+    /// whose template cannot render a request, such as tool calls.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::EmptyTemplateOverride`] for an empty `template`, or another
+    /// [`ModelError`] when llama.cpp cannot prepare the template.
+    pub fn chat_templates_with_override(
+        &self,
+        template: &LlamaChatTemplate,
+    ) -> Result<ChatTemplates, ModelError> {
+        unsafe { ChatTemplates::with_override(self.model, template) }
     }
 }
 
@@ -1020,47 +1009,31 @@ impl Drop for LlamaModel {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::CString;
-
     use std::cell::Cell;
+    use std::ffi::CStr;
+    use std::ffi::CString;
+    use std::ffi::c_char;
     use std::mem::ManuallyDrop;
+    use std::path::Path;
+    use std::ptr;
     use std::slice;
     use std::str;
 
-    use std::ffi::CStr;
-    use std::path::Path;
-    use std::ptr;
-
-    use std::ffi::c_char;
-
     use llama_cpp_ffi_status::ffi_error::FfiError;
-
-    use super::cstring_with_validated_len;
 
     use super::checked_token_count;
     use super::checked_tokenizer_length;
+    use super::cstring_with_validated_len;
     use super::extract_meta_string;
-    use super::tokenize_into_buffer;
-    use crate::error::string_to_token_error::StringToTokenError;
-
     use super::initialize_lora_adapter;
-    use crate::error::meta_val_error::MetaValError;
-
     use super::load_model_from_file_status_to_result;
-    use crate::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
-
     use super::model_decision_type_status_to_result;
-    use crate::error::llama_model_load_error::LlamaModelLoadError;
-
-    use crate::error::decision_type_error::DecisionTypeError;
-
-    use crate::error::unknown_decision_type::UnknownDecisionType;
+    use super::tokenize_into_buffer;
 
     use super::collect_decision_labels;
-    use crate::model::decision_type::DecisionType;
-
     use super::tokenize_status_to_result;
-    use crate::error::decision_labels_error::DecisionLabelsError;
+    use crate::decision_type::DecisionType;
+    use crate::model_error::ModelError;
 
     const NOT_A_DECISION_MODEL: llama_cpp_bindings_sys::llama_rs_decision_type =
         llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE;
@@ -1077,7 +1050,7 @@ mod tests {
             cstring_with_validated_len("null\0byte").err(),
             CString::new("null\0byte")
                 .err()
-                .map(StringToTokenError::NulError)
+                .map(ModelError::TokenizeTextContainsNulByte)
         );
     }
 
@@ -1089,7 +1062,7 @@ mod tests {
             cstring_with_validated_len(str::from_utf8(&too_long).unwrap()).err(),
             i32::try_from(too_long.len())
                 .err()
-                .map(StringToTokenError::CIntConversionError)
+                .map(ModelError::TokenizeIntConversion)
         );
     }
 
@@ -1127,10 +1100,10 @@ mod tests {
     #[test]
     fn tokenize_into_buffer_propagates_invocation_error() {
         let result = tokenize_into_buffer(8, |_tokens, _n_tokens_max| {
-            Err(StringToTokenError::NotEnoughMemory)
+            Err(ModelError::TokenizeNotEnoughMemory)
         });
 
-        assert_eq!(result, Err(StringToTokenError::NotEnoughMemory));
+        assert_eq!(result, Err(ModelError::TokenizeNotEnoughMemory));
     }
 
     #[test]
@@ -1142,11 +1115,11 @@ mod tests {
             if count == 0 {
                 Ok(-20)
             } else {
-                Err(StringToTokenError::NotEnoughMemory)
+                Err(ModelError::TokenizeNotEnoughMemory)
             }
         });
 
-        assert_eq!(result, Err(StringToTokenError::NotEnoughMemory));
+        assert_eq!(result, Err(ModelError::TokenizeNotEnoughMemory));
         assert_eq!(call_count.get(), 2);
     }
 
@@ -1154,7 +1127,7 @@ mod tests {
     fn tokenize_into_buffer_refuses_a_capacity_beyond_a_c_int_before_allocating() {
         assert_eq!(
             tokenize_into_buffer(usize::MAX, |_tokens, _n_tokens_max| Ok(0)),
-            Err(StringToTokenError::CIntConversionError(
+            Err(ModelError::TokenizeIntConversion(
                 i32::try_from(usize::MAX).unwrap_err()
             ))
         );
@@ -1164,7 +1137,7 @@ mod tests {
     fn tokenize_into_buffer_refuses_a_required_size_it_cannot_negate() {
         assert_eq!(
             tokenize_into_buffer(8, |_tokens, _n_tokens_max| Ok(i32::MIN)),
-            Err(StringToTokenError::CIntConversionError(
+            Err(ModelError::TokenizeIntConversion(
                 usize::try_from(i32::MIN).unwrap_err()
             ))
         );
@@ -1181,7 +1154,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            StringToTokenError::CIntConversionError(usize::try_from(-5i32).unwrap_err())
+            ModelError::TokenizeIntConversion(usize::try_from(-5i32).unwrap_err())
         );
     }
 
@@ -1196,14 +1169,14 @@ mod tests {
             4,
         );
 
-        assert_eq!(result.unwrap_err(), MetaValError::NegativeReturn(-1));
+        assert_eq!(result.unwrap_err(), ModelError::MetaNegativeReturn(-1));
     }
 
     #[test]
     fn a_negative_return_value_is_reported_as_is() {
         let result = extract_meta_string(|_buf_ptr, _buf_len| -5, 4);
 
-        assert_eq!(result.unwrap_err(), MetaValError::NegativeReturn(-5));
+        assert_eq!(result.unwrap_err(), ModelError::MetaNegativeReturn(-5));
     }
 
     #[test]
@@ -1222,7 +1195,7 @@ mod tests {
 
         let invalid_utf8 = String::from_utf8(vec![0xFF, 0xFE]).unwrap_err();
 
-        assert_eq!(result, Err(MetaValError::FromUtf8Error(invalid_utf8)));
+        assert_eq!(result, Err(ModelError::MetaValueNotUtf8(invalid_utf8)));
     }
 
     #[test]
@@ -1257,7 +1230,7 @@ mod tests {
     fn lora_adapter_initialization_maps_a_null_pointer_to_unloadable() {
         let result = initialize_lora_adapter(ptr::null_mut);
 
-        assert_eq!(result.unwrap_err(), LlamaLoraAdapterInitError::Unloadable);
+        assert_eq!(result.unwrap_err(), ModelError::LoraAdapterUnloadable);
     }
 
     #[test]
@@ -1284,7 +1257,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            LlamaModelLoadError::Ffi(FfiError::ContractViolated {
+            ModelError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_load_model_from_file",
                 detail: "success status contained a null model",
             })
@@ -1304,7 +1277,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            LlamaModelLoadError::FileNotFound(
+            ModelError::ModelFileNotFound(
                 Path::new("/definitely/missing/model.gguf").to_path_buf()
             )
         );
@@ -1321,7 +1294,7 @@ mod tests {
             )
         };
 
-        assert_eq!(result.unwrap_err(), LlamaModelLoadError::NotEnoughMemory);
+        assert_eq!(result.unwrap_err(), ModelError::LoadNotEnoughMemory);
     }
 
     #[test]
@@ -1339,7 +1312,7 @@ mod tests {
 
         assert_eq!(
             result.err(),
-            Some(LlamaModelLoadError::Reported {
+            Some(ModelError::LoadReported {
                 message: "model loading threw".to_owned()
             })
         );
@@ -1379,7 +1352,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            LlamaModelLoadError::Ffi(FfiError::UnknownStatus {
+            ModelError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_load_model_from_file",
                 code: 255,
             })
@@ -1464,10 +1437,7 @@ mod tests {
                 Path::new("/missing-for-contract-test.gguf"),
             )
         };
-        assert_eq!(
-            outcome.err(),
-            Some(LlamaModelLoadError::LlamaCppOutOfMemory)
-        );
+        assert_eq!(outcome.err(), Some(ModelError::LoadLlamaCppOutOfMemory));
     }
 
     #[test]
@@ -1494,9 +1464,7 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(DecisionTypeError::UnknownDecisionType(UnknownDecisionType(
-                9999
-            )))
+            Err(ModelError::UnknownDecisionType(9999))
         );
     }
 
@@ -1524,7 +1492,7 @@ mod tests {
                         ptr::null_mut(),
                     )
                 },
-                Err(DecisionTypeError::Ffi(FfiError::ContractViolated {
+                Err(ModelError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_model_decision_type",
                     detail,
                 }))
@@ -1543,8 +1511,8 @@ mod tests {
                 model_decision_type_status_to_result(status, NOT_A_DECISION_MODEL, ptr::null_mut())
             }),
             [
-                Err(DecisionTypeError::NotEnoughMemory),
-                Err(DecisionTypeError::LlamaCppOutOfMemory),
+                Err(ModelError::DecisionTypeNotEnoughMemory),
+                Err(ModelError::DecisionTypeLlamaCppOutOfMemory),
             ]
         );
     }
@@ -1562,7 +1530,7 @@ mod tests {
                     out_error,
                 )
             },
-            Err(DecisionTypeError::Reported {
+            Err(ModelError::DecisionTypeReported {
                 message: "metadata read threw".to_owned()
             })
         );
@@ -1578,7 +1546,7 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(DecisionTypeError::Ffi(FfiError::ContractViolated {
+            Err(ModelError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_model_decision_type",
                 detail: "reported a thrown C++ exception without an error message",
             }))
@@ -1591,7 +1559,7 @@ mod tests {
             unsafe {
                 model_decision_type_status_to_result(255, NOT_A_DECISION_MODEL, ptr::null_mut())
             },
-            Err(DecisionTypeError::Ffi(FfiError::UnknownStatus {
+            Err(ModelError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_model_decision_type",
                 code: 255,
             }))
@@ -1614,7 +1582,7 @@ mod tests {
 
         assert_eq!(
             unsafe { collect_decision_labels(|index| label_at(&labels, index)) },
-            Err(DecisionLabelsError::LabelNotUtf8 {
+            Err(ModelError::DecisionLabelNotUtf8 {
                 index: 1,
                 source: c"\xff".to_str().unwrap_err(),
             })
@@ -1644,7 +1612,7 @@ mod tests {
             )
         };
 
-        assert_eq!(result, Err(StringToTokenError::NotEnoughMemory));
+        assert_eq!(result, Err(ModelError::TokenizeNotEnoughMemory));
     }
 
     #[test]
@@ -1661,7 +1629,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(StringToTokenError::Reported {
+            Err(ModelError::TokenizeReported {
                 message: "tokenizer threw".to_owned()
             })
         );
@@ -1693,7 +1661,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(StringToTokenError::Ffi(FfiError::UnknownStatus {
+            Err(ModelError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_tokenize",
                 code: 255,
             }))
@@ -1793,6 +1761,6 @@ mod tests {
                 ptr::null_mut(),
             )
         };
-        assert_eq!(outcome.err(), Some(StringToTokenError::LlamaCppOutOfMemory));
+        assert_eq!(outcome.err(), Some(ModelError::TokenizeLlamaCppOutOfMemory));
     }
 }

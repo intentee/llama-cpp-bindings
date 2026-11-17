@@ -1,17 +1,16 @@
-use std::ffi::c_int;
-use std::num::NonZeroU16;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
+use std::ffi::c_int;
+use std::num::NonZeroU16;
 
-use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::model_error::ModelError;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -105,11 +104,11 @@ fn token_to_piece_returns_a_piece_longer_than_its_probe_buffer_whole(
         .find(|token| {
             matches!(
                 model.token_to_piece_bytes(*token, PIECE_PROBE_BYTES, false, None),
-                Err(TokenToStringError::InsufficientBufferSpace(_))
+                Err(ModelError::PieceInsufficientBufferSpace(_))
             )
         })
         .context("the vocabulary has a piece longer than the probe buffer")?;
-    let Err(TokenToStringError::InsufficientBufferSpace(negated_piece_size)) =
+    let Err(ModelError::PieceInsufficientBufferSpace(negated_piece_size)) =
         model.token_to_piece_bytes(long_token, PIECE_PROBE_BYTES, false, None)
     else {
         bail!("the probe buffer must be too small for the long piece");
@@ -172,7 +171,7 @@ fn token_to_piece_bytes_with_a_too_small_buffer_reports_the_size_the_piece_needs
             1,
             false,
             None
-        ) == Err(TokenToStringError::InsufficientBufferSpace(
+        ) == Err(ModelError::PieceInsufficientBufferSpace(
             c_int::try_from("hello".len())?
                 .checked_neg()
                 .context("`-c_int::try_from(\"hello\".len())?` must not overflow")?
@@ -307,7 +306,7 @@ fn token_to_piece_bytes_refuses_a_buffer_beyond_a_c_int_before_allocating(
             .err(),
         i32::try_from(usize::MAX)
             .err()
-            .map(TokenToStringError::IntConversionError)
+            .map(ModelError::PieceIntConversion)
     );
 }
 

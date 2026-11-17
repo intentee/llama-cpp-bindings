@@ -1,15 +1,14 @@
-use std::env;
-use std::fs;
-
 use anyhow::Result;
 use anyhow::ensure;
+use std::env;
+use std::fs;
 
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::load_seq_state_error::LoadSeqStateError;
 use llama_cpp_bindings::context::load_session_error::LoadSessionError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

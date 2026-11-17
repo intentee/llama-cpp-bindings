@@ -1,8 +1,8 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::model::vocabulary_token::VocabularyToken;
 use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_model::vocabulary_token::VocabularyToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

@@ -1,13 +1,13 @@
+use enumflags2::BitFlags;
 use std::ffi::CString;
 use std::ffi::c_char;
 use std::path::PathBuf;
 use std::ptr;
 use std::ptr::NonNull;
 
-use enumflags2::BitFlags;
-
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_model::llama_model::LlamaModel;
 
 use super::mtmd_bitmap::MtmdBitmap;
 use super::mtmd_capability::MtmdCapability;
@@ -20,7 +20,6 @@ use super::mtmd_input_chunks::MtmdInputChunks;
 use super::mtmd_input_part::MtmdInputPart;
 use super::mtmd_input_text::MtmdInputText;
 use super::mtmd_tokenize_error::MtmdTokenizeError;
-use crate::model::LlamaModel;
 
 fn capability_flags(
     llama_cpp_bindings_sys::mtmd_helper_cap {
@@ -488,24 +487,18 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_error::FfiError;
-
     use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
-
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
 
-    use super::map_tokenize_from_parts_status;
-
-    use super::map_encode_chunk_status;
-    use super::map_tokenize_status;
-    use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
-
-    use super::map_init_from_file_status;
-    use crate::mtmd::mtmd_encode_error::MtmdEncodeError;
-
     use super::capability_flags;
-    use crate::mtmd::mtmd_init_error::MtmdInitError;
-
+    use super::map_encode_chunk_status;
+    use super::map_init_from_file_status;
+    use super::map_tokenize_from_parts_status;
+    use super::map_tokenize_status;
     use crate::mtmd::mtmd_capability::MtmdCapability;
+    use crate::mtmd::mtmd_encode_error::MtmdEncodeError;
+    use crate::mtmd::mtmd_init_error::MtmdInitError;
+    use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
 
     const NO_CAPABILITIES: llama_cpp_bindings_sys::mtmd_helper_cap =
         llama_cpp_bindings_sys::mtmd_helper_cap {

@@ -1,8 +1,8 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::decision_labels_error::DecisionLabelsError;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -38,6 +38,6 @@ fn a_label_that_is_not_utf8_is_reported_with_its_index(
 
     assert!(matches!(
         model.decision_labels(),
-        Err(DecisionLabelsError::LabelNotUtf8 { index: 0, .. })
+        Err(ModelError::DecisionLabelNotUtf8 { index: 0, .. })
     ));
 }

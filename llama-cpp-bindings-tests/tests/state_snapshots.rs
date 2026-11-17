@@ -5,8 +5,8 @@ use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::llama_state_seq_flags::LlamaStateSeqFlags;
 use llama_cpp_bindings::context::state_data_error::StateDataError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

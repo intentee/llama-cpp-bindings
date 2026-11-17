@@ -12,6 +12,10 @@ use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_gbnf::validate_gbnf::validate_gbnf;
+use llama_cpp_model::llama_logit_bias::LlamaLogitBias;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 
 use crate::context::LlamaContext;
 use crate::dry_sequence_breakers::dry_sequence_breakers;
@@ -21,11 +25,7 @@ use crate::error::sampler_accept_error::SamplerAcceptError;
 use crate::error::sampler_apply_error::SamplerApplyError;
 use crate::error::sampling_error::SamplingError;
 use crate::llguidance_sampler::llguidance_sampler;
-use crate::model::LlamaModel;
 use crate::sanitized_grammar::SanitizedGrammar;
-use crate::token::LlamaToken;
-use crate::token::data_array::LlamaTokenDataArray;
-use crate::token::logit_bias::LlamaLogitBias;
 
 fn check_sampler_accept_status(
     status: llama_cpp_bindings_sys::llama_rs_sampler_accept_status,
@@ -988,50 +988,35 @@ impl Drop for LlamaSampler {
 #[cfg(test)]
 mod tests {
     use std::ffi::{CStr, CString};
-
     use std::ptr;
-
     use std::slice;
 
     use llama_cpp_error_recorder::record::record;
-
     use llama_cpp_error_recorder::recorded_error::RecordedError;
-    use llama_cpp_ffi_status::ffi_error::FfiError;
-
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
-
     use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_model::llama_logit_bias::LlamaLogitBias;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::llama_token_data::LlamaTokenData;
+    use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 
     use super::LlamaSampler;
-
-    use crate::error::grammar_error::GrammarError;
-
-    use crate::error::sample_error::SampleError;
-
-    use crate::error::sampler_apply_error::SamplerApplyError;
-
-    use crate::error::sampling_error::SamplingError;
-
-    use crate::sanitized_grammar::SanitizedGrammar;
-
-    use crate::token::LlamaToken;
-
-    use crate::token::data::LlamaTokenData;
-
-    use crate::token::data_array::LlamaTokenDataArray;
-
+    use super::check_sampler_accept_status;
     use super::grammar_callback_error_to_accept_result;
     use super::grammar_callback_error_to_result;
-    use crate::token::logit_bias::LlamaLogitBias;
-
-    use super::check_sampler_accept_status;
     use super::sampler_apply_status_to_result;
     use super::sampler_chain_add_status_to_result;
     use super::sampler_init_grammar_lazy_patterns_status_to_result;
     use super::sampler_init_grammar_status_to_result;
     use super::sampler_init_status_to_result;
     use super::sampler_sample_status_to_result;
+    use crate::error::grammar_error::GrammarError;
+    use crate::error::sample_error::SampleError;
     use crate::error::sampler_accept_error::SamplerAcceptError;
+    use crate::error::sampler_apply_error::SamplerApplyError;
+    use crate::error::sampling_error::SamplingError;
+    use crate::sanitized_grammar::SanitizedGrammar;
 
     unsafe extern "C" fn record_a_failure_and_exclude_every_candidate(
         _sampler: *mut llama_cpp_bindings_sys::llama_sampler,

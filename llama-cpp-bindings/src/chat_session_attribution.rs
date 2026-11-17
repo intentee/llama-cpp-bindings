@@ -1,10 +1,11 @@
 use std::collections::VecDeque;
 
+use llama_cpp_model::llama_token::LlamaToken;
+
 use crate::chat_output::ChatOutput;
 use crate::chat_reading::ChatReading;
 use crate::chat_session::ChatSession;
 use crate::pending_chat_piece::PendingChatPiece;
-use crate::token::LlamaToken;
 
 pub struct ChatSessionAttribution {
     pub session: ChatSession,

@@ -1,4 +1,4 @@
-use crate::token::LlamaToken;
+use llama_cpp_model::llama_token::LlamaToken;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LoadedSeqState {

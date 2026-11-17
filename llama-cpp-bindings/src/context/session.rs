@@ -5,6 +5,7 @@ use std::ptr;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_model::llama_token::LlamaToken;
 
 use crate::context::LlamaContext;
 use crate::context::llama_state_seq_flags::LlamaStateSeqFlags;
@@ -14,7 +15,6 @@ use crate::context::loaded_seq_state::LoadedSeqState;
 use crate::context::save_seq_state_error::SaveSeqStateError;
 use crate::context::save_session_error::SaveSessionError;
 use crate::context::state_data_error::StateDataError;
-use crate::token::LlamaToken;
 
 fn state_data_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_state_data_status,
@@ -403,20 +403,15 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_error::FfiError;
-
-    use super::process_session_load_result;
-
-    use crate::context::load_session_error::LoadSessionError;
+    use llama_cpp_model::llama_token::LlamaToken;
 
     use super::process_seq_load_result;
-    use crate::token::LlamaToken;
-
-    use crate::context::load_seq_state_error::LoadSeqStateError;
-
-    use super::state_data_status_to_result;
-    use crate::context::loaded_seq_state::LoadedSeqState;
-
+    use super::process_session_load_result;
     use super::state_data_restore_status_to_result;
+    use super::state_data_status_to_result;
+    use crate::context::load_seq_state_error::LoadSeqStateError;
+    use crate::context::load_session_error::LoadSessionError;
+    use crate::context::loaded_seq_state::LoadedSeqState;
     use crate::context::state_data_error::StateDataError;
 
     #[test]

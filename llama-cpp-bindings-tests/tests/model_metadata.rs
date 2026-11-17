@@ -1,9 +1,8 @@
-use std::ffi::CString;
-
 use anyhow::Result;
 use anyhow::ensure;
+use std::ffi::CString;
 
-use llama_cpp_bindings::error::meta_val_error::MetaValError;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -163,7 +162,9 @@ fn meta_key_by_index_out_of_range_reports_the_negative_llama_cpp_return(
 ) {
     assert_eq!(
         model.meta_key_by_index(999_999),
-        Err(MetaValError::NegativeReturn(OUT_OF_RANGE_META_INDEX_RETURN))
+        Err(ModelError::MetaNegativeReturn(
+            OUT_OF_RANGE_META_INDEX_RETURN
+        ))
     );
 }
 
@@ -204,7 +205,9 @@ fn meta_val_str_by_index_out_of_range_reports_the_negative_llama_cpp_return(
 ) {
     assert_eq!(
         model.meta_val_str_by_index(999_999),
-        Err(MetaValError::NegativeReturn(OUT_OF_RANGE_META_INDEX_RETURN))
+        Err(ModelError::MetaNegativeReturn(
+            OUT_OF_RANGE_META_INDEX_RETURN
+        ))
     );
 }
 
@@ -329,6 +332,6 @@ fn meta_val_str_refuses_a_key_with_a_nul_byte(&LlamaFixture { model, .. }: &Llam
         model.meta_val_str("key\0with_null").err(),
         CString::new("key\0with_null")
             .err()
-            .map(MetaValError::NullError)
+            .map(ModelError::MetaKeyContainsNulByte)
     );
 }

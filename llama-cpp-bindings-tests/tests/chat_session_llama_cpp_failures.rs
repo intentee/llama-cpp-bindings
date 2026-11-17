@@ -1,14 +1,12 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
-
 use std::str::Utf8Error;
 
 use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::error::chat_templates_error::ChatTemplatesError;
 use llama_cpp_bindings::error::grammar_error::GrammarError;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
@@ -16,6 +14,7 @@ use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -41,7 +40,7 @@ fn a_model_without_a_chat_template_has_no_chat_templates(
 ) {
     assert_eq!(
         model.chat_templates().err(),
-        Some(ChatTemplatesError::ModelHasNoChatTemplate)
+        Some(ModelError::ModelHasNoChatTemplate)
     );
 }
 

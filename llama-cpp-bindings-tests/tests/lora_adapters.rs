@@ -1,3 +1,6 @@
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::ensure;
 use std::env;
 use std::ffi::CString;
 use std::ffi::OsStr;
@@ -6,15 +9,11 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::ensure;
-
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
 use llama_cpp_bindings::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
-use llama_cpp_bindings::model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_model::lora_adapter_scale::LoraAdapterScale;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 use llama_cpp_test_model_provisioning::download_model::download_model;
@@ -132,9 +131,7 @@ fn lora_adapter_init_with_a_missing_file_reports_it_not_found(
     let result = model.lora_adapter_init("/nonexistent/path/lora.gguf");
     ensure!(
         result.err().context("the operation must fail")?
-            == LlamaLoraAdapterInitError::FileNotFound(PathBuf::from(
-                "/nonexistent/path/lora.gguf"
-            ))
+            == ModelError::LoraAdapterFileNotFound(PathBuf::from("/nonexistent/path/lora.gguf"))
     );
 
     Ok(())
@@ -156,9 +153,7 @@ fn lora_adapter_init_with_an_invalid_gguf_reports_it_unloadable(
 
     let result = model.lora_adapter_init(&dummy_path);
 
-    ensure!(
-        result.err().context("the operation must fail")? == LlamaLoraAdapterInitError::Unloadable
-    );
+    ensure!(result.err().context("the operation must fail")? == ModelError::LoraAdapterUnloadable);
     fs::remove_file(&dummy_path)?;
     Ok(())
 }
@@ -179,7 +174,7 @@ fn lora_adapter_init_refuses_a_path_that_is_not_utf8(
 
     ensure!(
         result.err().context("the operation must fail")?
-            == LlamaLoraAdapterInitError::PathToStrError(non_utf8_path.to_path_buf())
+            == ModelError::LoraAdapterPathNotUtf8(non_utf8_path.to_path_buf())
     );
 
     Ok(())
@@ -200,6 +195,6 @@ fn lora_adapter_init_refuses_a_path_with_a_nul_byte(
         model.lora_adapter_init("/adapters/adapter\0.gguf").err(),
         CString::new("/adapters/adapter\0.gguf")
             .err()
-            .map(LlamaLoraAdapterInitError::NullError)
+            .map(ModelError::LoraAdapterPathContainsNulByte)
     );
 }

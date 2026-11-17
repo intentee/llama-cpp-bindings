@@ -1,4 +1,4 @@
-use crate::token::LlamaToken;
+use crate::llama_token::LlamaToken;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(transparent)]
@@ -36,7 +36,7 @@ impl LlamaLogitBias {
 #[cfg(test)]
 mod tests {
     use super::LlamaLogitBias;
-    use crate::token::LlamaToken;
+    use crate::llama_token::LlamaToken;
 
     #[test]
     fn new_stores_token_and_bias() {

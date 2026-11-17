@@ -1,9 +1,8 @@
+use enumflags2::BitFlags;
 use std::ops::{Deref, DerefMut};
 
-use enumflags2::BitFlags;
-
 use crate::llama_token_attr::LlamaTokenAttr;
-use crate::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
+use crate::model_error::ModelError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LlamaTokenAttrs(pub BitFlags<LlamaTokenAttr>);
@@ -23,13 +22,11 @@ impl DerefMut for LlamaTokenAttrs {
 }
 
 impl TryFrom<llama_cpp_bindings_sys::llama_token_attr> for LlamaTokenAttrs {
-    type Error = LlamaTokenAttrsFromIntError;
+    type Error = ModelError;
 
     fn try_from(value: llama_cpp_bindings_sys::llama_token_attr) -> Result<Self, Self::Error> {
         Ok(Self(BitFlags::from_bits(value).map_err(
-            |bit_flag_error| {
-                LlamaTokenAttrsFromIntError::UnknownValue(bit_flag_error.invalid_bits())
-            },
+            |bit_flag_error| ModelError::UnknownTokenAttributes(bit_flag_error.invalid_bits()),
         )?))
     }
 }
@@ -40,7 +37,7 @@ mod tests {
 
     use super::LlamaTokenAttr;
     use super::LlamaTokenAttrs;
-    use super::LlamaTokenAttrsFromIntError;
+    use super::ModelError;
 
     #[test]
     fn a_known_attribute_bit_converts_to_its_flag() {
@@ -62,7 +59,7 @@ mod tests {
     fn unknown_attribute_bits_are_reported() {
         assert_eq!(
             LlamaTokenAttrs::try_from(!0),
-            Err(LlamaTokenAttrsFromIntError::UnknownValue(!0x3FF))
+            Err(ModelError::UnknownTokenAttributes(!0x3FF))
         );
     }
 

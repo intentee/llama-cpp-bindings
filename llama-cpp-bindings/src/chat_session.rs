@@ -8,6 +8,11 @@ use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
 use llama_cpp_bindings_types::chat_tool::ChatTool;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::chat_templates::ChatTemplates;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 
 use crate::chat_assistant_prefill::ChatAssistantPrefill;
 use crate::chat_assistant_turn::ChatAssistantTurn;
@@ -17,16 +22,11 @@ use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_prompt_part::ChatPromptPart;
 use crate::chat_reading::ChatReading;
 use crate::chat_session_options::ChatSessionOptions;
-use crate::chat_templates::ChatTemplates;
 use crate::cpp_text_view::cpp_text_view;
 use crate::error::chat_session_error::ChatSessionError;
 use crate::error::parse_chat_message_error::ParseChatMessageError;
 use crate::lazy_grammar_triggers::LazyGrammarTriggers;
-use crate::model::LlamaModel;
-use crate::model::add_bos::AddBos;
-use crate::model::parse_special_tokens::ParseSpecialTokens;
 use crate::sampling::LlamaSampler;
-use crate::token::LlamaToken;
 
 const ASSISTANT_ROLE: &str = "assistant";
 const GRAMMAR_ROOT: &str = "root";
@@ -250,7 +250,7 @@ unsafe impl Send for ChatSession {}
 
 impl ChatSession {
     /// Renders `messages` and `tools` through `templates`: the model's own
-    /// [`LlamaModel::chat_templates`], or [`ChatTemplates::with_override`].
+    /// [`LlamaModel::chat_templates`], or [`LlamaModel::chat_templates_with_override`].
     ///
     /// # Errors
     ///

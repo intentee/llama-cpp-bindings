@@ -9,7 +9,7 @@ use std::str::Utf8Error;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
-use crate::error::chat_template_render_error::ChatTemplateRenderError;
+use crate::model_error::ModelError;
 
 /// # Safety
 ///
@@ -20,7 +20,7 @@ unsafe fn render_template_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_render_template_status,
     out_rendered: *mut c_char,
     out_error: *mut c_char,
-) -> Result<String, ChatTemplateRenderError> {
+) -> Result<String, ModelError> {
     let reported_message = || -> Result<String, FfiError> {
         unsafe {
             read_and_free_cpp_string(
@@ -30,7 +30,7 @@ unsafe fn render_template_status_to_result(
             )
         }
     };
-    let contract_violation = |detail: &'static str| -> Result<String, ChatTemplateRenderError> {
+    let contract_violation = |detail: &'static str| -> Result<String, ModelError> {
         Err(FfiError::ContractViolated {
             operation: "llama_rs_render_template",
             detail,
@@ -47,31 +47,31 @@ unsafe fn render_template_status_to_result(
             )
         }?),
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(ChatTemplateRenderError::NotEnoughMemory)
+            Err(ModelError::RenderNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(ChatTemplateRenderError::LlamaCppOutOfMemory)
+            Err(ModelError::RenderLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_INVALID_JSON => {
-            Err(ChatTemplateRenderError::InvalidJson {
+            Err(ModelError::TemplateGlobalsInvalidJson {
                 message: reported_message()?,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_GLOBALS_NOT_A_JSON_OBJECT => {
-            Err(ChatTemplateRenderError::GlobalsNotAJsonObject)
+            Err(ModelError::TemplateGlobalsNotAJsonObject)
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_INVALID_TEMPLATE => {
-            Err(ChatTemplateRenderError::InvalidTemplate {
+            Err(ModelError::TemplateInvalid {
                 message: reported_message()?,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_EXECUTION_FAILED => {
-            Err(ChatTemplateRenderError::ExecutionFailed {
+            Err(ModelError::TemplateExecutionFailed {
                 message: reported_message()?,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(ChatTemplateRenderError::Reported {
+            Err(ModelError::RenderReported {
                 message: reported_message()?,
             })
         }
@@ -112,11 +112,12 @@ impl LlamaChatTemplate {
 
     /// # Errors
     ///
-    /// Returns [`ChatTemplateRenderError`] when `globals_json` contains a NUL byte, is not valid
+    /// Returns [`ModelError`] when `globals_json` contains a NUL byte, is not valid
     /// JSON or not a JSON object, the template cannot be parsed or executed, the wrapper fails,
     /// or the rendered text is not valid UTF-8.
-    pub fn render(&self, globals_json: &str) -> Result<String, ChatTemplateRenderError> {
-        let globals = CString::new(globals_json)?;
+    pub fn render(&self, globals_json: &str) -> Result<String, ModelError> {
+        let globals =
+            CString::new(globals_json).map_err(ModelError::TemplateGlobalsContainNulByte)?;
         let mut out_rendered: *mut c_char = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -154,15 +155,13 @@ impl Debug for LlamaChatTemplate {
 mod tests {
     use std::ffi::CString;
     use std::ffi::c_char;
-
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_error::FfiError;
 
-    use crate::error::chat_template_render_error::ChatTemplateRenderError;
-
     use super::render_template_status_to_result;
-    use crate::model::llama_chat_template::LlamaChatTemplate;
+    use crate::llama_chat_template::LlamaChatTemplate;
+    use crate::model_error::ModelError;
 
     #[test]
     fn a_template_keeps_its_name() {
@@ -216,7 +215,7 @@ mod tests {
 
         assert_eq!(
             template.render(globals),
-            Err(ChatTemplateRenderError::GlobalsContainNulByte(
+            Err(ModelError::TemplateGlobalsContainNulByte(
                 CString::new(globals).unwrap_err()
             ))
         );
@@ -228,7 +227,7 @@ mod tests {
 
         assert_eq!(
             template.render("not valid json at all"),
-            Err(ChatTemplateRenderError::InvalidJson {
+            Err(ModelError::TemplateGlobalsInvalidJson {
                 message: "[json.exception.parse_error.101] parse error at line 1, column 2: \
                           syntax error while parsing value - invalid literal; last read: 'no'"
                     .to_owned(),
@@ -242,7 +241,7 @@ mod tests {
 
         assert_eq!(
             template.render(r#"["question"]"#),
-            Err(ChatTemplateRenderError::GlobalsNotAJsonObject)
+            Err(ModelError::TemplateGlobalsNotAJsonObject)
         );
     }
 
@@ -252,7 +251,7 @@ mod tests {
 
         assert_eq!(
             template.render("{}"),
-            Err(ChatTemplateRenderError::InvalidTemplate {
+            Err(ModelError::TemplateInvalid {
                 message: "Unexpected token type".to_owned(),
             })
         );
@@ -264,7 +263,7 @@ mod tests {
 
         assert_eq!(
             template.render("{}"),
-            Err(ChatTemplateRenderError::ExecutionFailed {
+            Err(ModelError::TemplateExecutionFailed {
                 message: "\n------------\nWhile executing CallExpression at line 1, column 19 in \
                           source:\n...{{ raise_exception('no question') }}...\n                     \
                           ^\nError: Jinja Exception: no question"
@@ -296,7 +295,7 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(ChatTemplateRenderError::Ffi(FfiError::TextNotUtf8 {
+            Err(ModelError::Ffi(FfiError::TextNotUtf8 {
                 operation: "llama_rs_render_template",
                 source: String::from_utf8(vec![0xFF]).unwrap_err().utf8_error(),
                 bytes: vec![0xFF],
@@ -314,7 +313,7 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(ChatTemplateRenderError::Ffi(FfiError::ContractViolated {
+            Err(ModelError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_render_template",
                 detail: "success status contained a null rendered string",
             }))
@@ -333,7 +332,7 @@ mod tests {
                 unsafe {
                     render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
                 },
-                Err(ChatTemplateRenderError::Ffi(FfiError::ContractViolated {
+                Err(ModelError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_render_template",
                     detail: "reported a thrown C++ exception without an error message",
                 }))
@@ -354,7 +353,7 @@ mod tests {
                     out_error,
                 )
             },
-            Err(ChatTemplateRenderError::Reported {
+            Err(ModelError::RenderReported {
                 message: "rendering threw".to_owned(),
             })
         );
@@ -371,8 +370,8 @@ mod tests {
                 render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
             }),
             [
-                Err(ChatTemplateRenderError::NotEnoughMemory),
-                Err(ChatTemplateRenderError::LlamaCppOutOfMemory),
+                Err(ModelError::RenderNotEnoughMemory),
+                Err(ModelError::RenderLlamaCppOutOfMemory),
             ]
         );
     }
@@ -401,7 +400,7 @@ mod tests {
                 unsafe {
                     render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
                 },
-                Err(ChatTemplateRenderError::Ffi(FfiError::ContractViolated {
+                Err(ModelError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_render_template",
                     detail,
                 }))
@@ -413,7 +412,7 @@ mod tests {
     fn rendering_preserves_an_unknown_status() {
         assert_eq!(
             unsafe { render_template_status_to_result(255, ptr::null_mut(), ptr::null_mut()) },
-            Err(ChatTemplateRenderError::Ffi(FfiError::UnknownStatus {
+            Err(ModelError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_render_template",
                 code: 255,
             }))

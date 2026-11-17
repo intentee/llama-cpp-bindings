@@ -6,15 +6,14 @@ use std::ptr::NonNull;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
-use crate::error::chat_templates_error::ChatTemplatesError;
-use crate::model::LlamaModel;
-use crate::model::llama_chat_template::LlamaChatTemplate;
+use crate::llama_chat_template::LlamaChatTemplate;
+use crate::model_error::ModelError;
 
 fn chat_templates_init_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_chat_templates_init_status,
     out_templates: llama_cpp_bindings_sys::llama_rs_chat_templates_handle,
     out_error: *mut c_char,
-) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_chat_templates>, ChatTemplatesError> {
+) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_chat_templates>, ModelError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_OK => NonNull::new(out_templates)
             .ok_or_else(|| {
@@ -25,13 +24,13 @@ fn chat_templates_init_status_to_result(
                 .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_MODEL_HAS_NO_CHAT_TEMPLATE => {
-            Err(ChatTemplatesError::ModelHasNoChatTemplate)
+            Err(ModelError::ModelHasNoChatTemplate)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(ChatTemplatesError::NotEnoughMemory)
+            Err(ModelError::ChatTemplatesNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(ChatTemplatesError::LlamaCppOutOfMemory)
+            Err(ModelError::ChatTemplatesLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -41,7 +40,7 @@ fn chat_templates_init_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(ChatTemplatesError::Reported { message })
+            Err(ModelError::ChatTemplatesReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_MODEL_ARG => {
             Err(FfiError::ContractViolated {
@@ -94,10 +93,16 @@ impl ChatTemplates {
     ///
     /// # Errors
     ///
-    /// Returns [`ChatTemplatesError::ModelHasNoChatTemplate`] for a model without a chat template,
-    /// or another [`ChatTemplatesError`] when llama.cpp cannot prepare the templates.
-    pub fn new(model: &LlamaModel) -> Result<Self, ChatTemplatesError> {
-        Self::init(model, c"")
+    /// Returns [`ModelError::ModelHasNoChatTemplate`] for a model without a chat template, or
+    /// another [`ModelError`] when llama.cpp cannot prepare the templates.
+    ///
+    /// # Safety
+    ///
+    /// `model` must point to a model llama.cpp loaded and has not freed.
+    pub unsafe fn new(
+        model: NonNull<llama_cpp_bindings_sys::llama_model>,
+    ) -> Result<Self, ModelError> {
+        unsafe { Self::init(model, c"") }
     }
 
     /// `template` in place of the model's own chat templates, the way llama.cpp serves a model
@@ -105,23 +110,30 @@ impl ChatTemplates {
     ///
     /// # Errors
     ///
-    /// Returns [`ChatTemplatesError::EmptyTemplateOverride`] for an empty `template`, or another
-    /// [`ChatTemplatesError`] when llama.cpp cannot prepare the template.
-    pub fn with_override(
-        model: &LlamaModel,
+    /// Returns [`ModelError::EmptyTemplateOverride`] for an empty `template`, or another
+    /// [`ModelError`] when llama.cpp cannot prepare the template.
+    ///
+    /// # Safety
+    ///
+    /// `model` must point to a model llama.cpp loaded and has not freed.
+    pub unsafe fn with_override(
+        model: NonNull<llama_cpp_bindings_sys::llama_model>,
         template: &LlamaChatTemplate,
-    ) -> Result<Self, ChatTemplatesError> {
+    ) -> Result<Self, ModelError> {
         if template.as_c_str().is_empty() {
-            return Err(ChatTemplatesError::EmptyTemplateOverride);
+            return Err(ModelError::EmptyTemplateOverride);
         }
 
-        Self::init(model, template.as_c_str())
+        unsafe { Self::init(model, template.as_c_str()) }
     }
 
-    fn init(
-        LlamaModel { model, .. }: &LlamaModel,
+    /// # Safety
+    ///
+    /// `model` must point to a model llama.cpp loaded and has not freed.
+    unsafe fn init(
+        model: NonNull<llama_cpp_bindings_sys::llama_model>,
         template_override: &CStr,
-    ) -> Result<Self, ChatTemplatesError> {
+    ) -> Result<Self, ModelError> {
         let mut out_templates: llama_cpp_bindings_sys::llama_rs_chat_templates_handle =
             ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
@@ -158,24 +170,24 @@ mod tests {
     use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::chat_templates_init_status_to_result;
-    use crate::error::chat_templates_error::ChatTemplatesError;
+    use crate::model_error::ModelError;
 
     fn init_error(
         status: llama_cpp_bindings_sys::llama_rs_chat_templates_init_status,
         out_error: *mut c_char,
-    ) -> Option<ChatTemplatesError> {
+    ) -> Option<ModelError> {
         chat_templates_init_status_to_result(status, ptr::null_mut(), out_error).err()
     }
 
-    const fn contract(detail: &'static str) -> ChatTemplatesError {
-        ChatTemplatesError::Ffi(FfiError::ContractViolated {
+    const fn contract(detail: &'static str) -> ModelError {
+        ModelError::Ffi(FfiError::ContractViolated {
             operation: "llama_rs_chat_templates_init",
             detail,
         })
     }
 
-    fn missing_message(detail: &'static str) -> ChatTemplatesError {
-        ChatTemplatesError::Ffi(FfiError::ContractViolated {
+    fn missing_message(detail: &'static str) -> ModelError {
+        ModelError::Ffi(FfiError::ContractViolated {
             operation: "llama_rs_chat_templates_init",
             detail,
         })
@@ -225,17 +237,17 @@ mod tests {
             ],
             [
                 Some(contract("success status contained a null templates handle")),
-                Some(ChatTemplatesError::ModelHasNoChatTemplate),
-                Some(ChatTemplatesError::NotEnoughMemory),
-                Some(ChatTemplatesError::LlamaCppOutOfMemory),
-                Some(ChatTemplatesError::Reported {
+                Some(ModelError::ModelHasNoChatTemplate),
+                Some(ModelError::ChatTemplatesNotEnoughMemory),
+                Some(ModelError::ChatTemplatesLlamaCppOutOfMemory),
+                Some(ModelError::ChatTemplatesReported {
                     message: "the template threw".to_owned()
                 }),
                 Some(contract("was given a null model argument")),
                 Some(contract("was given a null template_override argument")),
                 Some(contract("was given a null out_templates argument")),
                 Some(contract("was given a null out_error argument")),
-                Some(ChatTemplatesError::Ffi(FfiError::UnknownStatus {
+                Some(ModelError::Ffi(FfiError::UnknownStatus {
                     operation: "llama_rs_chat_templates_init",
                     code: 255,
                 })),

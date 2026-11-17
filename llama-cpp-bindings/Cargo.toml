@@ -19,11 +19,11 @@ llama-cpp-bindings-types = { workspace = true }
 llama-cpp-error-recorder = { workspace = true }
 llama-cpp-ffi-status = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
+llama-cpp-model = { workspace = true }
 llama-cpp-params = { workspace = true }
 llama-cpp-token-usage = { workspace = true }
 llguidance = { workspace = true }
 log = { workspace = true }
-once_cell = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 toktrie = { workspace = true }
@@ -31,7 +31,6 @@ toktrie = { workspace = true }
 [dev-dependencies]
 anyhow = { workspace = true }
 llama-cpp-fault-injection = { workspace = true }
-llama-cpp-gguf = { workspace = true }
 llama-cpp-wrapper-error-fixture = { workspace = true }
 
 [[test]]
