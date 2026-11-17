@@ -15,7 +15,6 @@ pub mod gguf_info_error;
 pub mod grammar_error;
 pub mod grammar_runtime_error;
 pub mod ingest_error;
-pub mod json_schema_to_grammar_error;
 pub mod llama_backend_device_error;
 pub mod llama_context_load_error;
 pub mod llama_cpp_error;

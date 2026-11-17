@@ -1,8 +1,6 @@
 use std::str::Utf8Error;
 
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 
 use crate::error::grammar_error::GrammarError;
 use crate::error::sampler_accept_error::SamplerAcceptError;
@@ -11,11 +9,7 @@ use crate::error::string_to_token_error::StringToTokenError;
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ChatSessionError {
     #[error(transparent)]
-    CppString(#[from] CppStringError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
+    Ffi(#[from] FfiError),
     #[error("the chat template cannot serve the request: {message}")]
     TemplateCannotServeRequest { message: String },
     #[error("text the chat session holds is not valid UTF-8")]

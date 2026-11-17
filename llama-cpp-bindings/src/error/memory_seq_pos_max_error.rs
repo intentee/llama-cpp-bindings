@@ -1,17 +1,11 @@
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 
 use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MemorySeqPosMaxError {
     #[error(transparent)]
-    CppString(#[from] CppStringError),
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
+    Ffi(#[from] FfiError),
     #[error("context has no memory module available")]
     MemoryHandleUnavailable,
     #[error(transparent)]

@@ -3,8 +3,7 @@ use std::ffi::c_char;
 use std::path::Path;
 use std::ptr;
 
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::context::LlamaContext;
@@ -25,28 +24,34 @@ fn state_data_status_to_result(
 ) -> Result<usize, StateDataError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_OK => Ok(byte_count),
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => Err(FfiContractError {
-            operation,
-            detail: "was given a null ctx argument",
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => {
+            Err(FfiError::ContractViolated {
+                operation,
+                detail: "was given a null ctx argument",
+            }
+            .into())
         }
-        .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG => Err(FfiContractError {
-            operation,
-            detail: "was given a null buffer argument",
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG => {
+            Err(FfiError::ContractViolated {
+                operation,
+                detail: "was given a null buffer argument",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_BYTE_COUNT_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation,
                 detail: "was given a null out_byte_count argument",
             }
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG => Err(FfiContractError {
-            operation,
-            detail: "was given a null out_error argument",
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG => {
+            Err(FfiError::ContractViolated {
+                operation,
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED => {
             Err(StateDataError::NotEnoughMemory)
         }
@@ -64,7 +69,7 @@ fn state_data_status_to_result(
 
             Err(StateDataError::Reported { message })
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation,
             code: i64::from(other),
         }
@@ -397,10 +402,7 @@ impl LlamaContext<'_> {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::process_session_load_result;
 
@@ -490,7 +492,7 @@ mod tests {
         ] {
             assert_eq!(
                 state_data_status_to_result(status, 0, ptr::null_mut(), "llama_rs_state_get_data"),
-                Err(StateDataError::FfiContract(FfiContractError {
+                Err(StateDataError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_state_get_data",
                     detail,
                 }))
@@ -538,12 +540,10 @@ mod tests {
                 ptr::null_mut(),
                 "llama_rs_state_get_data",
             ),
-            Err(StateDataError::CppString(CppStringError::Missing(
-                FfiContractError {
-                    operation: "llama_rs_state_get_data",
-                    detail: "reported a thrown C++ exception without an error message",
-                }
-            )))
+            Err(StateDataError::Ffi(FfiError::ContractViolated {
+                operation: "llama_rs_state_get_data",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
         );
     }
 
@@ -551,7 +551,7 @@ mod tests {
     fn state_data_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             state_data_status_to_result(255, 0, ptr::null_mut(), "llama_rs_state_get_data"),
-            Err(StateDataError::FfiStatus(FfiStatusError {
+            Err(StateDataError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_state_get_data",
                 code: 255,
             }))

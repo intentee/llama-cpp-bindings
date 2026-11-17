@@ -3,7 +3,7 @@ use anyhow::Result;
 use anyhow::ensure;
 
 use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
-use llama_cpp_bindings_types::token_usage::TokenUsage;
+use llama_cpp_token_usage::token_usage::TokenUsage;
 
 use crate::classify_sample_loop_outcome::ClassifySampleLoopOutcome;
 

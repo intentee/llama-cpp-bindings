@@ -3,8 +3,7 @@ use std::path::Path;
 use std::ptr;
 
 use llama_cpp_bindings_sys::llama_rs_gguf_info;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::error::gguf_info_error::GgufInfoError;
@@ -25,7 +24,7 @@ unsafe fn read_gguf_info_status_to_result(
     out_error: *mut c_char,
 ) -> Result<GgufInfo, GgufInfoError> {
     let contract_violation = |detail: &'static str| -> Result<GgufInfo, GgufInfoError> {
-        Err(FfiContractError {
+        Err(FfiError::ContractViolated {
             operation: "llama_rs_read_gguf_info",
             detail,
         }
@@ -63,7 +62,7 @@ unsafe fn read_gguf_info_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_ERROR_ARG => {
             contract_violation("was given a null out_error argument")
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_read_gguf_info",
             code: i64::from(other),
         }
@@ -118,11 +117,8 @@ mod tests {
 
     use llama_cpp_bindings_sys::llama_rs_gguf_info;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_gguf::gguf_context::GgufContext;
 
     use super::GgufInfo;
 
@@ -130,14 +126,15 @@ mod tests {
 
     use crate::error::path_c_string_error::PathCStringError;
 
-    use crate::gguf_context::GgufContext;
-
-    use crate::gguf_context::tests::vocabulary_fixture_path;
-
     use super::read_gguf_info_status_to_result;
     use crate::model::decision_type::DecisionType;
 
     use crate::error::unknown_decision_type::UnknownDecisionType;
+
+    const VOCABULARY_FIXTURE_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../llama-cpp-gguf/fixtures/ggml-vocab-bert-bge.gguf"
+    );
 
     const NOT_A_DECISION_MODEL: llama_rs_gguf_info = llama_rs_gguf_info {
         decision_type: llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE,
@@ -163,7 +160,7 @@ mod tests {
             "llama_cpp_bindings_gguf_info_{}_decision.gguf",
             process::id(),
         ));
-        let mut context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
+        let mut context = GgufContext::from_file(VOCABULARY_FIXTURE_PATH).unwrap();
         context.set_val_str(c"bert.decision.type", c"clef");
         context.set_val_u32(c"bert.context_length", 384);
         context.set_val_str(c"tokenizer.chat_template", c"{{ question }}");
@@ -235,7 +232,7 @@ mod tests {
                 unsafe {
                     read_gguf_info_status_to_result(status, NOT_A_DECISION_MODEL, ptr::null_mut())
                 },
-                Err(GgufInfoError::FfiContract(FfiContractError {
+                Err(GgufInfoError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_read_gguf_info",
                     detail,
                 }))
@@ -289,12 +286,10 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(GgufInfoError::CppString(CppStringError::Missing(
-                FfiContractError {
-                    operation: "llama_rs_read_gguf_info",
-                    detail: "reported a thrown C++ exception without an error message",
-                }
-            )))
+            Err(GgufInfoError::Ffi(FfiError::ContractViolated {
+                operation: "llama_rs_read_gguf_info",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
         );
     }
 
@@ -302,7 +297,7 @@ mod tests {
     fn reading_gguf_info_preserves_an_unknown_status() {
         assert_eq!(
             unsafe { read_gguf_info_status_to_result(255, NOT_A_DECISION_MODEL, ptr::null_mut()) },
-            Err(GgufInfoError::FfiStatus(FfiStatusError {
+            Err(GgufInfoError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_read_gguf_info",
                 code: 255,
             }))

@@ -1,15 +1,9 @@
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FitError {
     #[error(transparent)]
-    CppString(#[from] CppStringError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
+    Ffi(#[from] FfiError),
     #[error("no parameter combination fits available memory")]
     NoFittingMemoryLayout,
     #[error("parameter fitting aborted")]

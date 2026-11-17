@@ -80,10 +80,12 @@ coverage: node_modules
 		--gated llama-cpp-fault-injection=100 \
 		--gated llama-cpp-ffi-status=100 \
 		--gated llama-cpp-gbnf=100 \
+		--gated llama-cpp-gguf=100 \
 		--gated llama-cpp-log-decoder=100 \
 		--gated llama-cpp-test-harness=100 \
 		--gated llama-cpp-test-harness-macros=100 \
 		--gated llama-cpp-test-model-provisioning=100 \
+		--gated llama-cpp-token-usage=100 \
 		--gated llama-cpp-wrapper-sources=100
 
 .PHONY: coverage-clean
@@ -133,5 +135,6 @@ test.llms: clippy test.harness test.unit
 .PHONY: test.unit
 test.unit: clippy
 	cargo test -p llama-cpp-bindings -p llama-cpp-bindings-build -p llama-cpp-bindings-types \
-		-p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf \
-		-p llama-cpp-log-decoder -p llama-cpp-wrapper-sources $(DEVICE_FEATURE)
+		-p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf -p llama-cpp-gguf \
+		-p llama-cpp-log-decoder -p llama-cpp-token-usage -p llama-cpp-wrapper-sources \
+		$(DEVICE_FEATURE)

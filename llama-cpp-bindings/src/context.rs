@@ -31,8 +31,7 @@ use std::sync::atomic::Ordering;
 
 use log::debug;
 
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::context::context_limits::ContextLimits;
@@ -73,7 +72,7 @@ fn new_context_with_model_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK => NonNull::new(out_ctx)
             .ok_or_else(|| {
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_new_context_with_model",
                     detail: "success status contained a null context",
                 }
@@ -99,27 +98,27 @@ fn new_context_with_model_status_to_result(
             Err(LlamaContextLoadError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null out_ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_new_context_with_model",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_new_context_with_model",
             code: i64::from(other),
         }
@@ -135,7 +134,7 @@ fn batch_ext_init_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_OK => {
             NonNull::new(out_batch).ok_or_else(|| {
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_batch_ext_init",
                     detail: "success status contained a null batch",
                 }
@@ -158,26 +157,28 @@ fn batch_ext_init_status_to_result(
             }?;
             Err(LlamaContextLoadError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => Err(FfiContractError {
-            operation: "llama_rs_batch_ext_init",
-            detail: "was given a null ctx argument",
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_batch_ext_init",
+                detail: "was given a null ctx argument",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_BATCH_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_batch_ext_init",
                 detail: "was given a null out_batch argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_batch_ext_init",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_batch_ext_init",
             code: i64::from(other),
         }
@@ -196,7 +197,7 @@ where
     const OPERATION: &str = "llama_rs_process";
 
     let contract_violation = |detail: &'static str| {
-        ProcessFailure::from(FfiContractError {
+        ProcessFailure::from(FfiError::ContractViolated {
             operation: OPERATION,
             detail,
         })
@@ -241,7 +242,7 @@ where
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG => {
             Err(contract_violation("was given a null out_error argument").into())
         }
-        other => Err(ProcessFailure::from(FfiStatusError {
+        other => Err(ProcessFailure::from(FfiError::UnknownStatus {
             operation: OPERATION,
             code: i64::from(other),
         })
@@ -754,10 +755,7 @@ mod tests {
     use std::ptr;
     use std::ptr::NonNull;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::check_lora_adapters_result;
 
@@ -780,18 +778,10 @@ mod tests {
     const OPERATION: &str = "llama_rs_process";
 
     fn contract_violation(detail: &'static str) -> DecodeError {
-        ProcessFailure::from(FfiContractError {
+        ProcessFailure::from(FfiError::ContractViolated {
             operation: OPERATION,
             detail,
         })
-        .into()
-    }
-
-    fn missing_message(detail: &'static str) -> DecodeError {
-        ProcessFailure::from(CppStringError::Missing(FfiContractError {
-            operation: OPERATION,
-            detail,
-        }))
         .into()
     }
 
@@ -817,7 +807,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(LlamaContextLoadError::FfiContract(FfiContractError {
+            Err(LlamaContextLoadError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_new_context_with_model",
                 detail: "success status contained a null context",
             }))
@@ -875,10 +865,10 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(CppStringError::Missing(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_new_context_with_model",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into())
         );
     }
@@ -889,7 +879,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(LlamaContextLoadError::FfiStatus(FfiStatusError {
+            Err(LlamaContextLoadError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_new_context_with_model",
                 code: 255,
             }))
@@ -906,7 +896,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null model argument",
                 }
@@ -926,7 +916,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null out_ctx argument",
                 }
@@ -946,7 +936,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_new_context_with_model",
                     detail: "was given a null out_error argument",
                 }
@@ -990,7 +980,7 @@ mod tests {
         ] {
             assert_eq!(
                 batch_ext_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err(),
-                Some(LlamaContextLoadError::FfiContract(FfiContractError {
+                Some(LlamaContextLoadError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_batch_ext_init",
                     detail,
                 }))
@@ -1046,12 +1036,10 @@ mod tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(LlamaContextLoadError::CppString(CppStringError::Missing(
-                FfiContractError {
-                    operation: "llama_rs_batch_ext_init",
-                    detail: "reported a thrown C++ exception without an error message",
-                }
-            )))
+            Some(LlamaContextLoadError::Ffi(FfiError::ContractViolated {
+                operation: "llama_rs_batch_ext_init",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
         );
     }
 
@@ -1059,7 +1047,7 @@ mod tests {
     fn initializing_a_batch_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_init_status_to_result(255, ptr::null_mut(), ptr::null_mut()).err(),
-            Some(LlamaContextLoadError::FfiStatus(FfiStatusError {
+            Some(LlamaContextLoadError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_batch_ext_init",
                 code: 255,
             }))
@@ -1094,7 +1082,7 @@ mod tests {
                 )),
                 Err(ProcessFailure::NotEnoughMemory.into()),
                 Err(ProcessFailure::LlamaCppOutOfMemory.into()),
-                Err(missing_message(
+                Err(contract_violation(
                     "reported a thrown C++ exception without an error message"
                 )),
                 Err(contract_violation("was given a null ctx argument")),
@@ -1103,7 +1091,7 @@ mod tests {
                     "was given a null out_llama_cpp_return_code argument"
                 )),
                 Err(contract_violation("was given a null out_error argument")),
-                Err(ProcessFailure::from(FfiStatusError {
+                Err(ProcessFailure::from(FfiError::UnknownStatus {
                     operation: OPERATION,
                     code: 255,
                 })

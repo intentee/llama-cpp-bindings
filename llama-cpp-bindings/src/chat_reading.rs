@@ -4,8 +4,7 @@ use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::chat_classification::ChatClassification;
@@ -45,7 +44,7 @@ fn spans_of(
                 })
             },
         )
-        .collect::<Result<Vec<ChatSpan>, FfiStatusError>>()
+        .collect::<Result<Vec<ChatSpan>, FfiError>>()
         .map(|spans| ChatSpans::new(view.parsed_length, &spans, completeness))
         .map_err(ParseChatMessageError::from)
 }
@@ -91,7 +90,7 @@ fn chat_reading_parse_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_OK => NonNull::new(out_handle)
             .ok_or_else(|| {
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: OPERATION,
                     detail: "success status contained a null handle",
                 }
@@ -115,27 +114,27 @@ fn chat_reading_parse_status_to_result(
             Err(ParseChatMessageError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: OPERATION,
                 detail: "was given a null reading argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: OPERATION,
                 detail: "was given a null out_handle argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: OPERATION,
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -234,9 +233,7 @@ impl Drop for ChatReading {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::chat_reading_parse_status_to_result;
     use crate::error::parse_chat_message_error::ParseChatMessageError;
@@ -247,7 +244,7 @@ mod tests {
             chat_reading_parse_status_to_result(status, ptr::null_mut(), out_error).err()
         };
         let contract = |detail| {
-            Some(ParseChatMessageError::FfiContract(FfiContractError {
+            Some(ParseChatMessageError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_chat_reading_parse",
                 detail,
             }))
@@ -294,16 +291,16 @@ mod tests {
                 Some(ParseChatMessageError::Reported {
                     message: "the mapper threw".to_owned()
                 }),
-                Some(ParseChatMessageError::CppString(CppStringError::Missing(FfiContractError {
+                Some(ParseChatMessageError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_chat_reading_parse",
                     detail: "reported a thrown C++ exception without an error message",
-                }))),
+                })),
                 Some(ParseChatMessageError::NotEnoughMemory),
                 Some(ParseChatMessageError::LlamaCppOutOfMemory),
                 contract("was given a null reading argument"),
                 contract("was given a null out_handle argument"),
                 contract("was given a null out_error argument"),
-                Some(ParseChatMessageError::FfiStatus(FfiStatusError {
+                Some(ParseChatMessageError::Ffi(FfiError::UnknownStatus {
                     operation: "llama_rs_chat_reading_parse",
                     code: 255
                 })),

@@ -1,0 +1,17 @@
+[package]
+name = "llama-cpp-token-usage"
+description = "Token accounting for llama.cpp generations: prompt, cached, multimodal and generated token counts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

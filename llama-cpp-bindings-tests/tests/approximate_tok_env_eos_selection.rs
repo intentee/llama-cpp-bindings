@@ -8,10 +8,10 @@ use anyhow::ensure;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokenizerEnv as _;
 
-use llama_cpp_bindings::gguf_context::GgufContext;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_gguf::gguf_context::GgufContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

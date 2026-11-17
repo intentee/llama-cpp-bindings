@@ -18,7 +18,7 @@ use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_ch
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
-use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
+use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -308,9 +308,7 @@ fn qwen35_grammar_without_its_root_reports_the_missing_root(
 fn qwen35_grammar_with_a_syntax_error_reports_it(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert_eq!(
         LlamaSampler::grammar(model, "root ::= (<think>", "root").err(),
-        Some(GrammarError::GrammarRejected(
-            GbnfValidationError::SyntaxError
-        ))
+        Some(GrammarError::GrammarRejected(GbnfError::SyntaxError))
     );
 }
 

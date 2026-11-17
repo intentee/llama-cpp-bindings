@@ -32,7 +32,7 @@ use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_prompt_with_synthetic_image;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -271,7 +271,7 @@ fn eval_chunks_reports_a_chunk_llama_cpp_does_not_return_before_evaluating_any(
 
     ensure!(
         evaluation
-            == Err(MtmdEvalError::FfiContract(FfiContractError {
+            == Err(MtmdEvalError::Ffi(FfiError::ContractViolated {
                 operation: "mtmd_input_chunks_get",
                 detail: "returned a null chunk within the chunk count",
             }))
@@ -978,7 +978,7 @@ fn fitting_reports_a_chunk_llama_cpp_does_not_return(fixture: &LlamaFixture<'_>)
 
     ensure!(
         chunks.fit_to_micro_batch(mtmd_ctx, 256)
-            == Err(MtmdEvalError::FfiContract(FfiContractError {
+            == Err(MtmdEvalError::Ffi(FfiError::ContractViolated {
                 operation: "mtmd_input_chunks_get",
                 detail: "returned a null chunk within the chunk count",
             }))

@@ -28,7 +28,7 @@ pub enum GgufContextError {
     #[error("GGUF key id {key_id} is outside of the {n_kv} keys the file holds")]
     KeyIdOutOfRange { key_id: i64, n_kv: i64 },
 
-    #[error("null byte in string: {0}")]
+    #[error("null byte in string")]
     NulError(#[from] NulError),
 
     #[error("failed to convert path {0} to str")]
@@ -67,7 +67,7 @@ pub enum GgufContextError {
     #[error("GGUF key id {key_id} holds a value of unknown type {raw_type}")]
     UnknownValueType { key_id: i64, raw_type: u32 },
 
-    #[error("GGUF value is not valid UTF-8: {0}")]
+    #[error("GGUF value is not valid UTF-8")]
     Utf8Error(#[from] std::str::Utf8Error),
 
     #[error("GGUF key id {key_id} holds a {actual:?} value, not {expected:?}")]

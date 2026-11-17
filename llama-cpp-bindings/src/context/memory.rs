@@ -3,8 +3,7 @@ use std::ffi::c_int;
 use std::num::NonZeroU8;
 use std::ptr;
 
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::context::LlamaContext;
@@ -43,12 +42,14 @@ fn memory_seq_add_status_to_result(
             }?;
             Err(MemorySeqAddError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG => Err(FfiContractError {
-            operation: "llama_rs_memory_seq_add",
-            detail: "was given a null ctx argument",
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_memory_seq_add",
+                detail: "was given a null ctx argument",
+            }
+            .into())
         }
-        .into()),
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_memory_seq_add",
             code: i64::from(other),
         }
@@ -81,12 +82,14 @@ fn memory_seq_div_status_to_result(
             }?;
             Err(MemorySeqDivError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG => Err(FfiContractError {
-            operation: "llama_rs_memory_seq_div",
-            detail: "was given a null ctx argument",
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_memory_seq_div",
+                detail: "was given a null ctx argument",
+            }
+            .into())
         }
-        .into()),
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_memory_seq_div",
             code: i64::from(other),
         }
@@ -101,20 +104,22 @@ fn memory_seq_pos_max_status_to_result(
 ) -> Result<i32, MemorySeqPosMaxError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK => Ok(position),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG => Err(FfiContractError {
-            operation: "llama_rs_memory_seq_pos_max",
-            detail: "context pointer was null",
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_memory_seq_pos_max",
+                detail: "context pointer was null",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_memory_seq_pos_max",
                 detail: "output position pointer was null",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_memory_seq_pos_max",
                 detail: "output error pointer was null",
             }
@@ -139,7 +144,7 @@ fn memory_seq_pos_max_status_to_result(
             }?;
             Err(MemorySeqPosMaxError::Reported { message })
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_memory_seq_pos_max",
             code: i64::from(other),
         }
@@ -345,10 +350,7 @@ impl LlamaContext<'_> {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::memory_seq_add_status_to_result;
 
@@ -400,10 +402,10 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(CppStringError::Missing(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_memory_seq_add",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into())
         );
     }
@@ -430,7 +432,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(MemorySeqAddError::FfiStatus(FfiStatusError {
+            Err(MemorySeqAddError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_memory_seq_add",
                 code: 255,
             }))
@@ -446,7 +448,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_memory_seq_add",
                     detail: "was given a null ctx argument",
                 }
@@ -504,10 +506,10 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(CppStringError::Missing(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_memory_seq_div",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into())
         );
     }
@@ -534,7 +536,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(MemorySeqDivError::FfiStatus(FfiStatusError {
+            Err(MemorySeqDivError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_memory_seq_div",
                 code: 255,
             }))
@@ -550,7 +552,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_memory_seq_div",
                     detail: "was given a null ctx argument",
                 }
@@ -588,7 +590,7 @@ mod tests {
                 -1,
                 ptr::null_mut(),
             ),
-            Err(MemorySeqPosMaxError::FfiContract(FfiContractError {
+            Err(MemorySeqPosMaxError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_memory_seq_pos_max",
                 detail: "context pointer was null",
             }))
@@ -603,7 +605,7 @@ mod tests {
                 -1,
                 ptr::null_mut(),
             ),
-            Err(MemorySeqPosMaxError::FfiContract(FfiContractError {
+            Err(MemorySeqPosMaxError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_memory_seq_pos_max",
                 detail: "output position pointer was null",
             }))
@@ -618,7 +620,7 @@ mod tests {
                 -1,
                 ptr::null_mut(),
             ),
-            Err(MemorySeqPosMaxError::FfiContract(FfiContractError {
+            Err(MemorySeqPosMaxError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_memory_seq_pos_max",
                 detail: "output error pointer was null",
             }))
@@ -657,10 +659,10 @@ mod tests {
                 -1,
                 ptr::null_mut(),
             ),
-            Err(CppStringError::Missing(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_memory_seq_pos_max",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into())
         );
     }
@@ -687,7 +689,7 @@ mod tests {
     fn seq_pos_max_unknown_status_is_preserved() {
         assert_eq!(
             memory_seq_pos_max_status_to_result(255, -1, ptr::null_mut(),),
-            Err(MemorySeqPosMaxError::FfiStatus(FfiStatusError {
+            Err(MemorySeqPosMaxError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_memory_seq_pos_max",
                 code: 255,
             }))

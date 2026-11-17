@@ -1,6 +1,4 @@
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 
 use crate::error::unknown_attention_type::UnknownAttentionType;
 use crate::error::unknown_pooling_type::UnknownPoolingType;
@@ -8,11 +6,7 @@ use crate::error::unknown_pooling_type::UnknownPoolingType;
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum LlamaContextLoadError {
     #[error(transparent)]
-    CppString(#[from] CppStringError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
+    Ffi(#[from] FfiError),
     #[error("context could not be constructed")]
     Unconstructible,
     #[error("not enough memory")]

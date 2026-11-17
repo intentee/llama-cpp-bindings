@@ -2,8 +2,7 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use super::mtmd_context::MtmdContext;
@@ -25,14 +24,14 @@ fn input_chunks_init_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => NonNull::new(out_chunks)
             .map(|chunks| MtmdInputChunks { chunks })
             .ok_or_else(|| {
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: OPERATION,
                     detail: "success status contained null chunks",
                 }
                 .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: OPERATION,
                 detail: "was given a null out_chunks argument",
             }
@@ -55,7 +54,7 @@ fn input_chunks_init_status_to_result(
 
             Err(MtmdInputChunksError::Reported { message })
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -147,7 +146,7 @@ impl MtmdInputChunks {
     /// Returns [`MtmdEvalError::NonCausalChunkExceedsMicroBatch`] for the first chunk decoded
     /// non-causally that has more tokens than `micro_batch_tokens`,
     /// [`MtmdEvalError::UnknownChunkType`] when a chunk type is unknown, or
-    /// [`MtmdEvalError::FfiContract`] when a chunk within the chunk count is null.
+    /// [`MtmdEvalError::Ffi`] when a chunk within the chunk count is null.
     pub fn fit_to_micro_batch(
         &self,
         mtmd_ctx: &MtmdContext,
@@ -196,7 +195,7 @@ impl MtmdInputChunks {
         (0..self.len())
             .map(|index| {
                 self.get(index).ok_or_else(|| {
-                    FfiContractError {
+                    FfiError::ContractViolated {
                         operation: "mtmd_input_chunks_get",
                         detail: "returned a null chunk within the chunk count",
                     }
@@ -217,10 +216,7 @@ impl Drop for MtmdInputChunks {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::input_chunks_init_status_to_result;
     use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
@@ -230,18 +226,10 @@ mod tests {
     const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
 
     fn contract_violation(detail: &'static str) -> MtmdInputChunksError {
-        FfiContractError {
+        FfiError::ContractViolated {
             operation: OPERATION,
             detail,
         }
-        .into()
-    }
-
-    fn missing_message(detail: &'static str) -> MtmdInputChunksError {
-        CppStringError::Missing(FfiContractError {
-            operation: OPERATION,
-            detail,
-        })
         .into()
     }
 
@@ -281,10 +269,10 @@ mod tests {
                 Some(contract_violation("was given a null out_chunks argument")),
                 Some(MtmdInputChunksError::NotEnoughMemory),
                 Some(MtmdInputChunksError::LlamaCppOutOfMemory),
-                Some(missing_message(
+                Some(contract_violation(
                     "reported a thrown C++ exception without an error message"
                 )),
-                Some(MtmdInputChunksError::FfiStatus(FfiStatusError {
+                Some(MtmdInputChunksError::Ffi(FfiError::UnknownStatus {
                     operation: OPERATION,
                     code: 255,
                 })),

@@ -2,8 +2,8 @@ use std::collections::VecDeque;
 
 use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_sys::llama_seq_id;
-use llama_cpp_bindings_types::token_usage::TokenUsage;
-use llama_cpp_bindings_types::token_usage_error::TokenUsageError;
+use llama_cpp_token_usage::token_usage::TokenUsage;
+use llama_cpp_token_usage::token_usage_error::TokenUsageError;
 
 use crate::batch_add_error::BatchAddError;
 use crate::chat_output::ChatOutput;

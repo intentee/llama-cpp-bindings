@@ -1,17 +1,11 @@
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 
 use crate::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdTokenizeError {
     #[error(transparent)]
-    CppString(#[from] CppStringError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
+    Ffi(#[from] FfiError),
     #[error("Failed to create CString from input text: {0}")]
     CStringError(#[from] std::ffi::NulError),
     #[error("{0}")]

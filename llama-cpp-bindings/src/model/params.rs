@@ -13,8 +13,7 @@ use std::pin::Pin;
 use std::ptr;
 use std::ptr::null;
 
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::backend_device_index::backend_device_index;
@@ -68,55 +67,63 @@ fn fit_params_status_to_result(
             }?;
             Err(FitError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => Err(FfiContractError {
-            operation: "llama_rs_fit_params",
-            detail: "was given a null path_model argument",
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null path_model argument",
+            }
+            .into())
         }
-        .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => Err(FfiContractError {
-            operation: "llama_rs_fit_params",
-            detail: "was given a null mparams argument",
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null mparams argument",
+            }
+            .into())
         }
-        .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => Err(FfiContractError {
-            operation: "llama_rs_fit_params",
-            detail: "was given a null cparams argument",
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null cparams argument",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_fit_params",
                 detail: "was given a null out_unrecognized_status_code argument",
             }
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => Err(FfiContractError {
-            operation: "llama_rs_fit_params",
-            detail: "was given a null out_error argument",
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_fit_params",
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null path_model argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null mparams argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_fit_params",
                 detail: "was given an extra model with a null cparams argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_fit_params",
             code: i64::from(other),
         }
@@ -477,11 +484,7 @@ mod tests {
 
     use std::ptr;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::LlamaModelParams;
     use crate::constants::KV_OVERRIDE_TEXT_CAPACITY;
@@ -516,7 +519,7 @@ mod tests {
     }
 
     fn contract_error_with(detail: &'static str) -> FitError {
-        FfiContractError {
+        FfiError::ContractViolated {
             operation: "llama_rs_fit_params",
             detail,
         }
@@ -1005,10 +1008,10 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(CppStringError::Missing(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_fit_params",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into())
         );
     }
@@ -1019,7 +1022,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FitError::FfiStatus(FfiStatusError {
+            Err(FitError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_fit_params",
                 code: 255,
             }))

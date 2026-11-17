@@ -1,6 +1,6 @@
 [package]
 name = "llama-cpp-gbnf"
-description = "Standalone, model-free GBNF grammar validator built on llama.cpp's real parser"
+description = "Standalone, model-free GBNF grammars: derived from JSON schemas and validated by llama.cpp's real parser"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,10 +1,11 @@
+use llama_cpp_gbnf::gbnf_error::GbnfError;
+
 use crate::batch_add_error::BatchAddError;
 use crate::error::chat_template_error::ChatTemplateError;
 use crate::error::decode_error::DecodeError;
 use crate::error::embeddings_error::EmbeddingsError;
 use crate::error::encode_error::EncodeError;
 use crate::error::fit_error::FitError;
-use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
 use crate::error::llama_context_load_error::LlamaContextLoadError;
 use crate::error::llama_model_load_error::LlamaModelLoadError;
 
@@ -31,7 +32,7 @@ pub enum LlamaCppError {
     #[error("Max devices exceeded. Max devices is {0}")]
     MaxDevicesExceeded(usize),
     #[error(transparent)]
-    JsonSchemaToGrammarError(#[from] JsonSchemaToGrammarError),
+    GbnfError(#[from] GbnfError),
     #[error(transparent)]
     FitError(#[from] FitError),
 }

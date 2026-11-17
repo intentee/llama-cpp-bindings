@@ -6,9 +6,7 @@ use std::fmt::Formatter;
 use std::ptr;
 use std::str::Utf8Error;
 
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::error::chat_template_render_error::ChatTemplateRenderError;
@@ -23,7 +21,7 @@ unsafe fn render_template_status_to_result(
     out_rendered: *mut c_char,
     out_error: *mut c_char,
 ) -> Result<String, ChatTemplateRenderError> {
-    let reported_message = || -> Result<String, CppStringError> {
+    let reported_message = || -> Result<String, FfiError> {
         unsafe {
             read_and_free_cpp_string(
                 out_error,
@@ -33,7 +31,7 @@ unsafe fn render_template_status_to_result(
         }
     };
     let contract_violation = |detail: &'static str| -> Result<String, ChatTemplateRenderError> {
-        Err(FfiContractError {
+        Err(FfiError::ContractViolated {
             operation: "llama_rs_render_template",
             detail,
         }
@@ -89,7 +87,7 @@ unsafe fn render_template_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_ERROR_ARG => {
             contract_violation("was given a null out_error argument")
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_render_template",
             code: i64::from(other),
         }
@@ -159,11 +157,7 @@ mod tests {
 
     use std::ptr;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use crate::error::chat_template_render_error::ChatTemplateRenderError;
 
@@ -302,13 +296,11 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(ChatTemplateRenderError::CppString(
-                CppStringError::NotUtf8 {
-                    operation: "llama_rs_render_template",
-                    source: String::from_utf8(vec![0xFF]).unwrap_err().utf8_error(),
-                    bytes: vec![0xFF],
-                }
-            ))
+            Err(ChatTemplateRenderError::Ffi(FfiError::TextNotUtf8 {
+                operation: "llama_rs_render_template",
+                source: String::from_utf8(vec![0xFF]).unwrap_err().utf8_error(),
+                bytes: vec![0xFF],
+            }))
         );
     }
 
@@ -322,12 +314,10 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(ChatTemplateRenderError::CppString(CppStringError::Missing(
-                FfiContractError {
-                    operation: "llama_rs_render_template",
-                    detail: "success status contained a null rendered string",
-                }
-            )))
+            Err(ChatTemplateRenderError::Ffi(FfiError::ContractViolated {
+                operation: "llama_rs_render_template",
+                detail: "success status contained a null rendered string",
+            }))
         );
     }
 
@@ -343,12 +333,10 @@ mod tests {
                 unsafe {
                     render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
                 },
-                Err(ChatTemplateRenderError::CppString(CppStringError::Missing(
-                    FfiContractError {
-                        operation: "llama_rs_render_template",
-                        detail: "reported a thrown C++ exception without an error message",
-                    }
-                )))
+                Err(ChatTemplateRenderError::Ffi(FfiError::ContractViolated {
+                    operation: "llama_rs_render_template",
+                    detail: "reported a thrown C++ exception without an error message",
+                }))
             );
         }
     }
@@ -413,7 +401,7 @@ mod tests {
                 unsafe {
                     render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
                 },
-                Err(ChatTemplateRenderError::FfiContract(FfiContractError {
+                Err(ChatTemplateRenderError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_render_template",
                     detail,
                 }))
@@ -425,7 +413,7 @@ mod tests {
     fn rendering_preserves_an_unknown_status() {
         assert_eq!(
             unsafe { render_template_status_to_result(255, ptr::null_mut(), ptr::null_mut()) },
-            Err(ChatTemplateRenderError::FfiStatus(FfiStatusError {
+            Err(ChatTemplateRenderError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_render_template",
                 code: 255,
             }))

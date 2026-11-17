@@ -1,19 +1,13 @@
 use std::ffi::CString;
 
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 
 use super::mtmd_context_params_error::MtmdContextParamsError;
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdMemoryUsageError {
     #[error(transparent)]
-    CppString(#[from] CppStringError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
+    Ffi(#[from] FfiError),
     #[error(transparent)]
     ContextParams(#[from] MtmdContextParamsError),
     #[error("the memory usage of mmproj {path:?} could not be measured, because it does not load")]

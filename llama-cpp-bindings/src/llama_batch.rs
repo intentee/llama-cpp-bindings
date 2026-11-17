@@ -3,8 +3,7 @@ use std::ptr;
 use std::ptr::NonNull;
 
 use llama_cpp_bindings_sys::{llama_pos, llama_rs_batch_entry, llama_seq_id};
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::batch_add_error::BatchAddError;
@@ -20,7 +19,7 @@ fn batch_ext_assign_entries_status_to_result(
     out_error: *mut c_char,
 ) -> Result<(), BatchTransferError> {
     let refused_validated_entry = |detail: &'static str| -> Result<(), BatchTransferError> {
-        Err(FfiContractError {
+        Err(FfiError::ContractViolated {
             operation: "llama_rs_batch_ext_assign_entries",
             detail,
         }
@@ -55,7 +54,7 @@ fn batch_ext_assign_entries_status_to_result(
             refused_validated_entry("refused a sequence id validated against the context")
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_RETURNED_UNKNOWN_CODE => {
-            Err(FfiStatusError {
+            Err(FfiError::UnknownStatus {
                 operation: "llama_batch_ext_add_token",
                 code: i64::from(out_llama_cpp_return_code),
             }
@@ -93,7 +92,7 @@ fn batch_ext_assign_entries_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_ERROR_ARG => {
             refused_validated_entry("was given a null out_error argument")
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_batch_ext_assign_entries",
             code: i64::from(other),
         }
@@ -286,10 +285,7 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_bindings_sys::llama_rs_batch_entry;
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::LlamaBatch;
 
@@ -573,7 +569,7 @@ mod tests {
         ] {
             assert_eq!(
                 batch_ext_assign_entries_status_to_result(status, 0, ptr::null_mut()),
-                Err(BatchTransferError::FfiContract(FfiContractError {
+                Err(BatchTransferError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_batch_ext_assign_entries",
                     detail,
                 }))
@@ -589,7 +585,7 @@ mod tests {
                 -7,
                 ptr::null_mut(),
             ),
-            Err(BatchTransferError::FfiStatus(FfiStatusError {
+            Err(BatchTransferError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_batch_ext_add_token",
                 code: -7,
             }))
@@ -637,10 +633,10 @@ mod tests {
                 0,
                 ptr::null_mut(),
             ),
-            Err(BatchTransferError::CppString(CppStringError::Missing(FfiContractError {
+            Err(BatchTransferError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_batch_ext_assign_entries",
                     detail: "reported a thrown C++ exception without an error message",
-                })))
+                }))
         );
     }
 
@@ -648,7 +644,7 @@ mod tests {
     fn adding_a_batch_entry_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_assign_entries_status_to_result(255, 0, ptr::null_mut()),
-            Err(BatchTransferError::FfiStatus(FfiStatusError {
+            Err(BatchTransferError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_batch_ext_assign_entries",
                 code: 255,
             }))

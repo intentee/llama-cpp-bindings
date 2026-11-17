@@ -1,8 +1,6 @@
 use std::ffi::NulError;
 
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 
 use crate::error::sampling_error::SamplingError;
 use crate::error::token_to_string_error::TokenToStringError;
@@ -10,11 +8,7 @@ use crate::error::token_to_string_error::TokenToStringError;
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GrammarError {
     #[error(transparent)]
-    CppString(#[from] CppStringError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
+    Ffi(#[from] FfiError),
     #[error("sampler initialization failed: {0}")]
     SamplerInitialization(#[from] SamplingError),
     #[error("the approximate token environment could not be built: {0}")]
@@ -22,7 +16,7 @@ pub enum GrammarError {
     #[error("grammar root not found in grammar string")]
     RootNotFound,
     #[error("the grammar was rejected by the GBNF parser: {0}")]
-    GrammarRejected(#[source] llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError),
+    GrammarRejected(#[source] llama_cpp_gbnf::gbnf_error::GbnfError),
     #[error("the grammar string contains an interior NUL byte")]
     GrammarContainsNul(#[source] NulError),
     #[error("the grammar root name contains an interior NUL byte")]

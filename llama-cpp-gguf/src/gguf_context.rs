@@ -400,7 +400,7 @@ impl Drop for GgufContext {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use std::env;
     use std::ffi::CString;
     use std::ffi::OsStr;
@@ -422,6 +422,12 @@ pub mod tests {
 
     const GGUF_ALIGNMENT: usize = 32;
     const GGML_TYPE_F16: u32 = 1;
+
+    fn vocabulary_fixture_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join("ggml-vocab-bert-bge.gguf")
+    }
 
     fn init_failed_disc() -> Discriminant<GgufContextError> {
         discriminant(&GgufContextError::InitFailed(PathBuf::new()))
@@ -645,13 +651,6 @@ pub mod tests {
         fn drop(&mut self) {
             fs::remove_file(&self.path).unwrap();
         }
-    }
-
-    #[must_use]
-    pub fn vocabulary_fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("fixtures")
-            .join("ggml-vocab-bert-bge.gguf")
     }
 
     #[test]

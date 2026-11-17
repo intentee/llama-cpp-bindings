@@ -1,40 +1,35 @@
 use std::error::Error;
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
 
-#[derive(Debug)]
-pub struct RecordedError {
-    inner: Box<dyn Error + Send + Sync>,
+#[derive(Debug, thiserror::Error)]
+pub enum RecordedError {
+    #[error("{message}")]
+    FfiCallbackFailed {
+        message: String,
+        #[source]
+        source: Box<dyn Error + Send + Sync>,
+    },
 }
 
 impl RecordedError {
     pub fn new(error: impl Into<Box<dyn Error + Send + Sync>>) -> Self {
-        Self {
-            inner: error.into(),
+        let source = error.into();
+
+        Self::FfiCallbackFailed {
+            message: source.to_string(),
+            source,
         }
     }
 
     #[must_use]
     pub fn into_message(self) -> String {
-        self.inner.to_string()
+        let Self::FfiCallbackFailed { message, .. } = self;
+
+        message
     }
 
     #[must_use]
     pub fn message(&self) -> String {
-        self.inner.to_string()
-    }
-}
-
-impl Display for RecordedError {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-        Display::fmt(&self.inner, formatter)
-    }
-}
-
-impl Error for RecordedError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(self.inner.as_ref())
+        self.to_string()
     }
 }
 

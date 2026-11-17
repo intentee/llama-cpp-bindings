@@ -8,10 +8,9 @@ use std::ptr::NonNull;
 
 use llama_cpp_error_recorder::error_scope::ErrorScope;
 use llama_cpp_error_recorder::recorded_error::RecordedError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
-use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
+use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_gbnf::validate_gbnf::validate_gbnf;
 
 use crate::context::LlamaContext;
@@ -50,19 +49,21 @@ fn check_sampler_accept_status(
             }?;
             Err(SamplerAcceptError::GrammarStateCorrupted { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_NULL_SAMPLER_ARG => Err(FfiContractError {
-            operation: "llama_rs_sampler_accept",
-            detail: "was given a null sampler argument",
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_NULL_SAMPLER_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_sampler_accept",
+                detail: "was given a null sampler argument",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_accept",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_sampler_accept",
             code: i64::from(other),
         }
@@ -96,20 +97,20 @@ fn sampler_apply_status_to_result(
             Err(SamplerApplyError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_apply",
                 detail: "was given a null data_array argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_apply",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_sampler_apply",
             code: i64::from(other),
         }
@@ -140,31 +141,35 @@ fn sampler_sample_status_to_result(
             }?;
             Err(SampleError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_SAMPLER_ARG => Err(FfiContractError {
-            operation: "llama_rs_sampler_sample",
-            detail: "was given a null sampler argument",
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_SAMPLER_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_sampler_sample",
+                detail: "was given a null sampler argument",
+            }
+            .into())
         }
-        .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_CTX_ARG => Err(FfiContractError {
-            operation: "llama_rs_sampler_sample",
-            detail: "was given a null ctx argument",
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_CTX_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_sampler_sample",
+                detail: "was given a null ctx argument",
+            }
+            .into())
         }
-        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_OUT_TOKEN_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_sample",
                 detail: "was given a null out_token argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_sample",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_sampler_sample",
             code: i64::from(other),
         }
@@ -201,20 +206,20 @@ fn sampler_init_grammar_status_to_result(
             Err(GrammarError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_SAMPLER_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_init_grammar",
                 detail: "was given a null out_sampler argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_init_grammar",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_sampler_init_grammar",
             code: i64::from(other),
         }
@@ -248,17 +253,17 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
             let message = unsafe { read_and_free_cpp_string(error_ptr, "llama_rs_sampler_init_grammar_lazy_patterns", "reported a thrown C++ exception without an error message") }?;
             Err(GrammarError::Reported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_SAMPLER_ARG => Err(FfiContractError {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_SAMPLER_ARG => Err(FfiError::ContractViolated {
             operation: "llama_rs_sampler_init_grammar_lazy_patterns",
             detail: "was given a null out_sampler argument",
         }
         .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_ERROR_ARG => Err(FfiContractError {
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_ERROR_ARG => Err(FfiError::ContractViolated {
             operation: "llama_rs_sampler_init_grammar_lazy_patterns",
             detail: "was given a null out_error argument",
         }
         .into()),
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_sampler_init_grammar_lazy_patterns",
             code: i64::from(other),
         }
@@ -303,18 +308,20 @@ fn sampler_init_status_to_result(
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_SAMPLER_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_init",
                 detail: "was given a null out_sampler argument",
             }
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_ERROR_ARG => Err(FfiContractError {
-            operation: "llama_rs_sampler_init",
-            detail: "was given a null out_error argument",
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_NULL_OUT_ERROR_ARG => {
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_sampler_init",
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
-        .into()),
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_sampler_init",
             code: i64::from(other),
         }
@@ -348,27 +355,27 @@ fn sampler_chain_add_status_to_result(
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_CHAIN_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_chain_add",
                 detail: "was given a null chain argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_SAMPLER_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_chain_add",
                 detail: "was given a null sampler argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_OUT_ERROR_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_chain_add",
                 detail: "was given a null out_error argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_sampler_chain_add",
             code: i64::from(other),
         }
@@ -930,7 +937,7 @@ impl LlamaSampler {
 
         match validate_gbnf(Some(vocab), grammar_str, grammar_root) {
             Ok(()) => init_error,
-            Err(GbnfValidationError::RootSymbolMissing { .. }) => GrammarError::RootNotFound,
+            Err(GbnfError::RootSymbolMissing { .. }) => GrammarError::RootNotFound,
             Err(rejected) => GrammarError::GrammarRejected(rejected),
         }
     }
@@ -989,12 +996,9 @@ mod tests {
     use llama_cpp_error_recorder::record::record;
 
     use llama_cpp_error_recorder::recorded_error::RecordedError;
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 
@@ -1440,7 +1444,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(SamplerAcceptError::FfiContract(FfiContractError {
+            Err(SamplerAcceptError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_accept",
                 detail: "was given a null sampler argument",
             }))
@@ -1456,7 +1460,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_accept",
                     detail: "was given a null out_error argument",
                 }
@@ -1481,12 +1485,10 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(SamplerAcceptError::CppString(CppStringError::Missing(
-                FfiContractError {
-                    operation: "llama_rs_sampler_accept",
-                    detail: "reported a thrown C++ exception without an error message",
-                }
-            )))
+            Err(SamplerAcceptError::Ffi(FfiError::ContractViolated {
+                operation: "llama_rs_sampler_accept",
+                detail: "reported a thrown C++ exception without an error message",
+            }))
         );
     }
 
@@ -1497,7 +1499,7 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION + 1,
                 ptr::null_mut(),
             ),
-            Err(SamplerAcceptError::FfiStatus(FfiStatusError {
+            Err(SamplerAcceptError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_sampler_accept",
                 code: i64::from(
                     llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION
@@ -1528,10 +1530,10 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            CppStringError::Missing(FfiContractError {
+            FfiError::ContractViolated {
                 operation: "llama_rs_sampler_sample",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into()
         );
     }
@@ -1543,7 +1545,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(SampleError::FfiContract(FfiContractError {
+            Err(SampleError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_sample",
                 detail: "was given a null ctx argument",
             }))
@@ -1560,7 +1562,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_sample",
                     detail: "was given a null sampler argument",
                 }
@@ -1579,7 +1581,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_sample",
                     detail: "was given a null out_token argument",
                 }
@@ -1598,7 +1600,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_sample",
                     detail: "was given a null out_error argument",
                 }
@@ -1642,7 +1644,7 @@ mod tests {
                 -1,
                 ptr::null_mut(),
             ),
-            Err(SampleError::FfiStatus(FfiStatusError {
+            Err(SampleError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_sampler_sample",
                 code: i64::from(
                     llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION
@@ -1729,7 +1731,7 @@ mod tests {
             )
             .err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_init",
                     detail: "was given a null out_sampler argument",
                 }
@@ -1749,7 +1751,7 @@ mod tests {
             )
             .err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_init",
                     detail: "was given a null out_error argument",
                 }
@@ -1770,10 +1772,10 @@ mod tests {
             )
             .err(),
             Some(
-                CppStringError::Missing(FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_init",
                     detail: "reported a thrown C++ exception without an error message",
-                })
+                }
                 .into()
             )
         );
@@ -1790,7 +1792,7 @@ mod tests {
             )
             .err(),
             Some(
-                FfiStatusError {
+                FfiError::UnknownStatus {
                     operation: "llama_rs_sampler_init",
                     code: i64::from(
                         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION
@@ -1880,7 +1882,7 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_CHAIN_ARG,
                 ptr::null_mut(),
             ),
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_chain_add",
                 detail: "was given a null chain argument",
             }
@@ -1895,7 +1897,7 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_SAMPLER_ARG,
                 ptr::null_mut(),
             ),
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_chain_add",
                 detail: "was given a null sampler argument",
             }
@@ -1910,7 +1912,7 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_OUT_ERROR_ARG,
                 ptr::null_mut(),
             ),
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_chain_add",
                 detail: "was given a null out_error argument",
             }
@@ -1926,10 +1928,10 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(CppStringError::Missing(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_chain_add",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into())
         );
     }
@@ -1942,7 +1944,7 @@ mod tests {
                     + 1,
                 ptr::null_mut(),
             ),
-            Err(FfiStatusError {
+            Err(FfiError::UnknownStatus {
                 operation: "llama_rs_sampler_chain_add",
                 code: i64::from(
                     llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION
@@ -1985,10 +1987,10 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            CppStringError::Missing(FfiContractError {
+            FfiError::ContractViolated {
                 operation: "llama_rs_sampler_init_grammar",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into()
         );
     }
@@ -2001,7 +2003,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            GrammarError::FfiContract(FfiContractError {
+            GrammarError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_init_grammar",
                 detail: "was given a null out_sampler argument",
             })
@@ -2019,7 +2021,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_init_grammar",
                     detail: "was given a null out_error argument",
                 }
@@ -2066,7 +2068,7 @@ mod tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(GrammarError::FfiStatus(FfiStatusError {
+            Some(GrammarError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_sampler_init_grammar",
                 code: i64::from(
                     llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION
@@ -2108,10 +2110,10 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            CppStringError::Missing(FfiContractError {
+            FfiError::ContractViolated {
                 operation: "llama_rs_sampler_init_grammar_lazy_patterns",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into()
         );
     }
@@ -2126,10 +2128,10 @@ mod tests {
             )
             .err(),
             Some(
-                CppStringError::Missing(FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_init_grammar_lazy_patterns",
                     detail: "reported a thrown C++ exception without an error message",
-                })
+                }
                 .into()
             )
         );
@@ -2146,7 +2148,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            GrammarError::FfiContract(FfiContractError {
+            GrammarError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_init_grammar_lazy_patterns",
                 detail: "was given a null out_sampler argument",
             })
@@ -2164,7 +2166,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_init_grammar_lazy_patterns",
                     detail: "was given a null out_error argument",
                 }
@@ -2211,7 +2213,7 @@ mod tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(GrammarError::FfiStatus(FfiStatusError {
+            Some(GrammarError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_sampler_init_grammar_lazy_patterns",
                 code: i64::from(unknown_status),
             }))
@@ -2233,8 +2235,8 @@ mod tests {
 
         assert_eq!(
             overreporting_sampler.apply(&mut excluded_candidates()),
-            Err(SampleError::SamplerApply(SamplerApplyError::FfiContract(
-                FfiContractError {
+            Err(SampleError::SamplerApply(SamplerApplyError::Ffi(
+                FfiError::ContractViolated {
                     operation: "modify_as_c_llama_token_data_array",
                     detail: "the llama.cpp sampler grew the token data array beyond its capacity",
                 }
@@ -2274,10 +2276,10 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(CppStringError::Missing(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_sampler_apply",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into()),
         );
     }
@@ -2288,7 +2290,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(SamplerApplyError::FfiStatus(FfiStatusError {
+            Err(SamplerApplyError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_sampler_apply",
                 code: 255,
             }))
@@ -2313,7 +2315,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_apply",
                     detail: "was given a null data_array argument",
                 }
@@ -2331,7 +2333,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_sampler_apply",
                     detail: "was given a null out_error argument",
                 }

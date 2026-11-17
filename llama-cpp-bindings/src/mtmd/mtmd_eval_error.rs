@@ -1,6 +1,4 @@
-use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 
 use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use crate::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
@@ -9,11 +7,7 @@ use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatch
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum MtmdEvalError {
     #[error(transparent)]
-    CppString(#[from] CppStringError),
-    #[error(transparent)]
-    FfiStatus(#[from] FfiStatusError),
-    #[error(transparent)]
-    FfiContract(#[from] FfiContractError),
+    Ffi(#[from] FfiError),
     #[error("batch size {requested} exceeds context batch size {context_max}")]
     BatchSizeExceedsContextLimit { requested: i32, context_max: u32 },
     #[error("batch size {requested} must be positive")]

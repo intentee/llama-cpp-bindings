@@ -4,8 +4,7 @@ use std::ptr::NonNull;
 use std::slice;
 use std::str::Utf8Error;
 
-use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use super::mtmd_context::MtmdContext;
@@ -68,21 +67,21 @@ fn input_chunk_copy_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK => NonNull::new(out_chunk)
             .map(|chunk| MtmdInputChunk { chunk, owned: true })
             .ok_or_else(|| {
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: OPERATION,
                     detail: "success status contained a null chunk",
                 }
                 .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: OPERATION,
                 detail: "was given a null chunk argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: OPERATION,
                 detail: "was given a null out_chunk argument",
             }
@@ -105,7 +104,7 @@ fn input_chunk_copy_status_to_result(
 
             Err(MtmdInputChunkError::Reported { message })
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: OPERATION,
             code: i64::from(other),
         }
@@ -143,34 +142,34 @@ fn eval_chunk_single_status_to_result(
             Err(MtmdEvalError::Reported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_mtmd_eval_chunk_single",
                 detail: "was given a null mtmd_ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_mtmd_eval_chunk_single",
                 detail: "was given a null llama_ctx argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_mtmd_eval_chunk_single",
                 detail: "was given a null chunk argument",
             }
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG => {
-            Err(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_mtmd_eval_chunk_single",
                 detail: "was given a null out_new_n_past argument",
             }
             .into())
         }
-        other => Err(FfiStatusError {
+        other => Err(FfiError::UnknownStatus {
             operation: "llama_rs_mtmd_eval_chunk_single",
             code: i64::from(other),
         }
@@ -336,11 +335,8 @@ impl Drop for MtmdInputChunk {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+    use llama_cpp_ffi_status::ffi_error::FfiError;
 
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
     use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
@@ -361,18 +357,10 @@ mod tests {
     const OPERATION: &str = "llama_rs_mtmd_input_chunk_copy";
 
     fn contract_violation(detail: &'static str) -> MtmdInputChunkError {
-        FfiContractError {
+        FfiError::ContractViolated {
             operation: OPERATION,
             detail,
         }
-        .into()
-    }
-
-    fn missing_message(detail: &'static str) -> MtmdInputChunkError {
-        CppStringError::Missing(FfiContractError {
-            operation: OPERATION,
-            detail,
-        })
         .into()
     }
 
@@ -441,10 +429,10 @@ mod tests {
                 Some(contract_violation("was given a null out_chunk argument")),
                 Some(MtmdInputChunkError::NotEnoughMemory),
                 Some(MtmdInputChunkError::LlamaCppOutOfMemory),
-                Some(missing_message(
+                Some(contract_violation(
                     "reported a thrown C++ exception without an error message"
                 )),
-                Some(MtmdInputChunkError::FfiStatus(FfiStatusError {
+                Some(MtmdInputChunkError::Ffi(FfiError::UnknownStatus {
                     operation: OPERATION,
                     code: 255,
                 })),
@@ -541,10 +529,10 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(CppStringError::Missing(FfiContractError {
+            Err(FfiError::ContractViolated {
                 operation: "llama_rs_mtmd_eval_chunk_single",
                 detail: "reported a thrown C++ exception without an error message",
-            })
+            }
             .into())
         );
     }
@@ -555,7 +543,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(MtmdEvalError::FfiStatus(FfiStatusError {
+            Err(MtmdEvalError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_mtmd_eval_chunk_single",
                 code: 255,
             }))
@@ -573,7 +561,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_mtmd_eval_chunk_single",
                     detail: "was given a null mtmd_ctx argument",
                 }
@@ -593,7 +581,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_mtmd_eval_chunk_single",
                     detail: "was given a null llama_ctx argument",
                 }
@@ -613,7 +601,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_mtmd_eval_chunk_single",
                     detail: "was given a null chunk argument",
                 }
@@ -634,7 +622,7 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(
-                FfiContractError {
+                FfiError::ContractViolated {
                     operation: "llama_rs_mtmd_eval_chunk_single",
                     detail: "was given a null out_new_n_past argument",
                 }
