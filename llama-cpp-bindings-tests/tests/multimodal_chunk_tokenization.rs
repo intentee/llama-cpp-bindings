@@ -96,7 +96,7 @@ fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_first_chunk_of_a_tokenized_prompt_holds_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello world <__media__>")?;
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     ensure!(first_chunk.n_tokens() > 0);
@@ -121,7 +121,9 @@ fn chunk_n_tokens_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_first_chunk_of_a_tokenized_prompt_occupies_positions(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello world <__media__>")?;
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     ensure!(first_chunk.n_positions() > 0);
@@ -146,7 +148,7 @@ fn chunk_n_positions_is_positive(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn text_chunk_id_returns_none(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_text_chunk_has_no_id(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello <__media__>")?;
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     ensure!(first_chunk.chunk_type()? == MtmdInputChunkType::Text);
@@ -346,9 +348,11 @@ fn tokenizing_reports_a_chunk_list_llama_cpp_cannot_allocate(
             &[],
         )
         .err()
-            == Some(MtmdError::InputChunksReported {
-                message: injected_fault_message()?,
-            })
+            == Some(MtmdError::TokenizeInputChunks(Box::new(
+                MtmdError::InputChunksReported {
+                    message: injected_fault_message()?,
+                }
+            )))
     );
 
     Ok(())

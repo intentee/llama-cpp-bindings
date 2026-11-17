@@ -74,7 +74,7 @@ fn load_model_refuses_a_path_that_is_not_utf8(&LlamaFixture { backend, .. }: &Ll
 
     assert_eq!(
         result.err(),
-        Some(ModelError::PathNotUtf8(non_utf8_path.to_path_buf()))
+        Some(ModelError::LoadPathNotUtf8(non_utf8_path.to_path_buf()))
     );
 }
 
@@ -96,6 +96,6 @@ fn load_model_refuses_a_path_with_a_nul_byte(&LlamaFixture { backend, .. }: &Lla
         .err(),
         CString::new("/models/model\0.gguf")
             .err()
-            .map(ModelError::PathContainsNulByte)
+            .map(ModelError::LoadPathContainsNulByte)
     );
 }

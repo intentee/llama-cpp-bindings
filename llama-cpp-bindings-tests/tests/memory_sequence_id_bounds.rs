@@ -48,7 +48,7 @@ fn memory_seq_pos_max_rejects_out_of_range_sequence(fixture: &LlamaFixture<'_>) 
 
     ensure!(
         result
-            == Err(ContextMemoryError::SequenceIdOutOfRange {
+            == Err(ContextMemoryError::SeqPosMaxSequenceIdOutOfRange {
                 seq_id: 999,
                 n_seq_max: 1
             })
@@ -96,7 +96,7 @@ fn memory_seq_rm_rejects_sequence_id_exceeding_i32_max(fixture: &LlamaFixture<'_
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::SequenceIdTooLarge(
+            == ContextMemoryError::SeqRmSequenceIdTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?
@@ -121,7 +121,7 @@ fn memory_seq_cp_rejects_a_destination_outside_the_context_sequences(
 
     ensure!(
         context.memory_seq_cp(0, 1, None, None)
-            == Err(ContextMemoryError::SequenceIdOutOfRange {
+            == Err(ContextMemoryError::SeqCpSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
             })
@@ -145,7 +145,7 @@ fn memory_seq_keep_rejects_a_sequence_outside_the_context_sequences(
 
     ensure!(
         context.memory_seq_keep(1)
-            == Err(ContextMemoryError::SequenceIdOutOfRange {
+            == Err(ContextMemoryError::SeqKeepSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
             })
@@ -167,7 +167,7 @@ fn memory_seq_add_rejects_a_negative_sequence_id(fixture: &LlamaFixture<'_>) -> 
 
     ensure!(
         context.memory_seq_add(-1, None, None, 1)
-            == Err(ContextMemoryError::SequenceIdOutOfRange {
+            == Err(ContextMemoryError::SeqAddSequenceIdOutOfRange {
                 seq_id: -1,
                 n_seq_max: 1
             })
@@ -191,7 +191,7 @@ fn memory_seq_div_rejects_a_sequence_outside_the_context_sequences(
 
     ensure!(
         context.memory_seq_div(1, None, None, NonZeroU8::MIN)
-            == Err(ContextMemoryError::SequenceIdOutOfRange {
+            == Err(ContextMemoryError::SeqDivSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
             })
@@ -215,7 +215,7 @@ fn memory_seq_rm_rejects_a_sequence_outside_the_context_sequences(
 
     ensure!(
         context.memory_seq_rm(Some(1), None, None)
-            == Err(ContextMemoryError::SequenceIdOutOfRange {
+            == Err(ContextMemoryError::SeqRmSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
             })
@@ -239,7 +239,7 @@ fn memory_seq_cp_rejects_a_source_outside_the_context_sequences(
 
     ensure!(
         context.memory_seq_cp(1, 0, None, None)
-            == Err(ContextMemoryError::SequenceIdOutOfRange {
+            == Err(ContextMemoryError::SeqCpSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
             })

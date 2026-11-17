@@ -1,5 +1,4 @@
 #include "wrapper_decision.h"
-#include "wrapper_fault_injection.h"
 #include "wrapper_report_current_exception.h"
 #include "wrapper_utils.h"
 
@@ -76,10 +75,6 @@ extern "C" auto llama_rs_model_decision_type(
 }
 
 extern "C" auto llama_rs_model_decision_label(const struct llama_model * model, uint32_t index) -> const char * {
-    if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_MODEL_DECISION_LABEL_NOT_UTF8)) {
-        return "\xff";
-    }
-
     return llama_model_decision_label(model, index);
 }
 

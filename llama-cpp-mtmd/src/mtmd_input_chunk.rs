@@ -81,12 +81,7 @@ fn input_chunk_copy_status_to_result(
             Err(MtmdError::ChunkCopyLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
 
             Err(MtmdError::ChunkCopyReported { message })
         }
@@ -115,12 +110,7 @@ fn map_encode_chunk_status(
             Err(MtmdError::EncodeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(MtmdError::EncodeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG => Err(OPERATION
@@ -155,12 +145,7 @@ fn eval_chunk_single_status_to_result(
             Err(MtmdError::EvalLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(MtmdError::EvalReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG => Err(OPERATION
@@ -301,13 +286,16 @@ impl MtmdInputChunk {
     ///
     /// Returns [`MtmdError::NonCausalChunkExceedsMicroBatch`] when a media chunk decoded
     /// non-causally has more tokens than `micro_batch_tokens`, or
-    /// [`MtmdError::UnknownInputChunkType`] when the chunk type is unknown.
+    /// [`MtmdError::EvalUnknownChunkType`] when the chunk type is unknown.
     pub fn fit_to_micro_batch(
         &self,
         mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
     ) -> Result<MtmdInputChunkType, MtmdError> {
-        let chunk_type = self.chunk_type()?;
+        let chunk_type = self
+            .chunk_type()
+            .map_err(Box::new)
+            .map_err(MtmdError::EvalUnknownChunkType)?;
         let decodes_non_causally =
             chunk_type != MtmdInputChunkType::Text && self.decode_use_non_causal(mtmd_ctx);
 
@@ -490,10 +478,8 @@ mod tests {
     #[test]
     fn eval_chunk_single_status_cxx_exception_surfaces_the_reported_message() {
         let expected_message = unsafe {
-            WrapperOperation::new("llama_rs_mtmd_eval_chunk_single").read_and_free_cpp_string(
-                wrapper_allocated_error_message_pointer(),
-                "reported a thrown C++ exception without an error message",
-            )
+            WrapperOperation::new("llama_rs_mtmd_eval_chunk_single")
+                .read_and_free_exception_message(wrapper_allocated_error_message_pointer())
         };
         let result = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,

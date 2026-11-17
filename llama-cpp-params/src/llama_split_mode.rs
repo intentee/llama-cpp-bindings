@@ -20,10 +20,7 @@ impl TryFrom<llama_cpp_bindings_sys::llama_split_mode> for LlamaSplitMode {
             llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_LAYER => Ok(Self::Layer),
             llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_ROW => Ok(Self::Row),
             llama_cpp_bindings_sys::LLAMA_SPLIT_MODE_TENSOR => Ok(Self::Tensor),
-            _ => Err(ParamsError::UnknownSplitMode {
-                value,
-                context: format!("unknown split mode value: {value}"),
-            }),
+            _ => Err(ParamsError::UnknownSplitMode { value }),
         }
     }
 }
@@ -48,10 +45,7 @@ mod tests {
     fn try_from_invalid_reports_the_value() {
         assert_eq!(
             LlamaSplitMode::try_from(99),
-            Err(ParamsError::UnknownSplitMode {
-                value: 99,
-                context: "unknown split mode value: 99".to_owned(),
-            })
+            Err(ParamsError::UnknownSplitMode { value: 99 })
         );
     }
 

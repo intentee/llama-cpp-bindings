@@ -38,12 +38,16 @@ pub enum ContextError {
     DecodeBatchExceedsMicroBatch { n_tokens: i32, n_ubatch: u32 },
     #[error("decode batch is invalid (empty, output mismatch, or initialization failure)")]
     DecodeBatchInvalid,
+    #[error("the batch could not be handed to llama.cpp")]
+    DecodeBatchTransfer(#[source] Box<Self>),
     #[error("backend compute failed during decode")]
     DecodeComputeFailed,
     #[error("no KV cache slot was available")]
     DecodeNoKvCacheSlot,
     #[error("decode ran out of memory")]
     DecodeOutOfMemory,
+    #[error(transparent)]
+    DecodeProcess(Box<Self>),
     #[error("decode returned an unknown status code: {code}")]
     DecodeUnknownStatus { code: c_int },
     #[error("token {token_index} names no output row of the last decode")]
@@ -54,6 +58,8 @@ pub enum ContextError {
     EncodeBatchExceedsMicroBatch { n_tokens: i32, n_ubatch: u32 },
     #[error("encode batch is invalid (empty or initialization failure)")]
     EncodeBatchInvalid,
+    #[error("the batch could not be handed to llama.cpp")]
+    EncodeBatchTransfer(#[source] Box<Self>),
     #[error("backend compute failed during encode")]
     EncodeComputeFailed,
     #[error("model has no encoder")]
@@ -62,6 +68,8 @@ pub enum ContextError {
     EncodeNoKvCacheSlot,
     #[error("encode ran out of memory")]
     EncodeOutOfMemory,
+    #[error(transparent)]
+    EncodeProcess(Box<Self>),
     #[error("encode returned an unknown status code: {code}")]
     EncodeUnknownStatus { code: c_int },
     #[error(transparent)]

@@ -45,12 +45,7 @@ fn validation_status_to_result(
             Err(GbnfError::ValidationLlamaCppOutOfMemory)
         }
         LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
 
             Err(GbnfError::ValidationReported { message })
         }

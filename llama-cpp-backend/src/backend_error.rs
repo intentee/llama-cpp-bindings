@@ -9,7 +9,7 @@ pub enum BackendError {
     #[error("backend directory path is not valid UTF-8: {0}")]
     BackendDirectoryPathNotUtf8(PathBuf),
     #[error("backend directory path contains a null byte")]
-    BackendDirectoryPathContainsNullByte(#[from] NulError),
+    BackendDirectoryPathContainsNullByte(#[source] NulError),
     #[error("the device name cannot be read: ggml reported no text")]
     DeviceNameMissing,
     #[error("the device name cannot be read: ggml reported text that is not valid UTF-8")]

@@ -57,8 +57,11 @@ fn init_from_file_refuses_an_image_token_limit_a_c_int_cannot_hold(
 
     assert_eq!(
         MtmdContext::init_from_file("mmproj.gguf", model, &mtmd_params).err(),
-        i32::try_from(u32::MAX)
-            .err()
-            .map(|source| { MtmdError::ImageMaxTokensExceedCInt { limit, source } })
+        i32::try_from(u32::MAX).err().map(|source| {
+            MtmdError::InitContextParams(Box::new(MtmdError::ImageMaxTokensExceedCInt {
+                limit,
+                source,
+            }))
+        })
     );
 }

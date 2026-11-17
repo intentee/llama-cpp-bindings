@@ -43,12 +43,7 @@ fn input_chunks_init_status_to_result(
             Err(MtmdError::InputChunksLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
 
             Err(MtmdError::InputChunksReported { message })
         }
@@ -83,7 +78,7 @@ fn map_tokenize_status(
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message") }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(MtmdError::TokenizeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO => {
@@ -130,7 +125,7 @@ fn map_tokenize_from_parts_status(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message")
+                OPERATION.read_and_free_exception_message(out_error)
             }?;
             Err(MtmdError::TokenizeReported { message })
         }
@@ -202,7 +197,9 @@ impl MtmdInputChunks {
         }: MtmdInputText,
         bitmaps: &[&MtmdBitmap],
     ) -> Result<Self, MtmdError> {
-        let chunks = Self::new()?;
+        let chunks = Self::new()
+            .map_err(Box::new)
+            .map_err(MtmdError::TokenizeInputChunks)?;
         let text_cstring = CString::new(text).map_err(MtmdError::InputTextContainsNul)?;
         let input_text = llama_cpp_bindings_sys::mtmd_input_text {
             text: text_cstring.as_ptr(),
@@ -243,7 +240,9 @@ impl MtmdInputChunks {
         parts: &[MtmdInputPart<'_>],
         add_special: bool,
     ) -> Result<Self, MtmdError> {
-        let chunks = Self::new()?;
+        let chunks = Self::new()
+            .map_err(Box::new)
+            .map_err(MtmdError::TokenizeInputChunks)?;
         let ffi_input_parts = parts
             .iter()
             .map(MtmdFfiInputPart::try_from)
@@ -323,7 +322,7 @@ impl MtmdInputChunks {
     ///
     /// Returns [`MtmdError::NonCausalChunkExceedsMicroBatch`] for the first chunk decoded
     /// non-causally that has more tokens than `micro_batch_tokens`,
-    /// [`MtmdError::UnknownInputChunkType`] when a chunk type is unknown, or
+    /// [`MtmdError::EvalUnknownChunkType`] when a chunk type is unknown, or
     /// [`MtmdError::Ffi`] when a chunk within the chunk count is null.
     pub fn fit_to_micro_batch(
         &self,
@@ -541,10 +540,8 @@ mod tests {
     #[test]
     fn tokenize_from_parts_status_maps_a_thrown_exception_with_its_message() {
         let expected_message = unsafe {
-            WrapperOperation::new("llama_rs_mtmd_tokenize_from_parts").read_and_free_cpp_string(
-                wrapper_allocated_error_message_pointer(),
-                "reported a thrown C++ exception without an error message",
-            )
+            WrapperOperation::new("llama_rs_mtmd_tokenize_from_parts")
+                .read_and_free_exception_message(wrapper_allocated_error_message_pointer())
         };
 
         assert_eq!(

@@ -20,6 +20,7 @@ use toktrie::TokTrie;
 use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
+use llama_cpp_path_c_string::path_c_string::path_c_string;
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 use crate::add_bos::AddBos;
@@ -31,7 +32,6 @@ use crate::llama_token::LlamaToken;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::model_error::ModelError;
 use crate::parse_special_tokens::ParseSpecialTokens;
-use crate::path_c_string::path_c_string;
 use crate::piece_write::PieceWrite;
 use crate::rope_type::RopeType;
 use crate::sampled_token::SampledToken;
@@ -128,12 +128,7 @@ unsafe fn load_model_from_file_status_to_result(
             Err(ModelError::LoadLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(ModelError::LoadReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG => Err(OPERATION
@@ -175,12 +170,7 @@ unsafe fn model_decision_type_status_to_result(
             Err(ModelError::DecisionTypeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(ModelError::DecisionTypeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_MODEL_ARG => {
@@ -284,12 +274,7 @@ unsafe fn tokenize_status_to_result(
             Err(ModelError::TokenizeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(ModelError::TokenizeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG => {
@@ -443,17 +428,18 @@ impl LlamaModel {
     /// # Errors
     ///
     /// See [`ModelError`] for more information.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a valid UTF-8 path somehow contains interior null bytes (should never happen).
     pub fn load_from_file(
         _: &LlamaBackend,
         path: impl AsRef<Path>,
         LlamaModelParams { params, .. }: &LlamaModelParams,
     ) -> Result<Self, ModelError> {
         let path = path.as_ref();
-        let cstr = path_c_string(path)?;
+        let cstr = path_c_string(path).map_err(|error| match error {
+            PathCStringError::ContainsNulByte(source) => {
+                ModelError::LoadPathContainsNulByte(source)
+            }
+            PathCStringError::NotUtf8(path) => ModelError::LoadPathNotUtf8(path),
+        })?;
 
         if !path.exists() {
             return Err(ModelError::ModelFileNotFound(path.to_path_buf()));
@@ -576,14 +562,12 @@ impl LlamaModel {
     ) -> Result<LlamaLoraAdapter<'_>, ModelError> {
         let path = path.as_ref();
 
-        let cstr = llama_cpp_path_c_string::path_c_string::path_c_string(path).map_err(
-            |error| match error {
-                PathCStringError::ContainsNulByte(source) => {
-                    ModelError::LoraAdapterPathContainsNulByte(source)
-                }
-                PathCStringError::NotUtf8(path) => ModelError::LoraAdapterPathNotUtf8(path),
-            },
-        )?;
+        let cstr = path_c_string(path).map_err(|error| match error {
+            PathCStringError::ContainsNulByte(source) => {
+                ModelError::LoraAdapterPathContainsNulByte(source)
+            }
+            PathCStringError::NotUtf8(path) => ModelError::LoraAdapterPathNotUtf8(path),
+        })?;
 
         if !path.exists() {
             return Err(ModelError::LoraAdapterFileNotFound(path.to_path_buf()));
@@ -761,11 +745,14 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`ModelError::TokenOutsideVocabulary`] when the token is not part of this
-    /// model's vocabulary, or [`ModelError::UnknownTokenAttributes`] when llama.cpp reports
+    /// Returns [`ModelError::TokenAttributesTokenOutsideVocabulary`] when the token is not part
+    /// of this model's vocabulary, or [`ModelError::UnknownTokenAttributes`] when llama.cpp reports
     /// attributes this library does not know.
     pub fn token_attr(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, ModelError> {
-        let LlamaToken(id) = self.require_vocabulary_token(token)?;
+        let n_vocab = self.n_vocab();
+        let LlamaToken(id) = self
+            .vocabulary_token(token)
+            .ok_or(ModelError::TokenAttributesTokenOutsideVocabulary { token, n_vocab })?;
         let token_attr =
             unsafe { llama_cpp_bindings_sys::llama_vocab_get_attr(self.vocab_ptr(), id) };
 
@@ -799,10 +786,13 @@ impl LlamaModel {
 
     /// # Errors
     ///
-    /// Returns [`ModelError::TokenOutsideVocabulary`] when the token is not part of this model's
-    /// vocabulary.
+    /// Returns [`ModelError::TokenTextTokenOutsideVocabulary`] when the token is not part of
+    /// this model's vocabulary.
     pub fn token_text_bytes(&self, token: LlamaToken) -> Result<Vec<u8>, ModelError> {
-        let LlamaToken(id) = self.require_vocabulary_token(token)?;
+        let n_vocab = self.n_vocab();
+        let LlamaToken(id) = self
+            .vocabulary_token(token)
+            .ok_or(ModelError::TokenTextTokenOutsideVocabulary { token, n_vocab })?;
         let text = unsafe { llama_cpp_bindings_sys::llama_vocab_get_text(self.vocab_ptr(), id) };
 
         Ok(unsafe { CStr::from_ptr(text) }.to_bytes().to_vec())
@@ -838,7 +828,10 @@ impl LlamaModel {
         special: bool,
         lstrip: Option<NonZeroU16>,
     ) -> Result<Vec<u8>, ModelError> {
-        let token = self.require_vocabulary_token(token)?;
+        let n_vocab = self.n_vocab();
+        let token = self
+            .vocabulary_token(token)
+            .ok_or(ModelError::PieceTokenOutsideVocabulary { token, n_vocab })?;
         let buffer_len = c_int::try_from(buffer_size).map_err(ModelError::PieceIntConversion)?;
         let mut buffer: Vec<u8> = vec![0u8; buffer_size];
         match self.write_piece(token, &mut buffer, buffer_len, special, lstrip) {
@@ -890,7 +883,10 @@ impl LlamaModel {
         lstrip: Option<NonZeroU16>,
         read: impl FnOnce(&[u8]) -> TOutput,
     ) -> Result<TOutput, ModelError> {
-        let token = self.require_vocabulary_token(token)?;
+        let n_vocab = self.n_vocab();
+        let token = self
+            .vocabulary_token(token)
+            .ok_or(ModelError::PieceTokenOutsideVocabulary { token, n_vocab })?;
         let mut probe = [0_u8; PIECE_PROBE_SIZE];
 
         match self.write_piece(token, &mut probe, PIECE_PROBE_LEN, special, lstrip) {
@@ -901,15 +897,8 @@ impl LlamaModel {
         }
     }
 
-    const fn require_vocabulary_token(&self, token: LlamaToken) -> Result<LlamaToken, ModelError> {
-        if token.is_within_vocabulary(self.n_vocab()) {
-            Ok(token)
-        } else {
-            Err(ModelError::TokenOutsideVocabulary {
-                token,
-                n_vocab: self.n_vocab(),
-            })
-        }
+    fn vocabulary_token(&self, token: LlamaToken) -> Option<LlamaToken> {
+        token.is_within_vocabulary(self.n_vocab()).then_some(token)
     }
 
     fn write_piece(

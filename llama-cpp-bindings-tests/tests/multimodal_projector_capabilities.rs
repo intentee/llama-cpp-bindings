@@ -109,7 +109,7 @@ fn qwen_mmproj_reports_vision_only_chat_capabilities(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn decode_use_mrope_is_true_for_qwen_vision(
+fn the_qwen_vision_projector_decodes_with_mrope(
     &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
@@ -139,7 +139,7 @@ fn decode_use_mrope_is_true_for_qwen_vision(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn get_audio_sample_rate_is_none_for_vision_only_mmproj(
+fn a_vision_only_projector_has_no_audio_sample_rate(
     &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;

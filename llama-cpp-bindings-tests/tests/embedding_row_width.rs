@@ -6,7 +6,7 @@ use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
-const LAYA_QUESTION_TYPE_SCORES: usize = 3;
+const LAYA_OUTPUT_WIDTH: usize = 3;
 const QWEN3_RERANKER_CLASSIFIER_LABELS: usize = 2;
 
 #[llama_test(
@@ -18,10 +18,15 @@ const QWEN3_RERANKER_CLASSIFIER_LABELS: usize = 2;
     n_ubatch = 512,
     embeddings = true,
 )]
-fn token_embeddings_are_as_wide_as_the_output_projection(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn token_embeddings_are_as_wide_as_the_model_output_rather_than_its_hidden_state(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let context = context_after_decoding_text(fixture, LlamaPoolingType::None)?;
+    let row_width = context.embeddings_ith(0)?.len();
 
-    ensure!(context.embeddings_ith(0)?.len() == LAYA_QUESTION_TYPE_SCORES);
+    ensure!(row_width == LAYA_OUTPUT_WIDTH);
+    ensure!(row_width == usize::try_from(fixture.model.n_embd_out())?);
+    ensure!(row_width != usize::try_from(fixture.model.n_embd())?);
 
     Ok(())
 }
@@ -35,12 +40,15 @@ fn token_embeddings_are_as_wide_as_the_output_projection(fixture: &LlamaFixture<
     n_ubatch = 512,
     embeddings = true,
 )]
-fn pooled_sequence_embeddings_are_as_wide_as_the_output_projection(
+fn pooled_sequence_embeddings_are_as_wide_as_the_model_output_rather_than_its_hidden_state(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean)?;
+    let row_width = context.embeddings_seq_ith(0)?.len();
 
-    ensure!(context.embeddings_seq_ith(0)?.len() == LAYA_QUESTION_TYPE_SCORES);
+    ensure!(row_width == LAYA_OUTPUT_WIDTH);
+    ensure!(row_width == usize::try_from(fixture.model.n_embd_out())?);
+    ensure!(row_width != usize::try_from(fixture.model.n_embd())?);
 
     Ok(())
 }

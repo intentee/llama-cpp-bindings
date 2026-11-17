@@ -31,12 +31,7 @@ fn regex_escape_status_to_result(
         }?),
         llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(SamplerError::GrammarReported {
-                message: unsafe {
-                    OPERATION.read_and_free_cpp_string(
-                        out_error,
-                        "reported a thrown C++ exception without an error message",
-                    )
-                }?,
+                message: unsafe { OPERATION.read_and_free_exception_message(out_error) }?,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_ERROR_STRING_ALLOCATION_FAILED => {

@@ -36,7 +36,7 @@ fn memory_seq_add_refuses_an_mrope_model(fixture: &LlamaFixture<'_>) -> Result<(
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::IncompatibleRopeType
+            == ContextMemoryError::SeqAddIncompatibleRopeType
     );
 
     Ok(())
@@ -68,7 +68,7 @@ fn memory_seq_div_refuses_an_mrope_model(fixture: &LlamaFixture<'_>) -> Result<(
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::IncompatibleRopeType
+            == ContextMemoryError::SeqDivIncompatibleRopeType
     );
 
     Ok(())
@@ -149,7 +149,7 @@ fn memory_seq_add_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
 
     ensure!(
         context.memory_seq_add(0, None, None, 1)
-            == Err(ContextMemoryError::UnknownRopeType(
+            == Err(ContextMemoryError::SeqAddUnknownRopeType(
                 ModelError::UnknownRopeType(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1)
             ))
     );
@@ -173,7 +173,7 @@ fn memory_seq_div_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
 
     ensure!(
         context.memory_seq_div(0, None, None, NonZeroU8::MIN)
-            == Err(ContextMemoryError::UnknownRopeType(
+            == Err(ContextMemoryError::SeqDivUnknownRopeType(
                 ModelError::UnknownRopeType(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1)
             ))
     );

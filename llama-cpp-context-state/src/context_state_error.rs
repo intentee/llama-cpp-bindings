@@ -8,9 +8,21 @@ pub enum ContextStateError {
     #[error(transparent)]
     Ffi(#[from] FfiError),
     #[error("null byte in string")]
-    PathContainsNulByte(#[from] NulError),
+    LoadSeqStatePathContainsNulByte(#[source] NulError),
     #[error("failed to convert path {0} to str")]
-    PathNotUtf8(PathBuf),
+    LoadSeqStatePathNotUtf8(PathBuf),
+    #[error("null byte in string")]
+    LoadSessionPathContainsNulByte(#[source] NulError),
+    #[error("failed to convert path {0} to str")]
+    LoadSessionPathNotUtf8(PathBuf),
+    #[error("null byte in string")]
+    SaveSeqStatePathContainsNulByte(#[source] NulError),
+    #[error("failed to convert path {0} to str")]
+    SaveSeqStatePathNotUtf8(PathBuf),
+    #[error("null byte in string")]
+    SaveSessionPathContainsNulByte(#[source] NulError),
+    #[error("failed to convert path {0} to str")]
+    SaveSessionPathNotUtf8(PathBuf),
     #[error("Failed to load sequence state file")]
     SeqStateFileNotLoaded,
     #[error("Failed to save sequence state file")]

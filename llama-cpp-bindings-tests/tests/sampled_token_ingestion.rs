@@ -230,7 +230,7 @@ fn ingesting_a_token_outside_the_vocabulary_reports_it_in_every_classifier(
     let session = user_turn_chat_session(model, "hello", &[], false)?;
     let mut outcomes = Vec::new();
     let expected = Err(LlamaCppError::Detokenize(
-        ModelError::TokenOutsideVocabulary {
+        ModelError::PieceTokenOutsideVocabulary {
             token,
             n_vocab: model.n_vocab(),
         },
@@ -336,7 +336,9 @@ fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>)
                 &mut Vec::new(),
             )
             .err()
-            == Some(failed_classification()?)
+            == Some(LlamaCppError::SampleIngest(Box::new(
+                failed_classification()?
+            )))
     );
 
     Ok(())
@@ -408,9 +410,11 @@ fn a_chat_answer_classifier_reports_a_failed_reading_of_its_empty_answer(
 
     ensure!(
         SampledTokenClassifier::for_chat_session(model, session).err()
-            == Some(LlamaCppError::Classify(ChatError::ParseReported {
-                message: injected_fault_message()?,
-            }))
+            == Some(LlamaCppError::EmptyAnswerReading(
+                ChatError::ParseReported {
+                    message: injected_fault_message()?,
+                }
+            ))
     );
 
     Ok(())

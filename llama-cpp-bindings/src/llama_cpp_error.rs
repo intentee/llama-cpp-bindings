@@ -10,13 +10,17 @@ pub enum LlamaCppError {
     #[error("chunk index {0} out of bounds during post-eval walk")]
     ChunkOutOfBounds(usize),
     #[error("the chat template's parser could not classify the answer")]
-    Classify(#[from] ChatError),
+    Classify(#[source] ChatError),
     #[error(transparent)]
     Context(#[from] ContextError),
     #[error("the generated token could not be detokenized")]
-    Detokenize(#[from] ModelError),
+    Detokenize(#[source] ModelError),
     #[error(transparent)]
-    MultimodalChunksEval(#[from] MtmdError),
+    EmptyAnswerReading(ChatError),
+    #[error(transparent)]
+    MultimodalChunksEval(MtmdError),
+    #[error("classifying the sampled token failed")]
+    SampleIngest(#[source] Box<Self>),
     #[error(transparent)]
     Sampler(#[from] SamplerError),
     #[error(transparent)]

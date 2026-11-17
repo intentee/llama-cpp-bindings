@@ -34,7 +34,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn is_recurrent_returns_false_for_transformer(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+fn a_transformer_model_is_not_recurrent(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert!(!model.is_recurrent());
 }
 

@@ -73,6 +73,8 @@ pub enum SamplerError {
     GrammarRejected(#[source] GbnfError),
     #[error("{message}")]
     GrammarReported { message: String },
+    #[error("sampler initialization failed")]
+    GrammarSamplerInitialization(#[source] Box<Self>),
     #[error("grammar state corrupted during accept: {message}")]
     GrammarStateCorrupted { message: String },
     #[error("the llama.cpp library ran out of memory initializing the {sampler} sampler")]

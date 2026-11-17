@@ -39,12 +39,7 @@ fn check_sampler_accept_status(
             Err(SamplerError::AcceptLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    error_ptr,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(SamplerError::GrammarStateCorrupted { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_NULL_SAMPLER_ARG => Err(OPERATION
@@ -75,12 +70,7 @@ fn sampler_apply_status_to_result(
             Err(SamplerError::ApplyLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(SamplerError::ApplyReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG => Err(OPERATION
@@ -109,12 +99,7 @@ fn sampler_sample_status_to_result(
             Err(SamplerError::SampleLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    error_ptr,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(SamplerError::SampleReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_NULL_SAMPLER_ARG => Err(OPERATION
@@ -141,9 +126,11 @@ fn sampler_init_grammar_status_to_result(
     const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_sampler_init_grammar");
 
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_OK => unsafe {
-            LlamaSampler::from_raw(sampler, "grammar")
-        },
+        llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_OK => {
+            unsafe { LlamaSampler::from_raw(sampler, "grammar") }
+                .map_err(Box::new)
+                .map_err(SamplerError::GrammarSamplerInitialization)
+        }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_RETURNED_NULL => {
             Err(SamplerError::GrammarMalformed)
         }
@@ -154,12 +141,7 @@ fn sampler_init_grammar_status_to_result(
             Err(SamplerError::GrammarLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    error_ptr,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(SamplerError::GrammarReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_SAMPLER_ARG => {
@@ -185,6 +167,8 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_OK => {
             unsafe { LlamaSampler::from_raw(sampler, "lazy grammar") }
+                .map_err(Box::new)
+                .map_err(SamplerError::GrammarSamplerInitialization)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_RETURNED_NULL => {
             Err(SamplerError::LazyGrammarMalformed)
@@ -196,11 +180,11 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
             Err(SamplerError::GrammarLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_INVALID_TRIGGER_PATTERN => {
-            let message = unsafe { OPERATION.read_and_free_cpp_string(error_ptr, "reported a thrown C++ exception without an error message") }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(SamplerError::InvalidTriggerPattern { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_cpp_string(error_ptr, "reported a thrown C++ exception without an error message") }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(SamplerError::GrammarReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_SAMPLER_ARG => Err(OPERATION.contract_violated("was given a null out_sampler argument")
@@ -238,12 +222,7 @@ fn sampler_init_status_to_result(
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    error_ptr,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(SamplerError::InitReported {
                 sampler: sampler_name,
                 message,
@@ -274,12 +253,7 @@ fn sampler_chain_add_status_to_result(
             Err(SamplerError::InitLlamaCppOutOfMemory { sampler: "chain" })
         }
         llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    error_ptr,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(SamplerError::InitReported {
                 sampler: "chain",
                 message,
@@ -517,7 +491,8 @@ impl LlamaSampler {
 
     /// # Errors
     ///
-    /// Returns [`SamplerError`] if the grammar is invalid or the sampler cannot be initialized.
+    /// Returns [`SamplerError`] if the token environment, parser factory, grammar, or parser
+    /// cannot be created, or the sampler cannot be initialized.
     pub fn llguidance(
         model: &LlamaModel,
         grammar_kind: &str,
@@ -530,23 +505,6 @@ impl LlamaSampler {
             grammar_kind,
             grammar_data,
         )
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplerError`] if the parser factory, grammar, or parser cannot be created, or
-    /// the sampler cannot be initialized.
-    pub fn llguidance_from_token_environment(
-        tok_env: Arc<ApproximateTokEnv>,
-        grammar_kind: &str,
-        grammar_data: &str,
-    ) -> Result<Self, SamplerError> {
-        let context = LlguidanceSamplerContext::new(tok_env, grammar_kind, grammar_data)?;
-
-        Self::initialize("llguidance", |out_sampler, out_error| unsafe {
-            LlguidanceSamplerContext::initialize_sampler(out_sampler, out_error)
-        })
-        .inspect(|sampler| unsafe { context.attach_to(sampler.as_ptr()) })
     }
 
     /// # Errors
@@ -737,6 +695,21 @@ impl LlamaSampler {
                 out_error,
             )
         })
+    }
+
+    fn llguidance_from_token_environment(
+        tok_env: Arc<ApproximateTokEnv>,
+        grammar_kind: &str,
+        grammar_data: &str,
+    ) -> Result<Self, SamplerError> {
+        let context = LlguidanceSamplerContext::new(tok_env, grammar_kind, grammar_data)?;
+
+        Self::initialize("llguidance", |out_sampler, out_error| unsafe {
+            LlguidanceSamplerContext::initialize_sampler(out_sampler, out_error)
+        })
+        .inspect(|sampler| unsafe { context.attach_to(sampler.as_ptr()) })
+        .map_err(Box::new)
+        .map_err(SamplerError::GrammarSamplerInitialization)
     }
 
     /// # Errors
@@ -1922,6 +1895,40 @@ mod tests {
         );
 
         assert_eq!(result.unwrap_err(), SamplerError::GrammarMalformed);
+    }
+
+    #[test]
+    fn a_grammar_sampler_reported_ok_without_a_sampler_is_a_grammar_initialization_failure() {
+        let result = sampler_init_grammar_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_OK,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            SamplerError::GrammarSamplerInitialization(Box::new(
+                SamplerError::SamplerUnavailable { sampler: "grammar" }
+            ))
+        );
+    }
+
+    #[test]
+    fn a_lazy_grammar_sampler_reported_ok_without_a_sampler_is_a_grammar_initialization_failure() {
+        let result = sampler_init_grammar_lazy_patterns_status_to_result(
+            llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_OK,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            SamplerError::GrammarSamplerInitialization(Box::new(
+                SamplerError::SamplerUnavailable {
+                    sampler: "lazy grammar"
+                }
+            ))
+        );
     }
 
     #[test]

@@ -49,7 +49,7 @@ fn memory_seq_cp_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::StartPositionTooLarge(
+            == ContextMemoryError::SeqCpStartPositionTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?
@@ -98,7 +98,7 @@ fn memory_seq_cp_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::EndPositionTooLarge(
+            == ContextMemoryError::SeqCpEndPositionTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?
@@ -147,7 +147,7 @@ fn memory_seq_rm_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::StartPositionTooLarge(
+            == ContextMemoryError::SeqRmStartPositionTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?
@@ -196,7 +196,7 @@ fn memory_seq_rm_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::EndPositionTooLarge(
+            == ContextMemoryError::SeqRmEndPositionTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?
@@ -245,7 +245,7 @@ fn memory_seq_add_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::StartPositionTooLarge(
+            == ContextMemoryError::SeqAddStartPositionTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?
@@ -294,7 +294,7 @@ fn memory_seq_add_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::EndPositionTooLarge(
+            == ContextMemoryError::SeqAddEndPositionTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?
@@ -344,7 +344,7 @@ fn memory_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::StartPositionTooLarge(
+            == ContextMemoryError::SeqDivStartPositionTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?
@@ -394,7 +394,7 @@ fn memory_seq_div_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ContextMemoryError::EndPositionTooLarge(
+            == ContextMemoryError::SeqDivEndPositionTooLarge(
                 i32::try_from(u32::MAX)
                     .err()
                     .context("u32::MAX does not fit into i32")?

@@ -43,9 +43,8 @@ pub enum ParamsError {
     UnknownPoolingType(llama_cpp_bindings_sys::llama_pooling_type),
     #[error("rope scaling type {0} is not a value llama.cpp defines")]
     UnknownRopeScalingType(llama_cpp_bindings_sys::llama_rope_scaling_type),
-    #[error("{context}")]
+    #[error("unknown split mode value: {value}")]
     UnknownSplitMode {
         value: llama_cpp_bindings_sys::llama_split_mode,
-        context: String,
     },
 }

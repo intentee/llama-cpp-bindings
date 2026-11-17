@@ -35,6 +35,8 @@ The API is split per llama.cpp handle family. Each crate has one concern and one
 | `llama-cpp-ffi-status` | Status and contract errors of the C++ wrapper boundary | `FfiError` |
 | `llama-cpp-path-c-string` | Converting a path into the C string llama.cpp takes | `PathCStringError` |
 | `llama-cpp-error-chain` | Rendering an error with its source chain as one line | |
+| `llama-cpp-error-recorder` | Capturing an error raised inside an FFI callback for the Rust code that drove the call | |
+| `llama-cpp-log-decoder` | Decoding the llama.cpp / ggml log callback stream | |
 | `llama-cpp-bindings-sys` | Raw FFI bindings | |
 | `llama-cpp-bindings-build` | Build system | `BuildError` |
 
@@ -58,7 +60,7 @@ Device features are selected on `llama-cpp-bindings` (or directly on `llama-cpp-
 llama.cpp decision models (OpenJev, Laya, Clef, ...) score options instead of generating text.
 
 - `LlamaModel::decision_type()` returns the model's `DecisionType` (`DecisionType::None` for a text-generation model), and `LlamaModel::decision_labels()` returns the labels its metadata declares.
-- `GgufInfo::read(path)` reads the decision type, the training context size and whether a chat template is present from a GGUF file without loading the model.
+- `GgufInfo::read(path)` (`llama_cpp_model::gguf_info::GgufInfo`) reads the decision type, the training context size and whether a chat template is present from a GGUF file without loading the model; its failures are `ModelError`.
 - `LlamaModel::chat_template(Some(name))?.render(globals_json)` renders a named template with a JSON object of globals, which is how a decision prompt is built.
 - `LlamaBatch::set_decision_order(token_index, decision_order)` sets the `DecisionOrder` of one batch entry (`None`, `QuestionNoul`, `QuestionChoice`, `QuestionScore`, `Option`).
 - `LlamaModel::token_mask()` returns the vocabulary's mask token, and `LlamaModel::token_text_bytes(token)` the raw text of a token.

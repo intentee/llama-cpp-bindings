@@ -207,9 +207,11 @@ fn tokenizing_parts_reports_a_chunk_list_llama_cpp_cannot_allocate(
 
     ensure!(
         MtmdInputChunks::tokenize_from_parts(mtmd_ctx, &[text_part("Hello", true)], true).err()
-            == Some(MtmdError::InputChunksReported {
-                message: injected_fault_message()?,
-            })
+            == Some(MtmdError::TokenizeInputChunks(Box::new(
+                MtmdError::InputChunksReported {
+                    message: injected_fault_message()?,
+                }
+            )))
     );
 
     Ok(())

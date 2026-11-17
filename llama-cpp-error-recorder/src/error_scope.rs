@@ -92,6 +92,19 @@ mod tests {
     }
 
     #[test]
+    fn an_outer_scope_takes_its_own_error_while_an_inner_scope_is_alive() {
+        let outer = ErrorScope::enter();
+        record("outer".to_string());
+        let inner = ErrorScope::enter();
+        record("inner".to_string());
+
+        assert_eq!(
+            [&outer, &inner].map(|scope| scope.take().map(RecordedError::into_message)),
+            [Some("outer".to_string()), Some("inner".to_string())]
+        );
+    }
+
+    #[test]
     fn recording_without_an_active_scope_is_dropped() {
         record("orphan".to_string());
 

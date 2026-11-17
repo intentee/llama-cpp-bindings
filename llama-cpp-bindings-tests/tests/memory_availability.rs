@@ -85,13 +85,15 @@ fn memory_operations_needing_a_memory_module_report_its_absence(
     );
     ensure!(
         context.memory_seq_add(0, None, None, 1)
-            == Err(ContextMemoryError::MemoryHandleUnavailable)
+            == Err(ContextMemoryError::SeqAddMemoryHandleUnavailable)
     );
     ensure!(
         context.memory_seq_div(0, None, None, divisor)
-            == Err(ContextMemoryError::MemoryHandleUnavailable)
+            == Err(ContextMemoryError::SeqDivMemoryHandleUnavailable)
     );
-    ensure!(context.memory_seq_pos_max(0) == Err(ContextMemoryError::MemoryHandleUnavailable));
+    ensure!(
+        context.memory_seq_pos_max(0) == Err(ContextMemoryError::SeqPosMaxMemoryHandleUnavailable)
+    );
 
     Ok(())
 }
@@ -115,7 +117,7 @@ fn removing_a_sequence_without_a_memory_module_still_validates_its_id(
         context.memory_seq_rm(Some(u32::MAX), None, None).err()
             == i32::try_from(u32::MAX)
                 .err()
-                .map(ContextMemoryError::SequenceIdTooLarge)
+                .map(ContextMemoryError::SeqRmSequenceIdTooLarge)
     );
 
     Ok(())

@@ -59,6 +59,30 @@ impl WrapperOperation {
         })
     }
 
+    /// Takes ownership of the message of a thrown C++ exception the wrapper reported in its
+    /// error out-parameter.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FfiError::ContractViolated`] when the wrapper reported the exception without a
+    /// message, or [`FfiError::TextNotUtf8`] when the message is not valid UTF-8.
+    ///
+    /// # Safety
+    ///
+    /// `message_ptr` must be either null or a valid pointer to a null-terminated C string
+    /// allocated by `llama_rs_dup_string`.
+    pub unsafe fn read_and_free_exception_message(
+        self,
+        message_ptr: *mut c_char,
+    ) -> Result<String, FfiError> {
+        unsafe {
+            self.read_and_free_cpp_string(
+                message_ptr,
+                "reported a thrown C++ exception without an error message",
+            )
+        }
+    }
+
     /// The failure of a wrapper that answered with a status `code` it does not define.
     #[must_use]
     pub const fn unknown_status(self, code: i64) -> FfiError {
@@ -106,10 +130,8 @@ mod tests {
     #[test]
     fn reads_and_reclaims_a_string_allocated_by_the_wrapper() {
         let message = unsafe {
-            JSON_SCHEMA_TO_GRAMMAR.read_and_free_cpp_string(
-                wrapper_allocated_error_message_pointer(),
-                "reported a thrown C++ exception without an error message",
-            )
+            JSON_SCHEMA_TO_GRAMMAR
+                .read_and_free_exception_message(wrapper_allocated_error_message_pointer())
         };
 
         assert_eq!(
@@ -126,11 +148,23 @@ mod tests {
     #[test]
     fn a_missing_string_is_a_contract_violation() {
         let result = unsafe {
-            JSON_SCHEMA_TO_GRAMMAR.read_and_free_cpp_string(
-                ptr::null_mut(),
-                "reported a thrown C++ exception without an error message",
-            )
+            JSON_SCHEMA_TO_GRAMMAR
+                .read_and_free_cpp_string(ptr::null_mut(), "left its error slot empty")
         };
+
+        assert_eq!(
+            result,
+            Err(FfiError::ContractViolated {
+                operation: "llama_rs_json_schema_to_grammar",
+                detail: "left its error slot empty",
+            })
+        );
+    }
+
+    #[test]
+    fn a_thrown_exception_reported_without_a_message_is_a_contract_violation() {
+        let result =
+            unsafe { JSON_SCHEMA_TO_GRAMMAR.read_and_free_exception_message(ptr::null_mut()) };
 
         assert_eq!(
             result,
@@ -145,9 +179,8 @@ mod tests {
     fn a_string_that_is_not_utf8_keeps_its_bytes() {
         let not_utf8 = c"llama\xff";
         let result = unsafe {
-            JSON_SCHEMA_TO_GRAMMAR.read_and_free_cpp_string(
+            JSON_SCHEMA_TO_GRAMMAR.read_and_free_exception_message(
                 llama_cpp_bindings_sys::llama_rs_string_dup(not_utf8.as_ptr()),
-                "reported a thrown C++ exception without an error message",
             )
         };
 

@@ -46,7 +46,7 @@ unsafe fn from_file_status_to_result(
             Err(MtmdError::BitmapLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message") }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(MtmdError::BitmapReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_NULL_CTX_ARG => Err(OPERATION.contract_violated("was given a null ctx argument")
@@ -90,7 +90,7 @@ unsafe fn from_buf_status_to_result(
             Err(MtmdError::BitmapLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message") }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(MtmdError::BitmapReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_NULL_CTX_ARG => Err(OPERATION.contract_violated("was given a null ctx argument")
@@ -132,12 +132,7 @@ fn bitmap_init_status_to_result(
             Err(MtmdError::BitmapLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
 
             Err(MtmdError::BitmapReported { message })
         }
@@ -172,7 +167,7 @@ fn bitmap_init_from_audio_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message")
+                OPERATION.read_and_free_exception_message(out_error)
             }?;
 
             Err(MtmdError::BitmapReported { message })
@@ -806,10 +801,8 @@ mod tests {
     #[test]
     fn exception_status_surfaces_the_reported_message() {
         let expected_message = unsafe {
-            WrapperOperation::new("llama_rs_mtmd_bitmap_init_from_buf").read_and_free_cpp_string(
-                wrapper_allocated_error_message_pointer(),
-                "reported a thrown C++ exception without an error message",
-            )
+            WrapperOperation::new("llama_rs_mtmd_bitmap_init_from_buf")
+                .read_and_free_exception_message(wrapper_allocated_error_message_pointer())
         };
         let result = unsafe {
             from_buf_status_to_result(

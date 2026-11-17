@@ -47,12 +47,7 @@ fn fit_params_status_to_result(
             Err(ParamsError::FitLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(ParamsError::FitReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => Err(OPERATION
@@ -114,8 +109,7 @@ impl Debug for LlamaModelParams {
 impl LlamaModelParams {
     /// # Errors
     /// Returns [`ParamsError`] if the internal override vector has no available slot,
-    /// the slot is not empty, or the key contains invalid characters.
-    ///
+    /// the slot is not empty, or the key is longer than llama.cpp holds.
     pub fn append_kv_override(
         mut self: Pin<&mut Self>,
         key: &CStr,
@@ -167,8 +161,8 @@ impl LlamaModelParams {
 
 impl LlamaModelParams {
     /// # Errors
-    /// Returns [`ParamsError`] if the internal override vector has no available slot,
-    /// the slot is not empty, or the key contains invalid characters.
+    /// Returns [`ParamsError`] if the internal override vector has no available slot or the
+    /// slot is not empty.
     pub fn add_cpu_buft_override(mut self: Pin<&mut Self>, key: &CStr) -> Result<(), ParamsError> {
         let buft_override = self
             .buft_overrides
@@ -191,8 +185,8 @@ impl LlamaModelParams {
     }
 
     /// # Errors
-    /// Returns [`ParamsError`] if the internal override vector has no available slot,
-    /// the slot is not empty, or the key contains invalid characters.
+    /// Returns [`ParamsError`] if the internal override vector has no available slot or the
+    /// slot is not empty.
     pub fn add_cpu_moe_override(self: Pin<&mut Self>) -> Result<(), ParamsError> {
         self.add_cpu_buft_override(c"\\.ffn_(up|down|gate)_(ch|)exps")
     }
@@ -859,7 +853,7 @@ mod tests {
     }
 
     #[test]
-    fn fit_params_status_ok_returns_ok() {
+    fn a_successful_fit_status_is_ok() {
         let result = fit_params_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK,
             0,

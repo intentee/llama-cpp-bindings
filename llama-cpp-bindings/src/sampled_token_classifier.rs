@@ -61,13 +61,16 @@ impl<'model> SampledTokenClassifier<'model> {
     ///
     /// # Errors
     ///
-    /// Returns [`LlamaCppError::Classify`] when llama.cpp fails while reading the empty answer.
+    /// Returns [`LlamaCppError::EmptyAnswerReading`] when llama.cpp fails while reading the empty
+    /// answer.
     pub fn for_chat_session(
         model: &'model LlamaModel,
         session: ChatSession,
     ) -> Result<Self, LlamaCppError> {
         let output = ChatOutput::default();
-        let latest_reading = session.read(&output, ChatOutputCompleteness::Partial)?;
+        let latest_reading = session
+            .read(&output, ChatOutputCompleteness::Partial)
+            .map_err(LlamaCppError::EmptyAnswerReading)?;
 
         Ok(Self {
             model,
@@ -144,10 +147,13 @@ impl<'model> SampledTokenClassifier<'model> {
         let fitted_chunks = FittedMtmdInputChunks::fit(
             chunks,
             mtmd_ctx,
-            limits
-                .context
-                .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?),
-        )?;
+            limits.context.micro_batch_tokens(
+                limits
+                    .batch_tokens(n_batch, seq_id)
+                    .map_err(LlamaCppError::MultimodalChunksEval)?,
+            ),
+        )
+        .map_err(LlamaCppError::MultimodalChunksEval)?;
         let chunk_count = fitted_chunks.len();
         let last_chunk_index = chunk_count.checked_sub(1);
         let mut next_position = start_position;
@@ -157,14 +163,16 @@ impl<'model> SampledTokenClassifier<'model> {
                 .ok_or(LlamaCppError::ChunkOutOfBounds(index))?;
             let logits_for_this_chunk = logits_last && Some(index) == last_chunk_index;
 
-            next_position = fitted_chunk.eval_single(
-                mtmd_ctx,
-                llama_ctx,
-                next_position,
-                seq_id,
-                n_batch,
-                logits_for_this_chunk,
-            )?;
+            next_position = fitted_chunk
+                .eval_single(
+                    mtmd_ctx,
+                    llama_ctx,
+                    next_position,
+                    seq_id,
+                    n_batch,
+                    logits_for_this_chunk,
+                )
+                .map_err(LlamaCppError::MultimodalChunksEval)?;
             self.ingest_fitted_chunk(&fitted_chunk);
         }
 
@@ -236,12 +244,10 @@ impl<'model> SampledTokenClassifier<'model> {
 
         let attribution = match &mut self.attribution {
             TokenAttribution::Undeterminable => {
-                let piece = self.model.token_to_piece(
-                    SampledToken::Content(token),
-                    &mut self.decoder,
-                    true,
-                    None,
-                )?;
+                let piece = self
+                    .model
+                    .token_to_piece(SampledToken::Content(token), &mut self.decoder, true, None)
+                    .map_err(LlamaCppError::Detokenize)?;
                 self.usage.record_undeterminable_token();
                 outcomes.push(IngestOutcome {
                     sampled_token: SampledToken::Undeterminable(token),
@@ -253,12 +259,15 @@ impl<'model> SampledTokenClassifier<'model> {
             TokenAttribution::ChatSession(attribution) => attribution,
         };
         let renders_special = attribution.preserved_tokens.contains(&token);
-        let piece = self.model.token_to_piece(
-            SampledToken::Content(token),
-            &mut self.decoder,
-            renders_special,
-            None,
-        )?;
+        let piece = self
+            .model
+            .token_to_piece(
+                SampledToken::Content(token),
+                &mut self.decoder,
+                renders_special,
+                None,
+            )
+            .map_err(LlamaCppError::Detokenize)?;
 
         let bytes = attribution.output.push(token, &piece);
 
@@ -325,7 +334,8 @@ impl<'model> SampledTokenClassifier<'model> {
     /// Samples a token and classifies it, appending the outcomes it settles to `outcomes`.
     ///
     /// # Errors
-    /// Forwards [`LlamaSampler::sample`] and [`Self::ingest`] errors verbatim.
+    /// Forwards [`LlamaSampler::sample`] errors as [`LlamaCppError::Sampler`] and wraps
+    /// [`Self::ingest`] errors in [`LlamaCppError::SampleIngest`].
     pub fn sample(
         &mut self,
         sampler: &mut LlamaSampler,
@@ -334,7 +344,10 @@ impl<'model> SampledTokenClassifier<'model> {
         outcomes: &mut Vec<IngestOutcome>,
     ) -> Result<ClassifiedSample, LlamaCppError> {
         let token = sampler.sample(context, idx)?;
-        let progress = self.ingest(token, outcomes)?;
+        let progress = self
+            .ingest(token, outcomes)
+            .map_err(Box::new)
+            .map_err(LlamaCppError::SampleIngest)?;
 
         Ok(ClassifiedSample { token, progress })
     }
@@ -354,7 +367,8 @@ impl<'model> SampledTokenClassifier<'model> {
         };
         let reading = attribution
             .session
-            .read(&attribution.output, completeness)?;
+            .read(&attribution.output, completeness)
+            .map_err(LlamaCppError::Classify)?;
         let classification = reading.classification();
         let mut released = Vec::new();
 

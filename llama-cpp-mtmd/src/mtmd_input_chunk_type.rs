@@ -50,7 +50,7 @@ mod tests {
     }
 
     #[test]
-    fn unknown_value_returns_error() {
+    fn a_chunk_type_mtmd_does_not_define_is_refused_with_its_value() {
         let invalid_value = 9999;
         let result = MtmdInputChunkType::try_from(invalid_value);
         assert_eq!(result, Err(MtmdError::UnknownInputChunkType(invalid_value)));

@@ -20,11 +20,11 @@ fn token_to_piece_bytes_rejects_tokens_outside_the_vocabulary(
         [LlamaToken::new(-1), LlamaToken::new(n_vocab)]
             .map(|token| model.token_to_piece_bytes(token, 8, true, None)),
         [
-            Err(ModelError::TokenOutsideVocabulary {
+            Err(ModelError::PieceTokenOutsideVocabulary {
                 token: LlamaToken::new(-1),
                 n_vocab,
             }),
-            Err(ModelError::TokenOutsideVocabulary {
+            Err(ModelError::PieceTokenOutsideVocabulary {
                 token: LlamaToken::new(n_vocab),
                 n_vocab,
             }),
@@ -47,7 +47,7 @@ fn token_attr_rejects_tokens_outside_the_vocabulary(
 
     assert_eq!(
         model.token_attr(LlamaToken::new(n_vocab)).err(),
-        Some(ModelError::TokenOutsideVocabulary {
+        Some(ModelError::TokenAttributesTokenOutsideVocabulary {
             token: LlamaToken::new(n_vocab),
             n_vocab,
         })

@@ -671,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    fn find_key_returns_error_for_missing_key() {
+    fn a_key_the_file_lacks_is_reported_not_found() {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.find_key("nonexistent.key").unwrap_err();
 
@@ -721,7 +721,7 @@ mod tests {
     }
 
     #[test]
-    fn from_file_non_utf8_path_returns_error() {
+    fn opening_a_path_that_is_not_utf8_is_refused() {
         let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
         let err = GgufContext::from_file(non_utf8_path).unwrap_err();
 
@@ -729,14 +729,14 @@ mod tests {
     }
 
     #[test]
-    fn from_file_with_null_byte_in_path_returns_error() {
+    fn opening_a_path_with_a_nul_byte_is_refused() {
         let err = GgufContext::from_file("/tmp/foo\0bar.gguf").unwrap_err();
 
         assert_eq!(discriminant(&err), nul_error_disc());
     }
 
     #[test]
-    fn find_key_with_null_byte_in_key_returns_error() {
+    fn finding_a_key_with_a_nul_byte_is_refused() {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.find_key("foo\0bar").unwrap_err();
 
@@ -907,7 +907,7 @@ mod tests {
     }
 
     #[test]
-    fn read_tensor_f32_with_null_byte_in_name_returns_error() {
+    fn reading_a_tensor_whose_name_has_a_nul_byte_is_refused() {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.read_tensor_f32("foo\0bar").unwrap_err();
 

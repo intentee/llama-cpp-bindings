@@ -4,10 +4,11 @@ use std::ptr;
 
 use llama_cpp_bindings_sys::llama_rs_gguf_info;
 use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_path_c_string::path_c_string::path_c_string;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 use crate::decision_type::DecisionType;
 use crate::model_error::ModelError;
-use crate::path_c_string::path_c_string;
 
 /// # Safety
 ///
@@ -41,12 +42,7 @@ unsafe fn read_gguf_info_status_to_result(
             Err(ModelError::GgufInfoLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(ModelError::GgufInfoReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_PATH_ARG => {
@@ -75,7 +71,12 @@ impl GgufInfo {
     /// Returns [`ModelError`] when `path` is not UTF-8 or contains a NUL byte, the wrapper
     /// fails, or it reports a decision type it does not define.
     pub fn read(path: &Path) -> Result<Self, ModelError> {
-        let path_c_string = path_c_string(path)?;
+        let path_c_string = path_c_string(path).map_err(|error| match error {
+            PathCStringError::ContainsNulByte(source) => {
+                ModelError::GgufInfoPathContainsNulByte(source)
+            }
+            PathCStringError::NotUtf8(path) => ModelError::GgufInfoPathNotUtf8(path),
+        })?;
         let mut out_info = llama_rs_gguf_info {
             decision_type: llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_UNKNOWN,
             n_ctx_train: 0,
@@ -98,7 +99,9 @@ impl GgufInfo {
 mod tests {
     use std::env;
     use std::ffi::CString;
+    use std::ffi::OsStr;
     use std::fs;
+    use std::os::unix::ffi::OsStrExt;
     use std::path::Path;
     use std::process;
     use std::ptr;
@@ -166,9 +169,19 @@ mod tests {
 
         assert_eq!(
             GgufInfo::read(Path::new(path)),
-            Err(ModelError::PathContainsNulByte(
+            Err(ModelError::GgufInfoPathContainsNulByte(
                 CString::new(path).unwrap_err()
             ))
+        );
+    }
+
+    #[test]
+    fn a_path_that_is_not_utf8_is_refused_before_the_file_is_read() {
+        let path = Path::new(OsStr::from_bytes(b"/models/\xff\xfe.gguf"));
+
+        assert_eq!(
+            GgufInfo::read(path),
+            Err(ModelError::GgufInfoPathNotUtf8(path.to_path_buf()))
         );
     }
 

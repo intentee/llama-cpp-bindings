@@ -58,7 +58,7 @@ fn a_logits_row_holds_one_logit_per_vocabulary_token(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn get_logits_ith_returns_token_not_initialized_for_unknown_index(
+fn logits_of_a_token_no_decode_initialized_are_refused(
     &LlamaFixture {
         model,
         backend,

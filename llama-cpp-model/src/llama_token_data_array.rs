@@ -48,9 +48,11 @@ impl LlamaTokenDataArray {
 impl LlamaTokenDataArray {
     /// # Errors
     ///
-    /// Returns [`ModelError::Ffi`] when the llama.cpp sampler grows the array beyond the
-    /// capacity this buffer was allocated with, which would make the following `set_len`
-    /// undefined behaviour.
+    /// Returns [`ModelError::CandidatesGrownBeyondCapacity`] when the llama.cpp sampler grows the
+    /// array beyond the capacity this buffer was allocated with, which would make the following
+    /// `set_len` undefined behaviour, [`ModelError::SelectedCandidateOutsideCandidates`] when
+    /// the array selects a token outside itself, or
+    /// [`ModelError::SamplerSelectedCandidateOutsideCandidates`] when the sampler does.
     ///
     /// # Safety
     ///

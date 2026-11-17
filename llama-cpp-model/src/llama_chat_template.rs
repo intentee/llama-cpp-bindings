@@ -24,12 +24,7 @@ unsafe fn render_template_status_to_result(
     const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_render_template");
 
     let reported_message = || -> Result<String, FfiError> {
-        unsafe {
-            OPERATION.read_and_free_cpp_string(
-                out_error,
-                "reported a thrown C++ exception without an error message",
-            )
-        }
+        unsafe { OPERATION.read_and_free_exception_message(out_error) }
     };
     let contract_violation = |detail: &'static str| -> Result<String, ModelError> {
         Err(OPERATION.contract_violated(detail).into())

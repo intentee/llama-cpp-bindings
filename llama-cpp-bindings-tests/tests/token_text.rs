@@ -38,7 +38,7 @@ fn the_text_of_a_token_outside_the_vocabulary_is_refused(
 
     assert_eq!(
         model.token_text_bytes(LlamaToken::new(n_vocab)),
-        Err(ModelError::TokenOutsideVocabulary {
+        Err(ModelError::TokenTextTokenOutsideVocabulary {
             token: LlamaToken::new(n_vocab),
             n_vocab,
         })

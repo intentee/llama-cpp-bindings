@@ -41,7 +41,7 @@ const OUT_OF_RANGE_META_INDEX_RETURN: i32 = -1;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn meta_count_returns_positive(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+fn a_loaded_model_has_metadata_entries(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert!(model.meta_count() > 0);
 }
 

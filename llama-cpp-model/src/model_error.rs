@@ -18,8 +18,6 @@ pub enum ModelError {
     ChatTemplateMissing,
     #[error("null byte in string")]
     ChatTemplateNameContainsNulByte(#[source] NulError),
-    #[error(transparent)]
-    ChatTemplateNotUtf8(Utf8Error),
     #[error("the llama.cpp library ran out of memory")]
     ChatTemplatesLlamaCppOutOfMemory,
     #[error("not enough memory")]
@@ -48,12 +46,20 @@ pub enum ModelError {
     GgufInfoLlamaCppOutOfMemory,
     #[error("not enough memory")]
     GgufInfoNotEnoughMemory,
+    #[error("null byte in string")]
+    GgufInfoPathContainsNulByte(#[source] NulError),
+    #[error("failed to convert path {0} to str")]
+    GgufInfoPathNotUtf8(PathBuf),
     #[error("{message}")]
     GgufInfoReported { message: String },
     #[error("the llama.cpp library ran out of memory")]
     LoadLlamaCppOutOfMemory,
     #[error("not enough memory")]
     LoadNotEnoughMemory,
+    #[error("null byte in string")]
+    LoadPathContainsNulByte(#[source] NulError),
+    #[error("failed to convert path {0} to str")]
+    LoadPathNotUtf8(PathBuf),
     #[error("{message}")]
     LoadReported { message: String },
     #[error("adapter file not found: {0}")]
@@ -76,16 +82,12 @@ pub enum ModelError {
     ModelHasNoChatTemplate,
     #[error("model could not be loaded")]
     ModelUnloadable,
-    #[error("null byte in string")]
-    PathContainsNulByte(#[source] NulError),
-    #[error("failed to convert path {0} to str")]
-    PathNotUtf8(PathBuf),
     #[error("Insufficient Buffer Space {0}")]
     PieceInsufficientBufferSpace(c_int),
     #[error("Integer conversion error")]
     PieceIntConversion(#[source] TryFromIntError),
-    #[error("FromUtf8Error")]
-    PieceNotUtf8(#[source] FromUtf8Error),
+    #[error("token {token} is outside the vocabulary of {n_vocab} tokens")]
+    PieceTokenOutsideVocabulary { token: LlamaToken, n_vocab: i32 },
     #[error("the llama.cpp library ran out of memory")]
     RenderLlamaCppOutOfMemory,
     #[error("not enough memory")]
@@ -113,7 +115,9 @@ pub enum ModelError {
     #[error("template is invalid: {message}")]
     TemplateInvalid { message: String },
     #[error("token {token} is outside the vocabulary of {n_vocab} tokens")]
-    TokenOutsideVocabulary { token: LlamaToken, n_vocab: i32 },
+    TokenAttributesTokenOutsideVocabulary { token: LlamaToken, n_vocab: i32 },
+    #[error("token {token} is outside the vocabulary of {n_vocab} tokens")]
+    TokenTextTokenOutsideVocabulary { token: LlamaToken, n_vocab: i32 },
     #[error("a tokenizer length or count does not fit its integer type")]
     TokenizeIntConversion(#[source] TryFromIntError),
     #[error("the llama.cpp library ran out of memory")]

@@ -96,12 +96,7 @@ fn chat_reading_parse_status_to_result(
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(ChatError::ParseReported {
-                message: unsafe {
-                    OPERATION.read_and_free_cpp_string(
-                        out_error,
-                        "reported a thrown C++ exception without an error message",
-                    )
-                }?,
+                message: unsafe { OPERATION.read_and_free_exception_message(out_error) }?,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED => {

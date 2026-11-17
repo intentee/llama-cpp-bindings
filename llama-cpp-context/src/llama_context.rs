@@ -60,12 +60,7 @@ fn new_context_with_model_status_to_result(
             Err(ContextError::CreateLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(ContextError::CreateReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG => Err(OPERATION
@@ -105,12 +100,7 @@ fn batch_ext_init_status_to_result(
             Err(ContextError::CreateLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(ContextError::CreateReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => Err(OPERATION
@@ -131,6 +121,7 @@ fn process_status_to_result(
     out_llama_cpp_return_code: i32,
     out_error: *mut c_char,
     return_code_error: fn(NonZeroI32) -> ContextError,
+    process_failure: fn(Box<ContextError>) -> ContextError,
 ) -> Result<(), ContextError> {
     const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_process");
 
@@ -146,21 +137,18 @@ fn process_status_to_result(
 
             Err(return_code_error(code))
         }
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(ContextError::ProcessNotEnoughMemory)
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(ContextError::ProcessLlamaCppOutOfMemory)
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_ERROR_STRING_ALLOCATION_FAILED => Err(
+            process_failure(Box::new(ContextError::ProcessNotEnoughMemory)),
+        ),
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_OUT_OF_MEMORY => Err(process_failure(
+            Box::new(ContextError::ProcessLlamaCppOutOfMemory),
+        )),
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
 
-            Err(ContextError::ProcessReported { message })
+            Err(process_failure(Box::new(ContextError::ProcessReported {
+                message,
+            })))
         }
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_CTX_ARG => {
             Err(contract_violation("was given a null ctx argument"))
@@ -352,10 +340,14 @@ impl<'model> LlamaContext<'model> {
             });
         }
 
+        self.transfer_batch(batch)
+            .map_err(Box::new)
+            .map_err(ContextError::DecodeBatchTransfer)?;
         self.process(
             llama_cpp_bindings_sys::LLAMA_PROCESS_TYPE_DECODE,
             batch,
             ContextError::from_decode_return_code,
+            ContextError::DecodeProcess,
         )
     }
 
@@ -426,10 +418,14 @@ impl<'model> LlamaContext<'model> {
             return Err(ContextError::EncodeModelHasNoEncoder);
         }
 
+        self.transfer_batch(batch)
+            .map_err(Box::new)
+            .map_err(ContextError::EncodeBatchTransfer)?;
         self.process(
             llama_cpp_bindings_sys::LLAMA_PROCESS_TYPE_ENCODE,
             batch,
             ContextError::from_encode_return_code,
+            ContextError::EncodeProcess,
         )
     }
 
@@ -628,9 +624,8 @@ impl<'model> LlamaContext<'model> {
         process_type: llama_cpp_bindings_sys::llama_process_type,
         batch: &LlamaBatch,
         return_code_error: fn(NonZeroI32) -> ContextError,
+        process_failure: fn(Box<ContextError>) -> ContextError,
     ) -> Result<(), ContextError> {
-        self.transfer_batch(batch)?;
-
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -648,6 +643,7 @@ impl<'model> LlamaContext<'model> {
             out_llama_cpp_return_code,
             out_error,
             return_code_error,
+            process_failure,
         )?;
         self.evaluated_tokens = self
             .evaluated_tokens
@@ -1011,15 +1007,20 @@ mod tests {
                 status,
                 0,
                 ptr::null_mut(),
-                ContextError::from_decode_return_code
+                ContextError::from_decode_return_code,
+                ContextError::DecodeProcess,
             )),
             [
                 Ok(()),
                 Err(contract_violation(
                     "nonzero llama.cpp return status contained zero"
                 )),
-                Err(ContextError::ProcessNotEnoughMemory),
-                Err(ContextError::ProcessLlamaCppOutOfMemory),
+                Err(ContextError::DecodeProcess(Box::new(
+                    ContextError::ProcessNotEnoughMemory
+                ))),
+                Err(ContextError::DecodeProcess(Box::new(
+                    ContextError::ProcessLlamaCppOutOfMemory
+                ))),
                 Err(contract_violation(
                     "reported a thrown C++ exception without an error message"
                 )),
@@ -1045,13 +1046,15 @@ mod tests {
                     llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE,
                     2,
                     ptr::null_mut(),
-                    ContextError::from_decode_return_code
+                    ContextError::from_decode_return_code,
+                    ContextError::DecodeProcess,
                 ),
                 process_status_to_result(
                     llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE,
                     -3,
                     ptr::null_mut(),
-                    ContextError::from_decode_return_code
+                    ContextError::from_decode_return_code,
+                    ContextError::DecodeProcess,
                 ),
             ],
             [
@@ -1064,7 +1067,8 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE,
                 -2,
                 ptr::null_mut(),
-                ContextError::from_encode_return_code
+                ContextError::from_encode_return_code,
+                ContextError::EncodeProcess,
             ),
             Err(ContextError::EncodeOutOfMemory)
         );
@@ -1081,10 +1085,13 @@ mod tests {
                 0,
                 out_error,
                 ContextError::from_decode_return_code,
+                ContextError::DecodeProcess,
             ),
-            Err(ContextError::ProcessReported {
-                message: "process threw".to_owned()
-            })
+            Err(ContextError::DecodeProcess(Box::new(
+                ContextError::ProcessReported {
+                    message: "process threw".to_owned()
+                }
+            )))
         );
     }
 

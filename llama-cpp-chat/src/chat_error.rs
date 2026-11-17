@@ -14,8 +14,6 @@ pub enum ChatError {
     Grammar(#[source] SamplerError),
     #[error("the grammar sampler refused a generation-prompt token")]
     GrammarPrefill(#[source] SamplerError),
-    #[error("a grammar trigger of the chat session could not be read")]
-    GrammarTrigger(#[source] SamplerError),
     #[error("the llama.cpp library ran out of memory")]
     ParseLlamaCppOutOfMemory,
     #[error("not enough memory")]
@@ -25,7 +23,7 @@ pub enum ChatError {
     #[error("text llama.cpp parsed out of the answer is not valid UTF-8")]
     ParsedTextNotUtf8(#[source] Utf8Error),
     #[error("the rendered prompt could not be tokenized")]
-    PromptTokenization(#[from] ModelError),
+    PromptTokenization(#[source] ModelError),
     #[error("the llama.cpp library ran out of memory")]
     SessionLlamaCppOutOfMemory,
     #[error("not enough memory")]

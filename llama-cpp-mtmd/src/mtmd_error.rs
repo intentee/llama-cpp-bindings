@@ -23,8 +23,6 @@ pub enum MtmdError {
     BitmapNotEnoughMemory,
     #[error("Failed to create CString from bitmap-source path")]
     BitmapPathContainsNul(#[source] NulError),
-    #[error("Bitmap-source path is not valid UTF-8: {0:?}")]
-    BitmapPathNotUtf8(PathBuf),
     #[error("{message}")]
     BitmapReported { message: String },
     #[error("the llama.cpp library ran out of memory")]
@@ -51,6 +49,8 @@ pub enum MtmdError {
     EvalNotEnoughMemory,
     #[error("{message}")]
     EvalReported { message: String },
+    #[error("the chunk type could not be classified before evaluating it")]
+    EvalUnknownChunkType(#[source] Box<Self>),
     #[error(
         "a chunk fitted to decodes of {fitted_micro_batch_tokens} tokens cannot be evaluated in decodes of {evaluated_micro_batch_tokens}"
     )]
@@ -78,6 +78,8 @@ pub enum MtmdError {
         #[source]
         source: TryFromIntError,
     },
+    #[error(transparent)]
+    InitContextParams(Box<Self>),
     #[error("the llama.cpp library ran out of memory")]
     InitLlamaCppOutOfMemory,
     #[error("not enough memory")]
@@ -98,6 +100,8 @@ pub enum MtmdError {
         "llama.cpp returned 2: media preprocessing failed, or its tokenizer threw (text too large, missing vocab, media marker and bitmap count mismatch, or allocation failure)"
     )]
     MediaPreprocessingOrTokenizationFailed,
+    #[error(transparent)]
+    MemoryUsageContextParams(Box<Self>),
     #[error("the llama.cpp library ran out of memory")]
     MemoryUsageLlamaCppOutOfMemory,
     #[error("not enough memory")]
@@ -108,8 +112,6 @@ pub enum MtmdError {
     MemoryUsageUnloadable { path: CString },
     #[error("Failed to create CString from mmproj path")]
     MmprojPathContainsNul(#[source] NulError),
-    #[error("Mmproj path is not valid UTF-8: {0:?}")]
-    MmprojPathNotUtf8(PathBuf),
     #[error("mmproj could not be loaded: {path:?}")]
     MmprojUnloadable { path: PathBuf },
     #[error(
@@ -124,6 +126,8 @@ pub enum MtmdError {
     SequenceIdOutOfRange { seq_id: i32, n_seq_max: u32 },
     #[error("mtmd_tokenize_from_parts returned an unknown status code: {code}")]
     TokenizeFromPartsUnknownStatus { code: i32 },
+    #[error(transparent)]
+    TokenizeInputChunks(Box<Self>),
     #[error("the llama.cpp library ran out of memory")]
     TokenizeLlamaCppOutOfMemory,
     #[error("not enough memory")]

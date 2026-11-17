@@ -26,7 +26,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn copy_creates_owned_duplicate(
+fn a_copied_chunk_is_owned_and_keeps_its_token_count(
     &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;

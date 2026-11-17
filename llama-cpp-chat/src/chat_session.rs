@@ -67,6 +67,32 @@ fn session_text(text: *const c_char, length: usize) -> Result<String, ChatError>
         .map_err(ChatError::SessionTextNotUtf8)
 }
 
+fn grammar_trigger_of(
+    trigger_type: llama_cpp_bindings_sys::llama_rs_chat_grammar_trigger_type,
+    value: String,
+    token: impl FnOnce() -> LlamaToken,
+) -> Result<ChatGrammarTrigger, ChatError> {
+    match trigger_type {
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN => {
+            Ok(ChatGrammarTrigger::Token(token()))
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_WORD => {
+            Ok(ChatGrammarTrigger::Word(value))
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN => {
+            Ok(ChatGrammarTrigger::Pattern(value))
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL => {
+            Ok(ChatGrammarTrigger::PatternFull(value))
+        }
+        other => Err(
+            WrapperOperation::new("llama_rs_chat_session_grammar_trigger_type")
+                .unknown_status(i64::from(other))
+                .into(),
+        ),
+    }
+}
+
 fn chat_session_create_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_chat_session_create_status,
     out_session: llama_cpp_bindings_sys::llama_rs_chat_session_handle,
@@ -144,12 +170,7 @@ fn chat_session_read_status_to_result(
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(ChatError::ParseReported {
-                message: unsafe {
-                    OPERATION.read_and_free_cpp_string(
-                        out_error,
-                        "reported a thrown C++ exception without an error message",
-                    )
-                }?,
+                message: unsafe { OPERATION.read_and_free_exception_message(out_error) }?,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_ERROR_STRING_ALLOCATION_FAILED => {
@@ -327,7 +348,7 @@ impl ChatSession {
                     )
                 })?;
 
-                ChatGrammarTrigger::from_wrapper(trigger_type, value, || {
+                grammar_trigger_of(trigger_type, value, || {
                     LlamaToken::new(unsafe {
                         llama_cpp_bindings_sys::llama_rs_chat_session_grammar_trigger_token(
                             self.session.as_ptr(),
@@ -335,7 +356,6 @@ impl ChatSession {
                         )
                     })
                 })
-                .map_err(ChatError::GrammarTrigger)
             })
             .collect()
     }
@@ -484,7 +504,11 @@ impl ChatSession {
                 ChatPromptPart::Input(text) => (text, ParseSpecialTokens::Never),
             };
 
-            tokens.extend(model.str_to_token(text, add_bos, parse_special)?);
+            tokens.extend(
+                model
+                    .str_to_token(text, add_bos, parse_special)
+                    .map_err(ChatError::PromptTokenization)?,
+            );
         }
 
         Ok(tokens)
@@ -533,14 +557,25 @@ mod tests {
     use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
     use llama_cpp_bindings_types::chat_tool::ChatTool;
     use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_sampler::chat_grammar_trigger::ChatGrammarTrigger;
 
     use super::chat_session_create_status_to_result;
     use super::chat_session_read_status_to_result;
+    use super::grammar_trigger_of;
     use super::messages_json;
     use super::tools_json;
     use crate::chat_assistant_prefill::ChatAssistantPrefill;
     use crate::chat_assistant_turn::ChatAssistantTurn;
     use crate::chat_error::ChatError;
+
+    fn trigger_of(
+        trigger_type: llama_cpp_bindings_sys::llama_rs_chat_grammar_trigger_type,
+    ) -> Result<ChatGrammarTrigger, ChatError> {
+        grammar_trigger_of(trigger_type, "<tool_call>".to_owned(), || {
+            LlamaToken::new(151_657)
+        })
+    }
 
     fn parsed_json(json_text: &str) -> serde_json::Value {
         serde_json::from_str(json_text).unwrap()
@@ -820,6 +855,36 @@ mod tests {
                 "type": "function",
                 "function": {"name": "get_time", "description": "Reports the time"},
             }])
+        );
+    }
+
+    #[test]
+    fn every_wrapper_trigger_type_maps_to_its_trigger() {
+        assert_eq!(
+            [
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN,
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_WORD,
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN,
+                llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL,
+            ]
+            .map(trigger_of),
+            [
+                Ok(ChatGrammarTrigger::Token(LlamaToken::new(151_657))),
+                Ok(ChatGrammarTrigger::Word("<tool_call>".to_owned())),
+                Ok(ChatGrammarTrigger::Pattern("<tool_call>".to_owned())),
+                Ok(ChatGrammarTrigger::PatternFull("<tool_call>".to_owned())),
+            ]
+        );
+    }
+
+    #[test]
+    fn an_unknown_wrapper_trigger_type_is_a_status_error() {
+        assert_eq!(
+            trigger_of(99),
+            Err(ChatError::Ffi(FfiError::UnknownStatus {
+                operation: "llama_rs_chat_session_grammar_trigger_type",
+                code: 99,
+            }))
         );
     }
 }

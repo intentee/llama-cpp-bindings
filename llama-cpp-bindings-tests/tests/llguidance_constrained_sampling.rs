@@ -343,7 +343,9 @@ fn a_malformed_regex_leaves_llguidance_without_a_parser(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn name_callback_returns_llguidance(&LlamaFixture { model, .. }: &LlamaFixture<'_>) -> Result<()> {
+fn an_llguidance_sampler_names_itself_llguidance(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
     let name_ptr = unsafe { llama_cpp_bindings_sys::llama_sampler_name(sampler.as_ptr()) };

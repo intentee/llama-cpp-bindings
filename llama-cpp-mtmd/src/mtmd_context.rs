@@ -73,12 +73,7 @@ fn map_init_from_file_status(
             Err(MtmdError::InitLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(MtmdError::InitReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_MMPROJ_PATH_ARG => Err(OPERATION
@@ -112,7 +107,9 @@ impl MtmdContext {
         params: &MtmdContextParams,
     ) -> Result<Self, MtmdError> {
         let path_cstr = CString::new(mmproj_path).map_err(MtmdError::MmprojPathContainsNul)?;
-        let ctx_params = llama_cpp_bindings_sys::mtmd_context_params::try_from(params)?;
+        let ctx_params = llama_cpp_bindings_sys::mtmd_context_params::try_from(params)
+            .map_err(Box::new)
+            .map_err(MtmdError::InitContextParams)?;
 
         let mut out_ctx: *mut llama_cpp_bindings_sys::mtmd_context = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();

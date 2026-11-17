@@ -76,8 +76,7 @@ fn collect_parsed_chat_message(
 ///
 /// # Errors
 ///
-/// Returns [`ChatError`] when an accessor fails or reports text that is not UTF-8,
-/// or when releasing the handle fails.
+/// Returns [`ChatError`] when an accessor fails or reports text that is not UTF-8.
 pub fn take_parsed_chat_message(
     handle: NonNull<llama_cpp_bindings_sys::llama_rs_parsed_chat>,
 ) -> Result<ParsedChatMessage, ChatError> {

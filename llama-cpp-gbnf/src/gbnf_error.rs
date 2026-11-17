@@ -40,5 +40,5 @@ pub enum GbnfError {
     #[error("{message}")]
     SchemaConversionReported { message: String },
     #[error("grammar returned by json_schema_to_grammar is not valid UTF-8")]
-    GrammarNotUtf8(#[from] FromUtf8Error),
+    GrammarNotUtf8(#[source] FromUtf8Error),
 }

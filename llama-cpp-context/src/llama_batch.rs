@@ -31,14 +31,14 @@ fn batch_ext_assign_entries_status_to_result(
             Err(ContextError::BatchTransferLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message")
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
             Err(ContextError::BatchTransferReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_BATCH_FULL => refused_validated_entry(
-            "refused an entry of a batch validated against its limits as full",
-        ),
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_BATCH_FULL => {
+            refused_validated_entry(
+                "refused an entry of a batch validated against its limits as full",
+            )
+        }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_INVALID_TOKEN => {
             refused_validated_entry("refused a token validated against the vocabulary")
         }
@@ -46,8 +46,9 @@ fn batch_ext_assign_entries_status_to_result(
             refused_validated_entry("refused a sequence id validated against the context")
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_RETURNED_UNKNOWN_CODE => {
-            Err(WrapperOperation::new("llama_batch_ext_add_token").unknown_status(i64::from(out_llama_cpp_return_code))
-            .into())
+            Err(WrapperOperation::new("llama_batch_ext_add_token")
+                .unknown_status(i64::from(out_llama_cpp_return_code))
+                .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_POSITION_REJECTED => {
             refused_validated_entry("refused the position of an entry it had just added")
@@ -81,8 +82,7 @@ fn batch_ext_assign_entries_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_ERROR_ARG => {
             refused_validated_entry("was given a null out_error argument")
         }
-        other => Err(OPERATION.unknown_status(i64::from(other))
-        .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 
@@ -264,9 +264,9 @@ impl LlamaBatch {
         decision_order: DecisionOrder,
     ) -> Result<(), ContextError> {
         let n_tokens = self.n_tokens;
-        let entry = usize::try_from(token_index)
-            .ok()
-            .and_then(|entry_index| self.entries.get_mut(entry_index))
+        let entry = (token_index >= 0)
+            .then(|| self.entries.get_mut(token_index.unsigned_abs() as usize))
+            .flatten()
             .ok_or(ContextError::TokenIndexOutsideBatch {
                 token_index,
                 n_tokens,

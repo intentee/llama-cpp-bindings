@@ -9,8 +9,8 @@ use crate::gbnf_error::GbnfError;
 ///
 /// On `LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK` the function reads and frees `out` as a
 /// null-terminated C string allocated by the wrapper, so `out` must be a valid such
-/// pointer for that status. On error statuses it reads and frees `error_ptr` via
-/// [`read_and_free_cpp_string`], which reports a null pointer as a contract violation.
+/// pointer for that status. On error statuses it reads and frees `error_ptr`, reporting a null
+/// pointer as a contract violation.
 unsafe fn json_schema_to_grammar_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status,
     out: *mut c_char,
@@ -27,7 +27,7 @@ unsafe fn json_schema_to_grammar_status_to_result(
             }
             let grammar_bytes = unsafe { CStr::from_ptr(out) }.to_bytes().to_vec();
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out) };
-            Ok(String::from_utf8(grammar_bytes)?)
+            String::from_utf8(grammar_bytes).map_err(GbnfError::GrammarNotUtf8)
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GbnfError::SchemaConversionNotEnoughMemory)
@@ -36,30 +36,15 @@ unsafe fn json_schema_to_grammar_status_to_result(
             Err(GbnfError::SchemaConversionLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    error_ptr,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(GbnfError::InvalidSchema { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    error_ptr,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(GbnfError::InvalidJson { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    error_ptr,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
             Err(GbnfError::SchemaConversionReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG => {

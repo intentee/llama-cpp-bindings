@@ -139,9 +139,11 @@ fn decoding_reports_an_exception_thrown_while_transferring_the_batch(
 
     ensure!(
         context.decode(&batch)
-            == Err(ContextError::BatchTransferReported {
-                message: injected_fault_message()?,
-            })
+            == Err(ContextError::DecodeBatchTransfer(Box::new(
+                ContextError::BatchTransferReported {
+                    message: injected_fault_message()?,
+                }
+            )))
     );
 
     Ok(())

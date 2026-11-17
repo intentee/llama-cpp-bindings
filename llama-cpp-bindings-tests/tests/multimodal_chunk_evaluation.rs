@@ -1007,9 +1007,11 @@ fn fitting_reports_a_chunk_type_the_bindings_do_not_recognize(
 
     ensure!(
         chunks.fit_to_micro_batch(mtmd_ctx, 256)
-            == Err(MtmdError::UnknownInputChunkType(
-                llama_cpp_bindings_sys::MTMD_INPUT_CHUNK_TYPE_COUNT
-            ))
+            == Err(MtmdError::EvalUnknownChunkType(Box::new(
+                MtmdError::UnknownInputChunkType(
+                    llama_cpp_bindings_sys::MTMD_INPUT_CHUNK_TYPE_COUNT
+                )
+            )))
     );
 
     Ok(())

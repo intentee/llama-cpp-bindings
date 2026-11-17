@@ -61,7 +61,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_numa_strategy_returns_error() {
+    fn a_numa_strategy_ggml_does_not_define_is_refused_with_its_value() {
         let invalid_value = 800;
         let result = NumaStrategy::try_from(invalid_value);
 

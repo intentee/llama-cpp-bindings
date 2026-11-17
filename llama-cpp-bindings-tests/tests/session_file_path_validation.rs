@@ -50,7 +50,9 @@ fn state_save_file_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) -
 
     ensure!(
         context.state_save_file(non_utf8_path, &[]).err()
-            == Some(ContextStateError::PathNotUtf8(non_utf8_path.to_path_buf()))
+            == Some(ContextStateError::SaveSessionPathNotUtf8(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -95,7 +97,9 @@ fn state_load_file_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) -
 
     ensure!(
         context.state_load_file(non_utf8_path, 512).err()
-            == Some(ContextStateError::PathNotUtf8(non_utf8_path.to_path_buf()))
+            == Some(ContextStateError::LoadSessionPathNotUtf8(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -140,7 +144,9 @@ fn state_seq_save_file_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_
 
     ensure!(
         context.state_seq_save_file(non_utf8_path, 0, &[]).err()
-            == Some(ContextStateError::PathNotUtf8(non_utf8_path.to_path_buf()))
+            == Some(ContextStateError::SaveSeqStatePathNotUtf8(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -185,7 +191,9 @@ fn state_seq_load_file_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_
 
     ensure!(
         context.state_seq_load_file(non_utf8_path, 0, 512).err()
-            == Some(ContextStateError::PathNotUtf8(non_utf8_path.to_path_buf()))
+            == Some(ContextStateError::LoadSeqStatePathNotUtf8(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -232,7 +240,7 @@ fn state_save_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) ->
         context.state_save_file(path_with_null, &[]).err()
             == CString::new("/tmp/foo\0bar.bin")
                 .err()
-                .map(ContextStateError::PathContainsNulByte)
+                .map(ContextStateError::SaveSessionPathContainsNulByte)
     );
 
     Ok(())
@@ -279,7 +287,7 @@ fn state_load_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) ->
         context.state_load_file(path_with_null, 512).err()
             == CString::new("/tmp/foo\0bar.bin")
                 .err()
-                .map(ContextStateError::PathContainsNulByte)
+                .map(ContextStateError::LoadSessionPathContainsNulByte)
     );
 
     Ok(())
@@ -326,7 +334,7 @@ fn state_seq_save_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>
         context.state_seq_save_file(path_with_null, 0, &[]).err()
             == CString::new("/tmp/foo\0bar.bin")
                 .err()
-                .map(ContextStateError::PathContainsNulByte)
+                .map(ContextStateError::SaveSeqStatePathContainsNulByte)
     );
 
     Ok(())
@@ -373,7 +381,7 @@ fn state_seq_load_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>
         context.state_seq_load_file(path_with_null, 0, 512).err()
             == CString::new("/tmp/foo\0bar.bin")
                 .err()
-                .map(ContextStateError::PathContainsNulByte)
+                .map(ContextStateError::LoadSeqStatePathContainsNulByte)
     );
 
     Ok(())

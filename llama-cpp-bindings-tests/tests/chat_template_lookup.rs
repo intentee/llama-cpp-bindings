@@ -79,7 +79,7 @@ fn default_chat_template_is_not_empty(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_template_with_nonexistent_name_returns_error(
+fn a_chat_template_name_the_model_lacks_is_reported_missing(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let result = model.chat_template(Some("nonexistent_template_name_xyz"));
@@ -96,9 +96,7 @@ fn chat_template_with_nonexistent_name_returns_error(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_template_with_a_nul_byte_in_the_name_returns_error(
-    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
-) {
+fn a_chat_template_name_with_a_nul_byte_is_refused(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert_eq!(
         model.chat_template(Some("tool\0use")).err(),
         CString::new("tool\0use")

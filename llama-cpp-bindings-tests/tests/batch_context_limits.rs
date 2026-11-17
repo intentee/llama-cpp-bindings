@@ -35,10 +35,12 @@ fn decoding_a_batch_built_for_other_context_limits_is_refused(
 
     ensure!(
         context.decode(&batch)
-            == Err(ContextError::BatchLimitsMismatch {
-                batch: other_limits,
-                context: context_limits,
-            })
+            == Err(ContextError::DecodeBatchTransfer(Box::new(
+                ContextError::BatchLimitsMismatch {
+                    batch: other_limits,
+                    context: context_limits,
+                }
+            )))
     );
 
     Ok(())

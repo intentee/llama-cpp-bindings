@@ -14,7 +14,6 @@ pub mod llama_token_data_array;
 pub mod lora_adapter_scale;
 pub mod model_error;
 pub mod parse_special_tokens;
-pub mod path_c_string;
 mod piece_write;
 pub mod rope_type;
 pub mod sampled_token;

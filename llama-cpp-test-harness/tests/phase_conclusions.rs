@@ -166,7 +166,7 @@ fn a_trial_declaring_an_mmproj_sees_its_projector(
     n_batch = 128,
     n_ubatch = 64
 )]
-fn trial_without_an_mmproj_sees_no_projector_after_its_model_loaded_one(
+fn a_trial_without_an_mmproj_sees_no_projector_of_another_trial_on_its_model(
     &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) {
     assert!(

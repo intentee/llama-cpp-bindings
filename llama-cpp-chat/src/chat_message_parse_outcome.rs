@@ -46,6 +46,18 @@ mod tests {
     }
 
     #[test]
+    fn an_unrecognized_answer_keeps_its_raw_message() {
+        assert_eq!(
+            ChatMessageParseOutcome::Unrecognized(odd_answer()),
+            ChatMessageParseOutcome::Unrecognized(RawChatMessage {
+                text: "<odd>Paris.".to_owned(),
+                completeness: ChatOutputCompleteness::Finished,
+                expected_format: "peg-native".to_owned(),
+            })
+        );
+    }
+
+    #[test]
     fn an_unrecognized_answer_has_no_recognized_message() {
         assert_eq!(
             ChatMessageParseOutcome::Unrecognized(odd_answer()).into_recognized(),

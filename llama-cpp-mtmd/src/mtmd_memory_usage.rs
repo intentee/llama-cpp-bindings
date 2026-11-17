@@ -49,12 +49,7 @@ fn get_memory_usage_status_to_result(
             Err(MtmdError::MemoryUsageLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                OPERATION.read_and_free_cpp_string(
-                    out_error,
-                    "reported a thrown C++ exception without an error message",
-                )
-            }?;
+            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
 
             Err(MtmdError::MemoryUsageReported { message })
         }
@@ -81,10 +76,12 @@ impl MtmdMemoryUsage {
     /// # Errors
     ///
     /// Returns [`MtmdError::MemoryUsageUnloadable`] when llama.cpp cannot load the projector,
-    /// [`MtmdError::ImageMinTokensExceedCInt`] or [`MtmdError::ImageMaxTokensExceedCInt`] when `params` have no C representation, or the
+    /// [`MtmdError::MemoryUsageContextParams`] when `params` have no C representation, or the
     /// variant matching the wrapper's status code.
     pub fn measure(mmproj_path: &CStr, params: &MtmdContextParams) -> Result<Self, MtmdError> {
-        let context_params = llama_cpp_bindings_sys::mtmd_context_params::try_from(params)?;
+        let context_params = llama_cpp_bindings_sys::mtmd_context_params::try_from(params)
+            .map_err(Box::new)
+            .map_err(MtmdError::MemoryUsageContextParams)?;
         let device_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
         let mut device_memory = Vec::with_capacity(device_count);
         let mut device_memory_count: usize = 0;
@@ -250,10 +247,10 @@ mod tests {
         assert_eq!(
             MtmdMemoryUsage::measure(c"/nonexistent/mmproj.gguf", &params).err(),
             i32::try_from(u32::MAX).err().map(|source| {
-                MtmdError::ImageMaxTokensExceedCInt {
+                MtmdError::MemoryUsageContextParams(Box::new(MtmdError::ImageMaxTokensExceedCInt {
                     limit: MtmdImageTokenLimit::Tokens(NonZeroU32::MAX),
                     source,
-                }
+                }))
             })
         );
     }
