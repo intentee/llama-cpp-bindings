@@ -3,7 +3,7 @@ use std::process::ExitCode;
 use inventory::submit;
 use libtest_mimic::Arguments;
 
-use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+use llama_cpp_params::llama_load_mode::LlamaLoadMode;
 use llama_cpp_test_harness::context_params::ContextParams;
 use llama_cpp_test_harness::expected_outcome::ExpectedOutcome;
 use llama_cpp_test_harness::harness_run_error::HarnessRunError;

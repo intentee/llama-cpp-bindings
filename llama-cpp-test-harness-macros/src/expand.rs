@@ -341,7 +341,7 @@ mod tests {
                         mmproj_source: ::core::option::Option::None,
                         model_load_params: ::llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams {
                             n_gpu_layers: 0i32,
-                            load_mode: ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Mmap,
+                            load_mode: ::llama_cpp_params::llama_load_mode::LlamaLoadMode::Mmap,
                         },
                     },
                     context_params: ::llama_cpp_test_harness::context_params::ContextParams {

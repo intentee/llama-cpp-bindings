@@ -72,16 +72,20 @@ coverage: node_modules
 	cargo llvm-cov report
 	./node_modules/.bin/rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
+		--gated llama-cpp-backend=100 \
+		--gated llama-cpp-backend-tests=100 \
 		--gated llama-cpp-bindings=100 \
 		--gated llama-cpp-bindings-build=100 \
 		--gated llama-cpp-bindings-tests=100 \
 		--gated llama-cpp-bindings-types=100 \
+		--gated llama-cpp-capturing-logger=100 \
 		--gated llama-cpp-error-recorder=100 \
 		--gated llama-cpp-fault-injection=100 \
 		--gated llama-cpp-ffi-status=100 \
 		--gated llama-cpp-gbnf=100 \
 		--gated llama-cpp-gguf=100 \
 		--gated llama-cpp-log-decoder=100 \
+		--gated llama-cpp-params=100 \
 		--gated llama-cpp-test-harness=100 \
 		--gated llama-cpp-test-harness-macros=100 \
 		--gated llama-cpp-test-model-provisioning=100 \
@@ -134,7 +138,9 @@ test.llms: clippy test.harness test.unit
 
 .PHONY: test.unit
 test.unit: clippy
-	cargo test -p llama-cpp-bindings -p llama-cpp-bindings-build -p llama-cpp-bindings-types \
+	cargo test -p llama-cpp-backend -p llama-cpp-backend-tests -p llama-cpp-bindings \
+		-p llama-cpp-bindings-build -p llama-cpp-bindings-types -p llama-cpp-capturing-logger \
 		-p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf -p llama-cpp-gguf \
-		-p llama-cpp-log-decoder -p llama-cpp-token-usage -p llama-cpp-wrapper-sources \
+		-p llama-cpp-log-decoder -p llama-cpp-params -p llama-cpp-token-usage \
+		-p llama-cpp-wrapper-sources \
 		$(DEVICE_FEATURE)

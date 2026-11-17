@@ -2,7 +2,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
 use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
@@ -84,8 +84,8 @@ mod tests {
     use std::sync::Arc;
     use std::sync::PoisonError;
 
-    use llama_cpp_bindings::llama_backend::LlamaBackend;
-    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+    use llama_cpp_backend::llama_backend::LlamaBackend;
+    use llama_cpp_params::llama_load_mode::LlamaLoadMode;
 
     use super::PhaseModelFiles;
     use crate::backend_init_gate::BACKEND_INIT_GATE;

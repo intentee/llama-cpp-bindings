@@ -13,12 +13,13 @@ doctest = false
 [dependencies]
 encoding_rs = { workspace = true }
 enumflags2 = { workspace = true }
+llama-cpp-backend = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 llama-cpp-error-recorder = { workspace = true }
 llama-cpp-ffi-status = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
-llama-cpp-log-decoder = { workspace = true }
+llama-cpp-params = { workspace = true }
 llama-cpp-token-usage = { workspace = true }
 llguidance = { workspace = true }
 log = { workspace = true }
@@ -32,28 +33,24 @@ anyhow = { workspace = true }
 llama-cpp-fault-injection = { workspace = true }
 llama-cpp-gguf = { workspace = true }
 llama-cpp-wrapper-error-fixture = { workspace = true }
-serial_test = { workspace = true }
 
 [[test]]
 name = "sampler_chain_without_backend"
 
 [features]
 default = ["openmp", "android-shared-stdcxx"]
-cuda = ["llama-cpp-bindings-sys/cuda"]
-cuda-no-vmm = ["cuda", "llama-cpp-bindings-sys/cuda-no-vmm"]
-metal = ["llama-cpp-bindings-sys/metal"]
-dynamic-link = ["llama-cpp-bindings-sys/dynamic-link"]
-dynamic-backends = ["dynamic-link", "llama-cpp-bindings-sys/dynamic-backends"]
-vulkan = ["llama-cpp-bindings-sys/vulkan"]
-openmp = ["llama-cpp-bindings-sys/openmp"]
-rocm = ["llama-cpp-bindings-sys/rocm"]
-android-shared-stdcxx = ["llama-cpp-bindings-sys/shared-stdcxx"]
-android-static-stdcxx = ["llama-cpp-bindings-sys/static-stdcxx"]
-system-ggml = ["llama-cpp-bindings-sys/system-ggml"]
-system-ggml-static = ["system-ggml", "llama-cpp-bindings-sys/system-ggml-static"]
-
-[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
-llama-cpp-bindings-sys = { workspace = true, features = ["metal"] }
+cuda = ["llama-cpp-backend/cuda"]
+cuda-no-vmm = ["cuda", "llama-cpp-backend/cuda-no-vmm"]
+metal = ["llama-cpp-backend/metal"]
+dynamic-link = ["llama-cpp-backend/dynamic-link"]
+dynamic-backends = ["dynamic-link", "llama-cpp-backend/dynamic-backends"]
+vulkan = ["llama-cpp-backend/vulkan"]
+openmp = ["llama-cpp-backend/openmp"]
+rocm = ["llama-cpp-backend/rocm"]
+android-shared-stdcxx = ["llama-cpp-backend/android-shared-stdcxx"]
+android-static-stdcxx = ["llama-cpp-backend/android-static-stdcxx"]
+system-ggml = ["llama-cpp-backend/system-ggml"]
+system-ggml-static = ["system-ggml", "llama-cpp-backend/system-ggml-static"]
 
 [lints]
 workspace = true

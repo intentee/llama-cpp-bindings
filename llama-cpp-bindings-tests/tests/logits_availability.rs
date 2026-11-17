@@ -1,13 +1,13 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_bindings::error::logits_error::LogitsError;
 use llama_cpp_bindings::error::sample_error::SampleError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
+use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

@@ -4,7 +4,7 @@ use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
 use libtest_mimic::Trial;
 
-use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_test_model_provisioning::phase_setup::PhaseSetup;
 
 use crate::execution_phase::ExecutionPhase;
@@ -105,8 +105,8 @@ mod tests {
 
     use libtest_mimic::Arguments;
 
-    use llama_cpp_bindings::llama_backend::LlamaBackend;
-    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+    use llama_cpp_backend::llama_backend::LlamaBackend;
+    use llama_cpp_params::llama_load_mode::LlamaLoadMode;
     use llama_cpp_test_model_provisioning::backend_init_gate::BACKEND_INIT_GATE;
     use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
     use llama_cpp_test_model_provisioning::load_key::LoadKey;

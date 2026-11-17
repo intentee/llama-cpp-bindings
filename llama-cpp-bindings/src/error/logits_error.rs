@@ -1,4 +1,4 @@
-use crate::context::llama_pooling_type::LlamaPoolingType;
+use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum LogitsError {

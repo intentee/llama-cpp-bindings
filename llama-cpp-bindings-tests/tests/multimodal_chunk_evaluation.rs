@@ -5,7 +5,6 @@ use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::context::llama_attention_type::LlamaAttentionType;
 use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
@@ -33,6 +32,7 @@ use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_pro
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_params::llama_attention_type::LlamaAttentionType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

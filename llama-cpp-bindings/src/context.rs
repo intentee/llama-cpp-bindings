@@ -1,16 +1,11 @@
 pub mod context_limits;
 pub mod decoded_output_rows;
 pub mod decoded_outputs;
-pub mod kv_cache_type;
-pub mod llama_attention_type;
-pub mod llama_pooling_type;
 pub mod llama_state_seq_flags;
 pub mod load_seq_state_error;
 pub mod load_session_error;
 pub mod loaded_seq_state;
 pub mod memory;
-pub mod params;
-pub mod rope_scaling_type;
 pub mod save_seq_state_error;
 pub mod save_session_error;
 mod sequence_output_capacity;
@@ -31,14 +26,15 @@ use std::sync::atomic::Ordering;
 
 use log::debug;
 
+use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_params::llama_context_params::LlamaContextParams;
+use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 
 use crate::context::context_limits::ContextLimits;
 use crate::context::decoded_output_rows::DecodedOutputRows;
 use crate::context::decoded_outputs::DecodedOutputs;
-use crate::context::llama_pooling_type::LlamaPoolingType;
-use crate::context::params::LlamaContextParams;
 use crate::context::sequence_output_capacity::SequenceOutputCapacity;
 use crate::error::batch_transfer_error::BatchTransferError;
 use crate::error::decode_error::DecodeError;
@@ -48,7 +44,6 @@ use crate::error::llama_context_load_error::LlamaContextLoadError;
 use crate::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
 use crate::error::logits_error::LogitsError;
 use crate::error::process_failure::ProcessFailure;
-use crate::llama_backend::LlamaBackend;
 use crate::llama_batch::LlamaBatch;
 use crate::model::LlamaModel;
 use crate::model::lora_adapter_scale::LoraAdapterScale;

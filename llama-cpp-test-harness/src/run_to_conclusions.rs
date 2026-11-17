@@ -3,7 +3,7 @@ use std::sync::Arc;
 use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
 
-use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_backend::llama_backend::LlamaBackend;
 
 use crate::execution_plan::ExecutionPlan;
 use crate::harness_run_error::HarnessRunError;
@@ -28,8 +28,8 @@ mod tests {
 
     use libtest_mimic::Arguments;
 
-    use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
-    use llama_cpp_bindings::llama_backend::LlamaBackend;
+    use llama_cpp_backend::backend_error::BackendError;
+    use llama_cpp_backend::llama_backend::LlamaBackend;
     use llama_cpp_test_model_provisioning::backend_init_gate::BACKEND_INIT_GATE;
 
     use super::run_to_conclusions;
@@ -57,7 +57,7 @@ mod tests {
         assert_eq!(
             run_to_conclusions(Arguments::default()).err(),
             Some(HarnessRunError::BackendInit(
-                LlamaCppError::BackendAlreadyInitialized
+                BackendError::AlreadyInitialized
             ))
         );
     }

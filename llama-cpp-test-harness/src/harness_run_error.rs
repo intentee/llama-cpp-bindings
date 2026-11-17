@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
+use llama_cpp_backend::backend_error::BackendError;
 
 #[derive(Debug, Eq, Error, PartialEq)]
 pub enum HarnessRunError {
@@ -14,5 +14,5 @@ pub enum HarnessRunError {
     )]
     DuplicateTrialName { name: &'static str },
     #[error("failed to initialise the llama backend: {0}")]
-    BackendInit(#[from] LlamaCppError),
+    BackendInit(#[from] BackendError),
 }

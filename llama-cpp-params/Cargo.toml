@@ -1,0 +1,22 @@
+[package]
+name = "llama-cpp-params"
+description = "Configures a llama.cpp load: model params, context params, and fitting both to device memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-backend = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-ffi-status = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+dynamic-backends = ["llama-cpp-backend/dynamic-backends"]
+
+[lints]
+workspace = true

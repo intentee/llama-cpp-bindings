@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
-use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
 

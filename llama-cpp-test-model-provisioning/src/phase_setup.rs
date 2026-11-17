@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_backend::llama_backend::LlamaBackend;
 
 use crate::load_key::LoadKey;
 use crate::phase_model_files::PhaseModelFiles;
@@ -55,8 +55,8 @@ mod tests {
     use std::sync::Arc;
     use std::sync::PoisonError;
 
-    use llama_cpp_bindings::llama_backend::LlamaBackend;
-    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+    use llama_cpp_backend::llama_backend::LlamaBackend;
+    use llama_cpp_params::llama_load_mode::LlamaLoadMode;
 
     use super::PhaseSetup;
     use crate::backend_init_gate::BACKEND_INIT_GATE;

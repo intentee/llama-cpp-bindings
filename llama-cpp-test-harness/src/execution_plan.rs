@@ -5,7 +5,7 @@ use std::sync::Arc;
 use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
 
-use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_backend::llama_backend::LlamaBackend;
 
 use crate::execution_phase::ExecutionPhase;
 use crate::harness_run_error::HarnessRunError;
@@ -93,7 +93,7 @@ impl ExecutionPlan {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+    use llama_cpp_params::llama_load_mode::LlamaLoadMode;
     use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
     use llama_cpp_test_model_provisioning::load_key::LoadKey;
     use llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams;

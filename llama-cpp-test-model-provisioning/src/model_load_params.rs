@@ -1,5 +1,5 @@
-use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
-use llama_cpp_bindings::model::params::LlamaModelParams;
+use llama_cpp_params::llama_load_mode::LlamaLoadMode;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModelLoadParams {
@@ -22,7 +22,7 @@ impl ModelLoadParams {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+    use llama_cpp_params::llama_load_mode::LlamaLoadMode;
 
     use super::ModelLoadParams;
 

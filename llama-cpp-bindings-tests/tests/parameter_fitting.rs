@@ -6,12 +6,12 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::params::LlamaContextParams;
-use llama_cpp_bindings::max_devices::max_devices;
-use llama_cpp_bindings::model::params::LlamaModelParams;
-use llama_cpp_bindings::model::params::fit_extra_model::FitExtraModel;
+use llama_cpp_backend::max_devices::max_devices;
 use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
 use llama_cpp_bindings::mtmd::mtmd_memory_usage::MtmdMemoryUsage;
+use llama_cpp_params::fit_extra_model::FitExtraModel;
+use llama_cpp_params::llama_context_params::LlamaContextParams;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
@@ -95,7 +95,7 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
         LlamaContextParams::default().with_n_ctx(Some(unfittable_extra_n_ctx));
     let mut extra = FitExtraModel {
         model_path: &model_path_c,
-        model_params: extra_params.as_mut(),
+        model_params: &mut extra_params.params,
         context_params: &mut extra_context_params,
         shares_model: true,
     };

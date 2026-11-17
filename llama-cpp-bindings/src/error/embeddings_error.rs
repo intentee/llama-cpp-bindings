@@ -16,7 +16,7 @@ pub enum EmbeddingsError {
         "Token embeddings need a context with LLAMA_POOLING_TYPE_NONE, but it pools with {pooling_type:?}"
     )]
     TokenEmbeddingsRequireNonePooling {
-        pooling_type: crate::context::llama_pooling_type::LlamaPoolingType,
+        pooling_type: llama_cpp_params::llama_pooling_type::LlamaPoolingType,
     },
     #[error("Invalid embedding dimension: {0}")]
     InvalidEmbeddingDimension(#[source] std::num::TryFromIntError),

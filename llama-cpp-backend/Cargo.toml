@@ -1,0 +1,40 @@
+[package]
+name = "llama-cpp-backend"
+description = "The process-global llama.cpp runtime: initialization, NUMA, compute devices, dynamic backend loading and log routing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-log-decoder = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-capturing-logger = { workspace = true }
+
+[features]
+default = ["openmp", "android-shared-stdcxx"]
+cuda = ["llama-cpp-bindings-sys/cuda"]
+cuda-no-vmm = ["cuda", "llama-cpp-bindings-sys/cuda-no-vmm"]
+metal = ["llama-cpp-bindings-sys/metal"]
+dynamic-link = ["llama-cpp-bindings-sys/dynamic-link"]
+dynamic-backends = ["dynamic-link", "llama-cpp-bindings-sys/dynamic-backends"]
+vulkan = ["llama-cpp-bindings-sys/vulkan"]
+openmp = ["llama-cpp-bindings-sys/openmp"]
+rocm = ["llama-cpp-bindings-sys/rocm"]
+android-shared-stdcxx = ["llama-cpp-bindings-sys/shared-stdcxx"]
+android-static-stdcxx = ["llama-cpp-bindings-sys/static-stdcxx"]
+system-ggml = ["llama-cpp-bindings-sys/system-ggml"]
+system-ggml-static = ["system-ggml", "llama-cpp-bindings-sys/system-ggml-static"]
+
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+llama-cpp-bindings-sys = { workspace = true, features = ["metal"] }
+
+[lints]
+workspace = true

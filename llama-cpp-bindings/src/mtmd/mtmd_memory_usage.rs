@@ -3,13 +3,13 @@ use std::ffi::c_char;
 use std::num::NonZeroU32;
 use std::ptr;
 
+use llama_cpp_backend::backend_device_index::backend_device_index;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use super::mtmd_context_params::MtmdContextParams;
 use super::mtmd_image_token_limit::MtmdImageTokenLimit;
 use super::mtmd_memory_usage_error::MtmdMemoryUsageError;
-use crate::backend_device_index::backend_device_index;
 
 const OPERATION: &str = "llama_rs_mtmd_get_memory_usage";
 
@@ -137,7 +137,7 @@ impl MtmdMemoryUsage {
     /// Adds the projector's memory to the fit margin of each device it takes memory on, so
     /// fitting the text model leaves that memory free, as llama-server does. `margins` is
     /// indexed by backend device, like the margins of
-    /// [`LlamaModelParams::fit_params`](crate::model::params::LlamaModelParams::fit_params);
+    /// [`LlamaModelParams::fit_params`](llama_cpp_params::llama_model_params::LlamaModelParams::fit_params);
     /// a device past its end has no margin to grow.
     pub fn add_to_fit_margins(&self, margins: &mut [usize]) {
         for llama_cpp_bindings_sys::llama_rs_mtmd_device_memory { device, bytes } in

@@ -1,18 +1,11 @@
 pub mod add_bos;
 pub mod decision_type;
 pub mod llama_chat_template;
-pub mod llama_lazy_mode;
-pub mod llama_lazy_mode_parse_error;
-pub mod llama_load_mode;
-pub mod llama_load_mode_parse_error;
 pub mod llama_lora_adapter;
-pub mod llama_split_mode_parse_error;
 pub mod lora_adapter_scale;
-pub mod params;
 pub mod parse_special_tokens;
 mod piece_write;
 pub mod rope_type;
-pub mod split_mode;
 pub mod tokenizer_input;
 pub mod vocab_type;
 pub mod vocab_type_from_int_error;
@@ -38,8 +31,10 @@ use toktrie::INVALID_TOKEN;
 use toktrie::TokRxInfo;
 use toktrie::TokTrie;
 
+use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
 
 use crate::chat_templates::ChatTemplates;
 use crate::error::chat_template_error::ChatTemplateError;
@@ -54,7 +49,6 @@ use crate::error::token_attr_error::TokenAttrError;
 use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
 use crate::error::token_to_string_error::TokenToStringError;
 use crate::error::unknown_rope_type::UnknownRopeType;
-use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::model::add_bos::AddBos;
 use crate::model::decision_type::DecisionType;
@@ -70,7 +64,6 @@ use crate::model::vocabulary_token::VocabularyToken;
 use crate::path_c_string::path_c_string;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
-use params::LlamaModelParams;
 
 const PIECE_PROBE_LEN: c_int = 32;
 

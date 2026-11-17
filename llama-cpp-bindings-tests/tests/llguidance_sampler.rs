@@ -15,7 +15,6 @@ use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampling::LlamaSampler;
@@ -23,6 +22,7 @@ use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
