@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use hf_hub::api::sync::ApiError;
+
 use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
 use llama_cpp_bindings::mtmd::mtmd_init_error::MtmdInitError;
 

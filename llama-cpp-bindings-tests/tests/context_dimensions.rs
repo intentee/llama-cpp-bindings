@@ -45,11 +45,18 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn context_reports_positive_context_and_batch_sizes(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn context_reports_positive_context_and_batch_sizes(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     ensure!(context.n_ctx() > 0);

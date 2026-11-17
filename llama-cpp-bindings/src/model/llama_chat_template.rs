@@ -113,18 +113,6 @@ impl LlamaChatTemplate {
     }
 
     /// # Errors
-    /// Returns an error if the template is not valid UTF-8.
-    pub fn to_str(&self) -> Result<&str, Utf8Error> {
-        self.0.to_str()
-    }
-
-    /// # Errors
-    /// Returns an error if the template is not valid UTF-8.
-    pub fn to_string(&self) -> Result<String, Utf8Error> {
-        self.to_str().map(str::to_string)
-    }
-
-    /// # Errors
     ///
     /// Returns [`ChatTemplateRenderError`] when `globals_json` contains a NUL byte, is not valid
     /// JSON or not a JSON object, the template cannot be parsed or executed, the wrapper fails,
@@ -144,19 +132,42 @@ impl LlamaChatTemplate {
 
         unsafe { render_template_status_to_result(status, out_rendered, out_error) }
     }
+
+    /// # Errors
+    /// Returns an error if the template is not valid UTF-8.
+    pub fn to_str(&self) -> Result<&str, Utf8Error> {
+        self.0.to_str()
+    }
+
+    /// # Errors
+    /// Returns an error if the template is not valid UTF-8.
+    pub fn to_string(&self) -> Result<String, Utf8Error> {
+        self.to_str().map(str::to_string)
+    }
 }
 
 impl Debug for LlamaChatTemplate {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
+    use std::ffi::c_char;
+
+    use std::ptr;
+
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use crate::error::chat_template_render_error::ChatTemplateRenderError;
+
+    use super::render_template_status_to_result;
     use crate::model::llama_chat_template::LlamaChatTemplate;
 
     #[test]
@@ -275,19 +286,6 @@ mod tests {
 
         assert_eq!(cstr.to_str().unwrap(), "test");
     }
-}
-
-#[cfg(test)]
-mod render_template_status_to_result_tests {
-    use std::ffi::c_char;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::render_template_status_to_result;
-    use crate::error::chat_template_render_error::ChatTemplateRenderError;
 
     #[test]
     fn a_rendered_text_that_is_not_utf8_is_reported_with_its_bytes() {

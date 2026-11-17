@@ -32,25 +32,9 @@ impl BuildEnvironment {
         }
     }
 
-    /// # Errors
-    ///
-    /// Returns [`VarError::NotPresent`] for a variable the environment lacks, or
-    /// [`VarError::NotUnicode`] for one that is not Unicode.
-    pub fn var(&self, name: &'static str) -> Result<String, VarError> {
-        self.variables
-            .get(OsStr::new(name))
-            .cloned()
-            .ok_or(VarError::NotPresent)?
-            .into_string()
-            .map_err(VarError::NotUnicode)
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`BuildError::Environment`] when the variable is missing or not Unicode.
-    pub fn required(&self, name: &'static str) -> Result<String, BuildError> {
-        self.var(name)
-            .map_err(|source| BuildError::Environment { name, source })
+    #[must_use]
+    pub fn has(&self, feature: BuildFeature) -> bool {
+        self.features.contains(feature)
     }
 
     /// # Errors
@@ -64,9 +48,25 @@ impl BuildEnvironment {
         }
     }
 
-    #[must_use]
-    pub fn has(&self, feature: BuildFeature) -> bool {
-        self.features.contains(feature)
+    /// # Errors
+    ///
+    /// Returns [`BuildError::Environment`] when the variable is missing or not Unicode.
+    pub fn required(&self, name: &'static str) -> Result<String, BuildError> {
+        self.var(name)
+            .map_err(|source| BuildError::Environment { name, source })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`VarError::NotPresent`] for a variable the environment lacks, or
+    /// [`VarError::NotUnicode`] for one that is not Unicode.
+    pub fn var(&self, name: &'static str) -> Result<String, VarError> {
+        self.variables
+            .get(OsStr::new(name))
+            .cloned()
+            .ok_or(VarError::NotPresent)?
+            .into_string()
+            .map_err(VarError::NotUnicode)
     }
 }
 
@@ -120,13 +120,14 @@ pub mod tests {
         environment
     }
 
-    #[must_use]
-    pub fn with_non_unicode(mut environment: BuildEnvironment, name: &str) -> BuildEnvironment {
-        environment
-            .variables
-            .insert(OsString::from(name), OsString::from_vec(vec![0xff]));
+    impl BuildEnvironment {
+        #[must_use]
+        pub fn with_non_unicode(mut self, name: &str) -> Self {
+            self.variables
+                .insert(OsString::from(name), OsString::from_vec(vec![0xff]));
 
-        environment
+            self
+        }
     }
 
     #[test]
@@ -179,7 +180,7 @@ pub mod tests {
 
     #[test]
     fn a_variable_that_is_not_unicode_is_refused_even_when_optional() {
-        let environment = with_non_unicode(environment_of(BitFlags::empty(), &[]), "TARGET");
+        let environment = environment_of(BitFlags::empty(), &[]).with_non_unicode("TARGET");
 
         assert_eq!(
             environment

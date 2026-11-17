@@ -19,12 +19,15 @@ use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
 fn build_multimodal_chunks_and_eval_into_usage(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<EvaluatedMultimodalUsage> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -44,8 +47,11 @@ fn build_multimodal_chunks_and_eval_into_usage(
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
     let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
 
-    let context_params = (*fixture.context_params).into_llama_context_params();
-    let mut context = LlamaContext::from_model(model, fixture.backend, context_params)?;
+    let mut context = LlamaContext::from_model(
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
+    )?;
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     classifier.eval_multimodal_chunks(
@@ -183,11 +189,16 @@ fn completion_tokens_are_zero_after_eval_before_generation(
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn text_chunk_records_prompt_tokens(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let input_text = MtmdInputText {
         text: "hello world".to_owned(),
@@ -196,8 +207,8 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     };
     let llama_ctx = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let fitted_chunks = FittedMtmdInputChunks::fit(
         mtmd_ctx.tokenize(input_text, &[])?,
@@ -248,11 +259,16 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn image_chunk_records_input_image_tokens_only(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -268,8 +284,8 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
     };
     let llama_ctx = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let fitted_chunks = FittedMtmdInputChunks::fit(
         mtmd_ctx.tokenize(input_text, &[&bitmap])?,

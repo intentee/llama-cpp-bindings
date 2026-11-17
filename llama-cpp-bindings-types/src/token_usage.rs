@@ -43,8 +43,12 @@ impl TokenUsage {
         }
     }
 
-    pub const fn record_prompt_tokens(&mut self, count: u64) {
-        self.prompt = self.prompt.saturating_add(count);
+    #[must_use]
+    pub const fn completion_tokens(&self) -> u64 {
+        self.content
+            .saturating_add(self.reasoning)
+            .saturating_add(self.tool_call)
+            .saturating_add(self.undeterminable)
     }
 
     /// # Errors
@@ -65,16 +69,20 @@ impl TokenUsage {
         Ok(())
     }
 
-    pub const fn record_input_image_tokens(&mut self, count: u64) {
-        self.input_image = self.input_image.saturating_add(count);
+    pub const fn record_content_token(&mut self) {
+        self.content = self.content.saturating_add(1);
     }
 
     pub const fn record_input_audio_tokens(&mut self, count: u64) {
         self.input_audio = self.input_audio.saturating_add(count);
     }
 
-    pub const fn record_content_token(&mut self) {
-        self.content = self.content.saturating_add(1);
+    pub const fn record_input_image_tokens(&mut self, count: u64) {
+        self.input_image = self.input_image.saturating_add(count);
+    }
+
+    pub const fn record_prompt_tokens(&mut self, count: u64) {
+        self.prompt = self.prompt.saturating_add(count);
     }
 
     pub const fn record_reasoning_token(&mut self) {
@@ -89,28 +97,32 @@ impl TokenUsage {
         self.undeterminable = self.undeterminable.saturating_add(1);
     }
 
-    const fn accumulate(&mut self, other: &Self) {
-        self.prompt = self.prompt.saturating_add(other.prompt);
-        self.cached_prompt = self.cached_prompt.saturating_add(other.cached_prompt);
-        self.input_image = self.input_image.saturating_add(other.input_image);
-        self.input_audio = self.input_audio.saturating_add(other.input_audio);
-        self.content = self.content.saturating_add(other.content);
-        self.reasoning = self.reasoning.saturating_add(other.reasoning);
-        self.tool_call = self.tool_call.saturating_add(other.tool_call);
-        self.undeterminable = self.undeterminable.saturating_add(other.undeterminable);
-    }
-
-    #[must_use]
-    pub const fn completion_tokens(&self) -> u64 {
-        self.content
-            .saturating_add(self.reasoning)
-            .saturating_add(self.tool_call)
-            .saturating_add(self.undeterminable)
-    }
-
     #[must_use]
     pub const fn total_tokens(&self) -> u64 {
         self.prompt.saturating_add(self.completion_tokens())
+    }
+
+    const fn accumulate(
+        &mut self,
+        &Self {
+            prompt,
+            cached_prompt,
+            input_image,
+            input_audio,
+            content,
+            reasoning,
+            tool_call,
+            undeterminable,
+        }: &Self,
+    ) {
+        self.prompt = self.prompt.saturating_add(prompt);
+        self.cached_prompt = self.cached_prompt.saturating_add(cached_prompt);
+        self.input_image = self.input_image.saturating_add(input_image);
+        self.input_audio = self.input_audio.saturating_add(input_audio);
+        self.content = self.content.saturating_add(content);
+        self.reasoning = self.reasoning.saturating_add(reasoning);
+        self.tool_call = self.tool_call.saturating_add(tool_call);
+        self.undeterminable = self.undeterminable.saturating_add(undeterminable);
     }
 }
 

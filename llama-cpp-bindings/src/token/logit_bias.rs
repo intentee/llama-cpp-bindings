@@ -15,21 +15,21 @@ impl LlamaLogitBias {
     }
 
     #[must_use]
-    pub const fn token(self) -> LlamaToken {
-        LlamaToken(self.logit_bias.token)
-    }
-
-    #[must_use]
     pub const fn bias(self) -> f32 {
         self.logit_bias.bias
     }
 
-    pub const fn set_token(&mut self, token: LlamaToken) {
-        self.logit_bias.token = token.0;
-    }
-
     pub const fn set_bias(&mut self, bias: f32) {
         self.logit_bias.bias = bias;
+    }
+
+    pub const fn set_token(&mut self, LlamaToken(token_id): LlamaToken) {
+        self.logit_bias.token = token_id;
+    }
+
+    #[must_use]
+    pub const fn token(self) -> LlamaToken {
+        LlamaToken(self.logit_bias.token)
     }
 }
 

@@ -25,9 +25,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
 )]
 fn a_question_holding_a_nul_character_is_rendered_into_the_prompt_after_the_media_marker(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let prompt = media_question_chat_session(fixture.model, "describe\0this")?.prompt()?;
+    let prompt = media_question_chat_session(model, "describe\0this")?.prompt()?;
 
     ensure!(
         prompt.contains(&format!("{}describe\0this", mtmd_default_marker()?)),
@@ -46,11 +46,11 @@ fn a_question_holding_a_nul_character_is_rendered_into_the_prompt_after_the_medi
     n_ubatch = 64,
 )]
 fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = ChatSession::new(
-        fixture.model,
-        fixture.model.chat_templates()?,
+        model,
+        model.chat_templates()?,
         &[user_message("hello")],
         &[],
         &ChatSessionOptions {
@@ -69,7 +69,7 @@ fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
     };
 
     ensure!(
-        session.tokenize_prompt(fixture.model).err()
+        session.tokenize_prompt(model).err()
             == Some(ChatSessionError::PromptTokenization(
                 StringToTokenError::NulError(nul_error)
             ))
@@ -87,11 +87,11 @@ fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
     n_ubatch = 64,
 )]
 fn a_conversation_the_template_raises_on_is_refused_with_the_template_message(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let result = ChatSession::new(
-        fixture.model,
-        fixture.model.chat_templates()?,
+        model,
+        model.chat_templates()?,
         &[user_message("hello"), user_message("are you there?")],
         &[],
         &ChatSessionOptions {

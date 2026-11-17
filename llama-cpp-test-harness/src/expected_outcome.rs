@@ -16,17 +16,6 @@ pub enum ExpectedOutcome {
 }
 
 impl ExpectedOutcome {
-    /// Marks a trial that is declared to fail with the failure it expects and why.
-    #[must_use]
-    pub fn label(self, trial: Trial) -> Trial {
-        match self {
-            Self::Success => trial,
-            Self::Failure { failure, reason } => {
-                trial.with_kind(format!("expected {failure}: {reason}"))
-            }
-        }
-    }
-
     /// # Errors
     ///
     /// Returns [`Failed`] when `outcome` is not the declared one: a failure of a trial declared to
@@ -42,6 +31,17 @@ impl ExpectedOutcome {
             Self::Failure { failure, .. } if failure.matches(&outcome) => Ok(()),
             Self::Failure { failure, .. } => {
                 Err(Failed::from(format!("expected {failure}, but {outcome}")))
+            }
+        }
+    }
+
+    /// Marks a trial that is declared to fail with the failure it expects and why.
+    #[must_use]
+    pub fn label(self, trial: Trial) -> Trial {
+        match self {
+            Self::Success => trial,
+            Self::Failure { failure, reason } => {
+                trial.with_kind(format!("expected {failure}: {reason}"))
             }
         }
     }

@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
+
 use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::model::LlamaModel;

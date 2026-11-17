@@ -48,8 +48,10 @@ use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn fit_params_fits_a_nonzero_context_for_the_model(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model_path_c = CString::new(fixture.model_path.as_os_str().as_encoded_bytes())?;
+fn fit_params_fits_a_nonzero_context_for_the_model(
+    &LlamaFixture { model_path, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model_path_c = CString::new(model_path.as_os_str().as_encoded_bytes())?;
 
     let mut params = pin!(LlamaModelParams::default());
     let mut context_params = LlamaContextParams::default();
@@ -79,9 +81,9 @@ fn fit_params_fits_a_nonzero_context_for_the_model(fixture: &LlamaFixture<'_>) -
     n_ubatch = 64,
 )]
 fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model_path, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model_path_c = CString::new(fixture.model_path.as_os_str().as_encoded_bytes())?;
+    let model_path_c = CString::new(model_path.as_os_str().as_encoded_bytes())?;
 
     let mut params = pin!(LlamaModelParams::default());
     let mut context_params = LlamaContextParams::default();
@@ -127,14 +129,14 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
     n_ubatch = 64,
 )]
 fn fit_params_fits_the_model_beside_the_projector_memory_reserved_on_its_device(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model_path, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mmproj_path = GgufSource::HuggingFace {
         repo: "unsloth/Qwen3.5-0.8B-GGUF",
         file: "mmproj-F16.gguf",
     }
     .resolve_path()?;
-    let model_path_c = CString::new(fixture.model_path.as_os_str().as_encoded_bytes())?;
+    let model_path_c = CString::new(model_path.as_os_str().as_encoded_bytes())?;
     let mmproj_path_c = CString::new(mmproj_path.as_os_str().as_encoded_bytes())?;
 
     let mut params = pin!(LlamaModelParams::default());

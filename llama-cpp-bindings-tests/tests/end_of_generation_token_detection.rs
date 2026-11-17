@@ -38,8 +38,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn the_eos_token_ends_generation_in_every_section(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
+fn the_eos_token_ends_generation_in_every_section(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let eos = model.token_eos().context("model declares an EOS token")?;
 
     ensure!(

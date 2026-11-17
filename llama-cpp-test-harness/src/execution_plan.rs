@@ -17,15 +17,15 @@ fn refuse_duplicate_trial_names(
 ) -> Result<(), HarnessRunError> {
     let mut trial_names = BTreeSet::new();
 
-    registrations.iter().try_for_each(|registration| {
-        if trial_names.insert(registration.name) {
-            Ok(())
-        } else {
-            Err(HarnessRunError::DuplicateTrialName {
-                name: registration.name,
-            })
-        }
-    })
+    registrations
+        .iter()
+        .try_for_each(|&&LlamaTestRegistration { name, .. }| {
+            if trial_names.insert(name) {
+                Ok(())
+            } else {
+                Err(HarnessRunError::DuplicateTrialName { name })
+            }
+        })
 }
 
 fn collect_inventory_registrations() -> Vec<&'static LlamaTestRegistration> {
@@ -39,6 +39,13 @@ pub struct ExecutionPlan {
 }
 
 impl ExecutionPlan {
+    /// # Errors
+    ///
+    /// Returns the [`HarnessRunError`] of [`Self::from_registrations`] for every registered trial.
+    pub fn from_inventory() -> Result<Self, HarnessRunError> {
+        Self::from_registrations(&collect_inventory_registrations())
+    }
+
     /// # Errors
     ///
     /// Returns [`HarnessRunError::DuplicateTrialName`] when two registrations share a trial name,
@@ -57,17 +64,10 @@ impl ExecutionPlan {
         }
         let mut phases = Vec::with_capacity(by_key.len());
         for (key, mut registrations) in by_key {
-            registrations.sort_by_key(|registration| registration.name);
+            registrations.sort_by_key(|&&LlamaTestRegistration { name, .. }| name);
             phases.push(ExecutionPhase { key, registrations });
         }
         Ok(Self { phases })
-    }
-
-    /// # Errors
-    ///
-    /// Returns the [`HarnessRunError`] of [`Self::from_registrations`] for every registered trial.
-    pub fn from_inventory() -> Result<Self, HarnessRunError> {
-        Self::from_registrations(&collect_inventory_registrations())
     }
 
     #[must_use]
@@ -103,7 +103,6 @@ mod tests {
     use crate::expected_outcome::ExpectedOutcome;
     use crate::llama_test_fn::LlamaTestFn;
     use crate::llama_test_registration::LlamaTestRegistration;
-    use crate::no_op::no_op;
 
     const TRIVIAL_CONTEXT_PARAMS: ContextParams = ContextParams {
         n_ctx: 1,
@@ -137,7 +136,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::Infallible(|_fixture| {}),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_BETA_B: LlamaTestRegistration = LlamaTestRegistration {
@@ -154,7 +153,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::Infallible(|_fixture| {}),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_ALPHA_Z: LlamaTestRegistration = LlamaTestRegistration {
@@ -171,7 +170,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::Infallible(|_fixture| {}),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_BETA_DIFFERENT_CONTEXT: LlamaTestRegistration = LlamaTestRegistration {
@@ -188,7 +187,7 @@ mod tests {
             },
         },
         context_params: ALTERNATE_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::Infallible(|_fixture| {}),
         expected_outcome: ExpectedOutcome::Success,
     };
 
@@ -286,7 +285,7 @@ mod tests {
             .unwrap()
             .registrations
             .iter()
-            .map(|registration| registration.context_params.n_ctx)
+            .map(|LlamaTestRegistration { context_params, .. }| context_params.n_ctx)
             .collect();
         assert!(context_lengths.contains(&1));
         assert!(context_lengths.contains(&4096));

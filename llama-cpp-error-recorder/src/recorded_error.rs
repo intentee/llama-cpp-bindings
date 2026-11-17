@@ -16,12 +16,12 @@ impl RecordedError {
     }
 
     #[must_use]
-    pub fn message(&self) -> String {
+    pub fn into_message(self) -> String {
         self.inner.to_string()
     }
 
     #[must_use]
-    pub fn into_message(self) -> String {
+    pub fn message(&self) -> String {
         self.inner.to_string()
     }
 }

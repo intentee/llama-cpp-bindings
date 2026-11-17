@@ -42,8 +42,8 @@ mod tests {
     #[test]
     fn keeps_the_first_recorded_error() {
         let scope = ErrorScope::enter();
-        record(RecordedError::new("first".to_string()));
-        record(RecordedError::new("second".to_string()));
+        record("first".to_string());
+        record("second".to_string());
 
         assert_eq!(
             scope.take().map(RecordedError::into_message),
@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn take_consumes_the_recorded_error() {
         let scope = ErrorScope::enter();
-        record(RecordedError::new("once".to_string()));
+        record("once".to_string());
 
         assert_eq!(
             scope.take().map(RecordedError::into_message),
@@ -75,7 +75,7 @@ mod tests {
         let outer = ErrorScope::enter();
         {
             let inner = ErrorScope::enter();
-            record(RecordedError::new("inner".to_string()));
+            record("inner".to_string());
 
             assert_eq!(
                 inner.take().map(RecordedError::into_message),
@@ -83,7 +83,7 @@ mod tests {
             );
         }
 
-        record(RecordedError::new("outer".to_string()));
+        record("outer".to_string());
 
         assert_eq!(
             outer.take().map(RecordedError::into_message),
@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn recording_without_an_active_scope_is_dropped() {
-        record(RecordedError::new("orphan".to_string()));
+        record("orphan".to_string());
 
         let scope = ErrorScope::enter();
 

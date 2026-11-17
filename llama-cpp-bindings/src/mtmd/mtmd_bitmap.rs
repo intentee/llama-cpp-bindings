@@ -237,18 +237,82 @@ fn bitmap_init_from_audio_status_to_result(
     }
 }
 
+const RGB_BYTES_PER_PIXEL: u64 = 3;
+
 /// Owns the bitmap and frees it on drop, so it cannot be cloned.
 #[derive(Debug)]
 pub struct MtmdBitmap {
     pub bitmap: NonNull<llama_cpp_bindings_sys::mtmd_bitmap>,
 }
 
-const RGB_BYTES_PER_PIXEL: u64 = 3;
-
 unsafe impl Send for MtmdBitmap {}
 unsafe impl Sync for MtmdBitmap {}
 
 impl MtmdBitmap {
+    /// # Errors
+    ///
+    /// Returns the [`MtmdBitmapError`] variant matching the wrapper's status code.
+    pub fn from_audio_data(data: &[f32]) -> Result<Self, MtmdBitmapError> {
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_audio(
+                data.len(),
+                data.as_ptr(),
+                &raw mut out_bitmap,
+                &raw mut out_error,
+            )
+        };
+
+        bitmap_init_from_audio_status_to_result(status, out_bitmap, out_error)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an [`MtmdBitmapError`] variant matching the wrapper's status code.
+    pub fn from_buffer(
+        MtmdContext { context, .. }: &MtmdContext,
+        data: &[u8],
+    ) -> Result<Self, MtmdBitmapError> {
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_buf(
+                context.as_ptr(),
+                data.as_ptr(),
+                data.len(),
+                &raw mut out_bitmap,
+                &raw mut out_error,
+            )
+        };
+
+        unsafe { from_buf_status_to_result(status, out_bitmap, out_error) }
+    }
+
+    /// # Errors
+    ///
+    /// Returns an [`MtmdBitmapError`] variant matching the wrapper's status code.
+    pub fn from_file(
+        MtmdContext { context, .. }: &MtmdContext,
+        path: &str,
+    ) -> Result<Self, MtmdBitmapError> {
+        let path_cstr = CString::new(path)?;
+        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_file(
+                context.as_ptr(),
+                path_cstr.as_ptr(),
+                &raw mut out_bitmap,
+                &raw mut out_error,
+            )
+        };
+
+        unsafe { from_file_status_to_result(status, out_bitmap, out_error, path) }
+    }
+
     /// # Errors
     ///
     /// * `ImageDimensionsTooSmall` - `nx` or `ny` is below the 2x2 minimum
@@ -258,7 +322,7 @@ impl MtmdBitmap {
     ///
     pub fn from_image_data(nx: u32, ny: u32, data: &[u8]) -> Result<Self, MtmdBitmapError> {
         if nx < 2 || ny < 2 {
-            return Err(MtmdBitmapError::ImageDimensionsTooSmall(nx, ny));
+            return Err(MtmdBitmapError::ImageDimensionsTooSmall { nx, ny });
         }
 
         let expected_len = u64::from(nx)
@@ -286,74 +350,6 @@ impl MtmdBitmap {
         bitmap_init_status_to_result(status, out_bitmap, out_error)
     }
 
-    /// # Errors
-    ///
-    /// Returns the [`MtmdBitmapError`] variant matching the wrapper's status code.
-    pub fn from_audio_data(data: &[f32]) -> Result<Self, MtmdBitmapError> {
-        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
-        let mut out_error: *mut c_char = ptr::null_mut();
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_audio(
-                data.len(),
-                data.as_ptr(),
-                &raw mut out_bitmap,
-                &raw mut out_error,
-            )
-        };
-
-        bitmap_init_from_audio_status_to_result(status, out_bitmap, out_error)
-    }
-
-    /// # Errors
-    ///
-    /// Returns an [`MtmdBitmapError`] variant matching the wrapper's status code.
-    pub fn from_file(ctx: &MtmdContext, path: &str) -> Result<Self, MtmdBitmapError> {
-        let path_cstr = CString::new(path)?;
-        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
-        let mut out_error: *mut c_char = ptr::null_mut();
-
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_file(
-                ctx.context.as_ptr(),
-                path_cstr.as_ptr(),
-                &raw mut out_bitmap,
-                &raw mut out_error,
-            )
-        };
-
-        unsafe { from_file_status_to_result(status, out_bitmap, out_error, path) }
-    }
-
-    /// # Errors
-    ///
-    /// Returns an [`MtmdBitmapError`] variant matching the wrapper's status code.
-    pub fn from_buffer(ctx: &MtmdContext, data: &[u8]) -> Result<Self, MtmdBitmapError> {
-        let mut out_bitmap: *mut llama_cpp_bindings_sys::mtmd_bitmap = ptr::null_mut();
-        let mut out_error: *mut c_char = ptr::null_mut();
-
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_buf(
-                ctx.context.as_ptr(),
-                data.as_ptr(),
-                data.len(),
-                &raw mut out_bitmap,
-                &raw mut out_error,
-            )
-        };
-
-        unsafe { from_buf_status_to_result(status, out_bitmap, out_error) }
-    }
-
-    #[must_use]
-    pub fn nx(&self) -> u32 {
-        unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_nx(self.bitmap.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn ny(&self) -> u32 {
-        unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_ny(self.bitmap.as_ptr()) }
-    }
-
     /// The bitmap's bytes, or none for a placeholder bitmap, whose data mtmd reports as null.
     #[must_use]
     pub fn data(&self) -> &[u8] {
@@ -367,11 +363,6 @@ impl MtmdBitmap {
         unsafe { slice::from_raw_parts(data, len) }
     }
 
-    #[must_use]
-    pub fn is_audio(&self) -> bool {
-        unsafe { llama_cpp_bindings_sys::mtmd_bitmap_is_audio(self.bitmap.as_ptr()) }
-    }
-
     /// # Errors
     ///
     /// Returns [`Utf8Error`] when the id is not valid UTF-8.
@@ -381,6 +372,21 @@ impl MtmdBitmap {
                 self.bitmap.as_ptr(),
             ))
         }
+    }
+
+    #[must_use]
+    pub fn is_audio(&self) -> bool {
+        unsafe { llama_cpp_bindings_sys::mtmd_bitmap_is_audio(self.bitmap.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn nx(&self) -> u32 {
+        unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_nx(self.bitmap.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn ny(&self) -> u32 {
+        unsafe { llama_cpp_bindings_sys::mtmd_bitmap_get_ny(self.bitmap.as_ptr()) }
     }
 
     /// # Errors
@@ -406,9 +412,38 @@ impl Drop for MtmdBitmap {
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
+    use std::path::PathBuf;
+
+    use std::ptr;
+
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+    use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+
+    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
 
     use crate::mtmd::mtmd_bitmap::MtmdBitmap;
+
+    use super::bitmap_init_from_audio_status_to_result;
+    use super::from_buf_status_to_result;
+    use super::from_file_status_to_result;
     use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
+
+    use super::bitmap_init_status_to_result;
+
+    fn contract_violation(operation: &'static str, detail: &'static str) -> MtmdBitmapError {
+        FfiContractError { operation, detail }.into()
+    }
+
+    fn missing_message(operation: &'static str) -> MtmdBitmapError {
+        CppStringError::Missing(FfiContractError {
+            operation,
+            detail: "reported a thrown C++ exception without an error message",
+        })
+        .into()
+    }
 
     trait ResolvesOnlyWithoutClone<TMarker> {
         fn resolved() -> bool {
@@ -419,6 +454,11 @@ mod tests {
     impl<TValue> ResolvesOnlyWithoutClone<()> for TValue {}
 
     impl<TValue: Clone> ResolvesOnlyWithoutClone<u8> for TValue {}
+
+    struct NullArgumentCase {
+        status: llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_buf_status,
+        detail: &'static str,
+    }
 
     #[test]
     fn a_bitmap_cannot_be_cloned() {
@@ -465,19 +505,19 @@ mod tests {
 
         assert_eq!(
             result_1x1.unwrap_err(),
-            MtmdBitmapError::ImageDimensionsTooSmall(1, 1)
+            MtmdBitmapError::ImageDimensionsTooSmall { nx: 1, ny: 1 }
         );
         assert_eq!(
             result_1x2.unwrap_err(),
-            MtmdBitmapError::ImageDimensionsTooSmall(1, 2)
+            MtmdBitmapError::ImageDimensionsTooSmall { nx: 1, ny: 2 }
         );
         assert_eq!(
             result_2x1.unwrap_err(),
-            MtmdBitmapError::ImageDimensionsTooSmall(2, 1)
+            MtmdBitmapError::ImageDimensionsTooSmall { nx: 2, ny: 1 }
         );
         assert_eq!(
             result_0x0.unwrap_err(),
-            MtmdBitmapError::ImageDimensionsTooSmall(0, 0)
+            MtmdBitmapError::ImageDimensionsTooSmall { nx: 0, ny: 0 }
         );
     }
 
@@ -532,19 +572,6 @@ mod tests {
 
         assert_eq!(result, Err(CString::new("id\0null").unwrap_err()));
     }
-}
-
-#[cfg(test)]
-mod from_file_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::path::PathBuf;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::from_file_status_to_result;
-    use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
 
     #[test]
     fn from_file_success_with_null_bitmap_is_contract_error() {
@@ -734,25 +761,6 @@ mod from_file_status_to_result_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod from_buf_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-    use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
-    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
-
-    use super::from_buf_status_to_result;
-    use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
-
-    struct NullArgumentCase {
-        status: llama_cpp_bindings_sys::llama_rs_mtmd_bitmap_init_from_buf_status,
-        detail: &'static str,
-    }
 
     #[test]
     fn success_status_adopts_the_bitmap_the_wrapper_produced() {
@@ -930,31 +938,6 @@ mod from_buf_status_to_result_tests {
                 .into()
             )
         );
-    }
-}
-
-#[cfg(test)]
-mod bitmap_init_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::bitmap_init_from_audio_status_to_result;
-    use super::bitmap_init_status_to_result;
-    use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
-
-    fn contract_violation(operation: &'static str, detail: &'static str) -> MtmdBitmapError {
-        FfiContractError { operation, detail }.into()
-    }
-
-    fn missing_message(operation: &'static str) -> MtmdBitmapError {
-        CppStringError::Missing(FfiContractError {
-            operation,
-            detail: "reported a thrown C++ exception without an error message",
-        })
-        .into()
     }
 
     #[test]

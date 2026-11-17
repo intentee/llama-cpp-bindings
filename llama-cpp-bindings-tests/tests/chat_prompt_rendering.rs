@@ -64,8 +64,10 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_session_renders_the_user_message_into_the_prompt(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let prompt = user_turn_chat_session(fixture.model, "hello", &[], true)?.prompt()?;
+fn chat_session_renders_the_user_message_into_the_prompt(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let prompt = user_turn_chat_session(model, "hello", &[], true)?.prompt()?;
 
     ensure!(
         prompt.contains("hello"),
@@ -107,9 +109,11 @@ fn chat_session_renders_the_user_message_into_the_prompt(fixture: &LlamaFixture<
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_session_renders_long_messages_in_full(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn chat_session_renders_long_messages_in_full(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let long_content = "a".repeat(2000);
-    let prompt = user_turn_chat_session(fixture.model, &long_content, &[], true)?.prompt()?;
+    let prompt = user_turn_chat_session(model, &long_content, &[], true)?.prompt()?;
 
     ensure!(
         prompt.contains(&long_content),
@@ -127,9 +131,9 @@ fn chat_session_renders_long_messages_in_full(fixture: &LlamaFixture<'_>) -> Res
     n_ubatch = 64,
 )]
 fn qwen35_generation_prompt_opens_the_assistant_turn_with_thinking(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], true)?;
+    let session = user_turn_chat_session(model, "hello", &[], true)?;
 
     ensure!(session.generation_prompt()? == "<|im_start|>assistant\n<think>\n");
 
@@ -145,11 +149,11 @@ fn qwen35_generation_prompt_opens_the_assistant_turn_with_thinking(
     n_ubatch = 64,
 )]
 fn qwen35_omitted_assistant_turn_renders_only_the_messages(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = ChatSession::new(
-        fixture.model,
-        fixture.model.chat_templates()?,
+        model,
+        model.chat_templates()?,
         &[user_message("hello")],
         &[],
         &ChatSessionOptions {
@@ -174,11 +178,11 @@ fn qwen35_omitted_assistant_turn_renders_only_the_messages(
     n_ubatch = 64,
 )]
 fn qwen35_renders_a_tool_call_history_with_its_reasoning_and_tool_response(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = ChatSession::new(
-        fixture.model,
-        fixture.model.chat_templates()?,
+        model,
+        model.chat_templates()?,
         &[
             user_message("What is the weather in Paris?"),
             ChatMessage::AssistantToolCalls {

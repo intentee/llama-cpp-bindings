@@ -40,8 +40,10 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn default_chat_template_is_not_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
-    ensure!(fixture.model.chat_template(None)?.to_str()? != "");
+fn default_chat_template_is_not_empty(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    ensure!(model.chat_template(None)?.to_str()? != "");
 
     Ok(())
 }
@@ -78,10 +80,10 @@ fn default_chat_template_is_not_empty(fixture: &LlamaFixture<'_>) -> Result<()> 
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let result = fixture
-        .model
-        .chat_template(Some("nonexistent_template_name_xyz"));
+fn chat_template_with_nonexistent_name_returns_error(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let result = model.chat_template(Some("nonexistent_template_name_xyz"));
     ensure!(result.err().context("the operation must fail")? == ChatTemplateError::MissingTemplate);
 
     Ok(())
@@ -95,9 +97,11 @@ fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>)
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_template_with_a_nul_byte_in_the_name_returns_error(fixture: &LlamaFixture<'_>) {
+fn chat_template_with_a_nul_byte_in_the_name_returns_error(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     assert_eq!(
-        fixture.model.chat_template(Some("tool\0use")).err(),
+        model.chat_template(Some("tool\0use")).err(),
         CString::new("tool\0use")
             .err()
             .map(ChatTemplateError::NullError)

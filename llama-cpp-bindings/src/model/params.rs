@@ -1,3 +1,11 @@
+pub mod fit_extra_model;
+pub mod fit_result;
+pub mod kv_override_entry;
+pub mod kv_override_value_iterator;
+pub mod kv_overrides;
+pub mod param_override_value;
+pub mod unknown_kv_override_tag;
+
 use std::ffi::{CStr, CString, c_char};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -10,6 +18,7 @@ use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::backend_device_index::backend_device_index;
+use crate::constants::EMPTY_KV_OVERRIDE;
 use crate::context::params::LlamaContextParams;
 use crate::error::fit_error::FitError;
 use crate::error::llama_cpp_error::LlamaCppError;
@@ -20,20 +29,10 @@ use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 use crate::model::llama_load_mode::LlamaLoadMode;
 use crate::model::llama_load_mode_parse_error::LlamaLoadModeParseError;
 use crate::model::llama_split_mode_parse_error::LlamaSplitModeParseError;
-use crate::model::params::empty_kv_override::EMPTY_KV_OVERRIDE;
 use crate::model::params::fit_extra_model::FitExtraModel;
 use crate::model::params::fit_result::FitResult;
 use crate::model::params::kv_overrides::KvOverrides;
 use crate::model::split_mode::LlamaSplitMode;
-
-pub mod empty_kv_override;
-pub mod fit_extra_model;
-pub mod fit_result;
-pub mod kv_override_entry;
-pub mod kv_override_value_iterator;
-pub mod kv_overrides;
-pub mod param_override_value;
-pub mod unknown_kv_override_tag;
 
 fn fit_params_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
@@ -135,8 +134,9 @@ pub struct LlamaModelParams {
 }
 
 impl Debug for LlamaModelParams {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LlamaModelParams")
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("LlamaModelParams")
             .field("n_gpu_layers", &self.params.n_gpu_layers)
             .field("main_gpu", &self.params.main_gpu)
             .field("vocab_only", &self.params.vocab_only)
@@ -151,11 +151,6 @@ impl Debug for LlamaModelParams {
 }
 
 impl LlamaModelParams {
-    #[must_use]
-    pub const fn kv_overrides(&self) -> KvOverrides<'_> {
-        KvOverrides::new(self)
-    }
-
     /// # Errors
     /// Returns [`ModelParamsError`] if the internal override vector has no available slot,
     /// the slot is not empty, or the key contains invalid characters.
@@ -195,6 +190,11 @@ impl LlamaModelParams {
         Ok(())
     }
 
+    #[must_use]
+    pub const fn kv_overrides(&self) -> KvOverrides<'_> {
+        KvOverrides::new(self)
+    }
+
     fn push_kv_override_terminator(mut self: Pin<&mut Self>) {
         self.params.kv_overrides = null();
 
@@ -205,13 +205,6 @@ impl LlamaModelParams {
 }
 
 impl LlamaModelParams {
-    /// # Errors
-    /// Returns [`ModelParamsError`] if the internal override vector has no available slot,
-    /// the slot is not empty, or the key contains invalid characters.
-    pub fn add_cpu_moe_override(self: Pin<&mut Self>) -> Result<(), ModelParamsError> {
-        self.add_cpu_buft_override(c"\\.ffn_(up|down|gate)_(ch|)exps")
-    }
-
     /// # Errors
     /// Returns [`ModelParamsError`] if the internal override vector has no available slot,
     /// the slot is not empty, or the key contains invalid characters.
@@ -239,6 +232,13 @@ impl LlamaModelParams {
         Ok(())
     }
 
+    /// # Errors
+    /// Returns [`ModelParamsError`] if the internal override vector has no available slot,
+    /// the slot is not empty, or the key contains invalid characters.
+    pub fn add_cpu_moe_override(self: Pin<&mut Self>) -> Result<(), ModelParamsError> {
+        self.add_cpu_buft_override(c"\\.ffn_(up|down|gate)_(ch|)exps")
+    }
+
     fn push_buft_override_terminator(mut self: Pin<&mut Self>) {
         self.params.tensor_buft_overrides = null();
 
@@ -253,80 +253,25 @@ impl LlamaModelParams {
 }
 
 impl LlamaModelParams {
-    #[must_use]
-    pub const fn n_gpu_layers(&self) -> i32 {
-        self.params.n_gpu_layers
-    }
-
-    #[must_use]
-    pub const fn main_gpu(&self) -> i32 {
-        self.params.main_gpu
-    }
-
-    #[must_use]
-    pub const fn vocab_only(&self) -> bool {
-        self.params.vocab_only
-    }
-
     /// # Errors
-    /// Returns [`LlamaLazyModeParseError`] when llama.cpp returns an unknown lazy mode.
-    pub fn lazy_mode(&self) -> Result<LlamaLazyMode, LlamaLazyModeParseError> {
-        LlamaLazyMode::try_from(self.params.lazy_mode)
-    }
+    /// Returns `LlamaCppError::BackendDeviceNotFound` if any device index is invalid.
+    pub fn with_devices(mut self, devices: &[usize]) -> Result<Self, LlamaCppError> {
+        for dev in self.devices.iter_mut() {
+            *dev = ptr::null_mut();
+        }
+        let max_devices = max_devices();
+        if devices.len() > max_devices {
+            return Err(LlamaCppError::MaxDevicesExceeded(max_devices));
+        }
+        for (device_slot, &dev) in self.devices.iter_mut().zip(devices) {
+            if dev >= unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
+                return Err(LlamaCppError::BackendDeviceNotFound(dev));
+            }
+            *device_slot = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(dev) };
+        }
+        self.params.devices = self.devices.as_mut_ptr();
 
-    /// # Errors
-    /// Returns [`LlamaLoadModeParseError`] when llama.cpp returns an unknown load mode.
-    pub fn load_mode(&self) -> Result<LlamaLoadMode, LlamaLoadModeParseError> {
-        LlamaLoadMode::try_from(self.params.load_mode)
-    }
-
-    #[must_use]
-    pub const fn load_mtp(&self) -> bool {
-        self.params.load_mtp
-    }
-
-    /// # Errors
-    /// Returns `LlamaSplitModeParseError` if the unknown split mode is encountered.
-    pub fn split_mode(&self) -> Result<LlamaSplitMode, LlamaSplitModeParseError> {
-        LlamaSplitMode::try_from(self.params.split_mode)
-    }
-
-    #[must_use]
-    pub fn devices(&self) -> Vec<usize> {
-        self.devices
-            .iter()
-            .take_while(|device| !device.is_null())
-            .filter_map(|device| backend_device_index(*device))
-            .collect()
-    }
-
-    #[must_use]
-    pub const fn with_n_gpu_layers(mut self, n_gpu_layers: i32) -> Self {
-        self.params.n_gpu_layers = n_gpu_layers;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_main_gpu(mut self, main_gpu: i32) -> Self {
-        self.params.main_gpu = main_gpu;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_vocab_only(mut self, vocab_only: bool) -> Self {
-        self.params.vocab_only = vocab_only;
-        self
-    }
-
-    #[must_use]
-    pub const fn no_alloc(&self) -> bool {
-        self.params.no_alloc
-    }
-
-    #[must_use]
-    pub const fn with_no_alloc(mut self, no_alloc: bool) -> Self {
-        self.params.no_alloc = no_alloc;
-        self
+        Ok(self)
     }
 
     #[must_use]
@@ -348,30 +293,85 @@ impl LlamaModelParams {
     }
 
     #[must_use]
+    pub const fn with_main_gpu(mut self, main_gpu: i32) -> Self {
+        self.params.main_gpu = main_gpu;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_n_gpu_layers(mut self, n_gpu_layers: i32) -> Self {
+        self.params.n_gpu_layers = n_gpu_layers;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_no_alloc(mut self, no_alloc: bool) -> Self {
+        self.params.no_alloc = no_alloc;
+        self
+    }
+
+    #[must_use]
     pub fn with_split_mode(mut self, split_mode: LlamaSplitMode) -> Self {
         self.params.split_mode = split_mode.into();
         self
     }
 
-    /// # Errors
-    /// Returns `LlamaCppError::BackendDeviceNotFound` if any device index is invalid.
-    pub fn with_devices(mut self, devices: &[usize]) -> Result<Self, LlamaCppError> {
-        for dev in self.devices.iter_mut() {
-            *dev = ptr::null_mut();
-        }
-        let max_devices = max_devices();
-        if devices.len() > max_devices {
-            return Err(LlamaCppError::MaxDevicesExceeded(max_devices));
-        }
-        for (device_slot, &dev) in self.devices.iter_mut().zip(devices) {
-            if dev >= unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
-                return Err(LlamaCppError::BackendDeviceNotFound(dev));
-            }
-            *device_slot = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(dev) };
-        }
-        self.params.devices = self.devices.as_mut_ptr();
+    #[must_use]
+    pub const fn with_vocab_only(mut self, vocab_only: bool) -> Self {
+        self.params.vocab_only = vocab_only;
+        self
+    }
 
-        Ok(self)
+    #[must_use]
+    pub fn devices(&self) -> Vec<usize> {
+        self.devices
+            .iter()
+            .take_while(|device| !device.is_null())
+            .filter_map(|device| backend_device_index(*device))
+            .collect()
+    }
+
+    /// # Errors
+    /// Returns [`LlamaLazyModeParseError`] when llama.cpp returns an unknown lazy mode.
+    pub fn lazy_mode(&self) -> Result<LlamaLazyMode, LlamaLazyModeParseError> {
+        LlamaLazyMode::try_from(self.params.lazy_mode)
+    }
+
+    /// # Errors
+    /// Returns [`LlamaLoadModeParseError`] when llama.cpp returns an unknown load mode.
+    pub fn load_mode(&self) -> Result<LlamaLoadMode, LlamaLoadModeParseError> {
+        LlamaLoadMode::try_from(self.params.load_mode)
+    }
+
+    #[must_use]
+    pub const fn load_mtp(&self) -> bool {
+        self.params.load_mtp
+    }
+
+    #[must_use]
+    pub const fn main_gpu(&self) -> i32 {
+        self.params.main_gpu
+    }
+
+    #[must_use]
+    pub const fn n_gpu_layers(&self) -> i32 {
+        self.params.n_gpu_layers
+    }
+
+    #[must_use]
+    pub const fn no_alloc(&self) -> bool {
+        self.params.no_alloc
+    }
+
+    /// # Errors
+    /// Returns `LlamaSplitModeParseError` if the unknown split mode is encountered.
+    pub fn split_mode(&self) -> Result<LlamaSplitMode, LlamaSplitModeParseError> {
+        LlamaSplitMode::try_from(self.params.split_mode)
+    }
+
+    #[must_use]
+    pub const fn vocab_only(&self) -> bool {
+        self.params.vocab_only
     }
 }
 
@@ -382,7 +382,7 @@ impl LlamaModelParams {
     pub fn fit_params(
         mut self: Pin<&mut Self>,
         model_path: &CStr,
-        context_params: &mut LlamaContextParams,
+        LlamaContextParams { context_params, .. }: &mut LlamaContextParams,
         margins: &mut [usize],
         n_ctx_min: u32,
         mut extra: Option<&mut FitExtraModel<'_>>,
@@ -425,7 +425,7 @@ impl LlamaModelParams {
             llama_cpp_bindings_sys::llama_rs_fit_params(
                 model_path.as_ptr(),
                 &raw mut self.params,
-                &raw mut context_params.context_params,
+                &raw mut *context_params,
                 self.tensor_split.as_mut_ptr(),
                 self.buft_overrides.as_mut_ptr(),
                 margins.as_mut_ptr(),
@@ -443,7 +443,7 @@ impl LlamaModelParams {
         self.params.tensor_buft_overrides = self.buft_overrides.as_ptr();
 
         Ok(FitResult {
-            n_ctx: context_params.context_params.n_ctx,
+            n_ctx: context_params.n_ctx,
         })
     }
 }
@@ -469,24 +469,59 @@ impl Default for LlamaModelParams {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::params::empty_kv_override::KV_OVERRIDE_TEXT_CAPACITY;
     use std::ffi::CStr;
+
     use std::ffi::CString;
+
     use std::pin::pin;
+
     use std::ptr;
 
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::LlamaModelParams;
+    use crate::constants::KV_OVERRIDE_TEXT_CAPACITY;
+
     use crate::context::params::LlamaContextParams;
+
     use crate::error::fit_error::FitError;
+
     use crate::error::llama_cpp_error::LlamaCppError;
+
     use crate::error::model_params_error::ModelParamsError;
+
     use crate::llama_backend::LlamaBackend;
+
     use crate::max_devices::max_devices;
+
     use crate::model::llama_lazy_mode::LlamaLazyMode;
+
     use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
+
     use crate::model::llama_load_mode::LlamaLoadMode;
+
     use crate::model::params::param_override_value::ParamOverrideValue;
+
+    use super::fit_params_status_to_result;
     use crate::model::split_mode::LlamaSplitMode;
+
+    fn contract_error_reported_for(
+        status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
+    ) -> Option<FitError> {
+        fit_params_status_to_result(status, 0, ptr::null_mut()).err()
+    }
+
+    fn contract_error_with(detail: &'static str) -> FitError {
+        FfiContractError {
+            operation: "llama_rs_fit_params",
+            detail,
+        }
+        .into()
+    }
 
     #[test]
     fn default_params_match_the_llama_cpp_model_defaults() {
@@ -885,32 +920,6 @@ mod tests {
                 actual: max_devices() + 1,
             })
         );
-    }
-}
-
-#[cfg(test)]
-mod fit_params_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::fit_params_status_to_result;
-    use crate::error::fit_error::FitError;
-
-    fn contract_error_reported_for(
-        status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
-    ) -> Option<FitError> {
-        fit_params_status_to_result(status, 0, ptr::null_mut()).err()
-    }
-
-    fn contract_error_with(detail: &'static str) -> FitError {
-        FfiContractError {
-            operation: "llama_rs_fit_params",
-            detail,
-        }
-        .into()
     }
 
     #[test]

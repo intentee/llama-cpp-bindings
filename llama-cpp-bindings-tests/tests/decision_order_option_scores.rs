@@ -20,11 +20,6 @@ const QUESTION_MARK: &str = "<<clef:question>>";
 const OPTION_MARK: &str = "<<clef:option>>";
 const OPTION_COUNT: i32 = 3;
 
-struct MarkedPiece<'piece> {
-    decision_order: DecisionOrder,
-    text: &'piece str,
-}
-
 fn marked_piece(piece: &str) -> MarkedPiece<'_> {
     piece.strip_prefix(QUESTION_MARK).map_or_else(
         || {
@@ -56,9 +51,13 @@ fn marked_piece(piece: &str) -> MarkedPiece<'_> {
     embeddings = true,
 )]
 fn clef_scores_the_matching_option_highest_among_the_options_marked_in_the_batch(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let prompt = model.chat_template(Some("systemone"))?.render(
         &json!({
             "state": "Thick snowflakes have been falling on the frozen street all morning.",
@@ -81,8 +80,8 @@ fn clef_scores_the_matching_option_highest_among_the_options_marked_in_the_batch
     )?;
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params)
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_pooling_type(LlamaPoolingType::None),
     )?;
@@ -121,4 +120,9 @@ fn clef_scores_the_matching_option_highest_among_the_options_marked_in_the_batch
     );
 
     Ok(())
+}
+
+struct MarkedPiece<'piece> {
+    decision_order: DecisionOrder,
+    text: &'piece str,
 }

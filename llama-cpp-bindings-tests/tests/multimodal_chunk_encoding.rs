@@ -26,10 +26,10 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn encode_chunk_encodes_an_image_chunk(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn encode_chunk_encodes_an_image_chunk(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
     let input_text = MtmdInputText {

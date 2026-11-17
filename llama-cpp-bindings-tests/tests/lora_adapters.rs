@@ -30,16 +30,23 @@ use llama_cpp_test_model_provisioning::download_model::download_model;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn set_lora_adapters_applies_a_real_adapter(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn set_lora_adapters_applies_a_real_adapter(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let adapter_path = download_model(
         "ggml-org/LoRA-Deepthink-Reasoning-Qwen2.5-7B-Instruct-Q8_0-GGUF",
         "Deepthink-Reasoning-Adapter-q8_0.gguf",
     )?;
-    let adapter = fixture.model.lora_adapter_init(&adapter_path)?;
+    let adapter = model.lora_adapter_init(&adapter_path)?;
     let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     ensure!(
@@ -60,11 +67,18 @@ fn set_lora_adapters_applies_a_real_adapter(fixture: &LlamaFixture<'_>) -> Resul
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn set_lora_adapters_accepts_an_empty_adapter_set(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn set_lora_adapters_accepts_an_empty_adapter_set(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     ensure!(context.set_lora_adapters(&[]) == Ok(()));
 
@@ -113,11 +127,9 @@ fn setting_lora_adapters_reports_a_status_llama_cpp_returns(
     n_ubatch = 64,
 )]
 fn lora_adapter_init_with_a_missing_file_reports_it_not_found(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let result = fixture
-        .model
-        .lora_adapter_init("/nonexistent/path/lora.gguf");
+    let result = model.lora_adapter_init("/nonexistent/path/lora.gguf");
     ensure!(
         result.err().context("the operation must fail")?
             == LlamaLoraAdapterInitError::FileNotFound(PathBuf::from(
@@ -137,12 +149,12 @@ fn lora_adapter_init_with_a_missing_file_reports_it_not_found(
     n_ubatch = 64,
 )]
 fn lora_adapter_init_with_an_invalid_gguf_reports_it_unloadable(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let dummy_path = env::temp_dir().join("llama_test_dummy_lora.gguf");
     fs::write(&dummy_path, b"not a valid gguf")?;
 
-    let result = fixture.model.lora_adapter_init(&dummy_path);
+    let result = model.lora_adapter_init(&dummy_path);
 
     ensure!(
         result.err().context("the operation must fail")? == LlamaLoraAdapterInitError::Unloadable
@@ -159,9 +171,11 @@ fn lora_adapter_init_with_an_invalid_gguf_reports_it_unloadable(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn lora_adapter_init_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn lora_adapter_init_refuses_a_path_that_is_not_utf8(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
-    let result = fixture.model.lora_adapter_init(non_utf8_path);
+    let result = model.lora_adapter_init(non_utf8_path);
 
     ensure!(
         result.err().context("the operation must fail")?
@@ -179,12 +193,11 @@ fn lora_adapter_init_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>)
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn lora_adapter_init_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
+fn lora_adapter_init_refuses_a_path_with_a_nul_byte(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     assert_eq!(
-        fixture
-            .model
-            .lora_adapter_init("/adapters/adapter\0.gguf")
-            .err(),
+        model.lora_adapter_init("/adapters/adapter\0.gguf").err(),
         CString::new("/adapters/adapter\0.gguf")
             .err()
             .map(LlamaLoraAdapterInitError::NullError)

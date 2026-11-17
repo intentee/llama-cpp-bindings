@@ -24,8 +24,8 @@ Paris\n\
 fn raw_text_where(outcomes: &[IngestOutcome], belongs: impl Fn(&SampledToken) -> bool) -> String {
     outcomes
         .iter()
-        .filter(|outcome| belongs(&outcome.sampled_token))
-        .map(|outcome| outcome.piece.raw())
+        .filter(|IngestOutcome { sampled_token, .. }| belongs(sampled_token))
+        .map(|IngestOutcome { piece, .. }| piece.raw())
         .collect()
 }
 
@@ -38,17 +38,17 @@ fn raw_text_where(outcomes: &[IngestOutcome], belongs: impl Fn(&SampledToken) ->
     n_ubatch = 128,
 )]
 fn qwen35_reasoning_closed_by_a_tool_call_is_attributed_to_each_section(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = user_turn_chat_session(
-        fixture.model,
+        model,
         "What is the weather in Paris?",
         &get_weather_tools(),
         true,
     )?;
     let answer = format!("{REASONING_BEFORE_THE_CALL}{QWEN_XML_PARIS_WEATHER_CALL}");
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
-    let outcomes = ingested_generation(&mut classifier, fixture.model, &answer)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
+    let outcomes = ingested_generation(&mut classifier, model, &answer)?;
     let parsed = classifier
         .latest_reading()
         .context("the classifier must have read the answer")?

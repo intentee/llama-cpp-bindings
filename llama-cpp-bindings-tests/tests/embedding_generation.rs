@@ -23,14 +23,17 @@ use llama_cpp_test_harness_macros::llama_test;
     embeddings = true,
 )]
 fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-
     let mut ctx = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )
     .with_context(|| "unable to create context")?;
 
@@ -65,23 +68,26 @@ fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
     embeddings = true,
 )]
 fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     let embeddings = context.embeddings_seq_ith(0)?;
 
-    ensure!(embeddings.len() == usize::try_from(fixture.model.n_embd())?);
+    ensure!(embeddings.len() == usize::try_from(model.n_embd())?);
 
     Ok(())
 }
@@ -97,12 +103,17 @@ fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
     embeddings = true,
 )]
 fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     let inputs = [
@@ -114,10 +125,7 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     for (sequence_index, text) in inputs.iter().enumerate() {
-        let tokens =
-            fixture
-                .model
-                .str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
+        let tokens = model.str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
         let sequence_id = i32::try_from(sequence_index)?;
 
         batch.add_sequence(&tokens, sequence_id, true)?;
@@ -125,7 +133,7 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
 
     context.decode(&batch)?;
 
-    let n_embd = usize::try_from(fixture.model.n_embd())?;
+    let n_embd = usize::try_from(model.n_embd())?;
     let mut collected: Vec<Vec<f32>> = Vec::with_capacity(inputs.len());
 
     for sequence_index in 0..inputs.len() {
@@ -167,12 +175,17 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
     embeddings = true,
 )]
 fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     let iterations = [
@@ -186,16 +199,13 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
         ],
     ];
 
-    let n_embd = usize::try_from(fixture.model.n_embd())?;
+    let n_embd = usize::try_from(model.n_embd())?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let mut collected: Vec<Vec<f32>> = Vec::new();
 
     for iteration_inputs in iterations {
         for (sequence_index, text) in iteration_inputs.iter().enumerate() {
-            let tokens =
-                fixture
-                    .model
-                    .str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
+            let tokens = model.str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
             let sequence_id = i32::try_from(sequence_index)?;
 
             batch.add_sequence(&tokens, sequence_id, true)?;
@@ -249,17 +259,22 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
     n_ubatch = 512,
     embeddings = true,
 )]
-fn a_token_embedding_is_as_wide_as_the_model_embedding(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_token_embedding_is_as_wide_as_the_model_embedding(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
+        model,
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_pooling_type(LlamaPoolingType::None),
     )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(
         tokens
             .len()
@@ -272,7 +287,7 @@ fn a_token_embedding_is_as_wide_as_the_model_embedding(fixture: &LlamaFixture<'_
 
     let embeddings = context.embeddings_ith(last_index)?;
 
-    ensure!(embeddings.len() == usize::try_from(fixture.model.n_embd())?);
+    ensure!(embeddings.len() == usize::try_from(model.n_embd())?);
 
     Ok(())
 }

@@ -59,11 +59,18 @@ fn a_context_size_overflowing_llama_cpp_padding_is_unconstructible(fixture: &Lla
     n_batch = 1,
     n_ubatch = 1,
 )]
-fn new_context_rejects_more_sequences_than_one_batch_can_output(fixture: &LlamaFixture<'_>) {
+fn new_context_rejects_more_sequences_than_one_batch_can_output(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) {
     let context_load = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
+        model,
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_n_seq_max(2),
     );
@@ -85,11 +92,18 @@ fn new_context_rejects_more_sequences_than_one_batch_can_output(fixture: &LlamaF
     n_batch = 2,
     n_ubatch = 2,
 )]
-fn new_context_rejects_more_sequences_than_a_causal_context_can_output(fixture: &LlamaFixture<'_>) {
+fn new_context_rejects_more_sequences_than_a_causal_context_can_output(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) {
     let context_load = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
+        model,
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_n_ctx(NonZeroU32::new(1))
             .with_n_seq_max(2),
@@ -113,15 +127,20 @@ fn new_context_rejects_more_sequences_than_a_causal_context_can_output(fixture: 
     n_ubatch = 512,
 )]
 fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_INIT_THROWS);
 
     ensure!(
         LlamaContext::from_model(
-            fixture.model,
-            fixture.backend,
-            (*fixture.context_params).into_llama_context_params(),
+            model,
+            backend,
+            (*context_params).into_llama_context_params(),
         )
         .err()
             == Some(LlamaContextLoadError::Reported {
@@ -160,13 +179,18 @@ fn a_context_whose_pooling_type_llama_cpp_does_not_define_is_refused(fixture: &L
     n_ubatch = 128,
 )]
 fn context_params_with_an_attention_type_llama_cpp_does_not_define_are_refused(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) {
-    let mut params = (*fixture.context_params).into_llama_context_params();
+    let mut params = (*context_params).into_llama_context_params();
     params.context_params.attention_type = 99;
 
     assert_eq!(
-        LlamaContext::from_model(fixture.model, fixture.backend, params).err(),
+        LlamaContext::from_model(model, backend, params).err(),
         Some(LlamaContextLoadError::UnknownAttentionType(
             UnknownAttentionType(99)
         ))

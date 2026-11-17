@@ -3,10 +3,10 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::compile_command::CompileCommand;
-use crate::cpp_standard::CPP_STANDARD;
-use crate::fault_injection_define::FAULT_INJECTION_DEFINE;
+use crate::constants::CPP_STANDARD;
+use crate::constants::FAULT_INJECTION_DEFINE;
+use crate::constants::WRAPPER_INCLUDE_DIRS;
 use crate::system_include_flags::system_include_flags;
-use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
 use crate::wrapper_source_paths::wrapper_source_paths;
 use crate::wrapper_sources_error::WrapperSourcesError;
 
@@ -77,8 +77,8 @@ mod tests {
     use std::path::PathBuf;
 
     use super::CompileCommandsFile;
+    use crate::constants::WRAPPER_INCLUDE_DIRS;
     use crate::system_include_flags::system_include_flags;
-    use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
     use crate::wrapper_source_paths::wrapper_source_paths;
 
     fn database_for(output_path: &str) -> CompileCommandsFile {

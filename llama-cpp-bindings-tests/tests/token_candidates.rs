@@ -22,16 +22,19 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(
         tokens
             .len()
@@ -44,7 +47,7 @@ fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
 
     let token_data_array = context.token_data_array_ith(last_index)?;
 
-    ensure!(token_data_array.data.len() == usize::try_from(fixture.model.n_vocab())?);
+    ensure!(token_data_array.data.len() == usize::try_from(model.n_vocab())?);
 
     Ok(())
 }
@@ -58,13 +61,17 @@ fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
     n_ubatch = 64,
 )]
 fn qwen35_refilled_candidate_array_matches_a_freshly_built_one(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let prompt_tokens = model.str_to_token("Hello", AddBos::Never, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));

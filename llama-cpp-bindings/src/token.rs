@@ -1,19 +1,19 @@
+pub mod data;
+pub mod data_array;
+pub mod logit_bias;
+
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
-
-pub mod data;
-pub mod data_array;
-pub mod logit_bias;
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct LlamaToken(pub llama_cpp_bindings_sys::llama_token);
 
 impl Display for LlamaToken {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", self.0)
     }
 }
 

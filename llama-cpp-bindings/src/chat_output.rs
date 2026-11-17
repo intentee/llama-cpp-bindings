@@ -22,16 +22,21 @@ impl From<&str> for ChatOutput {
 }
 
 impl ChatOutput {
+    #[must_use]
+    pub fn byte_tokens(&self) -> &[llama_token] {
+        &self.byte_tokens
+    }
+
     /// Appends the text `token` decoded to, recording the token at the first byte of its piece
     /// the way `common_chat_input` lays tokens over the text, and returns the bytes the piece
     /// occupies.
-    pub fn push(&mut self, token: LlamaToken, piece: &str) -> Range<usize> {
+    pub fn push(&mut self, LlamaToken(token_id): LlamaToken, piece: &str) -> Range<usize> {
         let start = self.text.len();
 
         self.text.push_str(piece);
         self.byte_tokens.extend((0..piece.len()).map(|offset| {
             if offset == 0 {
-                token.0
+                token_id
             } else {
                 LLAMA_TOKEN_NULL
             }
@@ -43,11 +48,6 @@ impl ChatOutput {
     #[must_use]
     pub fn text(&self) -> &str {
         &self.text
-    }
-
-    #[must_use]
-    pub fn byte_tokens(&self) -> &[llama_token] {
-        &self.byte_tokens
     }
 }
 

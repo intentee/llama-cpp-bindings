@@ -13,8 +13,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_to_piece_bytes_rejects_tokens_outside_the_vocabulary(fixture: &LlamaFixture<'_>) {
-    let model = fixture.model;
+fn token_to_piece_bytes_rejects_tokens_outside_the_vocabulary(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let n_vocab = model.n_vocab();
 
     assert_eq!(
@@ -45,8 +46,9 @@ fn token_to_piece_bytes_rejects_tokens_outside_the_vocabulary(fixture: &LlamaFix
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_attr_rejects_tokens_outside_the_vocabulary(fixture: &LlamaFixture<'_>) {
-    let model = fixture.model;
+fn token_attr_rejects_tokens_outside_the_vocabulary(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let n_vocab = model.n_vocab();
 
     assert_eq!(

@@ -71,13 +71,6 @@ impl GrammarMatcher {
         Self { parser }
     }
 
-    #[must_use]
-    pub fn deep_clone(&self) -> Self {
-        Self {
-            parser: self.parser.deep_clone(),
-        }
-    }
-
     /// # Errors
     /// Returns [`GrammarRuntimeError`] when the parser reaches a genuine error
     /// state (distinct from a benign grammar completion).
@@ -97,6 +90,13 @@ impl GrammarMatcher {
             GrammarMatcherStepOutcome::Produced(_) | GrammarMatcherStepOutcome::BenignStop => {
                 Ok(())
             }
+        }
+    }
+
+    #[must_use]
+    pub fn deep_clone(&self) -> Self {
+        Self {
+            parser: self.parser.deep_clone(),
         }
     }
 

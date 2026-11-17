@@ -36,11 +36,6 @@ use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
-struct ImageDimensions {
-    width: u32,
-    height: u32,
-}
-
 const EVALUATED_IMAGE_DIMENSIONS: [ImageDimensions; 10] = [
     ImageDimensions {
         width: 224,
@@ -84,10 +79,18 @@ const EVALUATED_IMAGE_DIMENSIONS: [ImageDimensions; 10] = [
     },
 ];
 
-fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn eval_synthetic_bitmap(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
+    width: u32,
+    height: u32,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let image_data =
         vec![
             128u8;
@@ -110,10 +113,10 @@ fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) ->
             .checked_add(256)
             .context("`n_positions + 256` must not overflow")?,
     )?;
-    if fixture.context_params.n_ctx < required_n_ctx {
+    if context_params.n_ctx < required_n_ctx {
         bail!(
             "fixture n_ctx ({}) below required ({}) for {}x{} image",
-            fixture.context_params.n_ctx,
+            context_params.n_ctx,
             required_n_ctx,
             width,
             height,
@@ -121,9 +124,9 @@ fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) ->
     }
 
     let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
 
@@ -135,7 +138,7 @@ fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) ->
 }
 
 fn tokenize_question_about_llamas(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
     mtmd_ctx: &MtmdContext,
 ) -> Result<MtmdInputChunks> {
     let image_path = fixtures_dir().join("llamas.jpg");
@@ -146,7 +149,7 @@ fn tokenize_question_about_llamas(
 
     Ok(mtmd_ctx.tokenize(
         MtmdInputText {
-            text: media_question_chat_session(fixture.model, PROMPT_QUESTION)?.prompt()?,
+            text: media_question_chat_session(model, PROMPT_QUESTION)?.prompt()?,
             add_special: true,
             parse_special: true,
         },
@@ -173,15 +176,19 @@ fn tokenize_question_about_llamas(
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     let chunks = MtmdInputChunks::new()?;
@@ -330,14 +337,20 @@ fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn fitting_no_chunks_leaves_nothing_to_evaluate(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn fitting_no_chunks_leaves_nothing_to_evaluate(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let fitted_chunks =
         FittedMtmdInputChunks::fit(MtmdInputChunks::new()?, mtmd_ctx, llama_ctx.n_ubatch())?;
@@ -597,11 +610,15 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn eval_chunks_advances_past_every_position_of_a_standard_image(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let fixtures = fixtures_dir();
     let image_path = fixtures.join("llamas.jpg");
@@ -622,16 +639,16 @@ fn eval_chunks_advances_past_every_position_of_a_standard_image(
             .context("`n_positions + 256` must not overflow")?,
     )?;
     ensure!(
-        fixture.context_params.n_ctx >= required_n_ctx,
+        context_params.n_ctx >= required_n_ctx,
         "fixture n_ctx ({}) below required ({}); update the attribute literal",
-        fixture.context_params.n_ctx,
+        context_params.n_ctx,
         required_n_ctx,
     );
 
     let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
 
@@ -1037,4 +1054,9 @@ fn classifier_reports_a_fitted_chunk_llama_cpp_no_longer_returns(
     );
 
     Ok(())
+}
+
+struct ImageDimensions {
+    width: u32,
+    height: u32,
 }

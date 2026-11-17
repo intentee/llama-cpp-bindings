@@ -13,11 +13,18 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn context_debug_format_contains_struct_name(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn context_debug_format_contains_struct_name(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let debug_output = format!("{context:?}");
 
@@ -34,8 +41,10 @@ fn context_debug_format_contains_struct_name(fixture: &LlamaFixture<'_>) -> Resu
     n_batch = 512,
     n_ubatch = 128
 )]
-fn model_debug_format_includes_struct_name_and_model_field(fixture: &LlamaFixture<'_>) {
-    let formatted = format!("{:?}", fixture.model);
+fn model_debug_format_includes_struct_name_and_model_field(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
+    let formatted = format!("{model:?}");
 
     assert!(formatted.contains("LlamaModel"));
     assert!(formatted.contains("model"));

@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::error::Error;
 
 use log::error;
 
@@ -11,6 +12,12 @@ thread_local! {
 pub struct FrameStack;
 
 impl FrameStack {
+    pub fn pop_frame() {
+        FRAMES.with(|cell| {
+            cell.borrow_mut().pop();
+        });
+    }
+
     pub fn push_frame() -> usize {
         FRAMES.with(|cell| {
             let mut frames = cell.borrow_mut();
@@ -21,21 +28,9 @@ impl FrameStack {
         })
     }
 
-    pub fn pop_frame() {
-        FRAMES.with(|cell| {
-            cell.borrow_mut().pop();
-        });
-    }
+    pub fn record_into_top(error: impl Into<Box<dyn Error + Send + Sync>>) {
+        let error = RecordedError::new(error);
 
-    pub fn take_from_frame(frame_index: usize) -> Option<RecordedError> {
-        FRAMES.with(|cell| {
-            cell.borrow_mut()
-                .get_mut(frame_index)
-                .and_then(Option::take)
-        })
-    }
-
-    pub fn record_into_top(error: RecordedError) {
         FRAMES.with(|cell| {
             let mut frames = cell.borrow_mut();
             let Some(top) = frames.last_mut() else {
@@ -52,5 +47,13 @@ impl FrameStack {
 
             *top = Some(error);
         });
+    }
+
+    pub fn take_from_frame(frame_index: usize) -> Option<RecordedError> {
+        FRAMES.with(|cell| {
+            cell.borrow_mut()
+                .get_mut(frame_index)
+                .and_then(Option::take)
+        })
     }
 }

@@ -66,12 +66,15 @@ fn load_fixture_bitmap(mtmd_ctx: &MtmdContext, file_name: &str) -> Result<MtmdBi
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
 fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let image_bitmap = load_fixture_bitmap(mtmd_ctx, "llamas.jpg")?;
     ensure!(!image_bitmap.is_audio(), "llamas.jpg must decode as image");
@@ -110,21 +113,21 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
             .context("`chunks.total_positions() + MAX_GENERATED_TOKENS` must not overflow")?,
     )?;
     ensure!(
-        fixture.context_params.n_ctx >= required_n_ctx,
+        context_params.n_ctx >= required_n_ctx,
         "fixture n_ctx ({}) below required ({}); update the attribute literal",
-        fixture.context_params.n_ctx,
+        context_params.n_ctx,
         required_n_ctx,
     );
 
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )
     .with_context(|| "unable to create llama context")?;
 
     let n_batch = i32::try_from(context.n_batch())?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

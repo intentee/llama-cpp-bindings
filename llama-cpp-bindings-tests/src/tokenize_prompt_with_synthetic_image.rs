@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
@@ -14,12 +15,10 @@ const SYNTHETIC_IMAGE_BYTES: usize = 64 * 64 * 3;
 /// Fails when the fixture declares no multimodal projector, or the image or prompt cannot be
 /// tokenized.
 pub fn tokenize_prompt_with_synthetic_image(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
     prompt: &str,
 ) -> Result<MtmdInputChunks> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; SYNTHETIC_IMAGE_BYTES];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)
         .context("a 64x64 RGB image must make a bitmap")?;

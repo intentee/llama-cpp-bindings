@@ -1,7 +1,6 @@
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
-use super::eval_chunk::eval_chunk;
 use super::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
@@ -75,8 +74,7 @@ impl<'fitted> FittedMtmdInputChunk<'fitted> {
             });
         }
 
-        eval_chunk(
-            &self.chunk,
+        self.chunk.eval(
             mtmd_ctx,
             llama_ctx,
             start_position,

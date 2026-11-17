@@ -17,7 +17,7 @@ const END_OF_GENERATION_TOKENS: u64 = 1;
 fn visible_text(outcomes: &[IngestOutcome]) -> String {
     outcomes
         .iter()
-        .map(|outcome| outcome.piece.visible())
+        .map(|IngestOutcome { piece, .. }| piece.visible())
         .collect()
 }
 
@@ -30,17 +30,17 @@ fn visible_text(outcomes: &[IngestOutcome]) -> String {
     n_ubatch = 64,
 )]
 fn qwen35_classifier_ends_generation_without_emitting_the_end_of_generation_token(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const GENERATED_TEXT: &str = "The answer is four.";
 
-    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", &[], false)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let session = user_turn_chat_session(model, "What is 2 + 2?", &[], false)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
 
     ensure!(
         visible_text(&ingested_generation(
             &mut classifier,
-            fixture.model,
+            model,
             GENERATED_TEXT
         )?) == GENERATED_TEXT
     );
@@ -51,8 +51,8 @@ fn qwen35_classifier_ends_generation_without_emitting_the_end_of_generation_toke
 fn visible_text_in(outcomes: &[IngestOutcome], section: SampledTokenSection) -> String {
     outcomes
         .iter()
-        .filter(|outcome| outcome.sampled_token.section() == section)
-        .map(|outcome| outcome.piece.visible())
+        .filter(|IngestOutcome { sampled_token, .. }| sampled_token.section() == section)
+        .map(|IngestOutcome { piece, .. }| piece.visible())
         .collect()
 }
 
@@ -65,16 +65,16 @@ fn visible_text_in(outcomes: &[IngestOutcome], section: SampledTokenSection) -> 
     n_ubatch = 64,
 )]
 fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_reasoning(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const SETTLED_REASONING: &str = "Let me think";
     const UNSETTLED_TAIL: &str = "</thi";
 
-    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", &[], true)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let session = user_turn_chat_session(model, "What is 2 + 2?", &[], true)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let mut outcomes = Vec::new();
 
-    for token in fixture.model.str_to_token(
+    for token in model.str_to_token(
         &format!("{SETTLED_REASONING}{UNSETTLED_TAIL}"),
         AddBos::Never,
         ParseSpecialTokens::Always,
@@ -109,13 +109,13 @@ fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_re
     n_ubatch = 64,
 )]
 fn gemma3_whose_template_cannot_render_tool_calls_keeps_a_bare_json_tool_call_as_content(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const GENERATED_TEXT: &str = r#"{"name": "get_weather", "arguments": {"location": "Paris"}}"#;
 
-    let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", &[], false)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
-    let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT)?;
+    let session = user_turn_chat_session(model, "What is 2 + 2?", &[], false)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
+    let outcomes = ingested_generation(&mut classifier, model, GENERATED_TEXT)?;
 
     ensure!(
         [

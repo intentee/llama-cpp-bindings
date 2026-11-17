@@ -33,11 +33,9 @@ const LLAMAS_JPG_HEIGHT: u32 = 427;
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn from_buffer_decodes_image_bytes_into_an_image_bitmap_of_their_size(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let fixtures = fixtures_dir();
     let image_path = fixtures.join("llamas.jpg");
@@ -69,10 +67,10 @@ fn from_buffer_decodes_image_bytes_into_an_image_bitmap_of_their_size(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn from_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn from_file_refuses_a_path_with_a_nul_byte(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     ensure!(
         MtmdBitmap::from_file(mtmd_ctx, "path\0null").err()

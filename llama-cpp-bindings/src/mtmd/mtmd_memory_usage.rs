@@ -178,12 +178,12 @@ impl MtmdMemoryUsage {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::num::NonZeroU32;
     use std::ptr;
 
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
     use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
     use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 

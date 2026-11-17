@@ -24,9 +24,13 @@ const OPTION_LABELS: [&str; 3] = ["A", "B", "C"];
     n_ubatch = 512,
 )]
 fn openjev_gives_the_label_of_the_matching_option_the_highest_logit(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let prompt = model.chat_template(Some("systemone"))?.render(
         &json!({
             "id": "weather",
@@ -45,8 +49,8 @@ fn openjev_gives_the_label_of_the_matching_option_the_highest_logit(
     let tokens = model.str_to_token(&prompt, AddBos::Never, ParseSpecialTokens::Always)?;
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 

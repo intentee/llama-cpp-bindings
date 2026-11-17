@@ -19,16 +19,19 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn encoding_with_a_decoder_only_model_reports_it_has_no_encoder(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
@@ -48,15 +51,20 @@ fn encoding_with_a_decoder_only_model_reports_it_has_no_encoder(
     n_ubatch = 512,
     embeddings = true,
 )]
-fn an_encoder_model_encodes_a_prompt(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn an_encoder_model_encodes_a_prompt(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 

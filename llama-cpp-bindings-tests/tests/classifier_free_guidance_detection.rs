@@ -10,7 +10,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
 )]
 fn a_text_generation_model_does_not_pair_sequences_for_classifier_free_guidance(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) {
-    assert!(!fixture.model.classifier_free_guidance());
+    assert!(!model.classifier_free_guidance());
 }

@@ -20,12 +20,17 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn token_embedding_reports_embeddings_not_enabled_on_a_context_without_embeddings(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     ensure!(context.embeddings_ith(0) == Err(EmbeddingsError::NotEnabled));
@@ -42,12 +47,17 @@ fn token_embedding_reports_embeddings_not_enabled_on_a_context_without_embedding
     n_ubatch = 512,
 )]
 fn sequence_embedding_reports_embeddings_not_enabled_on_a_context_without_embeddings(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     ensure!(context.embeddings_seq_ith(0) == Err(EmbeddingsError::NotEnabled));
@@ -65,18 +75,21 @@ fn sequence_embedding_reports_embeddings_not_enabled_on_a_context_without_embedd
     embeddings = true,
 )]
 fn sequence_embedding_of_a_sequence_missing_from_the_decoded_batch_is_unavailable(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
+        model,
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_pooling_type(LlamaPoolingType::Last),
     )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
@@ -101,12 +114,17 @@ fn sequence_embedding_of_a_sequence_missing_from_the_decoded_batch_is_unavailabl
     embeddings = true,
 )]
 fn token_embedding_of_an_index_without_a_decoded_output_names_no_output_row(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
+        model,
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_pooling_type(LlamaPoolingType::None),
     )?;

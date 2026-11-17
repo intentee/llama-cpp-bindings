@@ -5,8 +5,8 @@ use std::fs::DirEntry;
 use std::io;
 use std::path::Path;
 
-use llama_cpp_wrapper_sources::wrapper_headers::WRAPPER_HEADERS;
-use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
+use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
+use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
 
 const SYS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../llama-cpp-bindings-sys");
 

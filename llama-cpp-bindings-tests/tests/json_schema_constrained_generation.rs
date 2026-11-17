@@ -22,17 +22,23 @@ const MAX_ANSWER_TOKENS: i32 = 64;
 const ARGMAX_TEMPERATURE: f32 = 0.0;
 const SAMPLING_SEED: u32 = 1234;
 
-fn json_schema_constrained_answer(fixture: &LlamaFixture<'_>) -> Result<Value> {
-    let model = fixture.model;
+fn json_schema_constrained_answer(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<Value> {
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     let session =
         closed_reasoning_chat_session(model, "What is 2+2? Respond with a JSON object.", &[])?;
-    let tokens = session.tokenize_prompt(fixture.model)?;
+    let tokens = session.tokenize_prompt(model)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 
@@ -158,17 +164,19 @@ fn qwen36_answers_the_json_schema_with_an_empty_string(fixture: &LlamaFixture<'_
     n_ubatch = 128,
 )]
 fn an_llguidance_json_schema_constrains_the_answer_to_the_schema(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let backend = fixture.backend;
-
     let prompt = "The weather in Paris is sunny and 22 degrees. Extract as JSON:\n";
 
     let mut ctx = LlamaContext::from_model(
         model,
         backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*context_params).into_llama_context_params(),
     )?;
 
     let tokens_list = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;

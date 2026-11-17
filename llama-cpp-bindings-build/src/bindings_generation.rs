@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use bindgen::Builder;
 
-use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
+use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
 
 use crate::binding_callbacks::BindingCallbacks;
 use crate::build_context::BuildContext;
@@ -93,9 +93,15 @@ fn fault_injection_args(environment: &BuildEnvironment) -> Vec<String> {
     }
 }
 
-fn target_args(context: &BuildContext) -> Vec<String> {
-    match &context.target_os {
-        TargetOs::Android(android_ndk) => android_ndk.clang_args(&context.target_triple),
+fn target_args(
+    BuildContext {
+        target_os,
+        target_triple,
+        ..
+    }: &BuildContext,
+) -> Vec<String> {
+    match target_os {
+        TargetOs::Android(android_ndk) => android_ndk.clang_args(target_triple),
         TargetOs::Apple | TargetOs::Linux => Vec::new(),
     }
 }
@@ -168,13 +174,13 @@ mod tests {
 
     use enumflags2::BitFlags;
 
-    use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
+    use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
 
     use super::BindingsGeneration;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
+    use crate::build_context::BuildContext;
     use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
-    use crate::build_context::tests::context_of;
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_feature::BuildFeature;
 
@@ -186,7 +192,7 @@ mod tests {
     ) -> BindingsGeneration {
         let environment = cargo_environment(features, overrides);
 
-        BindingsGeneration::of(&context_of(&environment), &environment)
+        BindingsGeneration::of(&BuildContext::of_linux_host(&environment), &environment)
     }
 
     fn llama_cpp_includes() -> Vec<String> {

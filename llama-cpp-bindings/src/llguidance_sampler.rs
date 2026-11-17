@@ -10,20 +10,11 @@ use toktrie::ApproximateTokEnv;
 use toktrie::InferenceCapabilities;
 
 use llama_cpp_error_recorder::record::record;
-use llama_cpp_error_recorder::recorded_error::RecordedError;
 
 use crate::error::grammar_error::GrammarError;
 use crate::grammar_matcher::GrammarMatcher;
 use crate::mask_outcome::MaskOutcome;
-use crate::model::LlamaModel;
 use crate::sampling::LlamaSampler;
-
-struct LlgContext {
-    grammar: GrammarMatcher,
-    tok_env: Arc<ApproximateTokEnv>,
-    grammar_kind: String,
-    grammar_data: String,
-}
 
 const unsafe extern "C" fn llg_name(
     _smpl: *const llama_cpp_bindings_sys::llama_sampler,
@@ -38,7 +29,7 @@ unsafe extern "C" fn llg_accept(
     let ctx = unsafe { &mut *(*smpl).ctx.cast::<LlgContext>() };
 
     if let Err(grammar_error) = ctx.grammar.consume_token(token.cast_unsigned()) {
-        record(RecordedError::new(grammar_error));
+        record(grammar_error);
     }
 }
 
@@ -53,7 +44,7 @@ unsafe extern "C" fn llg_apply(
         Ok(MaskOutcome::Constrained(mask)) => mask,
         Ok(MaskOutcome::GrammarComplete) => return,
         Err(grammar_error) => {
-            record(RecordedError::new(grammar_error));
+            record(grammar_error);
 
             return;
         }
@@ -71,7 +62,7 @@ unsafe extern "C" fn llg_reset(smpl: *mut llama_cpp_bindings_sys::llama_sampler)
     let ctx = unsafe { &mut *(*smpl).ctx.cast::<LlgContext>() };
 
     if let Err(grammar_error) = ctx.grammar.reset() {
-        record(RecordedError::new(grammar_error));
+        record(grammar_error);
     }
 }
 
@@ -129,7 +120,17 @@ fn bias_slices() -> Vec<String> {
     SlicedBiasComputer::general_slices()
 }
 
-fn create_llg_sampler_from_tok_env(
+struct LlgContext {
+    grammar: GrammarMatcher,
+    tok_env: Arc<ApproximateTokEnv>,
+    grammar_kind: String,
+    grammar_data: String,
+}
+
+/// # Errors
+///
+/// Returns `GrammarError` if the parser factory, grammar, or parser cannot be created.
+pub fn llguidance_sampler(
     tok_env: Arc<ApproximateTokEnv>,
     grammar_kind: &str,
     grammar_data: &str,
@@ -179,17 +180,6 @@ fn create_llg_sampler_from_tok_env(
     .map_err(Into::into)
 }
 
-/// # Errors
-///
-/// Returns `GrammarError` if the parser factory, grammar, or parser cannot be created.
-pub fn create_llg_sampler(
-    model: &LlamaModel,
-    grammar_kind: &str,
-    grammar_data: &str,
-) -> Result<LlamaSampler, GrammarError> {
-    create_llg_sampler_from_tok_env(model.approximate_tok_env()?, grammar_kind, grammar_data)
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -203,7 +193,7 @@ mod tests {
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
 
     use super::UNCOMPILABLE_BIAS_SLICE;
-    use super::create_llg_sampler_from_tok_env;
+    use super::llguidance_sampler;
     use crate::error::grammar_error::GrammarError;
     use crate::error::grammar_runtime_error::GrammarRuntimeError;
     use crate::error::sample_error::SampleError;
@@ -227,7 +217,7 @@ mod tests {
     }
 
     fn letter_a_sampler() -> Result<LlamaSampler, GrammarError> {
-        create_llg_sampler_from_tok_env(letters(), "regex", "a")
+        llguidance_sampler(letters(), "regex", "a")
     }
 
     fn letter_candidates() -> LlamaTokenDataArray {

@@ -16,10 +16,8 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
 )]
 fn the_text_of_a_token_is_the_vocabulary_entry_it_was_tokenized_from(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-
     ensure!(model.token_text_bytes(single_token(model, "Hello")?)? == b"Hello");
 
     Ok(())
@@ -33,8 +31,9 @@ fn the_text_of_a_token_is_the_vocabulary_entry_it_was_tokenized_from(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn the_text_of_a_token_outside_the_vocabulary_is_refused(fixture: &LlamaFixture<'_>) {
-    let model = fixture.model;
+fn the_text_of_a_token_outside_the_vocabulary_is_refused(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let n_vocab = model.n_vocab();
 
     assert_eq!(

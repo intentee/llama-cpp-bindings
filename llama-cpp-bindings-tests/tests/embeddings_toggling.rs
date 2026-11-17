@@ -17,10 +17,8 @@ const STATE: &str = "Shoes arrived two weeks late and in the wrong size.";
 const ROW: &str = " Which team should handle this ticket?";
 const OTHER_STATE: &str = "The weather in Oslo is cold, dark and windy all week.";
 
-fn tokenize(fixture: &LlamaFixture<'_>, text: &str) -> Result<Vec<LlamaToken>> {
-    Ok(fixture
-        .model
-        .str_to_token(text, AddBos::Never, ParseSpecialTokens::Never)?)
+fn tokenize(&LlamaFixture { model, .. }: &LlamaFixture<'_>, text: &str) -> Result<Vec<LlamaToken>> {
+    Ok(model.str_to_token(text, AddBos::Never, ParseSpecialTokens::Never)?)
 }
 
 fn add_tokens(
@@ -67,13 +65,18 @@ fn decode_tokens(
 }
 
 fn final_hidden_state_context<'fixture>(
-    fixture: &'fixture LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &'fixture LlamaFixture<'_>,
     embeddings: bool,
 ) -> Result<LlamaContext<'fixture>> {
     Ok(LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
+        model,
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_embeddings(embeddings)
             .with_pooling_type(LlamaPoolingType::None),

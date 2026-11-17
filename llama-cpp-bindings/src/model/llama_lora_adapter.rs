@@ -43,8 +43,9 @@ impl Drop for LlamaLoraAdapter<'_> {
 }
 
 #[cfg(test)]
-mod ownership_tests {
+mod tests {
     use std::marker::PhantomData;
+
     use std::ptr;
 
     use crate::model::llama_lora_adapter::LlamaLoraAdapter;

@@ -20,129 +20,8 @@ unsafe impl Sync for LlamaContextParams {}
 
 impl LlamaContextParams {
     #[must_use]
-    pub fn with_n_ctx(mut self, n_ctx: Option<NonZeroU32>) -> Self {
-        self.context_params.n_ctx = n_ctx.map_or(0, NonZeroU32::get);
-        self
-    }
-
-    #[must_use]
-    pub const fn n_ctx(&self) -> Option<NonZeroU32> {
-        NonZeroU32::new(self.context_params.n_ctx)
-    }
-
-    #[must_use]
-    pub const fn with_n_batch(mut self, n_batch: u32) -> Self {
-        self.context_params.n_batch = n_batch;
-        self
-    }
-
-    #[must_use]
-    pub const fn n_batch(&self) -> u32 {
-        self.context_params.n_batch
-    }
-
-    #[must_use]
-    pub const fn with_n_ubatch(mut self, n_ubatch: u32) -> Self {
-        self.context_params.n_ubatch = n_ubatch;
-        self
-    }
-
-    #[must_use]
-    pub const fn n_ubatch(&self) -> u32 {
-        self.context_params.n_ubatch
-    }
-
-    #[must_use]
-    pub const fn with_flash_attention_policy(
-        mut self,
-        policy: llama_cpp_bindings_sys::llama_flash_attn_type,
-    ) -> Self {
-        self.context_params.flash_attn_type = policy;
-        self
-    }
-
-    #[must_use]
-    pub const fn flash_attention_policy(&self) -> llama_cpp_bindings_sys::llama_flash_attn_type {
-        self.context_params.flash_attn_type
-    }
-
-    #[must_use]
-    pub const fn with_offload_kqv(mut self, enabled: bool) -> Self {
-        self.context_params.offload_kqv = enabled;
-        self
-    }
-
-    #[must_use]
-    pub const fn offload_kqv(&self) -> bool {
-        self.context_params.offload_kqv
-    }
-
-    #[must_use]
-    pub fn with_rope_scaling_type(mut self, rope_scaling_type: RopeScalingType) -> Self {
-        self.context_params.rope_scaling_type = i32::from(rope_scaling_type);
-        self
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`UnknownRopeScalingType`] when the raw params hold a value llama.cpp does not
-    /// define.
-    pub fn rope_scaling_type(&self) -> Result<RopeScalingType, UnknownRopeScalingType> {
-        RopeScalingType::try_from(self.context_params.rope_scaling_type)
-    }
-
-    #[must_use]
-    pub const fn with_rope_freq_base(mut self, rope_freq_base: f32) -> Self {
-        self.context_params.rope_freq_base = rope_freq_base;
-        self
-    }
-
-    #[must_use]
-    pub const fn rope_freq_base(&self) -> f32 {
-        self.context_params.rope_freq_base
-    }
-
-    #[must_use]
-    pub const fn with_rope_freq_scale(mut self, rope_freq_scale: f32) -> Self {
-        self.context_params.rope_freq_scale = rope_freq_scale;
-        self
-    }
-
-    #[must_use]
-    pub const fn rope_freq_scale(&self) -> f32 {
-        self.context_params.rope_freq_scale
-    }
-
-    #[must_use]
-    pub const fn n_threads(&self) -> i32 {
-        self.context_params.n_threads
-    }
-
-    #[must_use]
-    pub const fn n_threads_batch(&self) -> i32 {
-        self.context_params.n_threads_batch
-    }
-
-    #[must_use]
-    pub const fn with_n_threads(mut self, n_threads: i32) -> Self {
-        self.context_params.n_threads = n_threads;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_n_threads_batch(mut self, n_threads: i32) -> Self {
-        self.context_params.n_threads_batch = n_threads;
-        self
-    }
-
-    #[must_use]
-    pub const fn embeddings(&self) -> bool {
-        self.context_params.embeddings
-    }
-
-    #[must_use]
-    pub const fn with_embeddings(mut self, embedding: bool) -> Self {
-        self.context_params.embeddings = embedding;
+    pub fn with_attention_type(mut self, attention_type: LlamaAttentionType) -> Self {
+        self.context_params.attention_type = i32::from(attention_type);
         self
     }
 
@@ -162,59 +41,24 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub fn with_pooling_type(mut self, pooling_type: LlamaPoolingType) -> Self {
-        self.context_params.pooling_type = i32::from(pooling_type);
-        self
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`UnknownPoolingType`] when the raw params hold a value llama.cpp does not define.
-    pub fn pooling_type(&self) -> Result<LlamaPoolingType, UnknownPoolingType> {
-        LlamaPoolingType::try_from(self.context_params.pooling_type)
-    }
-
-    #[must_use]
-    pub const fn with_swa_full(mut self, enabled: bool) -> Self {
-        self.context_params.swa_full = enabled;
+    pub const fn with_embeddings(mut self, embedding: bool) -> Self {
+        self.context_params.embeddings = embedding;
         self
     }
 
     #[must_use]
-    pub const fn swa_full(&self) -> bool {
-        self.context_params.swa_full
-    }
-
-    #[must_use]
-    pub const fn with_n_seq_max(mut self, n_seq_max: u32) -> Self {
-        self.context_params.n_seq_max = n_seq_max;
+    pub const fn with_flash_attention_policy(
+        mut self,
+        policy: llama_cpp_bindings_sys::llama_flash_attn_type,
+    ) -> Self {
+        self.context_params.flash_attn_type = policy;
         self
     }
 
     #[must_use]
-    pub const fn n_seq_max(&self) -> u32 {
-        self.context_params.n_seq_max
-    }
-    #[must_use]
-    pub fn with_type_k(mut self, type_k: KvCacheType) -> Self {
-        self.context_params.type_k = type_k.into();
+    pub const fn with_kv_unified(mut self, kv_unified: bool) -> Self {
+        self.context_params.kv_unified = kv_unified;
         self
-    }
-
-    #[must_use]
-    pub fn type_k(&self) -> KvCacheType {
-        KvCacheType::from(self.context_params.type_k)
-    }
-
-    #[must_use]
-    pub fn with_type_v(mut self, type_v: KvCacheType) -> Self {
-        self.context_params.type_v = type_v.into();
-        self
-    }
-
-    #[must_use]
-    pub fn type_v(&self) -> KvCacheType {
-        KvCacheType::from(self.context_params.type_v)
     }
 
     /// Bytes of device memory caching the experts kept in host memory, split among the devices
@@ -226,13 +70,122 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn moe_cache_size(&self) -> usize {
-        self.context_params.moe_cache_size
+    pub const fn with_n_batch(mut self, n_batch: u32) -> Self {
+        self.context_params.n_batch = n_batch;
+        self
     }
 
     #[must_use]
-    pub fn with_attention_type(mut self, attention_type: LlamaAttentionType) -> Self {
-        self.context_params.attention_type = i32::from(attention_type);
+    pub fn with_n_ctx(mut self, n_ctx: Option<NonZeroU32>) -> Self {
+        self.context_params.n_ctx = n_ctx.map_or(0, NonZeroU32::get);
+        self
+    }
+
+    #[must_use]
+    pub const fn with_n_seq_max(mut self, n_seq_max: u32) -> Self {
+        self.context_params.n_seq_max = n_seq_max;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_n_threads(mut self, n_threads: i32) -> Self {
+        self.context_params.n_threads = n_threads;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_n_threads_batch(mut self, n_threads: i32) -> Self {
+        self.context_params.n_threads_batch = n_threads;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_n_ubatch(mut self, n_ubatch: u32) -> Self {
+        self.context_params.n_ubatch = n_ubatch;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_offload_kqv(mut self, enabled: bool) -> Self {
+        self.context_params.offload_kqv = enabled;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_op_offload(mut self, op_offload: bool) -> Self {
+        self.context_params.op_offload = op_offload;
+        self
+    }
+
+    #[must_use]
+    pub fn with_pooling_type(mut self, pooling_type: LlamaPoolingType) -> Self {
+        self.context_params.pooling_type = i32::from(pooling_type);
+        self
+    }
+
+    #[must_use]
+    pub const fn with_rope_freq_base(mut self, rope_freq_base: f32) -> Self {
+        self.context_params.rope_freq_base = rope_freq_base;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_rope_freq_scale(mut self, rope_freq_scale: f32) -> Self {
+        self.context_params.rope_freq_scale = rope_freq_scale;
+        self
+    }
+
+    #[must_use]
+    pub fn with_rope_scaling_type(mut self, rope_scaling_type: RopeScalingType) -> Self {
+        self.context_params.rope_scaling_type = i32::from(rope_scaling_type);
+        self
+    }
+
+    #[must_use]
+    pub const fn with_swa_full(mut self, enabled: bool) -> Self {
+        self.context_params.swa_full = enabled;
+        self
+    }
+
+    #[must_use]
+    pub fn with_type_k(mut self, type_k: KvCacheType) -> Self {
+        self.context_params.type_k = type_k.into();
+        self
+    }
+
+    #[must_use]
+    pub fn with_type_v(mut self, type_v: KvCacheType) -> Self {
+        self.context_params.type_v = type_v.into();
+        self
+    }
+
+    #[must_use]
+    pub const fn with_yarn_attn_factor(mut self, yarn_attn_factor: f32) -> Self {
+        self.context_params.yarn_attn_factor = yarn_attn_factor;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_yarn_beta_fast(mut self, yarn_beta_fast: f32) -> Self {
+        self.context_params.yarn_beta_fast = yarn_beta_fast;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_yarn_beta_slow(mut self, yarn_beta_slow: f32) -> Self {
+        self.context_params.yarn_beta_slow = yarn_beta_slow;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_yarn_ext_factor(mut self, yarn_ext_factor: f32) -> Self {
+        self.context_params.yarn_ext_factor = yarn_ext_factor;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_yarn_orig_ctx(mut self, yarn_orig_ctx: u32) -> Self {
+        self.context_params.yarn_orig_ctx = yarn_orig_ctx;
         self
     }
 
@@ -245,20 +198,102 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn with_yarn_ext_factor(mut self, yarn_ext_factor: f32) -> Self {
-        self.context_params.yarn_ext_factor = yarn_ext_factor;
-        self
+    pub const fn embeddings(&self) -> bool {
+        self.context_params.embeddings
     }
 
     #[must_use]
-    pub const fn yarn_ext_factor(&self) -> f32 {
-        self.context_params.yarn_ext_factor
+    pub const fn flash_attention_policy(&self) -> llama_cpp_bindings_sys::llama_flash_attn_type {
+        self.context_params.flash_attn_type
+    }
+    #[must_use]
+    pub const fn kv_unified(&self) -> bool {
+        self.context_params.kv_unified
     }
 
     #[must_use]
-    pub const fn with_yarn_attn_factor(mut self, yarn_attn_factor: f32) -> Self {
-        self.context_params.yarn_attn_factor = yarn_attn_factor;
-        self
+    pub const fn moe_cache_size(&self) -> usize {
+        self.context_params.moe_cache_size
+    }
+
+    #[must_use]
+    pub const fn n_batch(&self) -> u32 {
+        self.context_params.n_batch
+    }
+
+    #[must_use]
+    pub const fn n_ctx(&self) -> Option<NonZeroU32> {
+        NonZeroU32::new(self.context_params.n_ctx)
+    }
+
+    #[must_use]
+    pub const fn n_seq_max(&self) -> u32 {
+        self.context_params.n_seq_max
+    }
+
+    #[must_use]
+    pub const fn n_threads(&self) -> i32 {
+        self.context_params.n_threads
+    }
+
+    #[must_use]
+    pub const fn n_threads_batch(&self) -> i32 {
+        self.context_params.n_threads_batch
+    }
+
+    #[must_use]
+    pub const fn n_ubatch(&self) -> u32 {
+        self.context_params.n_ubatch
+    }
+
+    #[must_use]
+    pub const fn offload_kqv(&self) -> bool {
+        self.context_params.offload_kqv
+    }
+
+    #[must_use]
+    pub const fn op_offload(&self) -> bool {
+        self.context_params.op_offload
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`UnknownPoolingType`] when the raw params hold a value llama.cpp does not define.
+    pub fn pooling_type(&self) -> Result<LlamaPoolingType, UnknownPoolingType> {
+        LlamaPoolingType::try_from(self.context_params.pooling_type)
+    }
+
+    #[must_use]
+    pub const fn rope_freq_base(&self) -> f32 {
+        self.context_params.rope_freq_base
+    }
+
+    #[must_use]
+    pub const fn rope_freq_scale(&self) -> f32 {
+        self.context_params.rope_freq_scale
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`UnknownRopeScalingType`] when the raw params hold a value llama.cpp does not
+    /// define.
+    pub fn rope_scaling_type(&self) -> Result<RopeScalingType, UnknownRopeScalingType> {
+        RopeScalingType::try_from(self.context_params.rope_scaling_type)
+    }
+
+    #[must_use]
+    pub const fn swa_full(&self) -> bool {
+        self.context_params.swa_full
+    }
+
+    #[must_use]
+    pub fn type_k(&self) -> KvCacheType {
+        KvCacheType::from(self.context_params.type_k)
+    }
+
+    #[must_use]
+    pub fn type_v(&self) -> KvCacheType {
+        KvCacheType::from(self.context_params.type_v)
     }
 
     #[must_use]
@@ -267,20 +302,8 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn with_yarn_beta_fast(mut self, yarn_beta_fast: f32) -> Self {
-        self.context_params.yarn_beta_fast = yarn_beta_fast;
-        self
-    }
-
-    #[must_use]
     pub const fn yarn_beta_fast(&self) -> f32 {
         self.context_params.yarn_beta_fast
-    }
-
-    #[must_use]
-    pub const fn with_yarn_beta_slow(mut self, yarn_beta_slow: f32) -> Self {
-        self.context_params.yarn_beta_slow = yarn_beta_slow;
-        self
     }
 
     #[must_use]
@@ -289,36 +312,13 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn with_yarn_orig_ctx(mut self, yarn_orig_ctx: u32) -> Self {
-        self.context_params.yarn_orig_ctx = yarn_orig_ctx;
-        self
+    pub const fn yarn_ext_factor(&self) -> f32 {
+        self.context_params.yarn_ext_factor
     }
 
     #[must_use]
     pub const fn yarn_orig_ctx(&self) -> u32 {
         self.context_params.yarn_orig_ctx
-    }
-
-    #[must_use]
-    pub const fn with_op_offload(mut self, op_offload: bool) -> Self {
-        self.context_params.op_offload = op_offload;
-        self
-    }
-
-    #[must_use]
-    pub const fn op_offload(&self) -> bool {
-        self.context_params.op_offload
-    }
-
-    #[must_use]
-    pub const fn with_kv_unified(mut self, kv_unified: bool) -> Self {
-        self.context_params.kv_unified = kv_unified;
-        self
-    }
-
-    #[must_use]
-    pub const fn kv_unified(&self) -> bool {
-        self.context_params.kv_unified
     }
 }
 

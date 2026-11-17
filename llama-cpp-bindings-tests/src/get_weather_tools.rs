@@ -1,5 +1,6 @@
-use llama_cpp_bindings_types::chat_tool::ChatTool;
 use serde_json::json;
+
+use llama_cpp_bindings_types::chat_tool::ChatTool;
 
 #[must_use]
 pub fn get_weather_tools() -> Vec<ChatTool> {

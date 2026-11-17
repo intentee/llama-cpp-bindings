@@ -21,7 +21,7 @@ use crate::error::sample_error::SampleError;
 use crate::error::sampler_accept_error::SamplerAcceptError;
 use crate::error::sampler_apply_error::SamplerApplyError;
 use crate::error::sampling_error::SamplingError;
-use crate::llguidance_sampler::create_llg_sampler;
+use crate::llguidance_sampler::llguidance_sampler;
 use crate::model::LlamaModel;
 use crate::sanitized_grammar::SanitizedGrammar;
 use crate::token::LlamaToken;
@@ -380,12 +380,6 @@ fn checked_usize_as_i32_sampling(value: usize) -> Result<i32, SamplingError> {
     i32::try_from(value).map_err(SamplingError::IntegerOverflow)
 }
 
-pub struct LlamaSampler {
-    sampler: NonNull<llama_cpp_bindings_sys::llama_sampler>,
-}
-
-unsafe impl Send for LlamaSampler {}
-
 fn grammar_callback_error_to_result(error: Option<RecordedError>) -> Result<(), SampleError> {
     error.map_or(Ok(()), |recorded| {
         Err(SampleError::GrammarCallbackFailed {
@@ -404,186 +398,21 @@ fn grammar_callback_error_to_accept_result(
     })
 }
 
+pub struct LlamaSampler {
+    sampler: NonNull<llama_cpp_bindings_sys::llama_sampler>,
+}
+
+unsafe impl Send for LlamaSampler {}
+
 impl Debug for LlamaSampler {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LlamaSampler").finish_non_exhaustive()
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("LlamaSampler")
+            .finish_non_exhaustive()
     }
 }
 
 impl LlamaSampler {
-    /// Takes ownership of a sampler llama.cpp initialized, and frees it on drop.
-    ///
-    /// # Safety
-    ///
-    /// `sampler` must be null or a sampler llama.cpp initialized that no other
-    /// [`LlamaSampler`] owns.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SamplingError::SamplerUnavailable`] when `sampler` is null.
-    pub unsafe fn from_raw(
-        sampler: *mut llama_cpp_bindings_sys::llama_sampler,
-        sampler_name: &'static str,
-    ) -> Result<Self, SamplingError> {
-        NonNull::new(sampler).map(|sampler| Self { sampler }).ok_or(
-            SamplingError::SamplerUnavailable {
-                sampler: sampler_name,
-            },
-        )
-    }
-
-    /// Initializes a sampler through one of the `llama_rs_sampler_init*` wrappers, which
-    /// report C++ exceptions thrown by llama.cpp instead of letting them cross into Rust.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SamplingError`] if llama.cpp cannot initialize the sampler.
-    pub fn initialize(
-        sampler_name: &'static str,
-        initialize_sampler: impl FnOnce(
-            *mut *mut llama_cpp_bindings_sys::llama_sampler,
-            *mut *mut c_char,
-        ) -> llama_cpp_bindings_sys::llama_rs_sampler_init_status,
-    ) -> Result<Self, SamplingError> {
-        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = ptr::null_mut();
-        let mut error_ptr: *mut c_char = ptr::null_mut();
-        let status = initialize_sampler(&raw mut sampler, &raw mut error_ptr);
-
-        sampler_init_status_to_result(status, sampler, error_ptr, sampler_name)
-    }
-
-    fn take_into_chain(&self, sampler: Self) -> Result<(), SamplingError> {
-        let mut error_ptr: *mut c_char = ptr::null_mut();
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_chain_add(
-                self.sampler.as_ptr(),
-                sampler.sampler.as_ptr(),
-                &raw mut error_ptr,
-            )
-        };
-
-        sampler_chain_add_status_to_result(status, error_ptr).map(|()| mem::forget(sampler))
-    }
-
-    #[must_use]
-    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::llama_sampler {
-        self.sampler.as_ptr()
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SampleError::Logits`] when the context holds no logits for `idx`, or another
-    /// [`SampleError`] if the C++ sampler throws an exception or the grammar sampler callback
-    /// recorded a failure during sampling.
-    pub fn sample(&mut self, ctx: &LlamaContext, idx: i32) -> Result<LlamaToken, SampleError> {
-        ctx.get_logits_ith(idx)?;
-
-        let mut token: i32 = -1;
-        let mut error_ptr: *mut c_char = ptr::null_mut();
-
-        let scope = ErrorScope::enter();
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_sample(
-                self.sampler.as_ptr(),
-                ctx.context.as_ptr(),
-                idx,
-                &raw mut token,
-                &raw mut error_ptr,
-            )
-        };
-        let sampled = sampler_sample_status_to_result(status, token, error_ptr);
-        grammar_callback_error_to_result(scope.take())?;
-
-        sampled
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SampleError::GrammarCallbackFailed`] if the grammar sampler callback recorded a
-    /// failure during application, which takes precedence over any other failure, or
-    /// [`SampleError::SamplerApply`] if applying the sampler fails, including when it excludes
-    /// every candidate.
-    pub fn apply(&self, data_array: &mut LlamaTokenDataArray) -> Result<(), SampleError> {
-        let scope = ErrorScope::enter();
-        let applied = self.apply_to_candidates(data_array);
-        grammar_callback_error_to_result(scope.take())?;
-
-        Ok(applied?)
-    }
-
-    fn apply_to_candidates(
-        &self,
-        data_array: &mut LlamaTokenDataArray,
-    ) -> Result<(), SamplerApplyError> {
-        unsafe {
-            data_array.modify_as_c_llama_token_data_array(|c_llama_token_data_array| {
-                let mut out_error: *mut c_char = ptr::null_mut();
-                let status = llama_cpp_bindings_sys::llama_rs_sampler_apply(
-                    self.sampler.as_ptr(),
-                    c_llama_token_data_array,
-                    &raw mut out_error,
-                );
-
-                sampler_apply_status_to_result(status, out_error)
-            })
-        }??;
-
-        if data_array.has_selectable_candidate() {
-            Ok(())
-        } else {
-            Err(SamplerApplyError::EveryCandidateExcluded)
-        }
-    }
-
-    /// # Errors
-    /// Returns [`SamplerAcceptError`] if the underlying sampler rejects the token.
-    pub fn accept(&mut self, token: LlamaToken) -> Result<(), SamplerAcceptError> {
-        let mut error_ptr: *mut c_char = ptr::null_mut();
-
-        let scope = ErrorScope::enter();
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_accept(
-                self.sampler.as_ptr(),
-                token.0,
-                &raw mut error_ptr,
-            )
-        };
-        let accepted = check_sampler_accept_status(status, error_ptr);
-        grammar_callback_error_to_accept_result(scope.take())?;
-
-        accepted
-    }
-
-    /// # Errors
-    /// Returns [`SamplerAcceptError`] if the underlying sampler rejects any token.
-    pub fn accept_many(
-        &mut self,
-        tokens: impl IntoIterator<Item = impl Borrow<LlamaToken>>,
-    ) -> Result<(), SamplerAcceptError> {
-        for token in tokens {
-            self.accept(*token.borrow())?;
-        }
-
-        Ok(())
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SampleError`] if the grammar sampler callback recorded a failure during reset.
-    pub fn reset(&mut self) -> Result<(), SampleError> {
-        let scope = ErrorScope::enter();
-        unsafe {
-            llama_cpp_bindings_sys::llama_sampler_reset(self.sampler.as_ptr());
-        }
-
-        grammar_callback_error_to_result(scope.take())
-    }
-
-    #[must_use]
-    pub fn get_seed(&self) -> u32 {
-        unsafe { llama_cpp_bindings_sys::llama_sampler_get_seed(self.sampler.as_ptr()) }
-    }
-
     /// # Errors
     ///
     /// Returns [`SamplingError`] if the sampler chain cannot be initialized.
@@ -605,111 +434,64 @@ impl LlamaSampler {
 
     /// # Errors
     ///
-    /// Returns [`SamplingError`] if the temperature sampler cannot be initialized.
-    pub fn temp(temperature: f32) -> Result<Self, SamplingError> {
-        Self::initialize("temperature", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_temp(temperature, out_sampler, out_error)
+    /// Returns [`SamplingError`] if the distribution sampler cannot be initialized.
+    pub fn dist(seed: u32) -> Result<Self, SamplingError> {
+        Self::initialize("distribution", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_dist(seed, out_sampler, out_error)
         })
     }
 
     /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the extended temperature sampler cannot be initialized.
-    pub fn temp_ext(temperature: f32, delta: f32, exponent: f32) -> Result<Self, SamplingError> {
-        Self::initialize("extended temperature", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_temp_ext(
-                temperature,
-                delta,
-                exponent,
-                out_sampler,
-                out_error,
-            )
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the top-k sampler cannot be initialized.
-    pub fn top_k(keep_count: i32) -> Result<Self, SamplingError> {
-        Self::initialize("top-k", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_top_k(keep_count, out_sampler, out_error)
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the top-n-sigma sampler cannot be initialized.
-    pub fn top_n_sigma(sigma_multiplier: f32) -> Result<Self, SamplingError> {
-        Self::initialize("top-n-sigma", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_top_n_sigma(
-                sigma_multiplier,
-                out_sampler,
-                out_error,
-            )
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the typical sampler cannot be initialized.
-    pub fn typical(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        Self::initialize("typical", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_typical(
-                probability,
-                min_keep,
-                out_sampler,
-                out_error,
-            )
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the top-p sampler cannot be initialized.
-    pub fn top_p(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        Self::initialize("top-p", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_top_p(
-                probability,
-                min_keep,
-                out_sampler,
-                out_error,
-            )
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the min-p sampler cannot be initialized.
-    pub fn min_p(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
-        Self::initialize("min-p", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_min_p(
-                probability,
-                min_keep,
-                out_sampler,
-                out_error,
-            )
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the XTC sampler cannot be initialized.
-    pub fn xtc(
-        probability: f32,
-        temperature: f32,
-        min_keep: usize,
-        seed: u32,
+    /// Returns the [`SamplingError`] describing a sequence breaker llama.cpp would skip, truncate,
+    /// or ignore, or the error of initializing the sampler.
+    pub fn dry(
+        model: &LlamaModel,
+        multiplier: f32,
+        base: f32,
+        allowed_length: i32,
+        penalty_last_n: i32,
+        seq_breakers: impl IntoIterator<Item = impl AsRef<[u8]>>,
     ) -> Result<Self, SamplingError> {
-        Self::initialize("XTC", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_xtc(
-                probability,
-                temperature,
-                min_keep,
-                seed,
+        let seq_breakers = dry_sequence_breakers(seq_breakers)?;
+        let mut seq_breaker_pointers: Vec<*const c_char> = seq_breakers
+            .iter()
+            .map(|seq_breaker| seq_breaker.as_ptr())
+            .collect();
+
+        Self::initialize("DRY", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_dry(
+                model.vocab_ptr(),
+                multiplier,
+                base,
+                allowed_length,
+                penalty_last_n,
+                seq_breaker_pointers.as_mut_ptr(),
+                seq_breaker_pointers.len(),
                 out_sampler,
                 out_error,
             )
         })
+    }
+
+    /// Takes ownership of a sampler llama.cpp initialized, and frees it on drop.
+    ///
+    /// # Safety
+    ///
+    /// `sampler` must be null or a sampler llama.cpp initialized that no other
+    /// [`LlamaSampler`] owns.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SamplingError::SamplerUnavailable`] when `sampler` is null.
+    pub unsafe fn from_raw(
+        sampler: *mut llama_cpp_bindings_sys::llama_sampler,
+        sampler_name: &'static str,
+    ) -> Result<Self, SamplingError> {
+        NonNull::new(sampler).map(|sampler| Self { sampler }).ok_or(
+            SamplingError::SamplerUnavailable {
+                sampler: sampler_name,
+            },
+        )
     }
 
     /// # Errors
@@ -784,84 +566,110 @@ impl LlamaSampler {
 
     /// # Errors
     ///
+    /// Returns [`SamplingError`] if the greedy sampler cannot be initialized.
+    pub fn greedy() -> Result<Self, SamplingError> {
+        Self::initialize("greedy", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_greedy(out_sampler, out_error)
+        })
+    }
+
+    /// Initializes a sampler through one of the `llama_rs_sampler_init*` wrappers, which
+    /// report C++ exceptions thrown by llama.cpp instead of letting them cross into Rust.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if llama.cpp cannot initialize the sampler.
+    pub fn initialize(
+        sampler_name: &'static str,
+        initialize_sampler: impl FnOnce(
+            *mut *mut llama_cpp_bindings_sys::llama_sampler,
+            *mut *mut c_char,
+        ) -> llama_cpp_bindings_sys::llama_rs_sampler_init_status,
+    ) -> Result<Self, SamplingError> {
+        let mut sampler: *mut llama_cpp_bindings_sys::llama_sampler = ptr::null_mut();
+        let mut error_ptr: *mut c_char = ptr::null_mut();
+        let status = initialize_sampler(&raw mut sampler, &raw mut error_ptr);
+
+        sampler_init_status_to_result(status, sampler, error_ptr, sampler_name)
+    }
+
+    /// # Errors
+    ///
     /// Returns [`GrammarError`] if the grammar is invalid or the sampler cannot be initialized.
     pub fn llguidance(
         model: &LlamaModel,
         grammar_kind: &str,
         grammar_data: &str,
     ) -> Result<Self, GrammarError> {
-        create_llg_sampler(model, grammar_kind, grammar_data)
-    }
-
-    fn sanitize_grammar_strings(
-        grammar_str: &str,
-        grammar_root: &str,
-    ) -> Result<SanitizedGrammar, GrammarError> {
-        Ok(SanitizedGrammar {
-            grammar: CString::new(grammar_str).map_err(GrammarError::GrammarContainsNul)?,
-            root: CString::new(grammar_root).map_err(GrammarError::RootContainsNul)?,
-        })
-    }
-
-    fn diagnose_rejected_grammar(
-        model: &LlamaModel,
-        grammar_str: &str,
-        grammar_root: &str,
-        init_error: GrammarError,
-    ) -> GrammarError {
-        if !matches!(
-            init_error,
-            GrammarError::GrammarMalformed | GrammarError::LazyGrammarMalformed
-        ) {
-            return init_error;
-        }
-
-        let vocab = unsafe { &*model.vocab_ptr() };
-
-        match validate_gbnf(Some(vocab), grammar_str, grammar_root) {
-            Ok(()) => init_error,
-            Err(GbnfValidationError::RootSymbolMissing { .. }) => GrammarError::RootNotFound,
-            Err(rejected) => GrammarError::GrammarRejected(rejected),
-        }
-    }
-
-    fn sanitize_trigger_patterns(
-        trigger_patterns: &[String],
-    ) -> Result<Vec<CString>, GrammarError> {
-        trigger_patterns
-            .iter()
-            .map(|pattern| {
-                CString::new(pattern.as_str()).map_err(GrammarError::TriggerPatternContainsNul)
-            })
-            .collect()
+        llguidance_sampler(model.approximate_tok_env()?, grammar_kind, grammar_data)
     }
 
     /// # Errors
-    /// Returns the [`SamplingError`] describing a sequence breaker llama.cpp would skip, truncate,
-    /// or ignore, or the error of initializing the sampler.
-    pub fn dry(
-        model: &LlamaModel,
-        multiplier: f32,
-        base: f32,
-        allowed_length: i32,
-        penalty_last_n: i32,
-        seq_breakers: impl IntoIterator<Item = impl AsRef<[u8]>>,
-    ) -> Result<Self, SamplingError> {
-        let seq_breakers = dry_sequence_breakers(seq_breakers)?;
-        let mut seq_breaker_pointers: Vec<*const c_char> = seq_breakers
-            .iter()
-            .map(|seq_breaker| seq_breaker.as_ptr())
-            .collect();
+    /// Returns [`SamplingError::IntegerOverflow`] if `biases.len()` exceeds `i32::MAX`.
+    ///
+    pub fn logit_bias(n_vocab: i32, biases: &[LlamaLogitBias]) -> Result<Self, SamplingError> {
+        let bias_count = checked_usize_as_i32_sampling(biases.len())?;
+        let data = biases
+            .as_ptr()
+            .cast::<llama_cpp_bindings_sys::llama_logit_bias>();
 
-        Self::initialize("DRY", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_dry(
-                model.vocab_ptr(),
-                multiplier,
-                base,
-                allowed_length,
-                penalty_last_n,
-                seq_breaker_pointers.as_mut_ptr(),
-                seq_breaker_pointers.len(),
+        Self::initialize("logit bias", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_logit_bias(
+                n_vocab,
+                bias_count,
+                data,
+                out_sampler,
+                out_error,
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the min-p sampler cannot be initialized.
+    pub fn min_p(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
+        Self::initialize("min-p", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_min_p(
+                probability,
+                min_keep,
+                out_sampler,
+                out_error,
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the Mirostat sampler cannot be initialized.
+    pub fn mirostat(
+        n_vocab: i32,
+        seed: u32,
+        tau: f32,
+        eta: f32,
+        estimation_token_count: i32,
+    ) -> Result<Self, SamplingError> {
+        Self::initialize("Mirostat", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_mirostat(
+                n_vocab,
+                seed,
+                tau,
+                eta,
+                estimation_token_count,
+                out_sampler,
+                out_error,
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the Mirostat v2 sampler cannot be initialized.
+    pub fn mirostat_v2(seed: u32, tau: f32, eta: f32) -> Result<Self, SamplingError> {
+        Self::initialize("Mirostat v2", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_mirostat_v2(
+                seed,
+                tau,
+                eta,
                 out_sampler,
                 out_error,
             )
@@ -893,21 +701,93 @@ impl LlamaSampler {
 
     /// # Errors
     ///
-    /// Returns [`SamplingError`] if the Mirostat sampler cannot be initialized.
-    pub fn mirostat(
-        n_vocab: i32,
+    /// Returns [`SamplingError`] if the temperature sampler cannot be initialized.
+    pub fn temp(temperature: f32) -> Result<Self, SamplingError> {
+        Self::initialize("temperature", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_temp(temperature, out_sampler, out_error)
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the extended temperature sampler cannot be initialized.
+    pub fn temp_ext(temperature: f32, delta: f32, exponent: f32) -> Result<Self, SamplingError> {
+        Self::initialize("extended temperature", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_temp_ext(
+                temperature,
+                delta,
+                exponent,
+                out_sampler,
+                out_error,
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the top-k sampler cannot be initialized.
+    pub fn top_k(keep_count: i32) -> Result<Self, SamplingError> {
+        Self::initialize("top-k", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_top_k(keep_count, out_sampler, out_error)
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the top-n-sigma sampler cannot be initialized.
+    pub fn top_n_sigma(sigma_multiplier: f32) -> Result<Self, SamplingError> {
+        Self::initialize("top-n-sigma", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_top_n_sigma(
+                sigma_multiplier,
+                out_sampler,
+                out_error,
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the top-p sampler cannot be initialized.
+    pub fn top_p(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
+        Self::initialize("top-p", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_top_p(
+                probability,
+                min_keep,
+                out_sampler,
+                out_error,
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the typical sampler cannot be initialized.
+    pub fn typical(probability: f32, min_keep: usize) -> Result<Self, SamplingError> {
+        Self::initialize("typical", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_typical(
+                probability,
+                min_keep,
+                out_sampler,
+                out_error,
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`SamplingError`] if the XTC sampler cannot be initialized.
+    pub fn xtc(
+        probability: f32,
+        temperature: f32,
+        min_keep: usize,
         seed: u32,
-        tau: f32,
-        eta: f32,
-        m: i32,
     ) -> Result<Self, SamplingError> {
-        Self::initialize("Mirostat", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_mirostat(
-                n_vocab,
+        Self::initialize("XTC", |out_sampler, out_error| unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_init_xtc(
+                probability,
+                temperature,
+                min_keep,
                 seed,
-                tau,
-                eta,
-                m,
                 out_sampler,
                 out_error,
             )
@@ -915,56 +795,178 @@ impl LlamaSampler {
     }
 
     /// # Errors
-    ///
-    /// Returns [`SamplingError`] if the Mirostat v2 sampler cannot be initialized.
-    pub fn mirostat_v2(seed: u32, tau: f32, eta: f32) -> Result<Self, SamplingError> {
-        Self::initialize("Mirostat v2", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_mirostat_v2(
-                seed,
-                tau,
-                eta,
-                out_sampler,
-                out_error,
+    /// Returns [`SamplerAcceptError`] if the underlying sampler rejects the token.
+    pub fn accept(&mut self, LlamaToken(token_id): LlamaToken) -> Result<(), SamplerAcceptError> {
+        let mut error_ptr: *mut c_char = ptr::null_mut();
+
+        let scope = ErrorScope::enter();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_accept(
+                self.sampler.as_ptr(),
+                token_id,
+                &raw mut error_ptr,
             )
-        })
+        };
+        let accepted = check_sampler_accept_status(status, error_ptr);
+        grammar_callback_error_to_accept_result(scope.take())?;
+
+        accepted
+    }
+
+    /// # Errors
+    /// Returns [`SamplerAcceptError`] if the underlying sampler rejects any token.
+    pub fn accept_many(
+        &mut self,
+        tokens: impl IntoIterator<Item = impl Borrow<LlamaToken>>,
+    ) -> Result<(), SamplerAcceptError> {
+        for token in tokens {
+            self.accept(*token.borrow())?;
+        }
+
+        Ok(())
     }
 
     /// # Errors
     ///
-    /// Returns [`SamplingError`] if the distribution sampler cannot be initialized.
-    pub fn dist(seed: u32) -> Result<Self, SamplingError> {
-        Self::initialize("distribution", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_dist(seed, out_sampler, out_error)
-        })
+    /// Returns [`SampleError::GrammarCallbackFailed`] if the grammar sampler callback recorded a
+    /// failure during application, which takes precedence over any other failure, or
+    /// [`SampleError::SamplerApply`] if applying the sampler fails, including when it excludes
+    /// every candidate.
+    pub fn apply(&self, data_array: &mut LlamaTokenDataArray) -> Result<(), SampleError> {
+        let scope = ErrorScope::enter();
+        let applied = self.apply_to_candidates(data_array);
+        grammar_callback_error_to_result(scope.take())?;
+
+        Ok(applied?)
+    }
+
+    #[must_use]
+    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::llama_sampler {
+        self.sampler.as_ptr()
+    }
+
+    #[must_use]
+    pub fn get_seed(&self) -> u32 {
+        unsafe { llama_cpp_bindings_sys::llama_sampler_get_seed(self.sampler.as_ptr()) }
     }
 
     /// # Errors
     ///
-    /// Returns [`SamplingError`] if the greedy sampler cannot be initialized.
-    pub fn greedy() -> Result<Self, SamplingError> {
-        Self::initialize("greedy", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_greedy(out_sampler, out_error)
-        })
+    /// Returns [`SampleError`] if the grammar sampler callback recorded a failure during reset.
+    pub fn reset(&mut self) -> Result<(), SampleError> {
+        let scope = ErrorScope::enter();
+        unsafe {
+            llama_cpp_bindings_sys::llama_sampler_reset(self.sampler.as_ptr());
+        }
+
+        grammar_callback_error_to_result(scope.take())
     }
 
     /// # Errors
-    /// Returns [`SamplingError::IntegerOverflow`] if `biases.len()` exceeds `i32::MAX`.
     ///
-    pub fn logit_bias(n_vocab: i32, biases: &[LlamaLogitBias]) -> Result<Self, SamplingError> {
-        let bias_count = checked_usize_as_i32_sampling(biases.len())?;
-        let data = biases
-            .as_ptr()
-            .cast::<llama_cpp_bindings_sys::llama_logit_bias>();
+    /// Returns [`SampleError::Logits`] when the context holds no logits for `idx`, or another
+    /// [`SampleError`] if the C++ sampler throws an exception or the grammar sampler callback
+    /// recorded a failure during sampling.
+    pub fn sample(&mut self, ctx: &LlamaContext, idx: i32) -> Result<LlamaToken, SampleError> {
+        ctx.get_logits_ith(idx)?;
 
-        Self::initialize("logit bias", |out_sampler, out_error| unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init_logit_bias(
-                n_vocab,
-                bias_count,
-                data,
-                out_sampler,
-                out_error,
+        let mut token: i32 = -1;
+        let mut error_ptr: *mut c_char = ptr::null_mut();
+
+        let scope = ErrorScope::enter();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_sample(
+                self.sampler.as_ptr(),
+                ctx.context.as_ptr(),
+                idx,
+                &raw mut token,
+                &raw mut error_ptr,
             )
+        };
+        let sampled = sampler_sample_status_to_result(status, token, error_ptr);
+        grammar_callback_error_to_result(scope.take())?;
+
+        sampled
+    }
+
+    fn apply_to_candidates(
+        &self,
+        data_array: &mut LlamaTokenDataArray,
+    ) -> Result<(), SamplerApplyError> {
+        unsafe {
+            data_array.modify_as_c_llama_token_data_array(|c_llama_token_data_array| {
+                let mut out_error: *mut c_char = ptr::null_mut();
+                let status = llama_cpp_bindings_sys::llama_rs_sampler_apply(
+                    self.sampler.as_ptr(),
+                    c_llama_token_data_array,
+                    &raw mut out_error,
+                );
+
+                sampler_apply_status_to_result(status, out_error)
+            })
+        }??;
+
+        if data_array.has_selectable_candidate() {
+            Ok(())
+        } else {
+            Err(SamplerApplyError::EveryCandidateExcluded)
+        }
+    }
+
+    fn diagnose_rejected_grammar(
+        model: &LlamaModel,
+        grammar_str: &str,
+        grammar_root: &str,
+        init_error: GrammarError,
+    ) -> GrammarError {
+        if !matches!(
+            init_error,
+            GrammarError::GrammarMalformed | GrammarError::LazyGrammarMalformed
+        ) {
+            return init_error;
+        }
+
+        let vocab = unsafe { &*model.vocab_ptr() };
+
+        match validate_gbnf(Some(vocab), grammar_str, grammar_root) {
+            Ok(()) => init_error,
+            Err(GbnfValidationError::RootSymbolMissing { .. }) => GrammarError::RootNotFound,
+            Err(rejected) => GrammarError::GrammarRejected(rejected),
+        }
+    }
+
+    fn sanitize_grammar_strings(
+        grammar_str: &str,
+        grammar_root: &str,
+    ) -> Result<SanitizedGrammar, GrammarError> {
+        Ok(SanitizedGrammar {
+            grammar: CString::new(grammar_str).map_err(GrammarError::GrammarContainsNul)?,
+            root: CString::new(grammar_root).map_err(GrammarError::RootContainsNul)?,
         })
+    }
+
+    fn sanitize_trigger_patterns(
+        trigger_patterns: &[String],
+    ) -> Result<Vec<CString>, GrammarError> {
+        trigger_patterns
+            .iter()
+            .map(|pattern| {
+                CString::new(pattern.as_str()).map_err(GrammarError::TriggerPatternContainsNul)
+            })
+            .collect()
+    }
+
+    fn take_into_chain(&self, sampler: Self) -> Result<(), SamplingError> {
+        let mut error_ptr: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_sampler_chain_add(
+                self.sampler.as_ptr(),
+                sampler.sampler.as_ptr(),
+                &raw mut error_ptr,
+            )
+        };
+
+        sampler_chain_add_status_to_result(status, error_ptr).map(|()| mem::forget(sampler))
     }
 }
 
@@ -979,28 +981,59 @@ impl Drop for LlamaSampler {
 #[cfg(test)]
 mod tests {
     use std::ffi::{CStr, CString};
+
     use std::ptr;
+
     use std::slice;
 
     use llama_cpp_error_recorder::record::record;
+
     use llama_cpp_error_recorder::recorded_error::RecordedError;
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
+    use llama_cpp_fault_injection::armed_fault::ArmedFault;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
+    use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 
     use super::LlamaSampler;
+
     use crate::error::grammar_error::GrammarError;
+
     use crate::error::sample_error::SampleError;
+
     use crate::error::sampler_apply_error::SamplerApplyError;
+
     use crate::error::sampling_error::SamplingError;
+
     use crate::sanitized_grammar::SanitizedGrammar;
+
     use crate::token::LlamaToken;
+
     use crate::token::data::LlamaTokenData;
+
     use crate::token::data_array::LlamaTokenDataArray;
+
+    use super::grammar_callback_error_to_accept_result;
+    use super::grammar_callback_error_to_result;
     use crate::token::logit_bias::LlamaLogitBias;
+
+    use super::check_sampler_accept_status;
+    use super::sampler_apply_status_to_result;
+    use super::sampler_chain_add_status_to_result;
+    use super::sampler_init_grammar_lazy_patterns_status_to_result;
+    use super::sampler_init_grammar_status_to_result;
+    use super::sampler_init_status_to_result;
+    use super::sampler_sample_status_to_result;
+    use crate::error::sampler_accept_error::SamplerAcceptError;
 
     unsafe extern "C" fn record_a_failure_and_exclude_every_candidate(
         _sampler: *mut llama_cpp_bindings_sys::llama_sampler,
         candidates: *mut llama_cpp_bindings_sys::llama_token_data_array,
     ) {
-        record(RecordedError::new("mask failed".to_string()));
+        record("mask failed".to_string());
 
         let candidates = unsafe { &mut *candidates };
         let candidate_data = unsafe { slice::from_raw_parts_mut(candidates.data, candidates.size) };
@@ -1045,6 +1078,39 @@ mod tests {
         unsafe { LlamaSampler::from_raw(sampler, "failing excluding sampler") }
             .expect("the failing excluding sampler must initialize")
     }
+
+    fn excluded_candidates() -> LlamaTokenDataArray {
+        LlamaTokenDataArray::new(
+            vec![
+                LlamaTokenData::new(LlamaToken::new(0), f32::NEG_INFINITY, 0.0),
+                LlamaTokenData::new(LlamaToken::new(1), f32::NEG_INFINITY, 0.0),
+            ],
+            false,
+        )
+    }
+
+    unsafe extern "C" fn claim_more_candidates_than_exist(
+        _sampler: *mut llama_cpp_bindings_sys::llama_sampler,
+        candidates: *mut llama_cpp_bindings_sys::llama_token_data_array,
+    ) {
+        unsafe { (*candidates).size = usize::MAX };
+    }
+
+    static mut OVERREPORTING_SAMPLER: llama_cpp_bindings_sys::llama_sampler_i =
+        llama_cpp_bindings_sys::llama_sampler_i {
+            name: None,
+            accept: None,
+            apply: Some(claim_more_candidates_than_exist),
+            reset: None,
+            clone: None,
+            free: None,
+            backend_init: None,
+            backend_accept: None,
+            backend_apply: None,
+            backend_set_input: None,
+            backend_reset: None,
+            copy_state: None,
+        };
 
     #[test]
     fn a_grammar_callback_failure_takes_precedence_over_a_failed_application() {
@@ -1291,14 +1357,6 @@ mod tests {
                 .map(SamplingError::IntegerOverflow)
         );
     }
-}
-
-#[cfg(test)]
-mod grammar_callback_error_to_result_tests {
-    use llama_cpp_error_recorder::recorded_error::RecordedError;
-
-    use super::grammar_callback_error_to_result;
-    use crate::error::sample_error::SampleError;
 
     #[test]
     fn grammar_callback_error_to_result_reports_the_recorded_grammar_callback_failure() {
@@ -1317,14 +1375,6 @@ mod grammar_callback_error_to_result_tests {
     fn grammar_callback_error_to_result_succeeds_without_a_recorded_error() {
         assert_eq!(grammar_callback_error_to_result(None), Ok(()));
     }
-}
-
-#[cfg(test)]
-mod grammar_callback_error_to_accept_result_tests {
-    use llama_cpp_error_recorder::recorded_error::RecordedError;
-
-    use super::grammar_callback_error_to_accept_result;
-    use crate::error::sampler_accept_error::SamplerAcceptError;
 
     #[test]
     fn grammar_callback_error_to_accept_result_reports_the_recorded_grammar_callback_failure() {
@@ -1344,18 +1394,6 @@ mod grammar_callback_error_to_accept_result_tests {
     fn grammar_callback_error_to_accept_result_succeeds_without_a_recorded_error() {
         assert_eq!(grammar_callback_error_to_accept_result(None), Ok(()));
     }
-}
-
-#[cfg(test)]
-mod check_sampler_accept_status_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::check_sampler_accept_status;
-    use crate::error::sampler_accept_error::SamplerAcceptError;
 
     #[test]
     fn check_sampler_accept_status_maps_ok_to_success() {
@@ -1468,18 +1506,6 @@ mod check_sampler_accept_status_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod sampler_sample_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::sampler_sample_status_to_result;
-    use crate::error::sample_error::SampleError;
 
     #[test]
     fn sampler_sample_status_allocation_failure_maps_to_not_enough_memory() {
@@ -1625,21 +1651,6 @@ mod sampler_sample_status_to_result_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod sampler_init_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_fault_injection::armed_fault::ArmedFault;
-    use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::LlamaSampler;
-    use super::sampler_init_status_to_result;
-    use crate::error::sampling_error::SamplingError;
 
     #[test]
     fn sampler_init_status_null_maps_to_sampler_unavailable() {
@@ -1822,18 +1833,6 @@ mod sampler_init_status_to_result_tests {
             ]
         );
     }
-}
-
-#[cfg(test)]
-mod sampler_chain_add_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::sampler_chain_add_status_to_result;
-    use crate::error::sampling_error::SamplingError;
 
     #[test]
     fn sampler_chain_add_status_allocation_failure_maps_to_not_enough_memory() {
@@ -1953,18 +1952,6 @@ mod sampler_chain_add_status_to_result_tests {
             .into())
         );
     }
-}
-
-#[cfg(test)]
-mod sampler_init_grammar_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::sampler_init_grammar_status_to_result;
-    use crate::error::grammar_error::GrammarError;
 
     #[test]
     fn sampler_init_grammar_status_null_maps_to_grammar_malformed() {
@@ -2088,18 +2075,6 @@ mod sampler_init_grammar_status_to_result_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::sampler_init_grammar_lazy_patterns_status_to_result;
-    use crate::error::grammar_error::GrammarError;
 
     #[test]
     fn sampler_init_grammar_lazy_patterns_status_null_maps_to_lazy_patterns_grammar_malformed() {
@@ -2242,55 +2217,6 @@ mod sampler_init_grammar_lazy_patterns_status_to_result_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod sampler_application_tests {
-    use std::ptr;
-
-    use llama_cpp_fault_injection::armed_fault::ArmedFault;
-    use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-
-    use super::LlamaSampler;
-    use crate::error::sample_error::SampleError;
-    use crate::error::sampler_apply_error::SamplerApplyError;
-    use crate::token::LlamaToken;
-    use crate::token::data::LlamaTokenData;
-    use crate::token::data_array::LlamaTokenDataArray;
-
-    fn excluded_candidates() -> LlamaTokenDataArray {
-        LlamaTokenDataArray::new(
-            vec![
-                LlamaTokenData::new(LlamaToken::new(0), f32::NEG_INFINITY, 0.0),
-                LlamaTokenData::new(LlamaToken::new(1), f32::NEG_INFINITY, 0.0),
-            ],
-            false,
-        )
-    }
-
-    unsafe extern "C" fn claim_more_candidates_than_exist(
-        _sampler: *mut llama_cpp_bindings_sys::llama_sampler,
-        candidates: *mut llama_cpp_bindings_sys::llama_token_data_array,
-    ) {
-        unsafe { (*candidates).size = usize::MAX };
-    }
-
-    static mut OVERREPORTING_SAMPLER: llama_cpp_bindings_sys::llama_sampler_i =
-        llama_cpp_bindings_sys::llama_sampler_i {
-            name: None,
-            accept: None,
-            apply: Some(claim_more_candidates_than_exist),
-            reset: None,
-            clone: None,
-            free: None,
-            backend_init: None,
-            backend_accept: None,
-            backend_apply: None,
-            backend_set_input: None,
-            backend_reset: None,
-            copy_state: None,
-        };
 
     #[test]
     fn a_sampler_claiming_more_candidates_than_exist_is_a_contract_violation() {
@@ -2329,18 +2255,6 @@ mod sampler_application_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod sampler_apply_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::sampler_apply_status_to_result;
-    use crate::error::sampler_apply_error::SamplerApplyError;
 
     #[test]
     fn sampler_apply_status_allocation_failed_returns_not_enough_memory() {

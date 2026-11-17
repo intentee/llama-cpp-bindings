@@ -69,11 +69,10 @@ fn token_count(model: &LlamaModel, text: &str) -> Result<u64> {
     n_ubatch = 64,
 )]
 fn deepseek_r1_served_with_the_llama_cpp_template_parses_its_tool_call(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let templates =
-        ChatTemplates::with_override(fixture.model, &llama_cpp_deepseek_r1_template()?)?;
-    let session = weather_session(fixture.model, &templates)?;
+    let templates = ChatTemplates::with_override(model, &llama_cpp_deepseek_r1_template()?)?;
+    let session = weather_session(model, &templates)?;
 
     ensure!(
         recognized_answer(
@@ -99,16 +98,15 @@ fn deepseek_r1_served_with_the_llama_cpp_template_parses_its_tool_call(
     n_ubatch = 64,
 )]
 fn deepseek_r1_served_with_the_llama_cpp_template_streams_its_tool_call_tokens_as_a_tool_call(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let templates =
-        ChatTemplates::with_override(fixture.model, &llama_cpp_deepseek_r1_template()?)?;
-    let session = weather_session(fixture.model, &templates)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let templates = ChatTemplates::with_override(model, &llama_cpp_deepseek_r1_template()?)?;
+    let session = weather_session(model, &templates)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
 
     ingested_generation(
         &mut classifier,
-        fixture.model,
+        model,
         &format!("{REASONING}{R1_WEATHER_TOOL_CALL}"),
     )?;
 
@@ -118,9 +116,9 @@ fn deepseek_r1_served_with_the_llama_cpp_template_streams_its_tool_call_tokens_a
             classifier.usage().content,
             classifier.usage().tool_call,
         ] == [
-            token_count(fixture.model, REASONING)?,
+            token_count(model, REASONING)?,
             0,
-            token_count(fixture.model, R1_WEATHER_TOOL_CALL)?.checked_add(END_OF_GENERATION_TOKENS).context("`token_count(fixture.model, R1_WEATHER_TOOL_CALL)? + END_OF_GENERATION_TOKENS` must not overflow")?,
+            token_count(model, R1_WEATHER_TOOL_CALL)?.checked_add(END_OF_GENERATION_TOKENS).context("`token_count(fixture.model, R1_WEATHER_TOOL_CALL)? + END_OF_GENERATION_TOKENS` must not overflow")?,
         ]
     );
 
@@ -135,9 +133,11 @@ fn deepseek_r1_served_with_the_llama_cpp_template_streams_its_tool_call_tokens_a
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn an_empty_template_override_is_refused(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn an_empty_template_override_is_refused(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     ensure!(
-        ChatTemplates::with_override(fixture.model, &LlamaChatTemplate::new("")?).err()
+        ChatTemplates::with_override(model, &LlamaChatTemplate::new("")?).err()
             == Some(ChatTemplatesError::EmptyTemplateOverride)
     );
 
@@ -153,10 +153,10 @@ fn an_empty_template_override_is_refused(fixture: &LlamaFixture<'_>) -> Result<(
     n_ubatch = 64,
 )]
 fn a_template_override_llama_cpp_cannot_parse_reports_its_parse_error(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     ensure!(ChatTemplates::with_override(
-            fixture.model,
+            model,
             &LlamaChatTemplate::new("{{invalid jinja template")?
         )
         .err() == Some(ChatTemplatesError::Reported {

@@ -91,23 +91,6 @@ unsafe impl Send for ChatTemplates {}
 unsafe impl Sync for ChatTemplates {}
 
 impl ChatTemplates {
-    fn init(model: &LlamaModel, template_override: &CStr) -> Result<Self, ChatTemplatesError> {
-        let mut out_templates: llama_cpp_bindings_sys::llama_rs_chat_templates_handle =
-            ptr::null_mut();
-        let mut out_error: *mut c_char = ptr::null_mut();
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_chat_templates_init(
-                model.model.as_ptr(),
-                template_override.as_ptr(),
-                &raw mut out_templates,
-                &raw mut out_error,
-            )
-        };
-
-        chat_templates_init_status_to_result(status, out_templates, out_error)
-            .map(|templates| Self { templates })
-    }
-
     /// The model's own chat templates.
     ///
     /// # Errors
@@ -136,6 +119,26 @@ impl ChatTemplates {
         Self::init(model, template.as_c_str())
     }
 
+    fn init(
+        LlamaModel { model, .. }: &LlamaModel,
+        template_override: &CStr,
+    ) -> Result<Self, ChatTemplatesError> {
+        let mut out_templates: llama_cpp_bindings_sys::llama_rs_chat_templates_handle =
+            ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_chat_templates_init(
+                model.as_ptr(),
+                template_override.as_ptr(),
+                &raw mut out_templates,
+                &raw mut out_error,
+            )
+        };
+
+        chat_templates_init_status_to_result(status, out_templates, out_error)
+            .map(|templates| Self { templates })
+    }
+
     #[must_use]
     pub const fn as_ptr(&self) -> llama_cpp_bindings_sys::llama_rs_chat_templates_handle {
         self.templates.as_ptr()
@@ -150,10 +153,10 @@ impl Drop for ChatTemplates {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ffi::c_char;
     use std::ptr;
 
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
     use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 

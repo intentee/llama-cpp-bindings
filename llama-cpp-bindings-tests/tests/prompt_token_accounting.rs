@@ -43,8 +43,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn feed_prompt_to_batch_increments_pending_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
+fn feed_prompt_to_batch_increments_pending_prompt_tokens(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut batch = LlamaBatch::new(ContextLimits {
         batch: 8,
@@ -106,8 +107,9 @@ fn feed_prompt_to_batch_increments_pending_prompt_tokens(fixture: &LlamaFixture<
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn feed_prompt_sequence_to_batch_stages_all_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
+fn feed_prompt_sequence_to_batch_stages_all_tokens(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut batch = LlamaBatch::new(ContextLimits {
         batch: 8,
@@ -162,9 +164,8 @@ fn feed_prompt_sequence_to_batch_stages_all_tokens(fixture: &LlamaFixture<'_>) -
     n_ubatch = 64,
 )]
 fn commit_prompt_tokens_promotes_pending_count_to_usage_and_clears(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut batch = LlamaBatch::new(ContextLimits {
         batch: 8,
@@ -230,9 +231,8 @@ fn commit_prompt_tokens_promotes_pending_count_to_usage_and_clears(
     n_ubatch = 64,
 )]
 fn discard_pending_prompt_tokens_clears_count_without_recording_usage(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut batch = LlamaBatch::new(ContextLimits {
         batch: 8,
@@ -266,8 +266,10 @@ fn discard_pending_prompt_tokens_clears_count_without_recording_usage(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn cached_prompt_tokens_cannot_exceed_the_recorded_prompt(fixture: &LlamaFixture<'_>) {
-    let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
+fn cached_prompt_tokens_cannot_exceed_the_recorded_prompt(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
+    let mut classifier = SampledTokenClassifier::undeterminable(model);
 
     classifier.record_prompt_tokens(2);
 
@@ -288,13 +290,15 @@ fn cached_prompt_tokens_cannot_exceed_the_recorded_prompt(fixture: &LlamaFixture
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn a_prompt_token_refused_by_a_full_batch_is_not_counted(fixture: &LlamaFixture<'_>) {
-    let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
+fn a_prompt_token_refused_by_a_full_batch_is_not_counted(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
+    let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut batch = LlamaBatch::new(ContextLimits {
         batch: 0,
         micro_batch: 0,
         max_sequences: 1,
-        vocabulary_size: fixture.model.n_vocab(),
+        vocabulary_size: model.n_vocab(),
     });
 
     assert_eq!(
@@ -312,13 +316,15 @@ fn a_prompt_token_refused_by_a_full_batch_is_not_counted(fixture: &LlamaFixture<
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn a_prompt_sequence_refused_by_a_full_batch_is_not_counted(fixture: &LlamaFixture<'_>) {
-    let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
+fn a_prompt_sequence_refused_by_a_full_batch_is_not_counted(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
+    let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut batch = LlamaBatch::new(ContextLimits {
         batch: 0,
         micro_batch: 0,
         max_sequences: 1,
-        vocabulary_size: fixture.model.n_vocab(),
+        vocabulary_size: model.n_vocab(),
     });
 
     assert_eq!(

@@ -147,11 +147,6 @@ impl AndroidNdk {
         format!("android-{}", self.api_level)
     }
 
-    #[must_use]
-    pub fn cmake_toolchain_file(&self) -> String {
-        format!("{}/build/cmake/android.toolchain.cmake", self.ndk_path)
-    }
-
     /// The clang arguments that parse headers the way the NDK compiles them for `target_triple`.
     #[must_use]
     pub fn clang_args(&self, target_triple: &str) -> Vec<String> {
@@ -171,6 +166,11 @@ impl AndroidNdk {
             "stdint.h".to_owned(),
             format!("--target={target_triple}"),
         ]
+    }
+
+    #[must_use]
+    pub fn cmake_toolchain_file(&self) -> String {
+        format!("{}/build/cmake/android.toolchain.cmake", self.ndk_path)
     }
 }
 
@@ -195,9 +195,6 @@ pub mod tests {
     use crate::build_environment::tests::environment_of;
     use crate::build_environment::tests::variable;
     use crate::host_os::HostOs;
-
-    pub const FIXTURE_ANDROID_NDK: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/android_ndk");
 
     const FIXTURE_TOOLCHAIN: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -233,6 +230,9 @@ pub mod tests {
         .err()
         .map(|error| error.to_string())
     }
+
+    pub const FIXTURE_ANDROID_NDK: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/android_ndk");
 
     #[test]
     fn an_installed_ndk_is_detected_with_the_platform_api_level() {
@@ -295,7 +295,7 @@ pub mod tests {
                 "aarch64",
                 HostOs::Linux,
             )
-            .map(|ndk| ndk.api_level)
+            .map(|AndroidNdk { api_level, .. }| api_level)
             .ok()
         };
 

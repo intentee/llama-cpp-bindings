@@ -49,11 +49,6 @@ impl GgufContext {
         })
     }
 
-    #[must_use]
-    pub fn n_kv(&self) -> i64 {
-        unsafe { llama_cpp_bindings_sys::gguf_get_n_kv(self.context.as_ptr()) }
-    }
-
     /// # Errors
     ///
     /// Returns [`GgufContextError::KeyNotFound`] if the key does not exist.
@@ -102,168 +97,9 @@ impl GgufContext {
         GgufType::from_raw(raw_type).ok_or(GgufContextError::UnknownValueType { key_id, raw_type })
     }
 
-    /// # Errors
-    ///
-    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
-    /// if the key does not hold a [`GgufType::Uint32`] value.
-    pub fn val_u32(&self, key_id: i64) -> Result<u32, GgufContextError> {
-        self.require_value_type(key_id, GgufType::Uint32)?;
-
-        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_u32(self.context.as_ptr(), key_id) })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
-    /// if the key does not hold a [`GgufType::Int32`] value.
-    pub fn val_i32(&self, key_id: i64) -> Result<i32, GgufContextError> {
-        self.require_value_type(key_id, GgufType::Int32)?;
-
-        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_i32(self.context.as_ptr(), key_id) })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
-    /// if the key does not hold a [`GgufType::Uint64`] value.
-    pub fn val_u64(&self, key_id: i64) -> Result<u64, GgufContextError> {
-        self.require_value_type(key_id, GgufType::Uint64)?;
-
-        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_u64(self.context.as_ptr(), key_id) })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
-    /// if the key does not hold a [`GgufType::Float32`] value.
-    pub fn val_f32(&self, key_id: i64) -> Result<f32, GgufContextError> {
-        self.require_value_type(key_id, GgufType::Float32)?;
-
-        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_f32(self.context.as_ptr(), key_id) })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
-    /// if the key does not hold a [`GgufType::String`] value.
-    /// Returns [`GgufContextError::Utf8Error`] if the string value is not valid UTF-8.
-    pub fn val_str(&self, key_id: i64) -> Result<&str, GgufContextError> {
-        self.require_value_type(key_id, GgufType::String)?;
-
-        let c_str = unsafe {
-            CStr::from_ptr(llama_cpp_bindings_sys::gguf_get_val_str(
-                self.context.as_ptr(),
-                key_id,
-            ))
-        };
-
-        Ok(c_str.to_str()?)
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`GgufContextError::KeyNotFound`] if the key does not exist.
-    /// Returns [`GgufContextError::NulError`] if the key contains a null byte.
-    pub fn remove_key(&mut self, key: &str) -> Result<(), GgufContextError> {
-        let key_id = self.find_key(key)?;
-        let stored_key =
-            unsafe { llama_cpp_bindings_sys::gguf_get_key(self.context.as_ptr(), key_id) };
-
-        unsafe { llama_cpp_bindings_sys::gguf_remove_key(self.context.as_ptr(), stored_key) };
-
-        Ok(())
-    }
-
-    pub fn set_val_u32(&mut self, key: &CStr, value: u32) {
-        unsafe {
-            llama_cpp_bindings_sys::gguf_set_val_u32(self.context.as_ptr(), key.as_ptr(), value);
-        }
-    }
-
-    pub fn set_val_str(&mut self, key: &CStr, value: &CStr) {
-        unsafe {
-            llama_cpp_bindings_sys::gguf_set_val_str(
-                self.context.as_ptr(),
-                key.as_ptr(),
-                value.as_ptr(),
-            );
-        }
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`GgufContextError::SourceFileReadFailed`] if the loaded file cannot be read.
-    /// Returns [`GgufContextError::SourceFileTruncated`] if the loaded file ends before its
-    /// tensor data begins.
-    /// Returns [`GgufContextError::DestinationFileWriteFailed`] if the destination cannot be
-    /// written.
-    pub fn write_to_file(&self, destination: impl AsRef<Path>) -> Result<(), GgufContextError> {
-        let destination_ref = destination.as_ref();
-        let mut gguf_bytes =
-            fs::read(&self.path).map_err(|source| GgufContextError::SourceFileReadFailed {
-                path: self.path.clone(),
-                source,
-            })?;
-        let data_offset =
-            unsafe { llama_cpp_bindings_sys::gguf_get_data_offset(self.context.as_ptr()) };
-
-        if gguf_bytes.len() < data_offset {
-            return Err(GgufContextError::SourceFileTruncated {
-                path: self.path.clone(),
-                data_offset,
-                file_size: gguf_bytes.len(),
-            });
-        }
-
-        gguf_bytes.splice(..data_offset, self.metadata_bytes());
-
-        fs::write(destination_ref, gguf_bytes).map_err(|source| {
-            GgufContextError::DestinationFileWriteFailed {
-                path: destination_ref.to_path_buf(),
-                source,
-            }
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
-    /// if the key does not hold a [`GgufType::Array`] value.
-    /// Returns [`GgufContextError::ArrayElementTypeMismatch`] if the array does not hold
-    /// [`GgufType::Int32`] elements.
-    pub fn val_arr_i32(&self, key_id: i64) -> Result<&[i32], GgufContextError> {
-        self.require_value_type(key_id, GgufType::Array)?;
-
-        let element_type =
-            unsafe { llama_cpp_bindings_sys::gguf_get_arr_type(self.context.as_ptr(), key_id) };
-
-        if element_type != GgufType::Int32.to_raw() {
-            return Err(GgufContextError::ArrayElementTypeMismatch {
-                key_id,
-                expected: GgufType::Int32,
-                actual_raw_type: element_type,
-            });
-        }
-
-        Ok(unsafe {
-            slice::from_raw_parts(
-                llama_cpp_bindings_sys::gguf_get_arr_data(self.context.as_ptr(), key_id)
-                    .cast::<i32>(),
-                llama_cpp_bindings_sys::gguf_get_arr_n(self.context.as_ptr(), key_id),
-            )
-        })
-    }
-
-    pub fn set_arr_i32(&mut self, key: &CStr, values: &[i32]) {
-        unsafe {
-            llama_cpp_bindings_sys::gguf_set_arr_data(
-                self.context.as_ptr(),
-                key.as_ptr(),
-                GgufType::Int32.to_raw(),
-                values.as_ptr().cast(),
-                values.len(),
-            );
-        }
+    #[must_use]
+    pub fn n_kv(&self) -> i64 {
+        unsafe { llama_cpp_bindings_sys::gguf_get_n_kv(self.context.as_ptr()) }
     }
 
     #[must_use]
@@ -306,6 +142,170 @@ impl GgufContext {
         })
     }
 
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyNotFound`] if the key does not exist.
+    /// Returns [`GgufContextError::NulError`] if the key contains a null byte.
+    pub fn remove_key(&mut self, key: &str) -> Result<(), GgufContextError> {
+        let key_id = self.find_key(key)?;
+        let stored_key =
+            unsafe { llama_cpp_bindings_sys::gguf_get_key(self.context.as_ptr(), key_id) };
+
+        unsafe { llama_cpp_bindings_sys::gguf_remove_key(self.context.as_ptr(), stored_key) };
+
+        Ok(())
+    }
+
+    pub fn set_arr_i32(&mut self, key: &CStr, values: &[i32]) {
+        unsafe {
+            llama_cpp_bindings_sys::gguf_set_arr_data(
+                self.context.as_ptr(),
+                key.as_ptr(),
+                GgufType::Int32.to_raw(),
+                values.as_ptr().cast(),
+                values.len(),
+            );
+        }
+    }
+
+    pub fn set_val_str(&mut self, key: &CStr, value: &CStr) {
+        unsafe {
+            llama_cpp_bindings_sys::gguf_set_val_str(
+                self.context.as_ptr(),
+                key.as_ptr(),
+                value.as_ptr(),
+            );
+        }
+    }
+
+    pub fn set_val_u32(&mut self, key: &CStr, value: u32) {
+        unsafe {
+            llama_cpp_bindings_sys::gguf_set_val_u32(self.context.as_ptr(), key.as_ptr(), value);
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
+    /// if the key does not hold a [`GgufType::Array`] value.
+    /// Returns [`GgufContextError::ArrayElementTypeMismatch`] if the array does not hold
+    /// [`GgufType::Int32`] elements.
+    pub fn val_arr_i32(&self, key_id: i64) -> Result<&[i32], GgufContextError> {
+        self.require_value_type(key_id, GgufType::Array)?;
+
+        let element_type =
+            unsafe { llama_cpp_bindings_sys::gguf_get_arr_type(self.context.as_ptr(), key_id) };
+
+        if element_type != GgufType::Int32.to_raw() {
+            return Err(GgufContextError::ArrayElementTypeMismatch {
+                key_id,
+                expected: GgufType::Int32,
+                actual_raw_type: element_type,
+            });
+        }
+
+        Ok(unsafe {
+            slice::from_raw_parts(
+                llama_cpp_bindings_sys::gguf_get_arr_data(self.context.as_ptr(), key_id)
+                    .cast::<i32>(),
+                llama_cpp_bindings_sys::gguf_get_arr_n(self.context.as_ptr(), key_id),
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
+    /// if the key does not hold a [`GgufType::Float32`] value.
+    pub fn val_f32(&self, key_id: i64) -> Result<f32, GgufContextError> {
+        self.require_value_type(key_id, GgufType::Float32)?;
+
+        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_f32(self.context.as_ptr(), key_id) })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
+    /// if the key does not hold a [`GgufType::Int32`] value.
+    pub fn val_i32(&self, key_id: i64) -> Result<i32, GgufContextError> {
+        self.require_value_type(key_id, GgufType::Int32)?;
+
+        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_i32(self.context.as_ptr(), key_id) })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
+    /// if the key does not hold a [`GgufType::String`] value.
+    /// Returns [`GgufContextError::Utf8Error`] if the string value is not valid UTF-8.
+    pub fn val_str(&self, key_id: i64) -> Result<&str, GgufContextError> {
+        self.require_value_type(key_id, GgufType::String)?;
+
+        let c_str = unsafe {
+            CStr::from_ptr(llama_cpp_bindings_sys::gguf_get_val_str(
+                self.context.as_ptr(),
+                key_id,
+            ))
+        };
+
+        Ok(c_str.to_str()?)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
+    /// if the key does not hold a [`GgufType::Uint32`] value.
+    pub fn val_u32(&self, key_id: i64) -> Result<u32, GgufContextError> {
+        self.require_value_type(key_id, GgufType::Uint32)?;
+
+        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_u32(self.context.as_ptr(), key_id) })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
+    /// if the key does not hold a [`GgufType::Uint64`] value.
+    pub fn val_u64(&self, key_id: i64) -> Result<u64, GgufContextError> {
+        self.require_value_type(key_id, GgufType::Uint64)?;
+
+        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_u64(self.context.as_ptr(), key_id) })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`GgufContextError::SourceFileReadFailed`] if the loaded file cannot be read.
+    /// Returns [`GgufContextError::SourceFileTruncated`] if the loaded file ends before its
+    /// tensor data begins.
+    /// Returns [`GgufContextError::DestinationFileWriteFailed`] if the destination cannot be
+    /// written.
+    pub fn write_to_file(&self, destination: impl AsRef<Path>) -> Result<(), GgufContextError> {
+        let destination_ref = destination.as_ref();
+        let mut gguf_bytes =
+            fs::read(&self.path).map_err(|source| GgufContextError::SourceFileReadFailed {
+                path: self.path.clone(),
+                source,
+            })?;
+        let data_offset =
+            unsafe { llama_cpp_bindings_sys::gguf_get_data_offset(self.context.as_ptr()) };
+
+        if gguf_bytes.len() < data_offset {
+            return Err(GgufContextError::SourceFileTruncated {
+                path: self.path.clone(),
+                data_offset,
+                file_size: gguf_bytes.len(),
+            });
+        }
+
+        gguf_bytes.splice(..data_offset, self.metadata_bytes());
+
+        fs::write(destination_ref, gguf_bytes).map_err(|source| {
+            GgufContextError::DestinationFileWriteFailed {
+                path: destination_ref.to_path_buf(),
+                source,
+            }
+        })
+    }
+
     fn metadata_bytes(&self) -> Vec<u8> {
         let mut metadata =
             vec![0; unsafe { llama_cpp_bindings_sys::gguf_get_meta_size(self.context.as_ptr()) }];
@@ -344,23 +344,6 @@ impl GgufContext {
         }
     }
 
-    fn tensor_shape(
-        &self,
-        tensor_id: i64,
-    ) -> [i64; llama_cpp_bindings_sys::GGML_MAX_DIMS as usize] {
-        let element_counts = unsafe {
-            slice::from_raw_parts(
-                llama_cpp_bindings_sys::gguf_get_tensor_ne(self.context.as_ptr(), tensor_id),
-                llama_cpp_bindings_sys::GGML_MAX_DIMS as usize,
-            )
-        };
-        let mut shape = [0; llama_cpp_bindings_sys::GGML_MAX_DIMS as usize];
-
-        shape.copy_from_slice(element_counts);
-
-        shape
-    }
-
     fn tensor_f32_values(&self, name: &str, tensor_id: i64) -> Result<Vec<f32>, GgufContextError> {
         let data_offset =
             unsafe { llama_cpp_bindings_sys::gguf_get_data_offset(self.context.as_ptr()) };
@@ -391,6 +374,23 @@ impl GgufContext {
             .map(f32::from_ne_bytes)
             .collect())
     }
+
+    fn tensor_shape(
+        &self,
+        tensor_id: i64,
+    ) -> [i64; llama_cpp_bindings_sys::GGML_MAX_DIMS as usize] {
+        let element_counts = unsafe {
+            slice::from_raw_parts(
+                llama_cpp_bindings_sys::gguf_get_tensor_ne(self.context.as_ptr(), tensor_id),
+                llama_cpp_bindings_sys::GGML_MAX_DIMS as usize,
+            )
+        };
+        let mut shape = [0; llama_cpp_bindings_sys::GGML_MAX_DIMS as usize];
+
+        shape.copy_from_slice(element_counts);
+
+        shape
+    }
 }
 
 impl Drop for GgufContext {
@@ -400,7 +400,7 @@ impl Drop for GgufContext {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::env;
     use std::ffi::CString;
     use std::ffi::OsStr;
@@ -422,12 +422,6 @@ mod tests {
 
     const GGUF_ALIGNMENT: usize = 32;
     const GGML_TYPE_F16: u32 = 1;
-
-    fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("fixtures")
-            .join("ggml-vocab-bert-bge.gguf")
-    }
 
     fn init_failed_disc() -> Discriminant<GgufContextError> {
         discriminant(&GgufContextError::InitFailed(PathBuf::new()))
@@ -535,6 +529,25 @@ mod tests {
         discriminant(&GgufContextError::Utf8Error(utf8_err))
     }
 
+    fn f32_bytes(values: &[f32]) -> Vec<u8> {
+        values
+            .iter()
+            .flat_map(|value| value.to_ne_bytes())
+            .collect()
+    }
+
+    fn bias_and_weight_tensors(test_name: &str) -> SyntheticGgufFile {
+        SyntheticGgufBuilder::default()
+            .tensor(b"synthetic.bias", &[2], GGML_TYPE_F16, vec![0; 4])
+            .tensor(
+                b"synthetic.weight",
+                &[3, 2],
+                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+            )
+            .write(test_name)
+    }
+
     struct SyntheticTensor {
         name: Vec<u8>,
         shape: Vec<u64>,
@@ -550,17 +563,6 @@ mod tests {
     }
 
     impl SyntheticGgufBuilder {
-        fn value(mut self, key: &[u8], gguf_type: GgufType, value: &[u8]) -> Self {
-            self.key_values
-                .extend_from_slice(&(key.len() as u64).to_le_bytes());
-            self.key_values.extend_from_slice(key);
-            self.key_values
-                .extend_from_slice(&gguf_type.to_raw().to_le_bytes());
-            self.key_values.extend_from_slice(value);
-            self.key_value_count = self.key_value_count.checked_add(1).unwrap();
-            self
-        }
-
         fn string_value(self, key: &[u8], value: &[u8]) -> Self {
             let mut encoded = (value.len() as u64).to_le_bytes().to_vec();
             encoded.extend_from_slice(value);
@@ -574,6 +576,17 @@ mod tests {
                 ggml_type,
                 data,
             });
+            self
+        }
+
+        fn value(mut self, key: &[u8], gguf_type: GgufType, value: &[u8]) -> Self {
+            self.key_values
+                .extend_from_slice(&(key.len() as u64).to_le_bytes());
+            self.key_values.extend_from_slice(key);
+            self.key_values
+                .extend_from_slice(&gguf_type.to_raw().to_le_bytes());
+            self.key_values.extend_from_slice(value);
+            self.key_value_count = self.key_value_count.checked_add(1).unwrap();
             self
         }
 
@@ -634,23 +647,11 @@ mod tests {
         }
     }
 
-    fn f32_bytes(values: &[f32]) -> Vec<u8> {
-        values
-            .iter()
-            .flat_map(|value| value.to_ne_bytes())
-            .collect()
-    }
-
-    fn bias_and_weight_tensors(test_name: &str) -> SyntheticGgufFile {
-        SyntheticGgufBuilder::default()
-            .tensor(b"synthetic.bias", &[2], GGML_TYPE_F16, vec![0; 4])
-            .tensor(
-                b"synthetic.weight",
-                &[3, 2],
-                llama_cpp_bindings_sys::GGML_TYPE_F32,
-                f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
-            )
-            .write(test_name)
+    #[must_use]
+    pub fn vocabulary_fixture_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join("ggml-vocab-bert-bge.gguf")
     }
 
     #[test]
@@ -662,14 +663,14 @@ mod tests {
 
     #[test]
     fn n_kv_counts_every_key_of_the_file() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
 
         assert_eq!(context.n_kv(), 20);
     }
 
     #[test]
     fn find_key_returns_error_for_missing_key() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.find_key("nonexistent.key").unwrap_err();
 
         assert_eq!(discriminant(&err), key_not_found_disc());
@@ -677,7 +678,7 @@ mod tests {
 
     #[test]
     fn key_at_returns_expected_name() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let index = context.find_key("general.architecture").unwrap();
         let key_name = context.key_at(index).unwrap();
 
@@ -686,7 +687,7 @@ mod tests {
 
     #[test]
     fn key_at_rejects_a_key_id_past_the_last_key() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.key_at(context.n_kv()).unwrap_err();
 
         assert_eq!(discriminant(&err), key_id_out_of_range_disc());
@@ -694,7 +695,7 @@ mod tests {
 
     #[test]
     fn typed_value_rejects_a_negative_key_id() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.val_u32(-1).unwrap_err();
 
         assert_eq!(discriminant(&err), key_id_out_of_range_disc());
@@ -702,7 +703,7 @@ mod tests {
 
     #[test]
     fn kv_type_returns_expected_type_for_string_key() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let index = context.find_key("general.architecture").unwrap();
 
         assert_eq!(context.kv_type(index).unwrap(), GgufType::String);
@@ -710,7 +711,7 @@ mod tests {
 
     #[test]
     fn val_str_reads_the_architecture_stored_in_the_file() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let index = context.find_key("general.architecture").unwrap();
         let value = context.val_str(index).unwrap();
 
@@ -734,7 +735,7 @@ mod tests {
 
     #[test]
     fn find_key_with_null_byte_in_key_returns_error() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.find_key("foo\0bar").unwrap_err();
 
         assert_eq!(discriminant(&err), nul_error_disc());
@@ -843,7 +844,7 @@ mod tests {
 
     #[test]
     fn read_tensor_f32_rejects_a_missing_tensor() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.read_tensor_f32("synthetic.missing").unwrap_err();
 
         assert_eq!(discriminant(&err), tensor_not_found_disc());
@@ -905,7 +906,7 @@ mod tests {
 
     #[test]
     fn read_tensor_f32_with_null_byte_in_name_returns_error() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.read_tensor_f32("foo\0bar").unwrap_err();
 
         assert_eq!(discriminant(&err), nul_error_disc());
@@ -928,7 +929,7 @@ mod tests {
 
     #[test]
     fn val_arr_i32_rejects_a_key_that_holds_no_array() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let index = context.find_key("general.architecture").unwrap();
         let err = context.val_arr_i32(index).unwrap_err();
 
@@ -954,7 +955,7 @@ mod tests {
 
     #[test]
     fn remove_key_rejects_a_missing_key() {
-        let mut context = GgufContext::from_file(fixture_path()).unwrap();
+        let mut context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.remove_key("nonexistent.key").unwrap_err();
 
         assert_eq!(discriminant(&err), key_not_found_disc());
@@ -1069,7 +1070,7 @@ mod tests {
 
     #[test]
     fn write_to_file_reports_a_destination_it_cannot_write() {
-        let context = GgufContext::from_file(fixture_path()).unwrap();
+        let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context
             .write_to_file("/nonexistent/directory/rewritten.gguf")
             .unwrap_err();

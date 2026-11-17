@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::vendored_include_dirs::VENDORED_INCLUDE_DIRS;
+use crate::constants::VENDORED_INCLUDE_DIRS;
 
 /// The compiler flags that include every vendored header directory under `sys_dir` as a system
 /// directory, so warnings in vendored headers do not surface while ours still do.

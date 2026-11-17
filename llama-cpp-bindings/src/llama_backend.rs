@@ -5,19 +5,12 @@ use crate::error::Result;
 use crate::error::llama_cpp_error::LlamaCppError;
 use crate::llama_backend_numa_strategy::NumaStrategy;
 
+static LLAMA_BACKEND_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 #[derive(Eq, PartialEq, Debug)]
 pub struct LlamaBackend {}
 
-static LLAMA_BACKEND_INITIALIZED: AtomicBool = AtomicBool::new(false);
-
 impl LlamaBackend {
-    fn mark_init() -> Result<()> {
-        match LLAMA_BACKEND_INITIALIZED.compare_exchange(false, true, SeqCst, SeqCst) {
-            Ok(_was_uninitialized) => Ok(()),
-            Err(_was_already_initialized) => Err(LlamaCppError::BackendAlreadyInitialized),
-        }
-    }
-
     /// # Errors
     /// Returns an error if the backend was already initialized.
     pub fn init() -> Result<Self> {
@@ -49,13 +42,20 @@ impl LlamaBackend {
     }
 
     #[must_use]
+    pub fn supports_mlock() -> bool {
+        unsafe { llama_cpp_bindings_sys::llama_supports_mlock() }
+    }
+
+    #[must_use]
     pub fn supports_mmap() -> bool {
         unsafe { llama_cpp_bindings_sys::llama_supports_mmap() }
     }
 
-    #[must_use]
-    pub fn supports_mlock() -> bool {
-        unsafe { llama_cpp_bindings_sys::llama_supports_mlock() }
+    fn mark_init() -> Result<()> {
+        match LLAMA_BACKEND_INITIALIZED.compare_exchange(false, true, SeqCst, SeqCst) {
+            Ok(_was_uninitialized) => Ok(()),
+            Err(_was_already_initialized) => Err(LlamaCppError::BackendAlreadyInitialized),
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
@@ -16,19 +17,23 @@ const TEXT: &str = "The parcel arrived on the last working day of the week.";
 ///
 /// Fails when the fixture's context cannot be created or the sentence cannot be decoded in it.
 pub fn context_after_decoding_text<'fixture>(
-    fixture: &'fixture LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &'fixture LlamaFixture<'_>,
     pooling_type: LlamaPoolingType,
 ) -> Result<LlamaContext<'fixture>> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
+        model,
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_pooling_type(pooling_type),
     )
     .context("the fixture's context must be creatable")?;
-    let tokens = fixture
-        .model
+    let tokens = model
         .str_to_token(TEXT, AddBos::Always, ParseSpecialTokens::Never)
         .context("the sentence must tokenize")?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));

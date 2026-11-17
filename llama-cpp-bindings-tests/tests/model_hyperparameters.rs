@@ -36,9 +36,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn model_reports_positive_core_hyperparameters(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-
+fn model_reports_positive_core_hyperparameters(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     ensure!(model.n_vocab() > 0);
     ensure!(model.n_embd() > 0);
     ensure!(model.n_params() > 0);

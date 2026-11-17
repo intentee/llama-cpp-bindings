@@ -22,23 +22,20 @@ pub enum OpenmpRuntimeSource {
 
 impl OpenmpRuntimeSource {
     #[must_use]
-    pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Self {
+    pub fn of(
+        &BuildContext {
+            build_shared_libs, ..
+        }: &BuildContext,
+        environment: &BuildEnvironment,
+    ) -> Self {
         match (
-            context.build_shared_libs,
+            build_shared_libs,
             environment.has(BuildFeature::SystemGgml),
             environment.has(BuildFeature::SystemGgmlStatic),
         ) {
             (true, _, _) | (false, true, false) => Self::SharedLibraries,
             (false, true, true) => Self::SystemGgml,
             (false, false, _) => Self::BundledGgml,
-        }
-    }
-
-    fn needs_runtime(self, cache: &CmakeCache) -> Result<bool, BuildError> {
-        match self {
-            Self::SharedLibraries => Ok(false),
-            Self::BundledGgml => cache.switch(BUNDLED_GGML_OPENMP_SWITCH),
-            Self::SystemGgml => Ok(cache.contains(C_RUNTIME_LIBRARY_NAMES)),
         }
     }
 
@@ -74,6 +71,14 @@ impl OpenmpRuntimeSource {
             })
             .collect()
     }
+
+    fn needs_runtime(self, cache: &CmakeCache) -> Result<bool, BuildError> {
+        match self {
+            Self::SharedLibraries => Ok(false),
+            Self::BundledGgml => cache.switch(BUNDLED_GGML_OPENMP_SWITCH),
+            Self::SystemGgml => Ok(cache.contains(C_RUNTIME_LIBRARY_NAMES)),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -83,8 +88,8 @@ mod tests {
     use enumflags2::BitFlags;
 
     use super::OpenmpRuntimeSource;
+    use crate::build_context::BuildContext;
     use crate::build_context::tests::cargo_environment;
-    use crate::build_context::tests::context_of;
     use crate::build_feature::BuildFeature;
     use crate::cmake_cache::CmakeCache;
     use crate::cmake_cache::tests::entry;
@@ -131,7 +136,7 @@ mod tests {
             .map(|features| {
                 let environment = cargo_environment(features, &[]);
 
-                OpenmpRuntimeSource::of(&context_of(&environment), &environment)
+                OpenmpRuntimeSource::of(&BuildContext::of_linux_host(&environment), &environment)
             }),
             [
                 OpenmpRuntimeSource::SharedLibraries,

@@ -2,12 +2,10 @@ use std::ops::BitOr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LlamaStateSeqFlags {
-    flags: u32,
+    pub flags: u32,
 }
 
 impl LlamaStateSeqFlags {
-    pub const PARTIAL_ONLY: Self = Self { flags: 1 };
-
     #[must_use]
     pub const fn empty() -> Self {
         Self { flags: 0 }
@@ -19,17 +17,17 @@ impl LlamaStateSeqFlags {
     }
 
     #[must_use]
-    pub const fn contains(self, other: Self) -> bool {
-        (self.flags & other.flags) == other.flags
+    pub const fn contains(self, Self { flags }: Self) -> bool {
+        (self.flags & flags) == flags
     }
 }
 
 impl BitOr for LlamaStateSeqFlags {
     type Output = Self;
 
-    fn bitor(self, rhs: Self) -> Self {
+    fn bitor(self, Self { flags }: Self) -> Self {
         Self {
-            flags: self.flags | rhs.flags,
+            flags: self.flags | flags,
         }
     }
 }
@@ -44,28 +42,23 @@ mod tests {
     }
 
     #[test]
-    fn partial_only_has_bit_one() {
-        assert_eq!(LlamaStateSeqFlags::PARTIAL_ONLY.bits(), 1);
-    }
-
-    #[test]
     fn bitor_combines_flags() {
-        let combined = LlamaStateSeqFlags::empty() | LlamaStateSeqFlags::PARTIAL_ONLY;
+        let combined = LlamaStateSeqFlags::empty() | LlamaStateSeqFlags { flags: 1 };
 
         assert_eq!(combined.bits(), 1);
     }
 
     #[test]
     fn contains_detects_set_flag() {
-        let flags = LlamaStateSeqFlags::PARTIAL_ONLY;
+        let flags = LlamaStateSeqFlags { flags: 1 };
 
-        assert!(flags.contains(LlamaStateSeqFlags::PARTIAL_ONLY));
+        assert!(flags.contains(LlamaStateSeqFlags { flags: 1 }));
     }
 
     #[test]
     fn empty_does_not_contain_partial_only() {
         let flags = LlamaStateSeqFlags::empty();
 
-        assert!(!flags.contains(LlamaStateSeqFlags::PARTIAL_ONLY));
+        assert!(!flags.contains(LlamaStateSeqFlags { flags: 1 }));
     }
 }

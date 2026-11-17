@@ -15,19 +15,26 @@ use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
-fn fixture_context<'model>(fixture: &LlamaFixture<'model>) -> Result<LlamaContext<'model>> {
+fn fixture_context<'model>(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'model>,
+) -> Result<LlamaContext<'model>> {
     Ok(LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?)
 }
 
-fn greeting_batch(fixture: &LlamaFixture<'_>, context: &LlamaContext<'_>) -> Result<LlamaBatch> {
-    let tokens =
-        fixture
-            .model
-            .str_to_token("hello there", AddBos::Always, ParseSpecialTokens::Always)?;
+fn greeting_batch(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+    context: &LlamaContext<'_>,
+) -> Result<LlamaBatch> {
+    let tokens = model.str_to_token("hello there", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(context));
 
     batch.add_sequence(&tokens, 0, false)?;

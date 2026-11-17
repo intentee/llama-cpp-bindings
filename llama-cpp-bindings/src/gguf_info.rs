@@ -106,23 +106,44 @@ impl GgufInfo {
 #[cfg(test)]
 mod tests {
     use std::env;
+
     use std::ffi::CString;
+
     use std::fs;
+
     use std::path::Path;
-    use std::path::PathBuf;
+
     use std::process;
+    use std::ptr;
+
+    use llama_cpp_bindings_sys::llama_rs_gguf_info;
+
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::GgufInfo;
+
     use crate::error::gguf_info_error::GgufInfoError;
+
     use crate::error::path_c_string_error::PathCStringError;
+
     use crate::gguf_context::GgufContext;
+
+    use crate::gguf_context::tests::vocabulary_fixture_path;
+
+    use super::read_gguf_info_status_to_result;
     use crate::model::decision_type::DecisionType;
 
-    fn vocabulary_fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("fixtures")
-            .join("ggml-vocab-bert-bge.gguf")
-    }
+    use crate::error::unknown_decision_type::UnknownDecisionType;
+
+    const NOT_A_DECISION_MODEL: llama_rs_gguf_info = llama_rs_gguf_info {
+        decision_type: llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE,
+        n_ctx_train: 0,
+        has_chat_template: false,
+    };
 
     #[test]
     fn a_missing_file_reads_as_an_unknown_decision_type_without_context_or_template() {
@@ -172,26 +193,6 @@ mod tests {
             )))
         );
     }
-}
-
-#[cfg(test)]
-mod read_gguf_info_status_to_result_tests {
-    use std::ptr;
-
-    use llama_cpp_bindings_sys::llama_rs_gguf_info;
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::read_gguf_info_status_to_result;
-    use crate::error::gguf_info_error::GgufInfoError;
-    use crate::error::unknown_decision_type::UnknownDecisionType;
-
-    const NOT_A_DECISION_MODEL: llama_rs_gguf_info = llama_rs_gguf_info {
-        decision_type: llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE,
-        n_ctx_train: 0,
-        has_chat_template: false,
-    };
 
     #[test]
     fn a_decision_type_the_wrapper_does_not_define_is_refused() {

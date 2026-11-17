@@ -51,14 +51,17 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 128,
 )]
 fn raw_prompt_completion_usage_matches_the_classified_tokens(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let backend = fixture.backend;
     let mut ctx = LlamaContext::from_model(
         model,
         backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*context_params).into_llama_context_params(),
     )
     .with_context(|| "unable to create context")?;
 
@@ -168,13 +171,18 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let backend = fixture.backend;
+fn chat_completion_usage_matches_the_classified_tokens(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
         model,
         backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*context_params).into_llama_context_params(),
     )?;
 
     let messages = [user_message("Hello! How are you?")];
@@ -191,8 +199,8 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         },
     )?;
 
-    let tokens = session.tokenize_prompt(fixture.model)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let tokens = session.tokenize_prompt(model)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));

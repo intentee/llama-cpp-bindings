@@ -55,14 +55,24 @@ impl TryFrom<&MtmdContextParams> for llama_cpp_bindings_sys::mtmd_context_params
 }
 
 impl From<llama_cpp_bindings_sys::mtmd_context_params> for MtmdContextParams {
-    fn from(params: llama_cpp_bindings_sys::mtmd_context_params) -> Self {
+    fn from(
+        llama_cpp_bindings_sys::mtmd_context_params {
+            use_gpu,
+            print_timings,
+            n_threads,
+            media_marker,
+            image_min_tokens,
+            image_max_tokens,
+            ..
+        }: llama_cpp_bindings_sys::mtmd_context_params,
+    ) -> Self {
         Self {
-            use_gpu: params.use_gpu,
-            print_timings: params.print_timings,
-            n_threads: params.n_threads,
-            media_marker: unsafe { CStr::from_ptr(params.media_marker) }.to_owned(),
-            image_min_tokens: MtmdImageTokenLimit::from_c_int(params.image_min_tokens),
-            image_max_tokens: MtmdImageTokenLimit::from_c_int(params.image_max_tokens),
+            use_gpu,
+            print_timings,
+            n_threads,
+            media_marker: unsafe { CStr::from_ptr(media_marker) }.to_owned(),
+            image_min_tokens: MtmdImageTokenLimit::from_c_int(image_min_tokens),
+            image_max_tokens: MtmdImageTokenLimit::from_c_int(image_max_tokens),
         }
     }
 }

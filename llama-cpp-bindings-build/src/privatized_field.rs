@@ -5,10 +5,3 @@ pub struct PrivatizedField {
     pub type_name: &'static str,
     pub field_name: &'static str,
 }
-
-impl PrivatizedField {
-    pub const ALL: &'static [Self] = &[Self {
-        type_name: "mtmd_context_params",
-        field_name: "image_marker",
-    }];
-}

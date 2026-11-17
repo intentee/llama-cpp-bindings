@@ -57,13 +57,17 @@ const YES_TOKEN_AND_END_OF_GENERATION: u64 = 2;
     n_ubatch = 128,
 )]
 fn grammar_sampler_constrains_the_first_token_of_the_answer_to_yes(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     let prompt = "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
@@ -145,20 +149,24 @@ fn grammar_sampler_constrains_the_first_token_of_the_answer_to_yes(
     n_ubatch = 128,
 )]
 fn grammar_constrained_chat_answer_is_yes_content_that_ends_generation(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", &[])?;
-    let tokens = session.tokenize_prompt(fixture.model)?;
+    let tokens = session.tokenize_prompt(model)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     context.decode(&batch)?;
@@ -208,9 +216,8 @@ fn grammar_constrained_chat_answer_is_yes_content_that_ends_generation(
     n_ubatch = 512,
 )]
 fn a_grammar_sampler_masks_tokens_that_cannot_start_the_grammar(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let sampler = LlamaSampler::grammar(model, "root ::= \"hello\"", "root")?;
 
     ensure!(
@@ -232,14 +239,18 @@ fn a_grammar_sampler_masks_tokens_that_cannot_start_the_grammar(
     n_ubatch = 64,
 )]
 fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let think_token = single_token(model, "<think>")?;
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let prompt_tokens = model.str_to_token(
         "<|im_start|>user\nSay hi<|im_end|>\n<|im_start|>assistant\n",
@@ -277,9 +288,11 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn qwen35_grammar_without_its_root_reports_the_missing_root(fixture: &LlamaFixture<'_>) {
+fn qwen35_grammar_without_its_root_reports_the_missing_root(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     assert_eq!(
-        LlamaSampler::grammar(fixture.model, r#"answer ::= <think> "x""#, "root").err(),
+        LlamaSampler::grammar(model, r#"answer ::= <think> "x""#, "root").err(),
         Some(GrammarError::RootNotFound)
     );
 }
@@ -292,9 +305,9 @@ fn qwen35_grammar_without_its_root_reports_the_missing_root(fixture: &LlamaFixtu
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn qwen35_grammar_with_a_syntax_error_reports_it(fixture: &LlamaFixture<'_>) {
+fn qwen35_grammar_with_a_syntax_error_reports_it(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert_eq!(
-        LlamaSampler::grammar(fixture.model, "root ::= (<think>", "root").err(),
+        LlamaSampler::grammar(model, "root ::= (<think>", "root").err(),
         Some(GrammarError::GrammarRejected(
             GbnfValidationError::SyntaxError
         ))
@@ -309,9 +322,9 @@ fn qwen35_grammar_with_a_syntax_error_reports_it(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn a_grammar_with_a_nul_byte_is_refused(fixture: &LlamaFixture<'_>) {
+fn a_grammar_with_a_nul_byte_is_refused(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert_eq!(
-        LlamaSampler::grammar(fixture.model, "root ::= \"a\0\"", "root").err(),
+        LlamaSampler::grammar(model, "root ::= \"a\0\"", "root").err(),
         CString::new("root ::= \"a\0\"")
             .err()
             .map(GrammarError::GrammarContainsNul)
@@ -326,13 +339,15 @@ fn a_grammar_with_a_nul_byte_is_refused(fixture: &LlamaFixture<'_>) {
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn a_valid_grammar_llama_cpp_refuses_to_load_is_reported_malformed(fixture: &LlamaFixture<'_>) {
+fn a_valid_grammar_llama_cpp_refuses_to_load_is_reported_malformed(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_RETURNS_NULL,
     );
 
     assert_eq!(
-        LlamaSampler::grammar(fixture.model, "root ::= \"a\"", "root").err(),
+        LlamaSampler::grammar(model, "root ::= \"a\"", "root").err(),
         Some(GrammarError::GrammarMalformed)
     );
 }

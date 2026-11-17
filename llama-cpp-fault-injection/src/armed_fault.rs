@@ -9,12 +9,6 @@ pub struct ArmedFault {
 }
 
 impl ArmedFault {
-    /// Fails every time the wrappers reach `point`.
-    #[must_use]
-    pub fn at(point: llama_cpp_bindings_sys::llama_rs_fault_point) -> Self {
-        Self::after_passing(point, 0)
-    }
-
     /// Lets the wrappers pass `point` `passing_hits` times, then fails every later time.
     #[must_use]
     pub fn after_passing(
@@ -26,6 +20,12 @@ impl ArmedFault {
         Self {
             armed_on_this_thread: PhantomData,
         }
+    }
+
+    /// Fails every time the wrappers reach `point`.
+    #[must_use]
+    pub fn at(point: llama_cpp_bindings_sys::llama_rs_fault_point) -> Self {
+        Self::after_passing(point, 0)
     }
 }
 

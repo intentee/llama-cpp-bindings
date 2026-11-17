@@ -21,18 +21,23 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn set_abort_flag_aborts_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn set_abort_flag_aborts_decode(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let abort_flag = Arc::new(AtomicBool::new(true));
     context.set_abort_flag(abort_flag);
 
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
@@ -51,18 +56,23 @@ fn set_abort_flag_aborts_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn set_abort_flag_false_allows_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn set_abort_flag_false_allows_decode(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let abort_flag = Arc::new(AtomicBool::new(false));
     context.set_abort_flag(abort_flag);
 
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
@@ -79,19 +89,24 @@ fn set_abort_flag_false_allows_decode(fixture: &LlamaFixture<'_>) -> Result<()> 
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn clear_abort_callback_allows_decode_with_flag_true(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn clear_abort_callback_allows_decode_with_flag_true(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let abort_flag = Arc::new(AtomicBool::new(true));
     context.set_abort_flag(abort_flag);
     context.clear_abort_callback();
 
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 

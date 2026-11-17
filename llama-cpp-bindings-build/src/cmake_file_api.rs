@@ -48,12 +48,7 @@ pub struct CmakeFileApi {
 }
 
 impl CmakeFileApi {
-    /// The initial-cache script that, passed to `CMake` with `-C`, has every configure of the
-    /// build tree query its cache before `CMake` reads the queries.
-    pub const CACHE_QUERY_SCRIPT: &'static str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/cmake/cache_query.cmake");
-
-    /// The cache `CMake` reported in its current reply to [`Self::CACHE_QUERY_SCRIPT`].
+    /// The cache `CMake` reported in its current reply to [`crate::constants::CACHE_QUERY_SCRIPT`].
     ///
     /// # Errors
     ///

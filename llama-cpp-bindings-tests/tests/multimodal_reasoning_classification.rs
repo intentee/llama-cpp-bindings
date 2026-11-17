@@ -34,20 +34,22 @@ use llama_cpp_test_harness_macros::llama_test;
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
 fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const MAX_GENERATED_TOKENS: i32 = 200;
 
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let mut context = LlamaContext::from_model(
         model,
         backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*context_params).into_llama_context_params(),
     )?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
@@ -65,7 +67,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -123,20 +125,22 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     mmproj_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "mmproj-F16.gguf"),
 )]
 fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const MAX_GENERATED_TOKENS: i32 = 512;
 
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let mut context = LlamaContext::from_model(
         model,
         backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*context_params).into_llama_context_params(),
     )?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
@@ -179,7 +183,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,
@@ -247,20 +251,22 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const MAX_GENERATED_TOKENS: i32 = 200;
 
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let mut context = LlamaContext::from_model(
         model,
         backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*context_params).into_llama_context_params(),
     )?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
@@ -278,7 +284,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
         mtmd_ctx,

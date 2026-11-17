@@ -33,7 +33,6 @@ use std::sync::Arc;
 
 use encoding_rs::CoderResult;
 use once_cell::sync::OnceCell;
-use params::LlamaModelParams;
 use toktrie::ApproximateTokEnv;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokRxInfo;
@@ -72,17 +71,18 @@ use crate::model::vocabulary_token::VocabularyToken;
 use crate::path_c_string::path_c_string;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
+use params::LlamaModelParams;
 
 const PIECE_PROBE_LEN: c_int = 32;
 
 const PIECE_PROBE_SIZE: usize = PIECE_PROBE_LEN.unsigned_abs() as usize;
 
-fn validate_string_length_for_tokenizer(length: usize) -> Result<c_int, StringToTokenError> {
+fn checked_tokenizer_length(length: usize) -> Result<c_int, StringToTokenError> {
     Ok(c_int::try_from(length)?)
 }
 
 fn cstring_with_validated_len(text: &str) -> Result<TokenizerInput, StringToTokenError> {
-    let length = validate_string_length_for_tokenizer(text.len())?;
+    let length = checked_tokenizer_length(text.len())?;
     let c_string = CString::new(text)?;
 
     Ok(TokenizerInput {
@@ -117,26 +117,6 @@ fn decode_piece(decoder: &mut encoding_rs::Decoder, bytes: &[u8]) -> String {
         }
     }
 }
-
-pub struct LlamaModel {
-    pub model: NonNull<llama_cpp_bindings_sys::llama_model>,
-    vocab: *const llama_cpp_bindings_sys::llama_vocab,
-    n_vocab: i32,
-    tok_env: OnceCell<Arc<ApproximateTokEnv>>,
-    chat_templates: OnceCell<ChatTemplates>,
-}
-
-impl Debug for LlamaModel {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LlamaModel")
-            .field("model", &self.model)
-            .finish_non_exhaustive()
-    }
-}
-
-unsafe impl Send for LlamaModel {}
-
-unsafe impl Sync for LlamaModel {}
 
 /// # Safety
 ///
@@ -298,519 +278,11 @@ unsafe fn collect_decision_labels(
         .collect()
 }
 
-impl LlamaModel {
-    fn require_vocabulary_token(
-        &self,
-        token: LlamaToken,
-    ) -> Result<LlamaToken, TokenOutsideVocabulary> {
-        TokenOutsideVocabulary::check(token, self.n_vocab())
-    }
-
-    #[must_use]
-    pub const fn vocab_ptr(&self) -> *const llama_cpp_bindings_sys::llama_vocab {
-        self.vocab
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error if the value returned by llama.cpp does not fit into a `u32`.
-    pub fn n_ctx_train(&self) -> Result<u32, TryFromIntError> {
-        let n_ctx_train =
-            unsafe { llama_cpp_bindings_sys::llama_model_n_ctx_train(self.model.as_ptr()) };
-
-        u32::try_from(n_ctx_train)
-    }
-
-    /// Every token of the vocabulary, in id order, with the text it decodes to on its own.
-    pub fn tokens(
-        &self,
-        decode_special: bool,
-    ) -> impl Iterator<Item = Result<VocabularyToken, TokenToStringError>> + '_ {
-        (0..self.n_vocab()).map(LlamaToken::new).map(move |token| {
-            self.token_to_piece(
-                SampledToken::Content(token),
-                &mut encoding_rs::UTF_8.new_decoder(),
-                decode_special,
-                None,
-            )
-            .map(|piece| VocabularyToken { token, piece })
-        })
-    }
-
-    #[must_use]
-    pub fn token_bos(&self) -> Option<LlamaToken> {
-        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_bos(self.vocab_ptr()) })
-    }
-
-    #[must_use]
-    pub fn token_eos(&self) -> Option<LlamaToken> {
-        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_eos(self.vocab_ptr()) })
-    }
-
-    #[must_use]
-    pub fn token_nl(&self) -> Option<LlamaToken> {
-        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_nl(self.vocab_ptr()) })
-    }
-
-    #[must_use]
-    pub fn adds_bos_token(&self) -> bool {
-        unsafe { llama_cpp_bindings_sys::llama_vocab_get_add_bos(self.vocab_ptr()) }
-    }
-
-    #[must_use]
-    pub fn is_eog_token(&self, token: &SampledToken) -> bool {
-        let (SampledToken::Content(LlamaToken(id))
-        | SampledToken::Reasoning(LlamaToken(id))
-        | SampledToken::ToolCall(LlamaToken(id))
-        | SampledToken::Undeterminable(LlamaToken(id))) = *token;
-
-        unsafe { llama_cpp_bindings_sys::llama_vocab_is_eog(self.vocab_ptr(), id) }
-    }
-
-    #[must_use]
-    pub fn decode_start_token(&self) -> Option<LlamaToken> {
-        present_special_token(unsafe {
-            llama_cpp_bindings_sys::llama_model_decoder_start_token(self.model.as_ptr())
-        })
-    }
-
-    #[must_use]
-    pub fn token_sep(&self) -> Option<LlamaToken> {
-        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_sep(self.vocab_ptr()) })
-    }
-
-    #[must_use]
-    pub fn token_mask(&self) -> Option<LlamaToken> {
-        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_mask(self.vocab_ptr()) })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TokenOutsideVocabulary`] when the token is not part of this model's vocabulary.
-    pub fn token_text_bytes(&self, token: LlamaToken) -> Result<Vec<u8>, TokenOutsideVocabulary> {
-        let LlamaToken(id) = self.require_vocabulary_token(token)?;
-        let text = unsafe { llama_cpp_bindings_sys::llama_vocab_get_text(self.vocab_ptr(), id) };
-
-        Ok(unsafe { CStr::from_ptr(text) }.to_bytes().to_vec())
-    }
-
-    /// # Errors
-    ///
-    /// - if [`str`] contains a null byte
-    /// - if an integer conversion fails during tokenization
-    pub fn str_to_token(
-        &self,
-        str: &str,
-        add_bos: AddBos,
-        parse_special_tokens: ParseSpecialTokens,
-    ) -> Result<Vec<LlamaToken>, StringToTokenError> {
-        let add_bos = match add_bos {
-            AddBos::Always => true,
-            AddBos::Never => false,
-        };
-        let parse_special = match parse_special_tokens {
-            ParseSpecialTokens::Always => true,
-            ParseSpecialTokens::Never => false,
-        };
-
-        let tokens_estimation = cmp::max(8, (str.len() / 2).saturating_add(usize::from(add_bos)));
-        let TokenizerInput {
-            text: c_string,
-            length: c_string_len,
-        } = cstring_with_validated_len(str)?;
-        let vocab = self.vocab_ptr();
-
-        tokenize_into_buffer(tokens_estimation, |tokens, n_tokens_max| {
-            invoke_rs_tokenize(
-                vocab,
-                c_string.as_ptr(),
-                c_string_len,
-                tokens,
-                n_tokens_max,
-                add_bos,
-                parse_special,
-            )
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TokenAttrError::TokenOutsideVocabulary`] when the token is not part of this
-    /// model's vocabulary, or [`TokenAttrError::UnknownAttributes`] when llama.cpp reports
-    /// attributes this library does not know.
-    pub fn token_attr(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
-        let LlamaToken(id) = self.require_vocabulary_token(token)?;
-        let token_attr =
-            unsafe { llama_cpp_bindings_sys::llama_vocab_get_attr(self.vocab_ptr(), id) };
-
-        LlamaTokenAttrs::try_from(token_attr).map_err(TokenAttrError::UnknownAttributes)
-    }
-
-    /// # Errors
-    ///
-    /// - if the token type is unknown
-    ///
-    /// - if the returned size from llama.cpp does not fit into a `usize`
-    pub fn token_to_piece(
-        &self,
-        token: SampledToken,
-        decoder: &mut encoding_rs::Decoder,
-        special: bool,
-        lstrip: Option<NonZeroU16>,
-    ) -> Result<String, TokenToStringError> {
-        self.read_piece(token.token(), special, lstrip, |piece| {
-            decode_piece(decoder, piece)
-        })
-    }
-
-    /// # Errors
-    ///
-    /// - if the token is not part of this model's vocabulary
-    /// - if the token type is unknown
-    /// - the resultant token is larger than `buffer_size`.
-    /// - if an integer conversion fails
-    pub fn token_to_piece_bytes(
-        &self,
-        token: LlamaToken,
-        buffer_size: usize,
-        special: bool,
-        lstrip: Option<NonZeroU16>,
-    ) -> Result<Vec<u8>, TokenToStringError> {
-        let token = self.require_vocabulary_token(token)?;
-        let buffer_len = c_int::try_from(buffer_size)?;
-        let mut buffer: Vec<u8> = vec![0u8; buffer_size];
-        match self.write_piece(token, &mut buffer, buffer_len, special, lstrip) {
-            PieceWrite::Written(written) => {
-                buffer.truncate(written);
-
-                Ok(buffer)
-            }
-            PieceWrite::NeedsBuffer(negated_size) => {
-                Err(TokenToStringError::InsufficientBufferSpace(negated_size))
-            }
-        }
-    }
-
-    fn write_piece(
-        &self,
-        token: LlamaToken,
-        buffer: &mut [u8],
-        buffer_len: c_int,
-        special: bool,
-        lstrip: Option<NonZeroU16>,
-    ) -> PieceWrite {
-        PieceWrite::from(unsafe {
-            llama_cpp_bindings_sys::llama_rs_token_to_piece(
-                self.vocab,
-                token.0,
-                buffer.as_mut_ptr().cast::<c_char>(),
-                buffer_len,
-                lstrip.map_or(0, |strip_count| i32::from(strip_count.get())),
-                special,
-            )
-        })
-    }
-
-    fn read_piece<TOutput>(
-        &self,
-        token: LlamaToken,
-        special: bool,
-        lstrip: Option<NonZeroU16>,
-        read: impl FnOnce(&[u8]) -> TOutput,
-    ) -> Result<TOutput, TokenToStringError> {
-        let token = self.require_vocabulary_token(token)?;
-        let mut probe = [0_u8; PIECE_PROBE_SIZE];
-
-        match self.write_piece(token, &mut probe, PIECE_PROBE_LEN, special, lstrip) {
-            PieceWrite::Written(written) => Ok(read(probe.split_at(written).0)),
-            PieceWrite::NeedsBuffer(negated_size) => self
-                .token_to_piece_bytes(token, negated_size.unsigned_abs() as usize, special, lstrip)
-                .map(|piece| read(&piece)),
-        }
-    }
-
-    #[must_use]
-    pub const fn n_vocab(&self) -> i32 {
-        self.n_vocab
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error if llama.cpp emits a vocab type that is not known to this library.
-    pub fn vocab_type(&self) -> Result<VocabType, VocabTypeFromIntError> {
-        let vocab_type = unsafe { llama_cpp_bindings_sys::llama_vocab_type(self.vocab_ptr()) };
-
-        VocabType::try_from(vocab_type)
-    }
-
-    #[must_use]
-    pub fn n_embd(&self) -> c_int {
-        unsafe { llama_cpp_bindings_sys::llama_model_n_embd(self.model.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn n_embd_out(&self) -> c_int {
-        unsafe { llama_cpp_bindings_sys::llama_model_n_embd_out(self.model.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn n_cls_out(&self) -> u32 {
-        unsafe { llama_cpp_bindings_sys::llama_model_n_cls_out(self.model.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn size(&self) -> u64 {
-        unsafe { llama_cpp_bindings_sys::llama_model_size(self.model.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn n_params(&self) -> u64 {
-        unsafe { llama_cpp_bindings_sys::llama_model_n_params(self.model.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn is_recurrent(&self) -> bool {
-        unsafe { llama_cpp_bindings_sys::llama_model_is_recurrent(self.model.as_ptr()) }
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error if the layer count returned by llama.cpp does not fit into a `u32`.
-    pub fn n_layer(&self) -> Result<u32, TryFromIntError> {
-        u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_layer(self.model.as_ptr()) })
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error if the head count returned by llama.cpp does not fit into a `u32`.
-    pub fn n_head(&self) -> Result<u32, TryFromIntError> {
-        u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_head(self.model.as_ptr()) })
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error if the KV head count returned by llama.cpp does not fit into a `u32`.
-    pub fn n_head_kv(&self) -> Result<u32, TryFromIntError> {
-        u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_head_kv(self.model.as_ptr()) })
-    }
-
-    #[must_use]
-    pub fn is_hybrid(&self) -> bool {
-        unsafe { llama_cpp_bindings_sys::llama_model_is_hybrid(self.model.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn has_encoder(&self) -> bool {
-        unsafe { llama_cpp_bindings_sys::llama_model_has_encoder(self.model.as_ptr()) }
-    }
-
-    /// # Errors
-    /// Returns an error if the key is not found or the value is not valid UTF-8.
-    pub fn meta_val_str(&self, key: &str) -> Result<String, MetaValError> {
-        let key_cstring = CString::new(key)?;
-        let key_ptr = key_cstring.as_ptr();
-
-        extract_meta_string(
-            |buf_ptr, buf_len| unsafe {
-                llama_cpp_bindings_sys::llama_model_meta_val_str(
-                    self.model.as_ptr(),
-                    key_ptr,
-                    buf_ptr,
-                    buf_len,
-                )
-            },
-            256,
-        )
-    }
-
-    #[must_use]
-    pub fn meta_count(&self) -> i32 {
-        unsafe { llama_cpp_bindings_sys::llama_model_meta_count(self.model.as_ptr()) }
-    }
-
-    /// # Errors
-    /// Returns an error if the index is out of range or the key is not valid UTF-8.
-    pub fn meta_key_by_index(&self, index: i32) -> Result<String, MetaValError> {
-        extract_meta_string(
-            |buf_ptr, buf_len| unsafe {
-                llama_cpp_bindings_sys::llama_model_meta_key_by_index(
-                    self.model.as_ptr(),
-                    index,
-                    buf_ptr,
-                    buf_len,
-                )
-            },
-            256,
-        )
-    }
-
-    /// # Errors
-    /// Returns an error if the index is out of range or the value is not valid UTF-8.
-    pub fn meta_val_str_by_index(&self, index: i32) -> Result<String, MetaValError> {
-        extract_meta_string(
-            |buf_ptr, buf_len| unsafe {
-                llama_cpp_bindings_sys::llama_model_meta_val_str_by_index(
-                    self.model.as_ptr(),
-                    index,
-                    buf_ptr,
-                    buf_len,
-                )
-            },
-            256,
-        )
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`UnknownRopeType`] when llama.cpp reports a rope type it does not define.
-    pub fn rope_type(&self) -> Result<RopeType, UnknownRopeType> {
-        RopeType::try_from(unsafe {
-            llama_cpp_bindings_sys::llama_rs_model_rope_type(self.model.as_ptr())
-        })
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`DecisionTypeError`] when the wrapper fails or reports a decision type it does
-    /// not define.
-    pub fn decision_type(&self) -> Result<DecisionType, DecisionTypeError> {
-        let mut out_decision_type = llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE;
-        let mut out_error: *mut c_char = ptr::null_mut();
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_model_decision_type(
-                self.model.as_ptr(),
-                &raw mut out_decision_type,
-                &raw mut out_error,
-            )
-        };
-
-        unsafe { model_decision_type_status_to_result(status, out_decision_type, out_error) }
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`DecisionLabelsError::LabelNotUtf8`] when a label is not valid UTF-8.
-    pub fn decision_labels(&self) -> Result<Vec<String>, DecisionLabelsError> {
-        unsafe {
-            collect_decision_labels(|index| {
-                llama_cpp_bindings_sys::llama_rs_model_decision_label(self.model.as_ptr(), index)
-            })
-        }
-    }
-
-    #[must_use]
-    pub fn classifier_free_guidance(&self) -> bool {
-        unsafe {
-            llama_cpp_bindings_sys::llama_rs_model_classifier_free_guidance(self.model.as_ptr())
-        }
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`ChatTemplateError::NullError`] when `name` contains a NUL byte, or
-    /// [`ChatTemplateError::MissingTemplate`] when the model has no chat template by that name.
-    pub fn chat_template(
-        &self,
-        name: Option<&str>,
-    ) -> Result<LlamaChatTemplate, ChatTemplateError> {
-        let name_cstr = name.map(CString::new).transpose()?;
-        let name_ptr = name_cstr.as_ref().map_or(ptr::null(), |name| name.as_ptr());
-        let result = unsafe {
-            llama_cpp_bindings_sys::llama_model_chat_template(self.model.as_ptr(), name_ptr)
-        };
-
-        if result.is_null() {
-            Err(ChatTemplateError::MissingTemplate)
-        } else {
-            let chat_template_cstr = unsafe { CStr::from_ptr(result) };
-
-            Ok(LlamaChatTemplate(chat_template_cstr.to_owned()))
-        }
-    }
-
-    /// # Errors
-    ///
-    /// See [`LlamaModelLoadError`] for more information.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a valid UTF-8 path somehow contains interior null bytes (should never happen).
-    pub fn load_from_file(
-        _: &LlamaBackend,
-        path: impl AsRef<Path>,
-        params: &LlamaModelParams,
-    ) -> Result<Self, LlamaModelLoadError> {
-        let path = path.as_ref();
-        let cstr = path_c_string(path)?;
-
-        if !path.exists() {
-            return Err(LlamaModelLoadError::FileNotFound(path.to_path_buf()));
-        }
-        let mut out_model: *mut llama_cpp_bindings_sys::llama_model = ptr::null_mut();
-        let mut out_error: *mut c_char = ptr::null_mut();
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_load_model_from_file(
-                cstr.as_ptr(),
-                params.params,
-                &raw mut out_model,
-                &raw mut out_error,
-            )
-        };
-        unsafe { load_model_from_file_status_to_result(status, out_model, out_error, path) }
-    }
-
-    /// # Errors
-    ///
-    /// See [`LlamaLoraAdapterInitError`] for more information.
-    pub fn lora_adapter_init(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<LlamaLoraAdapter<'_>, LlamaLoraAdapterInitError> {
-        let path = path.as_ref();
-
-        let path_str = path
-            .to_str()
-            .ok_or_else(|| LlamaLoraAdapterInitError::PathToStrError(path.to_path_buf()))?;
-        let cstr = CString::new(path_str)?;
-
-        if !path.exists() {
-            return Err(LlamaLoraAdapterInitError::FileNotFound(path.to_path_buf()));
-        }
-        initialize_lora_adapter(|| unsafe {
-            llama_cpp_bindings_sys::llama_adapter_lora_init(self.model.as_ptr(), cstr.as_ptr())
-        })
-    }
-}
-
 fn initialize_lora_adapter<'model>(
     initialize: impl FnOnce() -> *mut llama_cpp_bindings_sys::llama_adapter_lora,
 ) -> Result<LlamaLoraAdapter<'model>, LlamaLoraAdapterInitError> {
     let adapter = NonNull::new(initialize()).ok_or(LlamaLoraAdapterInitError::Unloadable)?;
     Ok(unsafe { LlamaLoraAdapter::new(adapter) })
-}
-
-impl LlamaModel {
-    /// # Errors
-    /// Returns [`TokenToStringError`] when a token's byte piece cannot be
-    /// retrieved. The legitimate "this token has no byte piece" case is treated
-    /// as empty (not an error); a piece that overflows the probe buffer is
-    /// re-read at the exact size rather than dropped.
-    pub fn approximate_tok_env(&self) -> Result<Arc<ApproximateTokEnv>, TokenToStringError> {
-        self.tok_env
-            .get_or_try_init(|| build_approximate_tok_env(self))
-            .map(Arc::clone)
-    }
-
-    /// Returns the model's chat templates, preparing them on first use.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ChatTemplatesError`] when the model has no chat template or llama.cpp cannot
-    /// prepare it.
-    pub fn chat_templates(&self) -> Result<&ChatTemplates, ChatTemplatesError> {
-        self.chat_templates
-            .get_or_try_init(|| ChatTemplates::new(self))
-    }
 }
 
 fn build_approximate_tok_env(
@@ -948,10 +420,6 @@ fn invoke_rs_tokenize(
     unsafe { tokenize_status_to_result(status, out_count, out_error) }
 }
 
-fn checked_token_buffer_capacity(capacity: usize) -> Result<c_int, StringToTokenError> {
-    Ok(c_int::try_from(capacity)?)
-}
-
 fn checked_token_count(size: i32) -> Result<usize, StringToTokenError> {
     Ok(usize::try_from(size)?)
 }
@@ -963,7 +431,7 @@ fn tokenize_into_buffer(
         c_int,
     ) -> Result<c_int, StringToTokenError>,
 ) -> Result<Vec<LlamaToken>, StringToTokenError> {
-    let buffer_capacity = checked_token_buffer_capacity(estimated_capacity)?;
+    let buffer_capacity = checked_tokenizer_length(estimated_capacity)?;
     let mut buffer: Vec<LlamaToken> = Vec::with_capacity(estimated_capacity);
 
     let size = invoke(
@@ -1023,6 +491,535 @@ where
     Ok(String::from_utf8(buffer)?)
 }
 
+pub struct LlamaModel {
+    pub model: NonNull<llama_cpp_bindings_sys::llama_model>,
+    vocab: *const llama_cpp_bindings_sys::llama_vocab,
+    n_vocab: i32,
+    tok_env: OnceCell<Arc<ApproximateTokEnv>>,
+    chat_templates: OnceCell<ChatTemplates>,
+}
+
+impl Debug for LlamaModel {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("LlamaModel")
+            .field("model", &self.model)
+            .finish_non_exhaustive()
+    }
+}
+
+unsafe impl Send for LlamaModel {}
+
+unsafe impl Sync for LlamaModel {}
+
+impl LlamaModel {
+    /// # Errors
+    ///
+    /// See [`LlamaModelLoadError`] for more information.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a valid UTF-8 path somehow contains interior null bytes (should never happen).
+    pub fn load_from_file(
+        _: &LlamaBackend,
+        path: impl AsRef<Path>,
+        LlamaModelParams { params, .. }: &LlamaModelParams,
+    ) -> Result<Self, LlamaModelLoadError> {
+        let path = path.as_ref();
+        let cstr = path_c_string(path)?;
+
+        if !path.exists() {
+            return Err(LlamaModelLoadError::FileNotFound(path.to_path_buf()));
+        }
+        let mut out_model: *mut llama_cpp_bindings_sys::llama_model = ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_load_model_from_file(
+                cstr.as_ptr(),
+                *params,
+                &raw mut out_model,
+                &raw mut out_error,
+            )
+        };
+        unsafe { load_model_from_file_status_to_result(status, out_model, out_error, path) }
+    }
+
+    #[must_use]
+    pub fn adds_bos_token(&self) -> bool {
+        unsafe { llama_cpp_bindings_sys::llama_vocab_get_add_bos(self.vocab_ptr()) }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ChatTemplateError::NullError`] when `name` contains a NUL byte, or
+    /// [`ChatTemplateError::MissingTemplate`] when the model has no chat template by that name.
+    pub fn chat_template(
+        &self,
+        name: Option<&str>,
+    ) -> Result<LlamaChatTemplate, ChatTemplateError> {
+        let name_cstr = name.map(CString::new).transpose()?;
+        let name_ptr = name_cstr.as_ref().map_or(ptr::null(), |name| name.as_ptr());
+        let result = unsafe {
+            llama_cpp_bindings_sys::llama_model_chat_template(self.model.as_ptr(), name_ptr)
+        };
+
+        if result.is_null() {
+            Err(ChatTemplateError::MissingTemplate)
+        } else {
+            let chat_template_cstr = unsafe { CStr::from_ptr(result) };
+
+            Ok(LlamaChatTemplate(chat_template_cstr.to_owned()))
+        }
+    }
+
+    #[must_use]
+    pub fn classifier_free_guidance(&self) -> bool {
+        unsafe {
+            llama_cpp_bindings_sys::llama_rs_model_classifier_free_guidance(self.model.as_ptr())
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`DecisionLabelsError::LabelNotUtf8`] when a label is not valid UTF-8.
+    pub fn decision_labels(&self) -> Result<Vec<String>, DecisionLabelsError> {
+        unsafe {
+            collect_decision_labels(|index| {
+                llama_cpp_bindings_sys::llama_rs_model_decision_label(self.model.as_ptr(), index)
+            })
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`DecisionTypeError`] when the wrapper fails or reports a decision type it does
+    /// not define.
+    pub fn decision_type(&self) -> Result<DecisionType, DecisionTypeError> {
+        let mut out_decision_type = llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE;
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_model_decision_type(
+                self.model.as_ptr(),
+                &raw mut out_decision_type,
+                &raw mut out_error,
+            )
+        };
+
+        unsafe { model_decision_type_status_to_result(status, out_decision_type, out_error) }
+    }
+
+    #[must_use]
+    pub fn decode_start_token(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe {
+            llama_cpp_bindings_sys::llama_model_decoder_start_token(self.model.as_ptr())
+        })
+    }
+
+    #[must_use]
+    pub fn has_encoder(&self) -> bool {
+        unsafe { llama_cpp_bindings_sys::llama_model_has_encoder(self.model.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn is_eog_token(&self, token: &SampledToken) -> bool {
+        let (SampledToken::Content(LlamaToken(id))
+        | SampledToken::Reasoning(LlamaToken(id))
+        | SampledToken::ToolCall(LlamaToken(id))
+        | SampledToken::Undeterminable(LlamaToken(id))) = *token;
+
+        unsafe { llama_cpp_bindings_sys::llama_vocab_is_eog(self.vocab_ptr(), id) }
+    }
+
+    #[must_use]
+    pub fn is_hybrid(&self) -> bool {
+        unsafe { llama_cpp_bindings_sys::llama_model_is_hybrid(self.model.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn is_recurrent(&self) -> bool {
+        unsafe { llama_cpp_bindings_sys::llama_model_is_recurrent(self.model.as_ptr()) }
+    }
+
+    /// # Errors
+    ///
+    /// See [`LlamaLoraAdapterInitError`] for more information.
+    pub fn lora_adapter_init(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<LlamaLoraAdapter<'_>, LlamaLoraAdapterInitError> {
+        let path = path.as_ref();
+
+        let path_str = path
+            .to_str()
+            .ok_or_else(|| LlamaLoraAdapterInitError::PathToStrError(path.to_path_buf()))?;
+        let cstr = CString::new(path_str)?;
+
+        if !path.exists() {
+            return Err(LlamaLoraAdapterInitError::FileNotFound(path.to_path_buf()));
+        }
+        initialize_lora_adapter(|| unsafe {
+            llama_cpp_bindings_sys::llama_adapter_lora_init(self.model.as_ptr(), cstr.as_ptr())
+        })
+    }
+
+    #[must_use]
+    pub fn meta_count(&self) -> i32 {
+        unsafe { llama_cpp_bindings_sys::llama_model_meta_count(self.model.as_ptr()) }
+    }
+
+    /// # Errors
+    /// Returns an error if the index is out of range or the key is not valid UTF-8.
+    pub fn meta_key_by_index(&self, index: i32) -> Result<String, MetaValError> {
+        extract_meta_string(
+            |buf_ptr, buf_len| unsafe {
+                llama_cpp_bindings_sys::llama_model_meta_key_by_index(
+                    self.model.as_ptr(),
+                    index,
+                    buf_ptr,
+                    buf_len,
+                )
+            },
+            256,
+        )
+    }
+
+    /// # Errors
+    /// Returns an error if the key is not found or the value is not valid UTF-8.
+    pub fn meta_val_str(&self, key: &str) -> Result<String, MetaValError> {
+        let key_cstring = CString::new(key)?;
+        let key_ptr = key_cstring.as_ptr();
+
+        extract_meta_string(
+            |buf_ptr, buf_len| unsafe {
+                llama_cpp_bindings_sys::llama_model_meta_val_str(
+                    self.model.as_ptr(),
+                    key_ptr,
+                    buf_ptr,
+                    buf_len,
+                )
+            },
+            256,
+        )
+    }
+
+    /// # Errors
+    /// Returns an error if the index is out of range or the value is not valid UTF-8.
+    pub fn meta_val_str_by_index(&self, index: i32) -> Result<String, MetaValError> {
+        extract_meta_string(
+            |buf_ptr, buf_len| unsafe {
+                llama_cpp_bindings_sys::llama_model_meta_val_str_by_index(
+                    self.model.as_ptr(),
+                    index,
+                    buf_ptr,
+                    buf_len,
+                )
+            },
+            256,
+        )
+    }
+
+    #[must_use]
+    pub fn n_cls_out(&self) -> u32 {
+        unsafe { llama_cpp_bindings_sys::llama_model_n_cls_out(self.model.as_ptr()) }
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if the value returned by llama.cpp does not fit into a `u32`.
+    pub fn n_ctx_train(&self) -> Result<u32, TryFromIntError> {
+        let n_ctx_train =
+            unsafe { llama_cpp_bindings_sys::llama_model_n_ctx_train(self.model.as_ptr()) };
+
+        u32::try_from(n_ctx_train)
+    }
+
+    #[must_use]
+    pub fn n_embd(&self) -> c_int {
+        unsafe { llama_cpp_bindings_sys::llama_model_n_embd(self.model.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn n_embd_out(&self) -> c_int {
+        unsafe { llama_cpp_bindings_sys::llama_model_n_embd_out(self.model.as_ptr()) }
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if the head count returned by llama.cpp does not fit into a `u32`.
+    pub fn n_head(&self) -> Result<u32, TryFromIntError> {
+        u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_head(self.model.as_ptr()) })
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if the KV head count returned by llama.cpp does not fit into a `u32`.
+    pub fn n_head_kv(&self) -> Result<u32, TryFromIntError> {
+        u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_head_kv(self.model.as_ptr()) })
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if the layer count returned by llama.cpp does not fit into a `u32`.
+    pub fn n_layer(&self) -> Result<u32, TryFromIntError> {
+        u32::try_from(unsafe { llama_cpp_bindings_sys::llama_model_n_layer(self.model.as_ptr()) })
+    }
+
+    #[must_use]
+    pub fn n_params(&self) -> u64 {
+        unsafe { llama_cpp_bindings_sys::llama_model_n_params(self.model.as_ptr()) }
+    }
+
+    #[must_use]
+    pub const fn n_vocab(&self) -> i32 {
+        self.n_vocab
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`UnknownRopeType`] when llama.cpp reports a rope type it does not define.
+    pub fn rope_type(&self) -> Result<RopeType, UnknownRopeType> {
+        RopeType::try_from(unsafe {
+            llama_cpp_bindings_sys::llama_rs_model_rope_type(self.model.as_ptr())
+        })
+    }
+
+    #[must_use]
+    pub fn size(&self) -> u64 {
+        unsafe { llama_cpp_bindings_sys::llama_model_size(self.model.as_ptr()) }
+    }
+
+    /// # Errors
+    ///
+    /// - if [`str`] contains a null byte
+    /// - if an integer conversion fails during tokenization
+    pub fn str_to_token(
+        &self,
+        str: &str,
+        add_bos: AddBos,
+        parse_special_tokens: ParseSpecialTokens,
+    ) -> Result<Vec<LlamaToken>, StringToTokenError> {
+        let add_bos = match add_bos {
+            AddBos::Always => true,
+            AddBos::Never => false,
+        };
+        let parse_special = match parse_special_tokens {
+            ParseSpecialTokens::Always => true,
+            ParseSpecialTokens::Never => false,
+        };
+
+        let tokens_estimation = cmp::max(8, (str.len() / 2).saturating_add(usize::from(add_bos)));
+        let TokenizerInput {
+            text: c_string,
+            length: c_string_len,
+        } = cstring_with_validated_len(str)?;
+        let vocab = self.vocab_ptr();
+
+        tokenize_into_buffer(tokens_estimation, |tokens, n_tokens_max| {
+            invoke_rs_tokenize(
+                vocab,
+                c_string.as_ptr(),
+                c_string_len,
+                tokens,
+                n_tokens_max,
+                add_bos,
+                parse_special,
+            )
+        })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`TokenAttrError::TokenOutsideVocabulary`] when the token is not part of this
+    /// model's vocabulary, or [`TokenAttrError::UnknownAttributes`] when llama.cpp reports
+    /// attributes this library does not know.
+    pub fn token_attr(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, TokenAttrError> {
+        let LlamaToken(id) = self.require_vocabulary_token(token)?;
+        let token_attr =
+            unsafe { llama_cpp_bindings_sys::llama_vocab_get_attr(self.vocab_ptr(), id) };
+
+        LlamaTokenAttrs::try_from(token_attr).map_err(TokenAttrError::UnknownAttributes)
+    }
+
+    #[must_use]
+    pub fn token_bos(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_bos(self.vocab_ptr()) })
+    }
+
+    #[must_use]
+    pub fn token_eos(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_eos(self.vocab_ptr()) })
+    }
+
+    #[must_use]
+    pub fn token_mask(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_mask(self.vocab_ptr()) })
+    }
+
+    #[must_use]
+    pub fn token_nl(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_nl(self.vocab_ptr()) })
+    }
+
+    #[must_use]
+    pub fn token_sep(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_sep(self.vocab_ptr()) })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`TokenOutsideVocabulary`] when the token is not part of this model's vocabulary.
+    pub fn token_text_bytes(&self, token: LlamaToken) -> Result<Vec<u8>, TokenOutsideVocabulary> {
+        let LlamaToken(id) = self.require_vocabulary_token(token)?;
+        let text = unsafe { llama_cpp_bindings_sys::llama_vocab_get_text(self.vocab_ptr(), id) };
+
+        Ok(unsafe { CStr::from_ptr(text) }.to_bytes().to_vec())
+    }
+
+    /// # Errors
+    ///
+    /// - if the token type is unknown
+    ///
+    /// - if the returned size from llama.cpp does not fit into a `usize`
+    pub fn token_to_piece(
+        &self,
+        token: SampledToken,
+        decoder: &mut encoding_rs::Decoder,
+        special: bool,
+        lstrip: Option<NonZeroU16>,
+    ) -> Result<String, TokenToStringError> {
+        self.read_piece(token.token(), special, lstrip, |piece| {
+            decode_piece(decoder, piece)
+        })
+    }
+
+    /// # Errors
+    ///
+    /// - if the token is not part of this model's vocabulary
+    /// - if the token type is unknown
+    /// - the resultant token is larger than `buffer_size`.
+    /// - if an integer conversion fails
+    pub fn token_to_piece_bytes(
+        &self,
+        token: LlamaToken,
+        buffer_size: usize,
+        special: bool,
+        lstrip: Option<NonZeroU16>,
+    ) -> Result<Vec<u8>, TokenToStringError> {
+        let token = self.require_vocabulary_token(token)?;
+        let buffer_len = c_int::try_from(buffer_size)?;
+        let mut buffer: Vec<u8> = vec![0u8; buffer_size];
+        match self.write_piece(token, &mut buffer, buffer_len, special, lstrip) {
+            PieceWrite::Written(written) => {
+                buffer.truncate(written);
+
+                Ok(buffer)
+            }
+            PieceWrite::NeedsBuffer(negated_size) => {
+                Err(TokenToStringError::InsufficientBufferSpace(negated_size))
+            }
+        }
+    }
+
+    /// Every token of the vocabulary, in id order, with the text it decodes to on its own.
+    pub fn tokens(
+        &self,
+        decode_special: bool,
+    ) -> impl Iterator<Item = Result<VocabularyToken, TokenToStringError>> + '_ {
+        (0..self.n_vocab()).map(LlamaToken::new).map(move |token| {
+            self.token_to_piece(
+                SampledToken::Content(token),
+                &mut encoding_rs::UTF_8.new_decoder(),
+                decode_special,
+                None,
+            )
+            .map(|piece| VocabularyToken { token, piece })
+        })
+    }
+
+    #[must_use]
+    pub const fn vocab_ptr(&self) -> *const llama_cpp_bindings_sys::llama_vocab {
+        self.vocab
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error if llama.cpp emits a vocab type that is not known to this library.
+    pub fn vocab_type(&self) -> Result<VocabType, VocabTypeFromIntError> {
+        let vocab_type = unsafe { llama_cpp_bindings_sys::llama_vocab_type(self.vocab_ptr()) };
+
+        VocabType::try_from(vocab_type)
+    }
+
+    fn read_piece<TOutput>(
+        &self,
+        token: LlamaToken,
+        special: bool,
+        lstrip: Option<NonZeroU16>,
+        read: impl FnOnce(&[u8]) -> TOutput,
+    ) -> Result<TOutput, TokenToStringError> {
+        let token = self.require_vocabulary_token(token)?;
+        let mut probe = [0_u8; PIECE_PROBE_SIZE];
+
+        match self.write_piece(token, &mut probe, PIECE_PROBE_LEN, special, lstrip) {
+            PieceWrite::Written(written) => Ok(read(probe.split_at(written).0)),
+            PieceWrite::NeedsBuffer(negated_size) => self
+                .token_to_piece_bytes(token, negated_size.unsigned_abs() as usize, special, lstrip)
+                .map(|piece| read(&piece)),
+        }
+    }
+
+    fn require_vocabulary_token(
+        &self,
+        token: LlamaToken,
+    ) -> Result<LlamaToken, TokenOutsideVocabulary> {
+        TokenOutsideVocabulary::of(token, self.n_vocab()).map_or(Ok(token), Err)
+    }
+
+    fn write_piece(
+        &self,
+        LlamaToken(token_id): LlamaToken,
+        buffer: &mut [u8],
+        buffer_len: c_int,
+        special: bool,
+        lstrip: Option<NonZeroU16>,
+    ) -> PieceWrite {
+        PieceWrite::from(unsafe {
+            llama_cpp_bindings_sys::llama_rs_token_to_piece(
+                self.vocab,
+                token_id,
+                buffer.as_mut_ptr().cast::<c_char>(),
+                buffer_len,
+                lstrip.map_or(0, |strip_count| i32::from(strip_count.get())),
+                special,
+            )
+        })
+    }
+}
+
+impl LlamaModel {
+    /// # Errors
+    /// Returns [`TokenToStringError`] when a token's byte piece cannot be
+    /// retrieved. The legitimate "this token has no byte piece" case is treated
+    /// as empty (not an error); a piece that overflows the probe buffer is
+    /// re-read at the exact size rather than dropped.
+    pub fn approximate_tok_env(&self) -> Result<Arc<ApproximateTokEnv>, TokenToStringError> {
+        self.tok_env
+            .get_or_try_init(|| build_approximate_tok_env(self))
+            .map(Arc::clone)
+    }
+
+    /// Returns the model's chat templates, preparing them on first use.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChatTemplatesError`] when the model has no chat template or llama.cpp cannot
+    /// prepare it.
+    pub fn chat_templates(&self) -> Result<&ChatTemplates, ChatTemplatesError> {
+        self.chat_templates
+            .get_or_try_init(|| ChatTemplates::new(self))
+    }
+}
+
 impl Drop for LlamaModel {
     fn drop(&mut self) {
         unsafe { llama_cpp_bindings_sys::llama_model_free(self.model.as_ptr()) }
@@ -1030,12 +1027,60 @@ impl Drop for LlamaModel {
 }
 
 #[cfg(test)]
-mod cstring_with_validated_len_tests {
+mod tests {
     use std::ffi::CString;
+
+    use std::cell::Cell;
+    use std::mem::ManuallyDrop;
+    use std::slice;
     use std::str;
 
+    use std::ffi::CStr;
+    use std::path::Path;
+    use std::ptr;
+
+    use std::ffi::c_char;
+
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use super::cstring_with_validated_len;
+
+    use super::checked_token_count;
+    use super::checked_tokenizer_length;
+    use super::extract_meta_string;
+    use super::tokenize_into_buffer;
     use crate::error::string_to_token_error::StringToTokenError;
+
+    use super::initialize_lora_adapter;
+    use crate::error::meta_val_error::MetaValError;
+
+    use super::load_model_from_file_status_to_result;
+    use crate::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
+
+    use super::model_decision_type_status_to_result;
+    use crate::error::llama_model_load_error::LlamaModelLoadError;
+
+    use crate::error::decision_type_error::DecisionTypeError;
+
+    use crate::error::unknown_decision_type::UnknownDecisionType;
+
+    use super::collect_decision_labels;
+    use crate::model::decision_type::DecisionType;
+
+    use super::tokenize_status_to_result;
+    use crate::error::decision_labels_error::DecisionLabelsError;
+
+    const NOT_A_DECISION_MODEL: llama_cpp_bindings_sys::llama_rs_decision_type =
+        llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE;
+
+    fn label_at(labels: &[&CStr], index: u32) -> *const c_char {
+        labels
+            .get(index as usize)
+            .map_or(ptr::null(), |label| label.as_ptr())
+    }
 
     #[test]
     fn cstring_with_validated_len_reports_a_nul_byte_in_the_text() {
@@ -1058,35 +1103,16 @@ mod cstring_with_validated_len_tests {
                 .map(StringToTokenError::CIntConversionError)
         );
     }
-}
-
-#[cfg(test)]
-mod checked_token_buffer_capacity_tests {
-    use super::checked_token_buffer_capacity;
 
     #[test]
-    fn checked_token_buffer_capacity_in_range_returns_value() {
-        assert_eq!(checked_token_buffer_capacity(8), Ok(8));
+    fn checked_tokenizer_length_in_range_returns_value() {
+        assert_eq!(checked_tokenizer_length(8), Ok(8));
     }
-}
-
-#[cfg(test)]
-mod checked_token_count_tests {
-    use super::checked_token_count;
 
     #[test]
     fn checked_token_count_non_negative_returns_value() {
         assert_eq!(checked_token_count(5), Ok(5));
     }
-}
-
-#[cfg(test)]
-mod tokenize_into_buffer_tests {
-
-    use std::cell::Cell;
-
-    use super::tokenize_into_buffer;
-    use crate::error::string_to_token_error::StringToTokenError;
 
     #[test]
     fn tokenize_into_buffer_single_pass_sets_length() {
@@ -1169,15 +1195,6 @@ mod tokenize_into_buffer_tests {
             StringToTokenError::CIntConversionError(usize::try_from(-5i32).unwrap_err())
         );
     }
-}
-
-#[cfg(test)]
-mod extract_meta_string_tests {
-    use std::cell::Cell;
-    use std::slice;
-
-    use super::extract_meta_string;
-    use crate::error::meta_val_error::MetaValError;
 
     #[test]
     fn a_value_without_a_nul_terminator_is_reported_as_a_negative_return() {
@@ -1246,15 +1263,6 @@ mod extract_meta_string_tests {
 
         assert_eq!(result, Ok("hi".to_owned()));
     }
-}
-
-#[cfg(test)]
-mod initialize_lora_adapter_tests {
-    use std::mem::ManuallyDrop;
-    use std::ptr;
-
-    use super::initialize_lora_adapter;
-    use crate::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
 
     #[test]
     fn lora_adapter_initialization_maps_a_null_pointer_to_unloadable() {
@@ -1273,19 +1281,6 @@ mod initialize_lora_adapter_tests {
 
         assert_eq!(adapter.as_ptr(), pointer.as_ptr());
     }
-}
-
-#[cfg(test)]
-mod load_model_from_file_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::path::Path;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::load_model_from_file_status_to_result;
-    use crate::error::llama_model_load_error::LlamaModelLoadError;
 
     #[test]
     fn load_model_success_with_null_model_is_contract_error() {
@@ -1485,23 +1480,6 @@ mod load_model_from_file_status_to_result_tests {
             Some(LlamaModelLoadError::LlamaCppOutOfMemory)
         );
     }
-}
-
-#[cfg(test)]
-mod model_decision_type_status_to_result_tests {
-    use std::ptr;
-
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::model_decision_type_status_to_result;
-    use crate::error::decision_type_error::DecisionTypeError;
-    use crate::error::unknown_decision_type::UnknownDecisionType;
-    use crate::model::decision_type::DecisionType;
-
-    const NOT_A_DECISION_MODEL: llama_cpp_bindings_sys::llama_rs_decision_type =
-        llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE;
 
     #[test]
     fn the_decision_type_the_wrapper_reports_is_returned() {
@@ -1632,22 +1610,6 @@ mod model_decision_type_status_to_result_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod collect_decision_labels_tests {
-    use std::ffi::CStr;
-    use std::ffi::c_char;
-    use std::ptr;
-
-    use super::collect_decision_labels;
-    use crate::error::decision_labels_error::DecisionLabelsError;
-
-    fn label_at(labels: &[&CStr], index: u32) -> *const c_char {
-        labels
-            .get(index as usize)
-            .map_or(ptr::null(), |label| label.as_ptr())
-    }
 
     #[test]
     fn labels_are_read_in_order_until_the_first_missing_one() {
@@ -1671,18 +1633,6 @@ mod collect_decision_labels_tests {
             })
         );
     }
-}
-
-#[cfg(test)]
-mod tokenize_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::tokenize_status_to_result;
-    use crate::error::string_to_token_error::StringToTokenError;
 
     #[test]
     fn tokenize_ok_returns_count() {

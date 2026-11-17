@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::process;
 use std::process::Command;
 
-use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
+use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
 
 const EMITTER: &str = env!("CARGO_BIN_EXE_llama-cpp-wrapper-sources");
 const SYS_DIR: &str = "/repo/llama-cpp-bindings-sys";

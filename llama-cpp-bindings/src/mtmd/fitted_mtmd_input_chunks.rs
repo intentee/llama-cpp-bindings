@@ -43,23 +43,23 @@ where
     }
 
     #[must_use]
-    pub fn get(&self, chunk_index: usize) -> Option<MtmdInputChunk> {
-        self.chunks.borrow().get(chunk_index)
-    }
-
-    #[must_use]
     pub fn chunk_type(&self, chunk_index: usize) -> Option<MtmdInputChunkType> {
         self.chunk_types.get(chunk_index).copied()
     }
 
     #[must_use]
-    pub const fn len(&self) -> usize {
-        self.chunk_types.len()
+    pub fn get(&self, chunk_index: usize) -> Option<MtmdInputChunk> {
+        self.chunks.borrow().get(chunk_index)
     }
 
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.chunk_types.is_empty()
+    }
+
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.chunk_types.len()
     }
 
     #[must_use]

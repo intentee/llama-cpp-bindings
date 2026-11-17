@@ -60,20 +60,6 @@ pub struct SampledTokenClassifier<'model> {
 }
 
 impl<'model> SampledTokenClassifier<'model> {
-    /// A classifier for generation outside of a chat template, whose tokens belong to no
-    /// section.
-    #[must_use]
-    pub fn undeterminable(model: &'model LlamaModel) -> Self {
-        Self {
-            model,
-            attribution: TokenAttribution::Undeterminable,
-            decoder: encoding_rs::UTF_8.new_decoder(),
-            section: SampledTokenSection::Pending,
-            pending_prompt_tokens: 0,
-            usage: TokenUsage::new(),
-        }
-    }
-
     /// A classifier for the answer to `session`, which was created for `model`. The classifier
     /// owns the session for as long as the answer is generated, starting from the session's
     /// reading of an answer with nothing generated yet.
@@ -102,6 +88,135 @@ impl<'model> SampledTokenClassifier<'model> {
             pending_prompt_tokens: 0,
             usage: TokenUsage::new(),
         })
+    }
+
+    /// A classifier for generation outside of a chat template, whose tokens belong to no
+    /// section.
+    #[must_use]
+    pub fn undeterminable(model: &'model LlamaModel) -> Self {
+        Self {
+            model,
+            attribution: TokenAttribution::Undeterminable,
+            decoder: encoding_rs::UTF_8.new_decoder(),
+            section: SampledTokenSection::Pending,
+            pending_prompt_tokens: 0,
+            usage: TokenUsage::new(),
+        }
+    }
+
+    pub const fn commit_prompt_tokens(&mut self) -> u64 {
+        let promoted = self.pending_prompt_tokens;
+        self.usage.record_prompt_tokens(promoted);
+        self.pending_prompt_tokens = 0;
+
+        promoted
+    }
+
+    #[must_use]
+    pub const fn current_section(&self) -> SampledTokenSection {
+        self.section
+    }
+
+    pub const fn discard_pending_prompt_tokens(&mut self) -> u64 {
+        let discarded = self.pending_prompt_tokens;
+        self.pending_prompt_tokens = 0;
+
+        discarded
+    }
+
+    /// Checks every chunk with [`MtmdInputChunks::fit_to_micro_batch`] before evaluating any of
+    /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
+    ///
+    /// # Errors
+    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when `params.n_batch` or `params.seq_id`
+    /// does not fit the context, a chunk cannot be decoded or reports a type unknown to this
+    /// binding (all before any chunk is evaluated), or when evaluating a chunk fails, or
+    /// [`EvalMultimodalChunksError::ChunkOutOfBounds`] when a valid index returns
+    /// `None` from `chunks.get`.
+    pub fn eval_multimodal_chunks(
+        &mut self,
+        chunks: &MtmdInputChunks,
+        mtmd_ctx: &MtmdContext,
+        llama_ctx: &mut LlamaContext,
+        EvalMultimodalChunksParams {
+            start_position,
+            seq_id,
+            n_batch,
+            logits_last,
+        }: EvalMultimodalChunksParams,
+    ) -> Result<llama_pos, EvalMultimodalChunksError> {
+        let limits = MtmdEvalLimits::of(llama_ctx);
+        let fitted_chunks = FittedMtmdInputChunks::fit(
+            chunks,
+            mtmd_ctx,
+            limits
+                .context
+                .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?),
+        )?;
+        let chunk_count = fitted_chunks.len();
+        let last_chunk_index = chunk_count.checked_sub(1);
+        let mut next_position = start_position;
+
+        for index in 0..chunk_count {
+            let fitted_chunk = FittedMtmdInputChunk::at(&fitted_chunks, index)
+                .ok_or(EvalMultimodalChunksError::ChunkOutOfBounds(index))?;
+            let logits_for_this_chunk = logits_last && Some(index) == last_chunk_index;
+
+            next_position = fitted_chunk.eval_single(
+                mtmd_ctx,
+                llama_ctx,
+                next_position,
+                seq_id,
+                n_batch,
+                logits_for_this_chunk,
+            )?;
+            self.ingest_fitted_chunk(&fitted_chunk);
+        }
+
+        Ok(next_position)
+    }
+
+    /// # Errors
+    /// Forwards [`LlamaBatch::add_sequence`] errors verbatim. Nothing is staged on failure.
+    pub fn feed_prompt_sequence_to_batch(
+        &mut self,
+        batch: &mut LlamaBatch,
+        tokens: &[LlamaToken],
+        seq_id: llama_seq_id,
+        logits_all: bool,
+    ) -> Result<(), BatchAddError> {
+        batch.add_sequence(tokens, seq_id, logits_all)?;
+        self.pending_prompt_tokens = self
+            .pending_prompt_tokens
+            .saturating_add(tokens.len() as u64);
+
+        Ok(())
+    }
+
+    /// # Errors
+    /// Forwards [`LlamaBatch::add`] errors verbatim. Nothing is staged on failure.
+    pub fn feed_prompt_to_batch(
+        &mut self,
+        batch: &mut LlamaBatch,
+        token: LlamaToken,
+        position: llama_pos,
+        seq_ids: &[llama_seq_id],
+        logits: bool,
+    ) -> Result<(), BatchAddError> {
+        batch.add(SampledToken::Content(token), position, seq_ids, logits)?;
+        self.pending_prompt_tokens = self.pending_prompt_tokens.saturating_add(1);
+
+        Ok(())
+    }
+
+    /// Settles every generated token still pending, for a generation that stops without an
+    /// end-of-generation token (a token limit or a stop request).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IngestError`] when llama.cpp fails while parsing the finished answer.
+    pub fn finish(&mut self, outcomes: &mut Vec<IngestOutcome>) -> Result<(), IngestError> {
+        self.attribute(ChatOutputCompleteness::Finished, outcomes)
     }
 
     /// Classifies a generated token and appends every outcome it settles to `outcomes`. An
@@ -162,6 +277,78 @@ impl<'model> SampledTokenClassifier<'model> {
         Ok(GenerationProgress::Continues)
     }
 
+    pub fn ingest_fitted_chunk(&mut self, fitted_chunk: &FittedMtmdInputChunk<'_>) {
+        let n_tokens = fitted_chunk.chunk().n_tokens() as u64;
+
+        match fitted_chunk.chunk_type() {
+            MtmdInputChunkType::Text => self.record_prompt_tokens(n_tokens),
+            MtmdInputChunkType::Image => self.record_input_image_tokens(n_tokens),
+            MtmdInputChunkType::Audio => self.record_input_audio_tokens(n_tokens),
+        }
+    }
+
+    #[must_use]
+    pub fn into_usage(self) -> TokenUsage {
+        self.usage
+    }
+
+    /// The template parser's latest reading of the answer, the one that attributed the most
+    /// recent outcomes, or `None` for generation outside of a chat template. Parsing it maps
+    /// that same parse into the answer's message.
+    #[must_use]
+    pub fn latest_reading(&self) -> Option<&ChatReading> {
+        match &self.attribution {
+            TokenAttribution::Undeterminable => None,
+            TokenAttribution::ChatSession(attribution) => Some(&attribution.latest_reading),
+        }
+    }
+
+    #[must_use]
+    pub const fn pending_prompt_tokens(&self) -> u64 {
+        self.pending_prompt_tokens
+    }
+
+    /// # Errors
+    /// Forwards [`TokenUsageError::CachedExceedsPrompt`] when the running cached total would
+    /// exceed the prompt total.
+    pub const fn record_cached_prompt_tokens(&mut self, count: u64) -> Result<(), TokenUsageError> {
+        self.usage.record_cached_prompt_tokens(count)
+    }
+
+    pub const fn record_input_audio_tokens(&mut self, count: u64) {
+        self.usage.record_input_audio_tokens(count);
+    }
+
+    pub const fn record_input_image_tokens(&mut self, count: u64) {
+        self.usage.record_input_image_tokens(count);
+    }
+
+    pub const fn record_prompt_tokens(&mut self, count: u64) {
+        self.usage.record_prompt_tokens(count);
+    }
+
+    /// Samples a token and classifies it, appending the outcomes it settles to `outcomes`.
+    ///
+    /// # Errors
+    /// Forwards [`LlamaSampler::sample`] and [`Self::ingest`] errors verbatim.
+    pub fn sample(
+        &mut self,
+        sampler: &mut LlamaSampler,
+        context: &LlamaContext,
+        idx: i32,
+        outcomes: &mut Vec<IngestOutcome>,
+    ) -> Result<ClassifiedSample, SampleError> {
+        let token = sampler.sample(context, idx)?;
+        let progress = self.ingest(token, outcomes)?;
+
+        Ok(ClassifiedSample { token, progress })
+    }
+
+    #[must_use]
+    pub const fn usage(&self) -> &TokenUsage {
+        &self.usage
+    }
+
     fn attribute(
         &mut self,
         completeness: ChatOutputCompleteness,
@@ -196,194 +383,12 @@ impl<'model> SampledTokenClassifier<'model> {
         Ok(())
     }
 
-    /// Settles every generated token still pending, for a generation that stops without an
-    /// end-of-generation token (a token limit or a stop request).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`IngestError`] when llama.cpp fails while parsing the finished answer.
-    pub fn finish(&mut self, outcomes: &mut Vec<IngestOutcome>) -> Result<(), IngestError> {
-        self.attribute(ChatOutputCompleteness::Finished, outcomes)
-    }
-
     const fn record_usage_in(&mut self, section: SampledTokenSection) {
         match section {
             SampledTokenSection::Reasoning => self.usage.record_reasoning_token(),
             SampledTokenSection::Content => self.usage.record_content_token(),
             SampledTokenSection::ToolCall => self.usage.record_tool_call_token(),
             SampledTokenSection::Pending => self.usage.record_undeterminable_token(),
-        }
-    }
-
-    /// Samples a token and classifies it, appending the outcomes it settles to `outcomes`.
-    ///
-    /// # Errors
-    /// Forwards [`LlamaSampler::sample`] and [`Self::ingest`] errors verbatim.
-    pub fn sample(
-        &mut self,
-        sampler: &mut LlamaSampler,
-        context: &LlamaContext,
-        idx: i32,
-        outcomes: &mut Vec<IngestOutcome>,
-    ) -> Result<ClassifiedSample, SampleError> {
-        let token = sampler.sample(context, idx)?;
-        let progress = self.ingest(token, outcomes)?;
-
-        Ok(ClassifiedSample { token, progress })
-    }
-
-    /// # Errors
-    /// Forwards [`LlamaBatch::add`] errors verbatim. Nothing is staged on failure.
-    pub fn feed_prompt_to_batch(
-        &mut self,
-        batch: &mut LlamaBatch,
-        token: LlamaToken,
-        position: llama_pos,
-        seq_ids: &[llama_seq_id],
-        logits: bool,
-    ) -> Result<(), BatchAddError> {
-        batch.add(SampledToken::Content(token), position, seq_ids, logits)?;
-        self.pending_prompt_tokens = self.pending_prompt_tokens.saturating_add(1);
-
-        Ok(())
-    }
-
-    /// # Errors
-    /// Forwards [`LlamaBatch::add_sequence`] errors verbatim. Nothing is staged on failure.
-    pub fn feed_prompt_sequence_to_batch(
-        &mut self,
-        batch: &mut LlamaBatch,
-        tokens: &[LlamaToken],
-        seq_id: llama_seq_id,
-        logits_all: bool,
-    ) -> Result<(), BatchAddError> {
-        batch.add_sequence(tokens, seq_id, logits_all)?;
-        self.pending_prompt_tokens = self
-            .pending_prompt_tokens
-            .saturating_add(tokens.len() as u64);
-
-        Ok(())
-    }
-
-    pub const fn commit_prompt_tokens(&mut self) -> u64 {
-        let promoted = self.pending_prompt_tokens;
-        self.usage.record_prompt_tokens(promoted);
-        self.pending_prompt_tokens = 0;
-
-        promoted
-    }
-
-    pub const fn discard_pending_prompt_tokens(&mut self) -> u64 {
-        let discarded = self.pending_prompt_tokens;
-        self.pending_prompt_tokens = 0;
-
-        discarded
-    }
-
-    #[must_use]
-    pub const fn pending_prompt_tokens(&self) -> u64 {
-        self.pending_prompt_tokens
-    }
-
-    /// Checks every chunk with [`MtmdInputChunks::fit_to_micro_batch`] before evaluating any of
-    /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
-    ///
-    /// # Errors
-    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when `params.n_batch` or `params.seq_id`
-    /// does not fit the context, a chunk cannot be decoded or reports a type unknown to this
-    /// binding (all before any chunk is evaluated), or when evaluating a chunk fails, or
-    /// [`EvalMultimodalChunksError::ChunkOutOfBounds`] when a valid index returns
-    /// `None` from `chunks.get`.
-    pub fn eval_multimodal_chunks(
-        &mut self,
-        chunks: &MtmdInputChunks,
-        mtmd_ctx: &MtmdContext,
-        llama_ctx: &mut LlamaContext,
-        params: EvalMultimodalChunksParams,
-    ) -> Result<llama_pos, EvalMultimodalChunksError> {
-        let limits = MtmdEvalLimits::of(llama_ctx);
-        let fitted_chunks = FittedMtmdInputChunks::fit(
-            chunks,
-            mtmd_ctx,
-            limits
-                .context
-                .micro_batch_tokens(limits.batch_tokens(params.n_batch, params.seq_id)?),
-        )?;
-        let chunk_count = fitted_chunks.len();
-        let last_chunk_index = chunk_count.checked_sub(1);
-        let mut next_position = params.start_position;
-
-        for index in 0..chunk_count {
-            let fitted_chunk = FittedMtmdInputChunk::at(&fitted_chunks, index)
-                .ok_or(EvalMultimodalChunksError::ChunkOutOfBounds(index))?;
-            let logits_for_this_chunk = params.logits_last && Some(index) == last_chunk_index;
-
-            next_position = fitted_chunk.eval_single(
-                mtmd_ctx,
-                llama_ctx,
-                next_position,
-                params.seq_id,
-                params.n_batch,
-                logits_for_this_chunk,
-            )?;
-            self.ingest_fitted_chunk(&fitted_chunk);
-        }
-
-        Ok(next_position)
-    }
-
-    pub fn ingest_fitted_chunk(&mut self, fitted_chunk: &FittedMtmdInputChunk<'_>) {
-        let n_tokens = fitted_chunk.chunk().n_tokens() as u64;
-
-        match fitted_chunk.chunk_type() {
-            MtmdInputChunkType::Text => self.record_prompt_tokens(n_tokens),
-            MtmdInputChunkType::Image => self.record_input_image_tokens(n_tokens),
-            MtmdInputChunkType::Audio => self.record_input_audio_tokens(n_tokens),
-        }
-    }
-
-    pub const fn record_prompt_tokens(&mut self, count: u64) {
-        self.usage.record_prompt_tokens(count);
-    }
-
-    pub const fn record_input_image_tokens(&mut self, count: u64) {
-        self.usage.record_input_image_tokens(count);
-    }
-
-    pub const fn record_input_audio_tokens(&mut self, count: u64) {
-        self.usage.record_input_audio_tokens(count);
-    }
-
-    /// # Errors
-    /// Forwards [`TokenUsageError::CachedExceedsPrompt`] when the running cached total would
-    /// exceed the prompt total.
-    pub const fn record_cached_prompt_tokens(&mut self, count: u64) -> Result<(), TokenUsageError> {
-        self.usage.record_cached_prompt_tokens(count)
-    }
-
-    #[must_use]
-    pub const fn usage(&self) -> &TokenUsage {
-        &self.usage
-    }
-
-    #[must_use]
-    pub fn into_usage(self) -> TokenUsage {
-        self.usage
-    }
-
-    #[must_use]
-    pub const fn current_section(&self) -> SampledTokenSection {
-        self.section
-    }
-
-    /// The template parser's latest reading of the answer, the one that attributed the most
-    /// recent outcomes, or `None` for generation outside of a chat template. Parsing it maps
-    /// that same parse into the answer's message.
-    #[must_use]
-    pub fn latest_reading(&self) -> Option<&ChatReading> {
-        match &self.attribution {
-            TokenAttribution::Undeterminable => None,
-            TokenAttribution::ChatSession(attribution) => Some(&attribution.latest_reading),
         }
     }
 }

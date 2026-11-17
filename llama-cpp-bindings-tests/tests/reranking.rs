@@ -34,20 +34,22 @@ fn cosine_similarity(left_embedding: &[f32], right_embedding: &[f32]) -> f32 {
     embeddings = true,
 )]
 fn the_relevant_document_embeds_closer_to_the_query_than_an_unrelated_one(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
     for (sequence_id, text) in (0..).zip([QUERY, RELEVANT_DOCUMENT, UNRELATED_DOCUMENT]) {
-        let tokens =
-            fixture
-                .model
-                .str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
+        let tokens = model.str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
 
         batch.add_sequence(&tokens, sequence_id, false)?;
     }

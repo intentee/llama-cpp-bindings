@@ -13,14 +13,18 @@ use crate::llama_test_registration::LlamaTestRegistration;
 use crate::trial_outcome::TrialOutcome;
 
 fn trial_outcome<'setup>(
-    registration: &'static LlamaTestRegistration,
+    LlamaTestRegistration {
+        func,
+        context_params,
+        ..
+    }: &'static LlamaTestRegistration,
     setup: &'setup PhaseSetup,
 ) -> TrialOutcome<'setup> {
     match setup.load_phase_state() {
-        Ok(state) => match registration.func.run(&LlamaFixture {
+        Ok(state) => match func.run(&LlamaFixture {
             model: &state.model,
             backend: &state.backend,
-            context_params: &registration.context_params,
+            context_params,
             mtmd_context: state.mtmd_context.as_ref(),
             model_path: &state.model_path,
         }) {
@@ -63,15 +67,6 @@ impl<'plan> ScheduledPhase<'plan> {
         }
     }
 
-    #[must_use]
-    pub fn selects_any_trial(&self, arguments: &Arguments) -> bool {
-        !arguments.list
-            && self
-                .trials
-                .iter()
-                .any(|trial| !arguments.is_filtered_out(trial) && !arguments.is_ignored(trial))
-    }
-
     pub fn download_model_files(&self, arguments: &Arguments) {
         if self.selects_any_trial(arguments)
             && let Err(download_failure) = self.setup.download_model_files()
@@ -90,6 +85,15 @@ impl<'plan> ScheduledPhase<'plan> {
         }
 
         libtest_mimic::run(arguments, self.trials)
+    }
+
+    #[must_use]
+    pub fn selects_any_trial(&self, arguments: &Arguments) -> bool {
+        !arguments.list
+            && self
+                .trials
+                .iter()
+                .any(|trial| !arguments.is_filtered_out(trial) && !arguments.is_ignored(trial))
     }
 }
 
@@ -116,7 +120,6 @@ mod tests {
     use crate::expected_outcome::ExpectedOutcome;
     use crate::llama_test_fn::LlamaTestFn;
     use crate::llama_test_registration::LlamaTestRegistration;
-    use crate::no_op::no_op;
 
     const LOAD_KEY: LoadKey = LoadKey {
         model_source: GgufSource::LocalPath("/nonexistent/llama-cpp-test-harness/model.gguf"),
@@ -140,7 +143,7 @@ mod tests {
         name: "scheduled_trial",
         key: LOAD_KEY,
         context_params: CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::Infallible(|_fixture| {}),
         expected_outcome: ExpectedOutcome::Success,
     };
 
@@ -148,7 +151,7 @@ mod tests {
         name: "failing_on_purpose",
         key: LOAD_KEY,
         context_params: CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::Infallible(|_fixture| {}),
         expected_outcome: ExpectedOutcome::Failure {
             failure: ExpectedFailure::PhaseSetup(PhaseSetupFailureKind::ModelLoad),
             reason: "the model file does not exist on purpose",

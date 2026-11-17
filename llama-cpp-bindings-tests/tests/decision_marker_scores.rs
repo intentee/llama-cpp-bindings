@@ -25,9 +25,13 @@ const CHOICE_SCORE_COLUMN: usize = 0;
     embeddings = true,
 )]
 fn laya_scores_the_matching_option_highest_at_its_mask_token(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let mask_token = model
         .token_mask()
         .context("a laya model marks its options with the mask token")?;
@@ -48,8 +52,8 @@ fn laya_scores_the_matching_option_highest_at_its_mask_token(
     let tokens = model.str_to_token(&prompt, AddBos::Never, ParseSpecialTokens::Always)?;
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params)
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_pooling_type(LlamaPoolingType::None),
     )?;

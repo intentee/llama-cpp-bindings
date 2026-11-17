@@ -28,17 +28,20 @@ use llama_cpp_test_harness_macros::llama_test;
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
 fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let mut ctx = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )
     .with_context(|| "unable to create llama context")?;
 
@@ -79,7 +82,7 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
         "vision input must produce at least one image chunk"
     );
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

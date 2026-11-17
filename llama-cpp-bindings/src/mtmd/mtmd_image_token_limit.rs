@@ -12,6 +12,14 @@ pub enum MtmdImageTokenLimit {
 
 impl MtmdImageTokenLimit {
     #[must_use]
+    pub fn at_most(self, ceiling: NonZeroU32) -> Self {
+        match self {
+            Self::ModelMetadata => Self::ModelMetadata,
+            Self::Tokens(tokens) => Self::Tokens(tokens.min(ceiling)),
+        }
+    }
+
+    #[must_use]
     pub fn from_c_int(raw: c_int) -> Self {
         u32::try_from(raw)
             .ok()
@@ -26,14 +34,6 @@ impl MtmdImageTokenLimit {
         match self {
             Self::ModelMetadata => Ok(-1),
             Self::Tokens(tokens) => c_int::try_from(tokens.get()),
-        }
-    }
-
-    #[must_use]
-    pub fn at_most(self, ceiling: NonZeroU32) -> Self {
-        match self {
-            Self::ModelMetadata => Self::ModelMetadata,
-            Self::Tokens(tokens) => Self::Tokens(tokens.min(ceiling)),
         }
     }
 }

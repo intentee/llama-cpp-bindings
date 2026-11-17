@@ -23,10 +23,11 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn load_model_with_a_missing_file_reports_it_not_found(fixture: &LlamaFixture<'_>) {
+fn load_model_with_a_missing_file_reports_it_not_found(
+    &LlamaFixture { backend, .. }: &LlamaFixture<'_>,
+) {
     let model_params = LlamaModelParams::default();
-    let result =
-        LlamaModel::load_from_file(fixture.backend, "/nonexistent/model.gguf", &model_params);
+    let result = LlamaModel::load_from_file(backend, "/nonexistent/model.gguf", &model_params);
 
     assert_eq!(
         result.err(),
@@ -45,13 +46,13 @@ fn load_model_with_a_missing_file_reports_it_not_found(fixture: &LlamaFixture<'_
     n_ubatch = 64,
 )]
 fn load_model_with_invalid_file_content_reports_it_unloadable(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { backend, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model_params = LlamaModelParams::default();
     let dummy_path = env::temp_dir().join("llama_test_invalid_model.gguf");
     fs::write(&dummy_path, b"not a valid gguf model file")?;
 
-    let result = LlamaModel::load_from_file(fixture.backend, &dummy_path, &model_params);
+    let result = LlamaModel::load_from_file(backend, &dummy_path, &model_params);
 
     ensure!(result.err() == Some(LlamaModelLoadError::Unloadable));
     fs::remove_file(&dummy_path)?;
@@ -66,11 +67,11 @@ fn load_model_with_invalid_file_content_reports_it_unloadable(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn load_model_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) {
+fn load_model_refuses_a_path_that_is_not_utf8(&LlamaFixture { backend, .. }: &LlamaFixture<'_>) {
     let model_params = LlamaModelParams::default();
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
 
-    let result = LlamaModel::load_from_file(fixture.backend, non_utf8_path, &model_params);
+    let result = LlamaModel::load_from_file(backend, non_utf8_path, &model_params);
 
     assert_eq!(
         result.err(),
@@ -88,10 +89,10 @@ fn load_model_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn load_model_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
+fn load_model_refuses_a_path_with_a_nul_byte(&LlamaFixture { backend, .. }: &LlamaFixture<'_>) {
     assert_eq!(
         LlamaModel::load_from_file(
-            fixture.backend,
+            backend,
             "/models/model\0.gguf",
             &LlamaModelParams::default()
         )

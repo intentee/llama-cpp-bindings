@@ -17,18 +17,8 @@ pub struct ContextLimits {
 
 impl ContextLimits {
     #[must_use]
-    pub const fn of(context: &LlamaContext) -> Self {
-        context.limits
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`TokenOutsideVocabulary`] when `token` is not in the vocabulary of the model.
-    pub fn ensure_token_in_vocabulary(
-        &self,
-        token: LlamaToken,
-    ) -> Result<LlamaToken, TokenOutsideVocabulary> {
-        TokenOutsideVocabulary::check(token, self.vocabulary_size)
+    pub const fn of(&LlamaContext { limits, .. }: &LlamaContext) -> Self {
+        limits
     }
 
     /// # Errors
@@ -43,6 +33,16 @@ impl ContextLimits {
                 n_seq_max: self.max_sequences,
             })
         }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`TokenOutsideVocabulary`] when `token` is not in the vocabulary of the model.
+    pub fn ensure_token_in_vocabulary(
+        &self,
+        token: LlamaToken,
+    ) -> Result<LlamaToken, TokenOutsideVocabulary> {
+        TokenOutsideVocabulary::of(token, self.vocabulary_size).map_or(Ok(token), Err)
     }
 
     /// Returns how many tokens a single decode of `batch_tokens` evaluates: the smaller of

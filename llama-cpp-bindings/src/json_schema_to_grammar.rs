@@ -119,8 +119,18 @@ pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, JsonSchemaToG
 #[cfg(test)]
 mod tests {
     use std::ffi::CString;
+    use std::ffi::c_char;
+
+    use std::ptr;
+
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
+
+    use super::json_schema_to_grammar_status_to_result;
     use crate::json_schema_to_grammar::json_schema_to_grammar;
 
     #[test]
@@ -180,19 +190,6 @@ mod tests {
             })
         );
     }
-}
-
-#[cfg(test)]
-mod json_schema_to_grammar_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ffi::c_char;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::json_schema_to_grammar_status_to_result;
-    use crate::error::json_schema_to_grammar_error::JsonSchemaToGrammarError;
 
     #[test]
     fn invalid_schema_status_without_a_message_is_a_contract_error() {

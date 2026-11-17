@@ -6,7 +6,6 @@ use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
-use super::eval_chunk::eval_chunk;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
 use super::mtmd_eval_limits::MtmdEvalLimits;
@@ -99,59 +98,6 @@ impl MtmdInputChunks {
         input_chunks_init_status_to_result(status, out_chunks, out_error)
     }
 
-    #[must_use]
-    pub fn len(&self) -> usize {
-        unsafe { llama_cpp_bindings_sys::mtmd_input_chunks_size(self.chunks.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    #[must_use]
-    pub fn get(&self, index: usize) -> Option<MtmdInputChunk> {
-        if index >= self.len() {
-            return None;
-        }
-
-        let chunk_ptr = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_get(self.chunks.as_ptr(), index)
-        };
-
-        NonNull::new(chunk_ptr.cast_mut()).map(|ptr| MtmdInputChunk {
-            chunk: ptr,
-            owned: false,
-        })
-    }
-
-    /// Checks every chunk with [`MtmdInputChunk::fit_to_micro_batch`] before any of them is
-    /// evaluated, and returns the chunk types it classified, in chunk order.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MtmdEvalError::NonCausalChunkExceedsMicroBatch`] for the first chunk decoded
-    /// non-causally that has more tokens than `micro_batch_tokens`,
-    /// [`MtmdEvalError::UnknownChunkType`] when a chunk type is unknown, or
-    /// [`MtmdEvalError::FfiContract`] when a chunk within the chunk count is null.
-    pub fn fit_to_micro_batch(
-        &self,
-        mtmd_ctx: &MtmdContext,
-        micro_batch_tokens: u32,
-    ) -> Result<Vec<MtmdInputChunkType>, MtmdEvalError> {
-        fit_each(&self.chunks_within_count()?, mtmd_ctx, micro_batch_tokens)
-    }
-
-    #[must_use]
-    pub fn total_tokens(&self) -> usize {
-        unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_tokens(self.chunks.as_ptr()) }
-    }
-
-    #[must_use]
-    pub fn total_positions(&self) -> i32 {
-        unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_pos(self.chunks.as_ptr()) }
-    }
-
     /// Checks every chunk with [`Self::fit_to_micro_batch`] before evaluating any of them, so a
     /// chunk that cannot be decoded leaves the KV cache untouched.
     ///
@@ -182,8 +128,7 @@ impl MtmdInputChunks {
             .iter()
             .enumerate()
             .try_fold(start_position, |position, (index, chunk)| {
-                eval_chunk(
-                    chunk,
+                chunk.eval(
                     mtmd_ctx,
                     llama_ctx,
                     position,
@@ -192,6 +137,59 @@ impl MtmdInputChunks {
                     logits_last && Some(index) == last_chunk_index,
                 )
             })
+    }
+
+    /// Checks every chunk with [`MtmdInputChunk::fit_to_micro_batch`] before any of them is
+    /// evaluated, and returns the chunk types it classified, in chunk order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MtmdEvalError::NonCausalChunkExceedsMicroBatch`] for the first chunk decoded
+    /// non-causally that has more tokens than `micro_batch_tokens`,
+    /// [`MtmdEvalError::UnknownChunkType`] when a chunk type is unknown, or
+    /// [`MtmdEvalError::FfiContract`] when a chunk within the chunk count is null.
+    pub fn fit_to_micro_batch(
+        &self,
+        mtmd_ctx: &MtmdContext,
+        micro_batch_tokens: u32,
+    ) -> Result<Vec<MtmdInputChunkType>, MtmdEvalError> {
+        fit_each(&self.chunks_within_count()?, mtmd_ctx, micro_batch_tokens)
+    }
+
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<MtmdInputChunk> {
+        if index >= self.len() {
+            return None;
+        }
+
+        let chunk_ptr = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_get(self.chunks.as_ptr(), index)
+        };
+
+        NonNull::new(chunk_ptr.cast_mut()).map(|ptr| MtmdInputChunk {
+            chunk: ptr,
+            owned: false,
+        })
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        unsafe { llama_cpp_bindings_sys::mtmd_input_chunks_size(self.chunks.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn total_positions(&self) -> i32 {
+        unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_pos(self.chunks.as_ptr()) }
+    }
+
+    #[must_use]
+    pub fn total_tokens(&self) -> usize {
+        unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_tokens(self.chunks.as_ptr()) }
     }
 
     fn chunks_within_count(&self) -> Result<Vec<MtmdInputChunk>, MtmdEvalError> {
@@ -217,34 +215,16 @@ impl Drop for MtmdInputChunks {
 
 #[cfg(test)]
 mod tests {
-    use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
-
-    #[test]
-    fn new_creates_empty_chunks() {
-        let chunks = MtmdInputChunks::new().unwrap();
-
-        assert!(chunks.is_empty());
-        assert_eq!(chunks.len(), 0);
-    }
-
-    #[test]
-    fn get_out_of_bounds_returns_none() {
-        let chunks = MtmdInputChunks::new().unwrap();
-
-        assert!(chunks.get(0).is_none());
-        assert!(chunks.get(999).is_none());
-    }
-}
-
-#[cfg(test)]
-mod input_chunks_init_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ptr;
 
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
     use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::input_chunks_init_status_to_result;
+    use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
+
     use crate::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
 
     const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
@@ -263,6 +243,22 @@ mod input_chunks_init_status_to_result_tests {
             detail,
         })
         .into()
+    }
+
+    #[test]
+    fn new_creates_empty_chunks() {
+        let chunks = MtmdInputChunks::new().unwrap();
+
+        assert!(chunks.is_empty());
+        assert_eq!(chunks.len(), 0);
+    }
+
+    #[test]
+    fn get_out_of_bounds_returns_none() {
+        let chunks = MtmdInputChunks::new().unwrap();
+
+        assert!(chunks.get(0).is_none());
+        assert!(chunks.get(999).is_none());
     }
 
     #[test]

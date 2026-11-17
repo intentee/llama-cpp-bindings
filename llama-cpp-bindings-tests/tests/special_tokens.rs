@@ -39,8 +39,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn the_eos_token_differs_from_the_bos_token(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
+fn the_eos_token_differs_from_the_bos_token(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let eos = model.token_eos().context("model declares an EOS token")?;
 
     ensure!(model.token_bos() != Some(eos));
@@ -56,8 +57,8 @@ fn the_eos_token_differs_from_the_bos_token(fixture: &LlamaFixture<'_>) -> Resul
     n_ubatch = 64,
     embeddings = true,
 )]
-fn model_without_a_bos_token_reports_none(fixture: &LlamaFixture<'_>) {
-    assert_eq!(fixture.model.token_bos(), None);
+fn model_without_a_bos_token_reports_none(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+    assert_eq!(model.token_bos(), None);
 }
 
 #[llama_test(
@@ -92,8 +93,9 @@ fn model_without_a_bos_token_reports_none(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_nl_is_the_first_token_of_a_tokenized_newline(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
+fn token_nl_is_the_first_token_of_a_tokenized_newline(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let newline_tokens = model.str_to_token("\n", AddBos::Never, ParseSpecialTokens::Never)?;
 
     ensure!(model.token_nl() == newline_tokens.first().copied());
@@ -132,8 +134,8 @@ fn token_nl_is_the_first_token_of_a_tokenized_newline(fixture: &LlamaFixture<'_>
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn decoder_only_model_has_no_decoder_start_token(fixture: &LlamaFixture<'_>) {
-    assert_eq!(fixture.model.decode_start_token(), None);
+fn decoder_only_model_has_no_decoder_start_token(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+    assert_eq!(model.decode_start_token(), None);
 }
 
 #[llama_test(
@@ -168,8 +170,8 @@ fn decoder_only_model_has_no_decoder_start_token(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_model_has_no_separator_token(fixture: &LlamaFixture<'_>) {
-    assert_eq!(fixture.model.token_sep(), None);
+fn chat_model_has_no_separator_token(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+    assert_eq!(model.token_sep(), None);
 }
 
 #[llama_test(
@@ -180,8 +182,8 @@ fn chat_model_has_no_separator_token(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn deepseek_r1_8b_adds_a_bos_token(fixture: &LlamaFixture<'_>) {
-    assert!(fixture.model.adds_bos_token());
+fn deepseek_r1_8b_adds_a_bos_token(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+    assert!(model.adds_bos_token());
 }
 
 #[llama_test(
@@ -192,6 +194,6 @@ fn deepseek_r1_8b_adds_a_bos_token(fixture: &LlamaFixture<'_>) {
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn qwen35_does_not_add_a_bos_token(fixture: &LlamaFixture<'_>) {
-    assert!(!fixture.model.adds_bos_token());
+fn qwen35_does_not_add_a_bos_token(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+    assert!(!model.adds_bos_token());
 }

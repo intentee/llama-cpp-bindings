@@ -15,9 +15,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn a_model_without_decision_labels_metadata_has_no_labels(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    ensure!(fixture.model.decision_labels()? == Vec::<String>::new());
+    ensure!(model.decision_labels()? == Vec::<String>::new());
 
     Ok(())
 }
@@ -30,12 +30,14 @@ fn a_model_without_decision_labels_metadata_has_no_labels(
     n_batch = 512,
     n_ubatch = 512,
 )]
-fn a_label_that_is_not_utf8_is_reported_with_its_index(fixture: &LlamaFixture<'_>) {
+fn a_label_that_is_not_utf8_is_reported_with_its_index(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MODEL_DECISION_LABEL_NOT_UTF8);
 
     assert!(matches!(
-        fixture.model.decision_labels(),
+        model.decision_labels(),
         Err(DecisionLabelsError::LabelNotUtf8 { index: 0, .. })
     ));
 }

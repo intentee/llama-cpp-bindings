@@ -228,10 +228,10 @@ fn an_image_chunk_carries_the_empty_id_of_a_bitmap_without_one(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn tokenizing_text_with_an_image_produces_chunks(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn tokenizing_text_with_an_image_produces_chunks(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
     let input_text = MtmdInputText {
@@ -265,11 +265,9 @@ fn tokenizing_text_with_an_image_produces_chunks(fixture: &LlamaFixture<'_>) -> 
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn tokenizing_more_bitmaps_than_media_markers_reports_a_tokenization_failure(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let input_text = MtmdInputText {
         text: "No media markers here".to_string(),
         add_special: true,
@@ -303,10 +301,10 @@ fn tokenizing_more_bitmaps_than_media_markers_reports_a_tokenization_failure(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn tokenize_refuses_text_with_a_nul_byte(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn tokenize_refuses_text_with_a_nul_byte(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let input_text = MtmdInputText {
         text: "text\0null".to_string(),
         add_special: true,
@@ -333,11 +331,9 @@ fn tokenize_refuses_text_with_a_nul_byte(fixture: &LlamaFixture<'_>) -> Result<(
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
 fn tokenizing_reports_a_chunk_list_llama_cpp_cannot_allocate(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS);
 

@@ -19,9 +19,8 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn a_lazy_grammar_awaiting_its_trigger_pattern_leaves_candidates_unconstrained(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let patterns = vec!["\\{.*".to_owned()];
     let sampler = LlamaSampler::grammar_lazy(model, "root ::= \"hello\"", "root", &patterns, &[])?;
 
@@ -43,10 +42,11 @@ fn a_lazy_grammar_awaiting_its_trigger_pattern_leaves_candidates_unconstrained(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_without_its_root_reports_the_missing_root(fixture: &LlamaFixture<'_>) {
+fn grammar_lazy_without_its_root_reports_the_missing_root(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let patterns = vec!["function".to_owned()];
-    let result =
-        LlamaSampler::grammar_lazy(fixture.model, "expr ::= \"hello\"", "root", &patterns, &[]);
+    let result = LlamaSampler::grammar_lazy(model, "expr ::= \"hello\"", "root", &patterns, &[]);
 
     assert_eq!(result.err(), Some(GrammarError::RootNotFound));
 }
@@ -59,10 +59,11 @@ fn grammar_lazy_without_its_root_reports_the_missing_root(fixture: &LlamaFixture
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_refuses_a_trigger_pattern_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
+fn grammar_lazy_refuses_a_trigger_pattern_with_a_nul_byte(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let patterns = vec!["hel\0lo".to_owned()];
-    let result =
-        LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hello\"", "root", &patterns, &[]);
+    let result = LlamaSampler::grammar_lazy(model, "root ::= \"hello\"", "root", &patterns, &[]);
 
     assert_eq!(
         result.err(),
@@ -81,9 +82,8 @@ fn grammar_lazy_refuses_a_trigger_pattern_with_a_nul_byte(fixture: &LlamaFixture
     n_ubatch = 512,
 )]
 fn a_lazy_grammar_awaiting_its_trigger_token_leaves_candidates_unconstrained(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let sampler = LlamaSampler::grammar_lazy(
         model,
         "root ::= \"hello\"",
@@ -110,9 +110,8 @@ fn a_lazy_grammar_awaiting_its_trigger_token_leaves_candidates_unconstrained(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_refuses_a_grammar_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
-    let result =
-        LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hel\0lo\"", "root", &[], &[]);
+fn grammar_lazy_refuses_a_grammar_with_a_nul_byte(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+    let result = LlamaSampler::grammar_lazy(model, "root ::= \"hel\0lo\"", "root", &[], &[]);
 
     assert_eq!(
         result.err(),
@@ -130,10 +129,11 @@ fn grammar_lazy_refuses_a_grammar_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn grammar_lazy_with_malformed_regex_returns_invalid_trigger_pattern(fixture: &LlamaFixture<'_>) {
+fn grammar_lazy_with_malformed_regex_returns_invalid_trigger_pattern(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let patterns = vec!["[".to_owned()];
-    let result =
-        LlamaSampler::grammar_lazy(fixture.model, "root ::= \"hello\"", "root", &patterns, &[]);
+    let result = LlamaSampler::grammar_lazy(model, "root ::= \"hello\"", "root", &patterns, &[]);
 
     assert!(matches!(
         result,

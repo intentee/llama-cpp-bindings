@@ -45,10 +45,12 @@ fn generated_tool_call_answer(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn a_chat_session_without_tools_needs_no_grammar_sampler(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "Hello!", &[], false)?;
+fn a_chat_session_without_tools_needs_no_grammar_sampler(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = user_turn_chat_session(model, "Hello!", &[], false)?;
 
-    ensure!(session.grammar_sampler(fixture.model)?.is_none());
+    ensure!(session.grammar_sampler(model)?.is_none());
 
     Ok(())
 }
@@ -61,10 +63,12 @@ fn a_chat_session_without_tools_needs_no_grammar_sampler(fixture: &LlamaFixture<
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn a_tool_choice_of_none_needs_no_grammar_sampler(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::None)?;
+fn a_tool_choice_of_none_needs_no_grammar_sampler(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = weather_chat_session(model, ChatToolChoice::None)?;
 
-    ensure!(session.grammar_sampler(fixture.model)?.is_none());
+    ensure!(session.grammar_sampler(model)?.is_none());
 
     Ok(())
 }

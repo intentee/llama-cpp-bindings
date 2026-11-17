@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+
 use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::sampled_token::SampledToken;
@@ -45,18 +46,23 @@ impl ClassifySampleLoopOutcome {
     /// # Errors
     ///
     /// Fails when the count of tokens observed in the token's section does not fit `u64`.
-    pub fn record_outcome(&mut self, ingest: &IngestOutcome) -> Result<()> {
-        self.generated
-            .push(ingest.sampled_token.token(), ingest.piece.raw());
+    pub fn record_outcome(
+        &mut self,
+        IngestOutcome {
+            sampled_token,
+            piece,
+        }: &IngestOutcome,
+    ) -> Result<()> {
+        self.generated.push(sampled_token.token(), piece.raw());
 
-        match ingest.sampled_token {
+        match sampled_token {
             SampledToken::Content(_) => {
-                self.content_stream.push_str(ingest.piece.visible());
+                self.content_stream.push_str(piece.visible());
 
                 increment(&mut self.observed_content)
             }
             SampledToken::Reasoning(_) => {
-                self.reasoning_stream.push_str(ingest.piece.visible());
+                self.reasoning_stream.push_str(piece.visible());
 
                 increment(&mut self.observed_reasoning)
             }

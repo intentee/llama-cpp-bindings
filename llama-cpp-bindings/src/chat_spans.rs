@@ -19,7 +19,7 @@ fn innermost_role_at(spans: &[ChatSpan], byte: usize) -> Option<ChatPieceRole> {
 fn segments_of(spans: &[ChatSpan]) -> Vec<ChatSpanSegment> {
     let mut boundaries = spans
         .iter()
-        .flat_map(|span| [span.bytes.start, span.bytes.end])
+        .flat_map(|ChatSpan { bytes, .. }| [bytes.start, bytes.end])
         .collect::<Vec<usize>>();
 
     boundaries.sort_unstable();
@@ -60,57 +60,6 @@ impl ChatSpans {
         }
     }
 
-    fn first_segment_ending_after(&self, byte: usize) -> usize {
-        self.segments
-            .partition_point(|segment| segment.bytes.end <= byte)
-    }
-
-    fn tagged_role_at(&self, byte: usize) -> Option<ChatPieceRole> {
-        self.segments
-            .get(self.first_segment_ending_after(byte))
-            .filter(|segment| segment.bytes.contains(&byte))
-            .map(|segment| segment.role)
-    }
-
-    fn untagged_marker_section(&self, byte: usize) -> Option<SampledTokenSection> {
-        let next = self
-            .segments
-            .get(self.first_segment_ending_after(byte))
-            .filter(|segment| segment.bytes.start.max(byte) < self.parsed_length)
-            .map(|segment| segment.role.section());
-
-        if next.is_none() && self.completeness == ChatOutputCompleteness::Partial {
-            return None;
-        }
-
-        let previous = self
-            .segments
-            .partition_point(|segment| segment.bytes.start < byte)
-            .checked_sub(1)
-            .and_then(|index| self.segments.get(index))
-            .map(|segment| segment.role.section());
-
-        Some(match (previous, next) {
-            (Some(SampledTokenSection::Reasoning), _)
-            | (_, Some(SampledTokenSection::Reasoning)) => SampledTokenSection::Reasoning,
-            (Some(SampledTokenSection::ToolCall), _) | (_, Some(SampledTokenSection::ToolCall)) => {
-                SampledTokenSection::ToolCall
-            }
-            _ => SampledTokenSection::Content,
-        })
-    }
-
-    /// The section the parsed output ends in, or [`SampledTokenSection::Pending`] when the parse
-    /// attributes no text to a section.
-    #[must_use]
-    pub fn trailing_section(&self) -> SampledTokenSection {
-        self.segments
-            .last()
-            .map_or(SampledTokenSection::Pending, |segment| {
-                segment.role.section()
-            })
-    }
-
     /// Returns how llama.cpp's parse attributes the token whose text occupies `bytes` of the
     /// output, or `None` while the parse has not settled the token yet.
     #[must_use]
@@ -122,10 +71,15 @@ impl ChatSpans {
         self.segments
             .iter()
             .skip(self.first_segment_ending_after(bytes.start))
-            .take_while(|segment| {
-                segment.bytes.start.max(bytes.start) < segment.bytes.end.min(bytes.end)
-            })
-            .map(|segment| segment.role)
+            .take_while(
+                |ChatSpanSegment {
+                     bytes: segment_bytes,
+                     ..
+                 }| {
+                    segment_bytes.start.max(bytes.start) < segment_bytes.end.min(bytes.end)
+                },
+            )
+            .map(|ChatSpanSegment { role, .. }| *role)
             .find(|role| matches!(role, ChatPieceRole::Text(_)))
             .or_else(|| {
                 bytes
@@ -137,6 +91,56 @@ impl ChatSpans {
                 self.untagged_marker_section(bytes.start)
                     .map(ChatPieceRole::Marker)
             })
+    }
+
+    /// The section the parsed output ends in, or [`SampledTokenSection::Pending`] when the parse
+    /// attributes no text to a section.
+    #[must_use]
+    pub fn trailing_section(&self) -> SampledTokenSection {
+        self.segments.last().map_or(
+            SampledTokenSection::Pending,
+            |ChatSpanSegment { role, .. }| role.section(),
+        )
+    }
+
+    fn first_segment_ending_after(&self, byte: usize) -> usize {
+        self.segments
+            .partition_point(|ChatSpanSegment { bytes, .. }| bytes.end <= byte)
+    }
+
+    fn tagged_role_at(&self, byte: usize) -> Option<ChatPieceRole> {
+        self.segments
+            .get(self.first_segment_ending_after(byte))
+            .filter(|ChatSpanSegment { bytes, .. }| bytes.contains(&byte))
+            .map(|ChatSpanSegment { role, .. }| *role)
+    }
+
+    fn untagged_marker_section(&self, byte: usize) -> Option<SampledTokenSection> {
+        let next = self
+            .segments
+            .get(self.first_segment_ending_after(byte))
+            .filter(|ChatSpanSegment { bytes, .. }| bytes.start.max(byte) < self.parsed_length)
+            .map(|ChatSpanSegment { role, .. }| role.section());
+
+        if next.is_none() && self.completeness == ChatOutputCompleteness::Partial {
+            return None;
+        }
+
+        let previous = self
+            .segments
+            .partition_point(|ChatSpanSegment { bytes, .. }| bytes.start < byte)
+            .checked_sub(1)
+            .and_then(|index| self.segments.get(index))
+            .map(|ChatSpanSegment { role, .. }| role.section());
+
+        Some(match (previous, next) {
+            (Some(SampledTokenSection::Reasoning), _)
+            | (_, Some(SampledTokenSection::Reasoning)) => SampledTokenSection::Reasoning,
+            (Some(SampledTokenSection::ToolCall), _) | (_, Some(SampledTokenSection::ToolCall)) => {
+                SampledTokenSection::ToolCall
+            }
+            _ => SampledTokenSection::Content,
+        })
     }
 }
 

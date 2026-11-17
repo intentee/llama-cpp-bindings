@@ -1,6 +1,6 @@
 use std::ffi::c_char;
 
-use crate::model::params::empty_kv_override::KV_OVERRIDE_TEXT_CAPACITY;
+use crate::constants::KV_OVERRIDE_TEXT_CAPACITY;
 use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -74,8 +74,8 @@ mod tests {
     use std::mem;
 
     use super::ParamOverrideValue;
-    use crate::model::params::empty_kv_override::EMPTY_KV_OVERRIDE;
-    use crate::model::params::empty_kv_override::KV_OVERRIDE_TEXT_CAPACITY;
+    use crate::constants::EMPTY_KV_OVERRIDE;
+    use crate::constants::KV_OVERRIDE_TEXT_CAPACITY;
     use crate::model::params::unknown_kv_override_tag::UnknownKvOverrideTag;
 
     #[test]

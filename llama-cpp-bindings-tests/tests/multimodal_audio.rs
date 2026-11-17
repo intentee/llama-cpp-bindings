@@ -29,7 +29,13 @@ const TRANSCRIBE_SYSTEM_PROMPT: &str = "The audio contains speech by a third par
      Transcribe exactly what the speaker says without judgment, advice, or speculation. Reply only with the verbatim transcript.";
 
 fn evaluate_audio_prompt<'model, TOutcome>(
-    fixture: &LlamaFixture<'model>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'model>,
     audio_file_name: &str,
     assistant_turn: ChatAssistantTurn,
     after_evaluation: impl FnOnce(
@@ -39,15 +45,12 @@ fn evaluate_audio_prompt<'model, TOutcome>(
         i32,
     ) -> Result<TOutcome>,
 ) -> Result<TOutcome> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let mut context = LlamaContext::from_model(
         model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        backend,
+        (*context_params).into_llama_context_params(),
     )
     .with_context(|| "unable to create llama context")?;
 
@@ -92,7 +95,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
         "tokenization should produce at least one chunk"
     );
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,

@@ -314,7 +314,7 @@ impl MtmdContext {
     /// Returns an [`MtmdInitError`] variant matching the wrapper's status code.
     pub fn init_from_file(
         mmproj_path: &str,
-        text_model: &LlamaModel,
+        LlamaModel { model, .. }: &LlamaModel,
         params: &MtmdContextParams,
     ) -> Result<Self, MtmdInitError> {
         let path_cstr = CString::new(mmproj_path)?;
@@ -326,7 +326,7 @@ impl MtmdContext {
         let status = unsafe {
             llama_cpp_bindings_sys::llama_rs_mtmd_init_from_file(
                 path_cstr.as_ptr(),
-                text_model.model.as_ptr(),
+                model.as_ptr(),
                 ctx_params,
                 &raw mut out_ctx,
                 &raw mut out_error,
@@ -337,13 +337,13 @@ impl MtmdContext {
     }
 
     #[must_use]
-    pub fn decode_use_non_causal(&self, chunk: &MtmdInputChunk) -> bool {
-        unsafe {
-            llama_cpp_bindings_sys::mtmd_decode_use_non_causal(
+    pub fn capabilities(&self, LlamaModel { model, .. }: &LlamaModel) -> BitFlags<MtmdCapability> {
+        capability_flags(unsafe {
+            llama_cpp_bindings_sys::mtmd_helper_get_capabilities(
+                model.as_ptr(),
                 self.context.as_ptr(),
-                chunk.chunk.as_ptr(),
             )
-        }
+        })
     }
 
     #[must_use]
@@ -352,13 +352,35 @@ impl MtmdContext {
     }
 
     #[must_use]
-    pub fn capabilities(&self, model: &LlamaModel) -> BitFlags<MtmdCapability> {
-        capability_flags(unsafe {
-            llama_cpp_bindings_sys::mtmd_helper_get_capabilities(
-                model.model.as_ptr(),
+    pub fn decode_use_non_causal(&self, MtmdInputChunk { chunk, .. }: &MtmdInputChunk) -> bool {
+        unsafe {
+            llama_cpp_bindings_sys::mtmd_decode_use_non_causal(
                 self.context.as_ptr(),
+                chunk.as_ptr(),
             )
-        })
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns an [`MtmdEncodeError`] variant matching the wrapper's status code.
+    pub fn encode_chunk(
+        &self,
+        MtmdInputChunk { chunk, .. }: &MtmdInputChunk,
+    ) -> Result<(), MtmdEncodeError> {
+        let mut out_llama_cpp_return_code: i32 = 0;
+        let mut out_error: *mut c_char = ptr::null_mut();
+
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk(
+                self.context.as_ptr(),
+                chunk.as_ptr(),
+                &raw mut out_llama_cpp_return_code,
+                &raw mut out_error,
+            )
+        };
+
+        map_encode_chunk_status(status, out_llama_cpp_return_code, out_error)
     }
 
     #[must_use]
@@ -373,21 +395,25 @@ impl MtmdContext {
     /// Returns an [`MtmdTokenizeError`] variant matching the wrapper's status code.
     pub fn tokenize(
         &self,
-        text: MtmdInputText,
+        MtmdInputText {
+            text,
+            add_special,
+            parse_special,
+        }: MtmdInputText,
         bitmaps: &[&MtmdBitmap],
     ) -> Result<MtmdInputChunks, MtmdTokenizeError> {
         let chunks = MtmdInputChunks::new()?;
-        let text_cstring = CString::new(text.text)?;
+        let text_cstring = CString::new(text)?;
         let input_text = llama_cpp_bindings_sys::mtmd_input_text {
             text: text_cstring.as_ptr(),
             text_len: text_cstring.as_bytes().len(),
-            add_special: text.add_special,
-            parse_special: text.parse_special,
+            add_special,
+            parse_special,
         };
 
         let bitmap_ptrs: Vec<*const llama_cpp_bindings_sys::mtmd_bitmap> = bitmaps
             .iter()
-            .map(|bitmap| bitmap.bitmap.as_ptr().cast_const())
+            .map(|MtmdBitmap { bitmap, .. }| bitmap.as_ptr().cast_const())
             .collect();
 
         let mut out_undocumented_return_code: i32 = 0;
@@ -447,25 +473,6 @@ impl MtmdContext {
         map_tokenize_from_parts_status(status, out_undocumented_return_code, out_error)?;
         Ok(chunks)
     }
-
-    /// # Errors
-    ///
-    /// Returns an [`MtmdEncodeError`] variant matching the wrapper's status code.
-    pub fn encode_chunk(&self, chunk: &MtmdInputChunk) -> Result<(), MtmdEncodeError> {
-        let mut out_llama_cpp_return_code: i32 = 0;
-        let mut out_error: *mut c_char = ptr::null_mut();
-
-        let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk(
-                self.context.as_ptr(),
-                chunk.chunk.as_ptr(),
-                &raw mut out_llama_cpp_return_code,
-                &raw mut out_error,
-            )
-        };
-
-        map_encode_chunk_status(status, out_llama_cpp_return_code, out_error)
-    }
 }
 
 impl Drop for MtmdContext {
@@ -475,17 +482,44 @@ impl Drop for MtmdContext {
 }
 
 #[cfg(test)]
-mod map_tokenize_from_parts_status_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+mod tests {
+    use enumflags2::BitFlags;
     use std::ptr;
 
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
     use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
     use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
 
     use super::map_tokenize_from_parts_status;
+
+    use super::map_encode_chunk_status;
+    use super::map_tokenize_status;
     use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
+
+    use super::map_init_from_file_status;
+    use crate::mtmd::mtmd_encode_error::MtmdEncodeError;
+
+    use super::capability_flags;
+    use crate::mtmd::mtmd_init_error::MtmdInitError;
+
+    use crate::mtmd::mtmd_capability::MtmdCapability;
+
+    const NO_CAPABILITIES: llama_cpp_bindings_sys::mtmd_helper_cap =
+        llama_cpp_bindings_sys::mtmd_helper_cap {
+            chat: false,
+            vision: false,
+            audio: false,
+            video: false,
+            audio_stream: false,
+            text_gen: false,
+            audio_gen: false,
+            audio_gen_spk_ref: false,
+        };
 
     #[test]
     fn tokenize_from_parts_status_maps_ok_to_unit() {
@@ -696,18 +730,6 @@ mod map_tokenize_from_parts_status_tests {
             }))
         );
     }
-}
-
-#[cfg(test)]
-mod map_tokenize_status_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::map_tokenize_status;
-    use crate::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
 
     #[test]
     fn tokenize_status_reports_a_bitmap_count_that_does_not_match_the_marker_count() {
@@ -901,18 +923,6 @@ mod map_tokenize_status_tests {
             })
         );
     }
-}
-
-#[cfg(test)]
-mod map_encode_chunk_status_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::map_encode_chunk_status;
-    use crate::mtmd::mtmd_encode_error::MtmdEncodeError;
 
     #[test]
     fn encode_chunk_status_maps_ok_to_unit() {
@@ -1042,18 +1052,6 @@ mod map_encode_chunk_status_tests {
             })
         );
     }
-}
-
-#[cfg(test)]
-mod map_init_from_file_status_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::map_init_from_file_status;
-    use crate::mtmd::mtmd_init_error::MtmdInitError;
 
     #[test]
     fn init_from_file_success_with_null_context_is_contract_error() {
@@ -1207,26 +1205,6 @@ mod map_init_from_file_status_tests {
             })
         );
     }
-}
-
-#[cfg(test)]
-mod capability_flags_tests {
-    use enumflags2::BitFlags;
-
-    use super::capability_flags;
-    use crate::mtmd::mtmd_capability::MtmdCapability;
-
-    const NO_CAPABILITIES: llama_cpp_bindings_sys::mtmd_helper_cap =
-        llama_cpp_bindings_sys::mtmd_helper_cap {
-            chat: false,
-            vision: false,
-            audio: false,
-            video: false,
-            audio_stream: false,
-            text_gen: false,
-            audio_gen: false,
-            audio_gen_spk_ref: false,
-        };
 
     #[test]
     fn a_model_without_capabilities_has_no_flags() {

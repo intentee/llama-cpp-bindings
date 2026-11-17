@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;

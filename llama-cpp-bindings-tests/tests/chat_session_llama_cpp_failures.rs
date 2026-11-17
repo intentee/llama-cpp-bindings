@@ -36,9 +36,11 @@ fn not_utf8() -> Result<Utf8Error> {
     n_batch = 512,
     n_ubatch = 512,
 )]
-fn a_model_without_a_chat_template_has_no_chat_templates(fixture: &LlamaFixture<'_>) {
+fn a_model_without_a_chat_template_has_no_chat_templates(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     assert_eq!(
-        fixture.model.chat_templates().err(),
+        model.chat_templates().err(),
         Some(ChatTemplatesError::ModelHasNoChatTemplate)
     );
 }
@@ -52,10 +54,10 @@ fn a_model_without_a_chat_template_has_no_chat_templates(fixture: &LlamaFixture<
     n_ubatch = 128,
 )]
 fn every_prompt_reader_refuses_prompt_text_that_is_not_utf8(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let expected_utf8_error = not_utf8()?;
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
+    let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_PROMPT_PART_TEXT_NOT_UTF8,
     );
@@ -64,7 +66,7 @@ fn every_prompt_reader_refuses_prompt_text_that_is_not_utf8(
         [
             session.prompt_parts().err(),
             session.prompt().err(),
-            session.tokenize_prompt(fixture.model).err(),
+            session.tokenize_prompt(model).err(),
         ] == [(); 3].map(|()| Some(ChatSessionError::SessionTextNotUtf8(expected_utf8_error)))
     );
 
@@ -80,10 +82,10 @@ fn every_prompt_reader_refuses_prompt_text_that_is_not_utf8(
     n_ubatch = 128,
 )]
 fn grammar_triggers_refuse_a_trigger_value_that_is_not_utf8(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let expected_utf8_error = not_utf8()?;
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
+    let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_VALUE_NOT_UTF8,
     );
@@ -91,7 +93,7 @@ fn grammar_triggers_refuse_a_trigger_value_that_is_not_utf8(
     ensure!(
         [
             session.grammar_triggers().err(),
-            session.grammar_sampler(fixture.model).err(),
+            session.grammar_sampler(model).err(),
         ] == [(); 2].map(|()| Some(ChatSessionError::SessionTextNotUtf8(expected_utf8_error)))
     );
 
@@ -107,9 +109,9 @@ fn grammar_triggers_refuse_a_trigger_value_that_is_not_utf8(
     n_ubatch = 128,
 )]
 fn grammar_triggers_refuse_a_trigger_type_the_bindings_do_not_recognize(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
+    let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED,
     );
@@ -136,14 +138,14 @@ fn grammar_triggers_refuse_a_trigger_type_the_bindings_do_not_recognize(
     n_ubatch = 128,
 )]
 fn the_grammar_sampler_refuses_a_grammar_that_is_not_utf8(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Required)?;
+    let session = weather_chat_session(model, ChatToolChoice::Required)?;
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8);
 
     ensure!(
-        session.grammar_sampler(fixture.model).err()
+        session.grammar_sampler(model).err()
             == Some(ChatSessionError::SessionTextNotUtf8(not_utf8()?))
     );
 
@@ -159,15 +161,15 @@ fn the_grammar_sampler_refuses_a_grammar_that_is_not_utf8(
     n_ubatch = 128,
 )]
 fn the_grammar_sampler_reports_a_grammar_llama_cpp_cannot_load(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Required)?;
+    let session = weather_chat_session(model, ChatToolChoice::Required)?;
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_THROWS);
 
     ensure!(!session.grammar_is_lazy());
     ensure!(
-        session.grammar_sampler(fixture.model).err()
+        session.grammar_sampler(model).err()
             == Some(ChatSessionError::Grammar(GrammarError::Reported {
                 message: injected_fault_message()?,
             }))
@@ -185,14 +187,14 @@ fn the_grammar_sampler_reports_a_grammar_llama_cpp_cannot_load(
     n_ubatch = 128,
 )]
 fn the_grammar_sampler_reports_a_generation_prompt_token_the_grammar_cannot_accept(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Required)?;
+    let session = weather_chat_session(model, ChatToolChoice::Required)?;
     let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_ACCEPT_THROWS);
 
     ensure!(session.generation_prompt_tokens() != []);
     ensure!(
-        session.grammar_sampler(fixture.model).err()
+        session.grammar_sampler(model).err()
             == Some(ChatSessionError::GrammarPrefill(
                 SamplerAcceptError::GrammarStateCorrupted {
                     message: injected_fault_message()?,
@@ -212,14 +214,14 @@ fn the_grammar_sampler_reports_a_generation_prompt_token_the_grammar_cannot_acce
     n_ubatch = 512,
 )]
 fn the_grammar_sampler_reports_a_trigger_word_llama_cpp_cannot_escape(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
+    let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_REGEX_ESCAPE_THROWS);
 
     ensure!(session.grammar_is_lazy());
     ensure!(
-        session.grammar_sampler(fixture.model).err()
+        session.grammar_sampler(model).err()
             == Some(ChatSessionError::Grammar(GrammarError::Reported {
                 message: injected_fault_message()?,
             }))
@@ -237,15 +239,15 @@ fn the_grammar_sampler_reports_a_trigger_word_llama_cpp_cannot_escape(
     n_ubatch = 128,
 )]
 fn the_grammar_sampler_reports_a_lazy_grammar_llama_cpp_cannot_load(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
+    let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_THROWS,
     );
 
     ensure!(
-        session.grammar_sampler(fixture.model).err()
+        session.grammar_sampler(model).err()
             == Some(ChatSessionError::Grammar(GrammarError::Reported {
                 message: injected_fault_message()?,
             }))
@@ -262,8 +264,10 @@ fn the_grammar_sampler_reports_a_lazy_grammar_llama_cpp_cannot_load(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn reading_an_answer_reports_a_parse_llama_cpp_fails(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
+fn reading_an_answer_reports_a_parse_llama_cpp_fails(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
 
@@ -290,8 +294,10 @@ fn reading_an_answer_reports_a_parse_llama_cpp_fails(fixture: &LlamaFixture<'_>)
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parsing_a_reading_reports_a_mapping_llama_cpp_fails(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let reading = weather_chat_session(fixture.model, ChatToolChoice::Auto)?
+fn parsing_a_reading_reports_a_mapping_llama_cpp_fails(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let reading = weather_chat_session(model, ChatToolChoice::Auto)?
         .read(
             &ChatOutput::from("Checking."),
             ChatOutputCompleteness::Finished,
@@ -319,9 +325,9 @@ fn parsing_a_reading_reports_a_mapping_llama_cpp_fails(fixture: &LlamaFixture<'_
     n_ubatch = 128,
 )]
 fn reading_an_answer_that_does_not_match_the_format_refuses_a_format_name_that_is_not_utf8(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
+    let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_READING_FORMAT_NAME_NOT_UTF8,
     );

@@ -12,7 +12,7 @@ use bindgen::callbacks::ParseCallbacks;
 
 use crate::build_error::BuildError;
 use crate::cargo_directive::CargoDirective;
-use crate::privatized_field::PrivatizedField;
+use crate::constants::PRIVATIZED_FIELDS;
 
 const COMPARED_STRUCTS_WITH_FLOATS: &[&str] = &["llama_logit_bias", "llama_token_data"];
 
@@ -36,7 +36,7 @@ fn variant_behavior_for(variant_name: &str) -> Option<EnumVariantCustomBehavior>
         .then_some(EnumVariantCustomBehavior::Hide)
 }
 
-/// Observes bindgen while it parses: keeps the [`PrivatizedField::ALL`] fields private, hides
+/// Observes bindgen while it parses: keeps the [`PRIVATIZED_FIELDS`] fields private, hides
 /// enum variants llama.cpp superseded, derives the equality the fields of each struct the bindings
 /// compare allow, and records what the bindings depend on.
 #[derive(Clone, Debug)]
@@ -48,22 +48,25 @@ pub struct BindingCallbacks {
 impl Default for BindingCallbacks {
     fn default() -> Self {
         Self {
-            privatized_field_hits: PrivatizedField::ALL
-                .iter()
-                .map(|_| Cell::new(false))
-                .collect(),
+            privatized_field_hits: PRIVATIZED_FIELDS.iter().map(|_| Cell::new(false)).collect(),
             rebuild_triggers: Rc::default(),
         }
     }
 }
 
 impl BindingCallbacks {
+    /// The headers and environment variables bindgen read, as cargo rebuild triggers.
+    #[must_use]
+    pub fn take_rebuild_triggers(&self) -> Vec<CargoDirective> {
+        self.rebuild_triggers.take()
+    }
+
     /// # Errors
     ///
     /// Returns [`BuildError::PrivatizedFieldMissing`] for the first privatized field bindgen
     /// never saw.
     pub fn verify_every_privatized_field_was_found(&self) -> Result<(), BuildError> {
-        PrivatizedField::ALL
+        PRIVATIZED_FIELDS
             .iter()
             .zip(self.privatized_field_hits.iter())
             .find(|(_, was_found)| !was_found.get())
@@ -74,15 +77,18 @@ impl BindingCallbacks {
                 })
             })
     }
-
-    /// The headers and environment variables bindgen read, as cargo rebuild triggers.
-    #[must_use]
-    pub fn take_rebuild_triggers(&self) -> Vec<CargoDirective> {
-        self.rebuild_triggers.take()
-    }
 }
 
 impl ParseCallbacks for BindingCallbacks {
+    fn enum_variant_behavior(
+        &self,
+        _enum_name: Option<&str>,
+        original_variant_name: &str,
+        _variant_value: EnumVariantValue,
+    ) -> Option<EnumVariantCustomBehavior> {
+        variant_behavior_for(original_variant_name)
+    }
+
     fn header_file(&self, filename: &str) {
         self.rebuild_triggers
             .borrow_mut()
@@ -101,26 +107,22 @@ impl ParseCallbacks for BindingCallbacks {
             .push(CargoDirective::RerunIfEnvChanged(key.to_owned()));
     }
 
-    fn add_derives(&self, info: &DeriveInfo<'_>) -> Vec<String> {
-        derives_for(info.name)
+    fn add_derives(&self, &DeriveInfo { name, .. }: &DeriveInfo<'_>) -> Vec<String> {
+        derives_for(name)
     }
 
-    fn enum_variant_behavior(
+    fn field_visibility(
         &self,
-        _enum_name: Option<&str>,
-        original_variant_name: &str,
-        _variant_value: EnumVariantValue,
-    ) -> Option<EnumVariantCustomBehavior> {
-        variant_behavior_for(original_variant_name)
-    }
-
-    fn field_visibility(&self, info: FieldInfo<'_>) -> Option<FieldVisibilityKind> {
-        PrivatizedField::ALL
+        FieldInfo {
+            type_name,
+            field_name,
+            ..
+        }: FieldInfo<'_>,
+    ) -> Option<FieldVisibilityKind> {
+        PRIVATIZED_FIELDS
             .iter()
             .zip(self.privatized_field_hits.iter())
-            .find(|(field, _)| {
-                field.type_name == info.type_name && field.field_name == info.field_name
-            })
+            .find(|(field, _)| field.type_name == type_name && field.field_name == field_name)
             .map(|(_, was_found)| {
                 was_found.set(true);
 

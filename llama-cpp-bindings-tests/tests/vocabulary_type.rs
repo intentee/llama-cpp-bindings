@@ -37,8 +37,10 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn default_models_use_a_byte_pair_encoding_vocabulary(fixture: &LlamaFixture<'_>) -> Result<()> {
-    ensure!(fixture.model.vocab_type()? == VocabType::Bpe);
+fn default_models_use_a_byte_pair_encoding_vocabulary(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    ensure!(model.vocab_type()? == VocabType::Bpe);
 
     Ok(())
 }

@@ -27,11 +27,11 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn init_from_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
+fn init_from_file_refuses_a_path_with_a_nul_byte(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     let mtmd_params = MtmdContextParams::default();
 
     assert_eq!(
-        MtmdContext::init_from_file("path\0null", fixture.model, &mtmd_params).err(),
+        MtmdContext::init_from_file("path\0null", model, &mtmd_params).err(),
         CString::new("path\0null")
             .err()
             .map(MtmdInitError::CStringError)
@@ -47,7 +47,9 @@ fn init_from_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn init_from_file_refuses_an_image_token_limit_a_c_int_cannot_hold(fixture: &LlamaFixture<'_>) {
+fn init_from_file_refuses_an_image_token_limit_a_c_int_cannot_hold(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     let limit = MtmdImageTokenLimit::Tokens(NonZeroU32::MAX);
     let mtmd_params = MtmdContextParams {
         image_max_tokens: limit,
@@ -55,7 +57,7 @@ fn init_from_file_refuses_an_image_token_limit_a_c_int_cannot_hold(fixture: &Lla
     };
 
     assert_eq!(
-        MtmdContext::init_from_file("mmproj.gguf", fixture.model, &mtmd_params).err(),
+        MtmdContext::init_from_file("mmproj.gguf", model, &mtmd_params).err(),
         i32::try_from(u32::MAX).err().map(|source| {
             MtmdInitError::ContextParams(MtmdContextParamsError::ImageMaxTokensExceedCInt {
                 limit,

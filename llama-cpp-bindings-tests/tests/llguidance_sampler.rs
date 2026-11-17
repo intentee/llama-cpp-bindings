@@ -13,7 +13,6 @@ use llama_cpp_bindings::error::sample_error::SampleError;
 use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
 use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::llguidance_sampler::create_llg_sampler;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::params::LlamaModelParams;
@@ -81,10 +80,9 @@ fn yes_no_and_hello(model: &LlamaModel) -> Result<[LlamaToken; 3]> {
     n_ubatch = 128,
 )]
 fn a_json_schema_sampler_masks_tokens_that_cannot_start_the_schema(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let sampler = create_llg_sampler(model, "json", JSON_SCHEMA)?;
+    let sampler = LlamaSampler::llguidance(model, "json", JSON_SCHEMA)?;
 
     ensure!(
         logits_left_by(
@@ -137,9 +135,8 @@ fn a_json_schema_sampler_masks_tokens_that_cannot_start_the_schema(
     n_ubatch = 128,
 )]
 fn a_regex_sampler_masks_tokens_that_cannot_start_a_match(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
     ensure!(logits_left_by(&sampler, &yes_no_and_hello(model)?)? == [0.0, 0.0, f32::NEG_INFINITY]);
@@ -180,10 +177,9 @@ fn a_regex_sampler_masks_tokens_that_cannot_start_a_match(
     n_ubatch = 128,
 )]
 fn a_lark_sampler_masks_tokens_that_cannot_start_the_grammar(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let sampler = create_llg_sampler(model, "lark", LARK_GRAMMAR)?;
+    let sampler = LlamaSampler::llguidance(model, "lark", LARK_GRAMMAR)?;
 
     ensure!(logits_left_by(&sampler, &yes_no_and_hello(model)?)? == [0.0, 0.0, f32::NEG_INFINITY]);
 
@@ -222,9 +218,11 @@ fn a_lark_sampler_masks_tokens_that_cannot_start_the_grammar(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn an_unknown_grammar_kind_is_reported_as_an_invalid_grammar(fixture: &LlamaFixture<'_>) {
+fn an_unknown_grammar_kind_is_reported_as_an_invalid_grammar(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     assert_eq!(
-        create_llg_sampler(fixture.model, "not_a_real_kind", "anything").err(),
+        LlamaSampler::llguidance(model, "not_a_real_kind", "anything").err(),
         Some(GrammarError::LlguidanceGrammarInvalid {
             message: "unknown constraint type: not_a_real_kind".to_owned(),
         })
@@ -263,9 +261,11 @@ fn an_unknown_grammar_kind_is_reported_as_an_invalid_grammar(fixture: &LlamaFixt
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn a_json_schema_that_is_not_json_is_reported_as_an_invalid_grammar(fixture: &LlamaFixture<'_>) {
+fn a_json_schema_that_is_not_json_is_reported_as_an_invalid_grammar(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) {
     assert_eq!(
-        create_llg_sampler(fixture.model, "json", "{this is not valid json").err(),
+        LlamaSampler::llguidance(model, "json", "{this is not valid json").err(),
         Some(GrammarError::LlguidanceGrammarInvalid {
             message: "key must be a string at line 1 column 2".to_owned(),
         })
@@ -304,9 +304,11 @@ fn a_json_schema_that_is_not_json_is_reported_as_an_invalid_grammar(fixture: &Ll
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn a_malformed_regex_leaves_llguidance_without_a_parser(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_malformed_regex_leaves_llguidance_without_a_parser(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let Err(GrammarError::LlguidanceParserUnavailable { .. }) =
-        create_llg_sampler(fixture.model, "regex", "[invalid")
+        LlamaSampler::llguidance(model, "regex", "[invalid")
     else {
         bail!("a regex with an unclosed character class must leave llguidance without a parser");
     };
@@ -346,8 +348,8 @@ fn a_malformed_regex_leaves_llguidance_without_a_parser(fixture: &LlamaFixture<'
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn name_callback_returns_llguidance(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
+fn name_callback_returns_llguidance(&LlamaFixture { model, .. }: &LlamaFixture<'_>) -> Result<()> {
+    let sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
     let name_ptr = unsafe { llama_cpp_bindings_sys::llama_sampler_name(sampler.as_ptr()) };
     ensure!(!name_ptr.is_null());
@@ -391,10 +393,9 @@ fn name_callback_returns_llguidance(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 128,
 )]
 fn a_sampler_cloned_through_ffi_keeps_its_own_grammar_state(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let mut sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
+    let mut sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
     let mut cloned = unsafe {
         LlamaSampler::from_raw(
             llama_cpp_bindings_sys::llama_sampler_clone(sampler.as_ptr()),
@@ -441,14 +442,17 @@ fn a_sampler_cloned_through_ffi_keeps_its_own_grammar_state(
     n_ubatch = 128,
 )]
 fn llguidance_chain_samples_yes_as_the_first_answer_token(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let backend = fixture.backend;
     let mut context = LlamaContext::from_model(
         model,
         backend,
-        (*fixture.context_params).into_llama_context_params(),
+        (*context_params).into_llama_context_params(),
     )?;
 
     let prompt = "Answer yes or no:";
@@ -457,7 +461,7 @@ fn llguidance_chain_samples_yes_as_the_first_answer_token(
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let llg_sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
+    let llg_sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
     let mut chain = LlamaSampler::chain([llg_sampler, LlamaSampler::greedy()?])?;
 
     let token = chain.sample(
@@ -511,13 +515,10 @@ fn llguidance_chain_samples_yes_as_the_first_answer_token(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn reset_rolls_back_accepted_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
+fn reset_rolls_back_accepted_tokens(&LlamaFixture { model, .. }: &LlamaFixture<'_>) -> Result<()> {
+    let mut sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
-    let yes_tokens =
-        fixture
-            .model
-            .str_to_token("yes", AddBos::Never, ParseSpecialTokens::Always)?;
+    let yes_tokens = model.str_to_token("yes", AddBos::Never, ParseSpecialTokens::Always)?;
     let first_allowed_token = *yes_tokens
         .first()
         .context("the tokenizer must produce a token for \"yes\"")?;
@@ -547,9 +548,9 @@ fn reset_rolls_back_accepted_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 128,
 )]
 fn accept_maps_an_out_of_vocabulary_token_to_grammar_callback_failure(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
+    let mut sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
     ensure!(
         sampler.accept(LlamaToken(i32::MAX - 1))
@@ -594,12 +595,11 @@ fn accept_maps_an_out_of_vocabulary_token_to_grammar_callback_failure(
     n_ubatch = 128,
 )]
 fn samplers_sharing_the_cached_tokenizer_environment_mask_alike(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let candidates = yes_no_and_hello(model)?;
-    let first = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
-    let second = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
+    let first = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
+    let second = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
     ensure!(logits_left_by(&first, &candidates)? == logits_left_by(&second, &candidates)?);
 
@@ -629,7 +629,7 @@ fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
     context.decode(&batch)?;
 
     let mut chain = LlamaSampler::chain([
-        create_llg_sampler(model, "regex", REGEX_GRAMMAR)?,
+        LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?,
         LlamaSampler::greedy()?,
     ])?;
 
@@ -654,10 +654,16 @@ fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
     Ok(())
 }
 
-fn freshly_loaded(fixture: &LlamaFixture<'_>) -> Result<LlamaModel> {
+fn freshly_loaded(
+    &LlamaFixture {
+        backend,
+        model_path,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<LlamaModel> {
     Ok(LlamaModel::load_from_file(
-        fixture.backend,
-        fixture.model_path,
+        backend,
+        model_path,
         &LlamaModelParams::default(),
     )?)
 }
@@ -677,7 +683,7 @@ fn creating_a_sampler_reports_a_vocabulary_llama_cpp_cannot_render(
     let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_TOKEN_TO_PIECE_FAILS);
 
     ensure!(
-        create_llg_sampler(&model, "regex", REGEX_GRAMMAR).err()
+        LlamaSampler::llguidance(&model, "regex", REGEX_GRAMMAR).err()
             == Some(GrammarError::TokEnvUnavailable(
                 TokenToStringError::InsufficientBufferSpace(-34)
             ))

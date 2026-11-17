@@ -54,10 +54,10 @@ fn tokens_of_text_chunks(chunks: &MtmdInputChunks) -> Result<Vec<LlamaToken>> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn only_bitmap_parts_become_image_chunks(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn only_bitmap_parts_become_image_chunks(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
     let chunks = mtmd_ctx.tokenize_from_parts(
@@ -100,19 +100,19 @@ fn only_bitmap_parts_become_image_chunks(fixture: &LlamaFixture<'_>) -> Result<(
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
 fn a_media_marker_inside_a_text_part_tokenizes_as_plain_text(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let marker = mtmd_default_marker()?;
     let chunks = mtmd_ctx.tokenize_from_parts(&[text_part(marker, true)], false)?;
 
     ensure!(
         tokens_of_text_chunks(&chunks)?
-            == fixture
-                .model
-                .str_to_token(marker, AddBos::Never, ParseSpecialTokens::Always)?
+            == model.str_to_token(marker, AddBos::Never, ParseSpecialTokens::Always)?
     );
 
     Ok(())
@@ -127,10 +127,14 @@ fn a_media_marker_inside_a_text_part_tokenizes_as_plain_text(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn parse_special_applies_to_each_text_part_on_its_own(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn parse_special_applies_to_each_text_part_on_its_own(
+    &LlamaFixture {
+        model,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let chunks = mtmd_ctx.tokenize_from_parts(
         &[
             text_part(SPECIAL_TOKEN_TEXT, true),
@@ -142,16 +146,12 @@ fn parse_special_applies_to_each_text_part_on_its_own(fixture: &LlamaFixture<'_>
     ensure!(
         tokens_of_text_chunks(&chunks)?
             == [
-                fixture.model.str_to_token(
+                model.str_to_token(
                     SPECIAL_TOKEN_TEXT,
                     AddBos::Never,
                     ParseSpecialTokens::Always
                 )?,
-                fixture.model.str_to_token(
-                    SPECIAL_TOKEN_TEXT,
-                    AddBos::Never,
-                    ParseSpecialTokens::Never
-                )?,
+                model.str_to_token(SPECIAL_TOKEN_TEXT, AddBos::Never, ParseSpecialTokens::Never)?,
             ]
             .concat()
     );
@@ -168,10 +168,10 @@ fn parse_special_applies_to_each_text_part_on_its_own(fixture: &LlamaFixture<'_>
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn a_text_part_containing_a_nul_byte_is_rejected(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn a_text_part_containing_a_nul_byte_is_rejected(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let text_with_nul_byte = "before\0after";
 
     ensure!(
@@ -196,11 +196,9 @@ fn a_text_part_containing_a_nul_byte_is_rejected(fixture: &LlamaFixture<'_>) -> 
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
 fn tokenizing_parts_reports_a_chunk_list_llama_cpp_cannot_allocate(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS);
 
@@ -227,10 +225,10 @@ fn tokenizing_parts_reports_a_chunk_list_llama_cpp_cannot_allocate(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn tokenizing_parts_reports_a_tokenizer_llama_cpp_fails(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .context("mmproj_file declared in attribute")?;
+fn tokenizing_parts_reports_a_tokenizer_llama_cpp_fails(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_TOKENIZE_FROM_PARTS_THROWS,
     );

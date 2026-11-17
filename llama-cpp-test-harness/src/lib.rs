@@ -8,7 +8,6 @@ pub mod llama_fixture;
 pub mod llama_test_fn;
 pub mod llama_test_registration;
 pub mod llama_tests_main_macro;
-pub mod no_op;
 pub mod parse_harness_arguments;
 pub mod run;
 pub mod run_to_conclusions;

@@ -63,9 +63,11 @@ fn negotiate_with_cat_tools() -> Vec<ChatTool> {
     }]
 }
 
-fn assert_parses_to_paris_weather_call(fixture: &LlamaFixture<'_>, answer: &str) -> Result<()> {
-    let session =
-        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+fn assert_parses_to_paris_weather_call(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+    answer: &str,
+) -> Result<()> {
+    let session = user_turn_chat_session(model, WEATHER_QUESTION, &get_weather_tools(), false)?;
     let parsed = recognized_answer(&session, answer, ChatOutputCompleteness::Finished)?;
 
     ensure!(parsed.tool_calls == [paris_weather_tool_call()]);
@@ -139,10 +141,10 @@ fn qwen35_parses_its_tool_call_format(fixture: &LlamaFixture<'_>) -> Result<()> 
     n_ubatch = 64,
 )]
 fn qwen35_parses_tool_call_arguments_into_their_schema_types(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = user_turn_chat_session(
-        fixture.model,
+        model,
         "Get the cat off the keyboard.",
         &negotiate_with_cat_tools(),
         false,
@@ -190,10 +192,9 @@ tuna\n\
     n_ubatch = 64,
 )]
 fn qwen35_parses_a_tool_call_cut_inside_its_arguments_as_a_named_call(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session =
-        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+    let session = user_turn_chat_session(model, WEATHER_QUESTION, &get_weather_tools(), false)?;
     let parsed = recognized_answer(
         &session,
         "<tool_call>\n<function=get_weather>\n<parameter=lo",
@@ -220,10 +221,12 @@ fn qwen35_parses_a_tool_call_cut_inside_its_arguments_as_a_named_call(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn qwen35_parses_consecutive_tool_calls_in_order(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let session = ChatSession::new(
-        fixture.model,
-        fixture.model.chat_templates()?,
+        model,
+        model.chat_templates()?,
         &[user_message("What is the weather in Paris and in Berlin?")],
         &get_weather_tools(),
         &ChatSessionOptions {
@@ -274,10 +277,9 @@ fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> 
     n_ubatch = 64,
 )]
 fn plain_content_answering_a_tool_request_parses_without_tool_calls(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session =
-        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+    let session = user_turn_chat_session(model, WEATHER_QUESTION, &get_weather_tools(), false)?;
     let parsed = recognized_answer(
         &session,
         PLAIN_CONTENT_REFUSAL,
@@ -298,9 +300,9 @@ fn plain_content_answering_a_tool_request_parses_without_tool_calls(
     n_ubatch = 64,
 )]
 fn deepseek_r1_8b_plain_content_without_tools_parses_without_tool_calls(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "Hello!", &[], false)?;
+    let session = user_turn_chat_session(model, "Hello!", &[], false)?;
     let parsed = recognized_answer(&session, "Hello there.", ChatOutputCompleteness::Finished)?;
 
     ensure!(parsed.tool_calls == []);
@@ -317,10 +319,9 @@ fn deepseek_r1_8b_plain_content_without_tools_parses_without_tool_calls(
     n_ubatch = 64,
 )]
 fn qwen35_reports_a_finished_tool_call_its_parser_stops_short_of_with_the_format_it_expected(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session =
-        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+    let session = user_turn_chat_session(model, WEATHER_QUESTION, &get_weather_tools(), false)?;
 
     ensure!(
         session

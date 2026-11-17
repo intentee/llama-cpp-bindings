@@ -8,9 +8,13 @@ pub struct LlamaTokenData {
 
 impl LlamaTokenData {
     #[must_use]
-    pub const fn new(LlamaToken(id): LlamaToken, logit: f32, p: f32) -> Self {
+    pub const fn new(LlamaToken(id): LlamaToken, logit: f32, probability: f32) -> Self {
         Self {
-            data: llama_cpp_bindings_sys::llama_token_data { id, logit, p },
+            data: llama_cpp_bindings_sys::llama_token_data {
+                id,
+                logit,
+                p: probability,
+            },
         }
     }
     #[must_use]
@@ -28,16 +32,16 @@ impl LlamaTokenData {
         self.data.p
     }
 
-    pub const fn set_id(&mut self, id: LlamaToken) {
-        self.data.id = id.0;
+    pub const fn set_id(&mut self, LlamaToken(id): LlamaToken) {
+        self.data.id = id;
     }
 
     pub const fn set_logit(&mut self, logit: f32) {
         self.data.logit = logit;
     }
 
-    pub const fn set_p(&mut self, p: f32) {
-        self.data.p = p;
+    pub const fn set_p(&mut self, probability: f32) {
+        self.data.p = probability;
     }
 }
 

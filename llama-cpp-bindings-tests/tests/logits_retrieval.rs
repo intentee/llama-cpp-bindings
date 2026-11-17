@@ -20,15 +20,20 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn a_logits_row_holds_one_logit_per_vocabulary_token(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_logits_row_holds_one_logit_per_vocabulary_token(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(
         tokens
             .len()
@@ -41,7 +46,7 @@ fn a_logits_row_holds_one_logit_per_vocabulary_token(fixture: &LlamaFixture<'_>)
 
     let logits = context.get_logits_ith(last_index)?;
 
-    ensure!(logits.len() == usize::try_from(fixture.model.n_vocab())?);
+    ensure!(logits.len() == usize::try_from(model.n_vocab())?);
 
     Ok(())
 }
@@ -55,12 +60,17 @@ fn a_logits_row_holds_one_logit_per_vocabulary_token(fixture: &LlamaFixture<'_>)
     n_ubatch = 512,
 )]
 fn get_logits_ith_returns_token_not_initialized_for_unknown_index(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
     )?;
 
     let result = context.get_logits_ith(7);

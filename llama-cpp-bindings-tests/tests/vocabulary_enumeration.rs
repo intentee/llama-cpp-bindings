@@ -15,9 +15,8 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
 )]
 fn the_vocabulary_enumerates_each_token_at_its_id_with_its_piece(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let hello = single_token(model, "hello")?;
 
     ensure!(

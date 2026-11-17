@@ -104,12 +104,12 @@ pub fn validate_gbnf(
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use std::ffi::CString;
     use std::fmt::Write;
     use std::ptr;
 
     use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
     use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 

@@ -18,9 +18,11 @@ use llama_cpp_test_harness_macros::llama_test;
 const GENERATED_REASONING: &str = "step one, step two";
 const GENERATED_CONTENT: &str = "actual response";
 
-fn parsed_content_after_closed_reasoning(fixture: &LlamaFixture<'_>) -> Result<ParsedChatMessage> {
+fn parsed_content_after_closed_reasoning(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<ParsedChatMessage> {
     recognized_answer(
-        &closed_reasoning_chat_session(fixture.model, "hello", &[])?,
+        &closed_reasoning_chat_session(model, "hello", &[])?,
         "hello world",
         ChatOutputCompleteness::Finished,
     )
@@ -88,8 +90,10 @@ fn qwen_templates_parse_trimmed_prefill_into_reasoning_and_content(
     Ok(())
 }
 
-fn reasoning_parsed_before_the_end_tag(fixture: &LlamaFixture<'_>) -> Result<ParsedChatMessage> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], true)?;
+fn reasoning_parsed_before_the_end_tag(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<ParsedChatMessage> {
+    let session = user_turn_chat_session(model, "hello", &[], true)?;
 
     recognized_answer(
         &session,
@@ -192,8 +196,10 @@ fn parses_the_reasoning_before_the_end_tag_apart_from_the_content(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parses_an_empty_answer_into_an_empty_message(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
+fn parses_an_empty_answer_into_an_empty_message(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = user_turn_chat_session(model, "hello", &[], false)?;
 
     ensure!(
         recognized_answer(&session, "", ChatOutputCompleteness::Finished)?
@@ -211,8 +217,10 @@ fn parses_an_empty_answer_into_an_empty_message(fixture: &LlamaFixture<'_>) -> R
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn parses_an_answer_with_a_nul_byte_as_content(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
+fn parses_an_answer_with_a_nul_byte_as_content(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = user_turn_chat_session(model, "hello", &[], false)?;
 
     ensure!(
         recognized_answer(&session, "hello\0world", ChatOutputCompleteness::Finished)?.content
@@ -230,8 +238,10 @@ fn parses_an_answer_with_a_nul_byte_as_content(fixture: &LlamaFixture<'_>) -> Re
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn qwen35_chat_session_parses_every_answer_it_is_given(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
+fn qwen35_chat_session_parses_every_answer_it_is_given(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = user_turn_chat_session(model, "hello", &[], false)?;
 
     for answer in ["the first answer", "the second answer"] {
         ensure!(
@@ -251,8 +261,10 @@ fn qwen35_chat_session_parses_every_answer_it_is_given(fixture: &LlamaFixture<'_
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn every_parsed_field_refuses_text_that_is_not_utf8(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
+fn every_parsed_field_refuses_text_that_is_not_utf8(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let answer = ChatOutput::from(
         "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n</function>\n</tool_call>",
     );
@@ -296,8 +308,10 @@ fn every_parsed_field_refuses_text_that_is_not_utf8(fixture: &LlamaFixture<'_>) 
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn a_reading_maps_its_parse_once_and_keeps_it(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let reading = user_turn_chat_session(fixture.model, "hello", &[], false)?.read(
+fn a_reading_maps_its_parse_once_and_keeps_it(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let reading = user_turn_chat_session(model, "hello", &[], false)?.read(
         &ChatOutput::from("Hello there."),
         ChatOutputCompleteness::Finished,
     )?;

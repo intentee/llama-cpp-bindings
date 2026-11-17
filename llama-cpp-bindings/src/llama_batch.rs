@@ -124,13 +124,6 @@ impl LlamaBatch {
         }
     }
 
-    pub fn clear(&mut self) {
-        self.entries.clear();
-        self.seq_ids.clear();
-        self.output_token_indices.clear();
-        self.n_tokens = 0;
-    }
-
     /// # Errors
     ///
     /// Returns [`BatchAddError`] when the batch already holds as many tokens as one decode of the
@@ -185,29 +178,6 @@ impl LlamaBatch {
         Ok(())
     }
 
-    /// # Errors
-    ///
-    /// Returns [`BatchAddError::TokenIndexOutsideBatch`] when the batch holds no token at
-    /// `token_index`.
-    pub fn set_decision_order(
-        &mut self,
-        token_index: i32,
-        decision_order: DecisionOrder,
-    ) -> Result<(), BatchAddError> {
-        let n_tokens = self.n_tokens;
-        let entry = usize::try_from(token_index)
-            .ok()
-            .and_then(|entry_index| self.entries.get_mut(entry_index))
-            .ok_or(BatchAddError::TokenIndexOutsideBatch {
-                token_index,
-                n_tokens,
-            })?;
-
-        entry.decision_order = decision_order.to_raw();
-
-        Ok(())
-    }
-
     /// Adds `tokens` at positions counting from zero in `seq_id`, with logits for the last one,
     /// or for every one when `logits_all` is set.
     ///
@@ -232,16 +202,6 @@ impl LlamaBatch {
         }
 
         Ok(())
-    }
-
-    #[must_use]
-    pub const fn limits(&self) -> ContextLimits {
-        self.limits
-    }
-
-    #[must_use]
-    pub const fn n_tokens(&self) -> i32 {
-        self.n_tokens
     }
 
     /// Hands every token of this batch to llama.cpp's `batch_ext` in one call, replacing the
@@ -275,24 +235,80 @@ impl LlamaBatch {
         batch_ext_assign_entries_status_to_result(status, out_llama_cpp_return_code, out_error)
     }
 
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.seq_ids.clear();
+        self.output_token_indices.clear();
+        self.n_tokens = 0;
+    }
+
+    #[must_use]
+    pub const fn limits(&self) -> ContextLimits {
+        self.limits
+    }
+
+    #[must_use]
+    pub const fn n_tokens(&self) -> i32 {
+        self.n_tokens
+    }
+
     #[must_use]
     pub fn output_token_indices(&self) -> &[i32] {
         &self.output_token_indices
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`BatchAddError::TokenIndexOutsideBatch`] when the batch holds no token at
+    /// `token_index`.
+    pub fn set_decision_order(
+        &mut self,
+        token_index: i32,
+        decision_order: DecisionOrder,
+    ) -> Result<(), BatchAddError> {
+        let n_tokens = self.n_tokens;
+        let entry = usize::try_from(token_index)
+            .ok()
+            .and_then(|entry_index| self.entries.get_mut(entry_index))
+            .ok_or(BatchAddError::TokenIndexOutsideBatch {
+                token_index,
+                n_tokens,
+            })?;
+
+        entry.decision_order = decision_order.to_raw();
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::ptr;
+
     use llama_cpp_bindings_sys::llama_rs_batch_entry;
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
     use super::LlamaBatch;
+
     use crate::batch_add_error::BatchAddError;
+
     use crate::context::context_limits::ContextLimits;
+
     use crate::decision_order::DecisionOrder;
+
     use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
+
     use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
+
     use crate::sampled_token::SampledToken;
+
+    use super::batch_ext_assign_entries_status_to_result;
     use crate::token::LlamaToken;
+
+    use crate::error::batch_transfer_error::BatchTransferError;
 
     const LIMITS: ContextLimits = ContextLimits {
         batch: 4,
@@ -497,18 +513,6 @@ mod tests {
         );
         assert_eq!(batch.n_tokens(), 4);
     }
-}
-
-#[cfg(test)]
-mod batch_ext_assign_entries_status_to_result_tests {
-    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
-    use std::ptr;
-
-    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
-    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-
-    use super::batch_ext_assign_entries_status_to_result;
-    use crate::error::batch_transfer_error::BatchTransferError;
 
     #[test]
     fn assigning_batch_entries_reports_each_refused_or_malformed_entry_and_null_argument_as_a_contract_violation()

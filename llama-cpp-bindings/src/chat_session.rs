@@ -1,3 +1,4 @@
+use serde_json::Value;
 use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
@@ -8,7 +9,6 @@ use llama_cpp_bindings_types::chat_tool::ChatTool;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
-use serde_json::Value;
 
 use crate::chat_assistant_prefill::ChatAssistantPrefill;
 use crate::chat_assistant_turn::ChatAssistantTurn;
@@ -70,10 +70,6 @@ fn session_text(text: *const c_char, length: usize) -> Result<String, ChatSessio
         .map_err(ChatSessionError::SessionTextNotUtf8)
 }
 
-const fn contract_violation(operation: &'static str, detail: &'static str) -> FfiContractError {
-    FfiContractError { operation, detail }
-}
-
 fn chat_session_create_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_chat_session_create_status,
     out_session: llama_cpp_bindings_sys::llama_rs_chat_session_handle,
@@ -94,7 +90,11 @@ fn chat_session_create_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_OK => NonNull::new(out_session)
             .ok_or_else(|| {
-                contract_violation(OPERATION, "success status contained a null session").into()
+                FfiContractError {
+                    operation: OPERATION,
+                    detail: "success status contained a null session",
+                }
+                .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TEMPLATE_CANNOT_SERVE_REQUEST => {
             Err(ChatSessionError::TemplateCannotServeRequest {
@@ -113,22 +113,46 @@ fn chat_session_create_status_to_result(
             Err(ChatSessionError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_TEMPLATES_ARG => {
-            Err(contract_violation(OPERATION, "was given a null templates argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null templates argument",
+            }
+            .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_VOCAB_ARG => {
-            Err(contract_violation(OPERATION, "was given a null vocab argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null vocab argument",
+            }
+            .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_MESSAGES_JSON_ARG => {
-            Err(contract_violation(OPERATION, "was given a null messages_json argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null messages_json argument",
+            }
+            .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_TOOLS_JSON_ARG => {
-            Err(contract_violation(OPERATION, "was given a null tools_json argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null tools_json argument",
+            }
+            .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_SESSION_ARG => {
-            Err(contract_violation(OPERATION, "was given a null out_session argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null out_session argument",
+            }
+            .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_ERROR_ARG => {
-            Err(contract_violation(OPERATION, "was given a null out_error argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
         other => Err(FfiStatusError {
             operation: OPERATION,
@@ -148,7 +172,11 @@ fn chat_session_read_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_OK => NonNull::new(out_reading)
             .ok_or_else(|| {
-                contract_violation(OPERATION, "success status contained a null reading").into()
+                FfiContractError {
+                    operation: OPERATION,
+                    detail: "success status contained a null reading",
+                }
+                .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(ParseChatMessageError::Reported {
@@ -168,19 +196,37 @@ fn chat_session_read_status_to_result(
             Err(ParseChatMessageError::LlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_SESSION_ARG => {
-            Err(contract_violation(OPERATION, "was given a null session argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null session argument",
+            }
+            .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_TEXT_ARG => {
-            Err(contract_violation(OPERATION, "was given a null text argument").into())
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_TEXT_ARG => Err(FfiContractError {
+            operation: OPERATION,
+            detail: "was given a null text argument",
         }
+        .into()),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_BYTE_TOKENS_ARG => {
-            Err(contract_violation(OPERATION, "was given a null byte_tokens argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null byte_tokens argument",
+            }
+            .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_READING_ARG => {
-            Err(contract_violation(OPERATION, "was given a null out_reading argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null out_reading argument",
+            }
+            .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_ERROR_ARG => {
-            Err(contract_violation(OPERATION, "was given a null out_error argument").into())
+            Err(FfiContractError {
+                operation: OPERATION,
+                detail: "was given a null out_error argument",
+            }
+            .into())
         }
         other => Err(FfiStatusError {
             operation: OPERATION,
@@ -237,106 +283,6 @@ impl ChatSession {
             .map(|session| Self { session })
     }
 
-    fn text_of(
-        &self,
-        read: impl FnOnce(
-            *mut llama_cpp_bindings_sys::llama_rs_chat_session,
-            *mut usize,
-        ) -> *const c_char,
-    ) -> Result<String, ChatSessionError> {
-        let mut length = 0;
-        let text = read(self.session.as_ptr(), &raw mut length);
-
-        session_text(text, length)
-    }
-
-    fn texts_of(
-        &self,
-        count: usize,
-        read: impl Fn(
-            *mut llama_cpp_bindings_sys::llama_rs_chat_session,
-            usize,
-            *mut usize,
-        ) -> *const c_char,
-    ) -> Result<Vec<String>, ChatSessionError> {
-        (0..count)
-            .map(|index| self.text_of(|session, out_length| read(session, index, out_length)))
-            .collect()
-    }
-
-    /// # Errors
-    ///
-    /// Returns [`ChatSessionError::SessionTextNotUtf8`] when the rendered prompt is not UTF-8.
-    pub fn prompt_parts(&self) -> Result<Vec<ChatPromptPart>, ChatSessionError> {
-        let part_count = unsafe {
-            llama_cpp_bindings_sys::llama_rs_chat_session_prompt_part_count(self.session.as_ptr())
-        };
-
-        (0..part_count)
-            .map(|index| {
-                let text = self.text_of(|session, out_length| unsafe {
-                    llama_cpp_bindings_sys::llama_rs_chat_session_prompt_part_text(
-                        session, index, out_length,
-                    )
-                })?;
-                let is_input = unsafe {
-                    llama_cpp_bindings_sys::llama_rs_chat_session_prompt_part_is_input(
-                        self.session.as_ptr(),
-                        index,
-                    )
-                };
-
-                Ok(if is_input {
-                    ChatPromptPart::Input(text)
-                } else {
-                    ChatPromptPart::Template(text)
-                })
-            })
-            .collect()
-    }
-
-    /// The rendered prompt as one string, for [`crate::mtmd::mtmd_context::MtmdContext::tokenize`], which
-    /// finds the media markers in it the way llama-server hands a multimodal prompt to mtmd.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ChatSessionError::SessionTextNotUtf8`] when the rendered prompt is not UTF-8.
-    pub fn prompt(&self) -> Result<String, ChatSessionError> {
-        Ok(self
-            .prompt_parts()?
-            .iter()
-            .map(ChatPromptPart::text)
-            .collect())
-    }
-
-    /// Tokenizes the rendered prompt part by part with the vocabulary of `model`, the model the
-    /// session was created for: control tokens are recognized in the template's own text but
-    /// never in user input, and BOS is added once before the first part when the vocabulary asks
-    /// for it.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`ChatSessionError`] of reading or tokenizing a prompt part.
-    pub fn tokenize_prompt(&self, model: &LlamaModel) -> Result<Vec<LlamaToken>, ChatSessionError> {
-        let mut tokens = Vec::new();
-
-        for (part_index, part) in self.prompt_parts()?.iter().enumerate() {
-            let add_bos = if part_index == 0 {
-                AddBos::Always
-            } else {
-                AddBos::Never
-            };
-            let (text, parse_special) = match part {
-                ChatPromptPart::Template(text) => (text, ParseSpecialTokens::Always),
-                ChatPromptPart::Input(text) => (text, ParseSpecialTokens::Never),
-            };
-
-            tokens.extend(model.str_to_token(text, add_bos, parse_special)?);
-        }
-
-        Ok(tokens)
-    }
-
     /// # Errors
     ///
     /// Returns [`ChatSessionError::SessionTextNotUtf8`] when the generation prompt is not UTF-8.
@@ -378,6 +324,47 @@ impl ChatSession {
     #[must_use]
     pub fn grammar_is_lazy(&self) -> bool {
         unsafe { llama_cpp_bindings_sys::llama_rs_chat_session_grammar_lazy(self.session.as_ptr()) }
+    }
+
+    /// The sampler that constrains generation to the request's tool calls with the vocabulary of
+    /// `model`, the model the session was created for, or `None` when the request needs no
+    /// grammar. A grammar that is not lazy starts after the generation prompt, so it accepts the
+    /// generation-prompt tokens first.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`ChatSessionError`] of reading the grammar, escaping a trigger word, building
+    /// the sampler, or accepting a generation-prompt token.
+    pub fn grammar_sampler(
+        &self,
+        model: &LlamaModel,
+    ) -> Result<Option<LlamaSampler>, ChatSessionError> {
+        let grammar = self.grammar()?;
+
+        if grammar.is_empty() {
+            return Ok(None);
+        }
+
+        if !self.grammar_is_lazy() {
+            let mut sampler = LlamaSampler::grammar(model, &grammar, GRAMMAR_ROOT)?;
+
+            for token in self.generation_prompt_tokens() {
+                sampler.accept(token)?;
+            }
+
+            return Ok(Some(sampler));
+        }
+
+        let LazyGrammarTriggers { patterns, tokens } =
+            LazyGrammarTriggers::of(self.grammar_triggers()?)?;
+
+        Ok(Some(LlamaSampler::grammar_lazy(
+            model,
+            &grammar,
+            GRAMMAR_ROOT,
+            &patterns,
+            &tokens,
+        )?))
     }
 
     /// # Errors
@@ -441,72 +428,49 @@ impl ChatSession {
             .collect()
     }
 
+    /// The rendered prompt as one string, for [`crate::mtmd::mtmd_context::MtmdContext::tokenize`], which
+    /// finds the media markers in it the way llama-server hands a multimodal prompt to mtmd.
+    ///
     /// # Errors
     ///
-    /// Returns [`ChatSessionError::SessionTextNotUtf8`] when the tag is not UTF-8.
-    pub fn thinking_start_tag(&self) -> Result<String, ChatSessionError> {
-        self.text_of(|session, out_length| unsafe {
-            llama_cpp_bindings_sys::llama_rs_chat_session_thinking_start_tag(session, out_length)
-        })
+    /// Returns [`ChatSessionError::SessionTextNotUtf8`] when the rendered prompt is not UTF-8.
+    pub fn prompt(&self) -> Result<String, ChatSessionError> {
+        Ok(self
+            .prompt_parts()?
+            .iter()
+            .map(ChatPromptPart::text)
+            .collect())
     }
 
     /// # Errors
     ///
-    /// Returns [`ChatSessionError::SessionTextNotUtf8`] when a tag is not UTF-8.
-    pub fn thinking_end_tags(&self) -> Result<Vec<String>, ChatSessionError> {
-        self.texts_of(
-            unsafe {
-                llama_cpp_bindings_sys::llama_rs_chat_session_thinking_end_tag_count(
-                    self.session.as_ptr(),
-                )
-            },
-            |session, index, out_length| unsafe {
-                llama_cpp_bindings_sys::llama_rs_chat_session_thinking_end_tag(
-                    session, index, out_length,
-                )
-            },
-        )
-    }
+    /// Returns [`ChatSessionError::SessionTextNotUtf8`] when the rendered prompt is not UTF-8.
+    pub fn prompt_parts(&self) -> Result<Vec<ChatPromptPart>, ChatSessionError> {
+        let part_count = unsafe {
+            llama_cpp_bindings_sys::llama_rs_chat_session_prompt_part_count(self.session.as_ptr())
+        };
 
-    /// The sampler that constrains generation to the request's tool calls with the vocabulary of
-    /// `model`, the model the session was created for, or `None` when the request needs no
-    /// grammar. A grammar that is not lazy starts after the generation prompt, so it accepts the
-    /// generation-prompt tokens first.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`ChatSessionError`] of reading the grammar, escaping a trigger word, building
-    /// the sampler, or accepting a generation-prompt token.
-    pub fn grammar_sampler(
-        &self,
-        model: &LlamaModel,
-    ) -> Result<Option<LlamaSampler>, ChatSessionError> {
-        let grammar = self.grammar()?;
+        (0..part_count)
+            .map(|index| {
+                let text = self.text_of(|session, out_length| unsafe {
+                    llama_cpp_bindings_sys::llama_rs_chat_session_prompt_part_text(
+                        session, index, out_length,
+                    )
+                })?;
+                let is_input = unsafe {
+                    llama_cpp_bindings_sys::llama_rs_chat_session_prompt_part_is_input(
+                        self.session.as_ptr(),
+                        index,
+                    )
+                };
 
-        if grammar.is_empty() {
-            return Ok(None);
-        }
-
-        if !self.grammar_is_lazy() {
-            let mut sampler = LlamaSampler::grammar(model, &grammar, GRAMMAR_ROOT)?;
-
-            for token in self.generation_prompt_tokens() {
-                sampler.accept(token)?;
-            }
-
-            return Ok(Some(sampler));
-        }
-
-        let LazyGrammarTriggers { patterns, tokens } =
-            LazyGrammarTriggers::of(self.grammar_triggers()?)?;
-
-        Ok(Some(LlamaSampler::grammar_lazy(
-            model,
-            &grammar,
-            GRAMMAR_ROOT,
-            &patterns,
-            &tokens,
-        )?))
+                Ok(if is_input {
+                    ChatPromptPart::Input(text)
+                } else {
+                    ChatPromptPart::Template(text)
+                })
+            })
+            .collect()
     }
 
     /// Reads the model's answer with the template's parser: the reading attributes the answer's
@@ -538,6 +502,88 @@ impl ChatSession {
         chat_session_read_status_to_result(status, out_reading, out_error)
             .and_then(|reading| ChatReading::take(reading, output, completeness))
     }
+
+    /// # Errors
+    ///
+    /// Returns [`ChatSessionError::SessionTextNotUtf8`] when a tag is not UTF-8.
+    pub fn thinking_end_tags(&self) -> Result<Vec<String>, ChatSessionError> {
+        self.texts_of(
+            unsafe {
+                llama_cpp_bindings_sys::llama_rs_chat_session_thinking_end_tag_count(
+                    self.session.as_ptr(),
+                )
+            },
+            |session, index, out_length| unsafe {
+                llama_cpp_bindings_sys::llama_rs_chat_session_thinking_end_tag(
+                    session, index, out_length,
+                )
+            },
+        )
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ChatSessionError::SessionTextNotUtf8`] when the tag is not UTF-8.
+    pub fn thinking_start_tag(&self) -> Result<String, ChatSessionError> {
+        self.text_of(|session, out_length| unsafe {
+            llama_cpp_bindings_sys::llama_rs_chat_session_thinking_start_tag(session, out_length)
+        })
+    }
+
+    /// Tokenizes the rendered prompt part by part with the vocabulary of `model`, the model the
+    /// session was created for: control tokens are recognized in the template's own text but
+    /// never in user input, and BOS is added once before the first part when the vocabulary asks
+    /// for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`ChatSessionError`] of reading or tokenizing a prompt part.
+    pub fn tokenize_prompt(&self, model: &LlamaModel) -> Result<Vec<LlamaToken>, ChatSessionError> {
+        let mut tokens = Vec::new();
+
+        for (part_index, part) in self.prompt_parts()?.iter().enumerate() {
+            let add_bos = if part_index == 0 {
+                AddBos::Always
+            } else {
+                AddBos::Never
+            };
+            let (text, parse_special) = match part {
+                ChatPromptPart::Template(text) => (text, ParseSpecialTokens::Always),
+                ChatPromptPart::Input(text) => (text, ParseSpecialTokens::Never),
+            };
+
+            tokens.extend(model.str_to_token(text, add_bos, parse_special)?);
+        }
+
+        Ok(tokens)
+    }
+
+    fn text_of(
+        &self,
+        read: impl FnOnce(
+            *mut llama_cpp_bindings_sys::llama_rs_chat_session,
+            *mut usize,
+        ) -> *const c_char,
+    ) -> Result<String, ChatSessionError> {
+        let mut length = 0;
+        let text = read(self.session.as_ptr(), &raw mut length);
+
+        session_text(text, length)
+    }
+
+    fn texts_of(
+        &self,
+        count: usize,
+        read: impl Fn(
+            *mut llama_cpp_bindings_sys::llama_rs_chat_session,
+            usize,
+            *mut usize,
+        ) -> *const c_char,
+    ) -> Result<Vec<String>, ChatSessionError> {
+        (0..count)
+            .map(|index| self.text_of(|session, out_length| read(session, index, out_length)))
+            .collect()
+    }
 }
 
 impl Drop for ChatSession {
@@ -548,6 +594,7 @@ impl Drop for ChatSession {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
     use std::ptr;
 
     use llama_cpp_bindings_types::chat_message::ChatMessage;
@@ -556,7 +603,6 @@ mod tests {
     use llama_cpp_ffi_status::cpp_string_error::CppStringError;
     use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
     use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
-    use serde_json::json;
 
     use super::chat_session_create_status_to_result;
     use super::chat_session_read_status_to_result;
@@ -566,11 +612,6 @@ mod tests {
     use crate::chat_assistant_turn::ChatAssistantTurn;
     use crate::error::chat_session_error::ChatSessionError;
     use crate::error::parse_chat_message_error::ParseChatMessageError;
-
-    type CreateRefusal = (
-        llama_cpp_bindings_sys::llama_rs_chat_session_create_status,
-        fn(String) -> ChatSessionError,
-    );
 
     fn parsed_json(json_text: &str) -> serde_json::Value {
         serde_json::from_str(json_text).unwrap()
@@ -582,6 +623,11 @@ mod tests {
             content: ChatMessageContent::Text("hi".to_owned()),
             reasoning_content: None,
         }
+    }
+
+    struct CreateRefusal {
+        status: llama_cpp_bindings_sys::llama_rs_chat_session_create_status,
+        expected_error: fn(String) -> ChatSessionError,
     }
 
     #[test]
@@ -631,17 +677,23 @@ mod tests {
     #[test]
     fn creating_a_session_reports_why_llama_cpp_refused_the_request() {
         let refusals: [CreateRefusal; 2] = [
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TEMPLATE_CANNOT_SERVE_REQUEST,
-                |message| ChatSessionError::TemplateCannotServeRequest { message },
-            ),
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                |message| ChatSessionError::Reported { message },
-            ),
+            CreateRefusal {
+                status:
+                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TEMPLATE_CANNOT_SERVE_REQUEST,
+                expected_error: |message| ChatSessionError::TemplateCannotServeRequest { message },
+            },
+            CreateRefusal {
+                status:
+                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                expected_error: |message| ChatSessionError::Reported { message },
+            },
         ];
 
-        for (status, expected_error) in refusals {
+        for CreateRefusal {
+            status,
+            expected_error,
+        } in refusals
+        {
             assert_eq!(
                 chat_session_create_status_to_result(status, ptr::null_mut(), unsafe {
                     llama_cpp_bindings_sys::llama_rs_string_dup(c"the reason".as_ptr())

@@ -38,24 +38,33 @@ mod tests {
     use crate::model::llama_lazy_mode::LlamaLazyMode;
     use crate::model::llama_lazy_mode_parse_error::LlamaLazyModeParseError;
 
-    const LAZY_MODES: &[(LlamaLazyMode, llama_cpp_bindings_sys::llama_lazy_mode)] = &[
-        (
-            LlamaLazyMode::Off,
-            llama_cpp_bindings_sys::LLAMA_LAZY_MODE_OFF,
-        ),
-        (
-            LlamaLazyMode::Auto,
-            llama_cpp_bindings_sys::LLAMA_LAZY_MODE_AUTO,
-        ),
-        (
-            LlamaLazyMode::On,
-            llama_cpp_bindings_sys::LLAMA_LAZY_MODE_ON,
-        ),
+    const LAZY_MODES: &[LazyModeMapping] = &[
+        LazyModeMapping {
+            lazy_mode: LlamaLazyMode::Off,
+            ffi_value: llama_cpp_bindings_sys::LLAMA_LAZY_MODE_OFF,
+        },
+        LazyModeMapping {
+            lazy_mode: LlamaLazyMode::Auto,
+            ffi_value: llama_cpp_bindings_sys::LLAMA_LAZY_MODE_AUTO,
+        },
+        LazyModeMapping {
+            lazy_mode: LlamaLazyMode::On,
+            ffi_value: llama_cpp_bindings_sys::LLAMA_LAZY_MODE_ON,
+        },
     ];
+
+    struct LazyModeMapping {
+        lazy_mode: LlamaLazyMode,
+        ffi_value: llama_cpp_bindings_sys::llama_lazy_mode,
+    }
 
     #[test]
     fn every_rust_lazy_mode_maps_to_its_ffi_value() {
-        for &(lazy_mode, ffi_value) in LAZY_MODES {
+        for &LazyModeMapping {
+            lazy_mode,
+            ffi_value,
+        } in LAZY_MODES
+        {
             assert_eq!(
                 llama_cpp_bindings_sys::llama_lazy_mode::from(lazy_mode),
                 ffi_value
@@ -65,7 +74,11 @@ mod tests {
 
     #[test]
     fn every_ffi_lazy_mode_maps_to_its_rust_value() {
-        for &(lazy_mode, ffi_value) in LAZY_MODES {
+        for &LazyModeMapping {
+            lazy_mode,
+            ffi_value,
+        } in LAZY_MODES
+        {
             assert_eq!(LlamaLazyMode::try_from(ffi_value), Ok(lazy_mode));
         }
     }

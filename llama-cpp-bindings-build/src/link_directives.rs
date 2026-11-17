@@ -6,9 +6,9 @@ use crate::build_environment::BuildEnvironment;
 use crate::build_error::BuildError;
 use crate::build_feature::BuildFeature;
 use crate::cargo_directive::CargoDirective;
+use crate::constants::NATIVE_PROFILE;
 use crate::link_kind::LinkKind;
 use crate::native_library::NativeLibrary;
-use crate::native_profile::NATIVE_PROFILE;
 use crate::target_os::TargetOs;
 
 const fn link(link_kind: LinkKind, name: &'static str) -> CargoDirective {
@@ -69,8 +69,13 @@ fn private_dependency_search_paths(context: &BuildContext) -> Vec<CargoDirective
     .collect()
 }
 
-fn native_libraries(context: &BuildContext, environment: &BuildEnvironment) -> Vec<NativeLibrary> {
-    let cmake_kind = if context.build_shared_libs {
+fn native_libraries(
+    &BuildContext {
+        build_shared_libs, ..
+    }: &BuildContext,
+    environment: &BuildEnvironment,
+) -> Vec<NativeLibrary> {
+    let cmake_kind = if build_shared_libs {
         LinkKind::Dylib
     } else {
         LinkKind::Static
@@ -85,13 +90,13 @@ fn native_libraries(context: &BuildContext, environment: &BuildEnvironment) -> V
     };
     let mut libraries = vec![built("llama-common")];
 
-    if !context.build_shared_libs {
+    if !build_shared_libs {
         libraries.extend([bundled("llama-common-base"), bundled("cpp-httplib")]);
     }
 
     libraries.push(built("mtmd"));
 
-    if !context.build_shared_libs {
+    if !build_shared_libs {
         libraries.push(bundled("vendor-hash"));
     }
 
@@ -154,8 +159,13 @@ fn native_library_links(
         .collect()
 }
 
-fn cuda_links(context: &BuildContext, environment: &BuildEnvironment) -> Vec<CargoDirective> {
-    if !environment.has(BuildFeature::Cuda) || context.build_shared_libs {
+fn cuda_links(
+    &BuildContext {
+        build_shared_libs, ..
+    }: &BuildContext,
+    environment: &BuildEnvironment,
+) -> Vec<CargoDirective> {
+    if !environment.has(BuildFeature::Cuda) || build_shared_libs {
         return Vec::new();
     }
 
@@ -186,10 +196,12 @@ fn cuda_links(context: &BuildContext, environment: &BuildEnvironment) -> Vec<Car
 }
 
 fn rocm_links(
-    context: &BuildContext,
+    &BuildContext {
+        build_shared_libs, ..
+    }: &BuildContext,
     environment: &BuildEnvironment,
 ) -> Result<Vec<CargoDirective>, BuildError> {
-    if !environment.has(BuildFeature::Rocm) || context.build_shared_libs {
+    if !environment.has(BuildFeature::Rocm) || build_shared_libs {
         return Ok(Vec::new());
     }
 
@@ -207,8 +219,11 @@ fn rocm_links(
     ])
 }
 
-fn platform_links(context: &BuildContext, environment: &BuildEnvironment) -> Vec<CargoDirective> {
-    match context.target_os {
+fn platform_links(
+    BuildContext { target_os, .. }: &BuildContext,
+    environment: &BuildEnvironment,
+) -> Vec<CargoDirective> {
+    match target_os {
         TargetOs::Linux => vec![link(LinkKind::Dylib, "stdc++")],
         TargetOs::Apple if environment.has(BuildFeature::Metal) => vec![
             link(LinkKind::Framework, "Foundation"),
@@ -234,25 +249,30 @@ fn platform_links(context: &BuildContext, environment: &BuildEnvironment) -> Vec
 
 /// The search paths and libraries that link the native build into the bindings, in the order
 /// the linker resolves them.
-///
-/// # Errors
-///
-/// Returns [`BuildError::Environment`] when a library directory an enabled feature needs is not
-/// set, or [`BuildError::EnvironmentDirectory`] when it does not name a directory.
-pub fn link_directives(
-    context: &BuildContext,
-    environment: &BuildEnvironment,
-) -> Result<Vec<CargoDirective>, BuildError> {
-    Ok([
-        cmake_search_paths(context),
-        system_ggml_search_paths(environment)?,
-        private_dependency_search_paths(context),
-        native_library_links(context, environment),
-        cuda_links(context, environment),
-        rocm_links(context, environment)?,
-        platform_links(context, environment),
-    ]
-    .concat())
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LinkDirectives {
+    pub directives: Vec<CargoDirective>,
+}
+
+impl LinkDirectives {
+    /// # Errors
+    ///
+    /// Returns [`BuildError::Environment`] when a library directory an enabled feature needs is
+    /// not set, or [`BuildError::EnvironmentDirectory`] when it does not name a directory.
+    pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Result<Self, BuildError> {
+        Ok(Self {
+            directives: [
+                cmake_search_paths(context),
+                system_ggml_search_paths(environment)?,
+                private_dependency_search_paths(context),
+                native_library_links(context, environment),
+                cuda_links(context, environment),
+                rocm_links(context, environment)?,
+                platform_links(context, environment),
+            ]
+            .concat(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -265,10 +285,10 @@ mod tests {
 
     use enumflags2::BitFlags;
 
-    use super::link_directives;
+    use super::LinkDirectives;
+    use crate::build_context::BuildContext;
     use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
-    use crate::build_context::tests::context_of;
     use crate::build_environment::BuildEnvironment;
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_environment::tests::variable;
@@ -280,7 +300,9 @@ mod tests {
     const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
 
     fn linked(environment: &BuildEnvironment) -> Vec<CargoDirective> {
-        link_directives(&context_of(environment), environment).unwrap()
+        LinkDirectives::of(&BuildContext::of_linux_host(environment), environment)
+            .unwrap()
+            .directives
     }
 
     fn libraries(directives: &[CargoDirective]) -> Vec<NativeLibrary> {
@@ -310,7 +332,7 @@ mod tests {
         let libraries = libraries(&linked(&cargo_environment(features, overrides)));
 
         libraries
-            .split(|library| library.name == "ggml")
+            .split(|NativeLibrary { name, .. }| *name == "ggml")
             .next_back()
             .unwrap()
             .to_vec()
@@ -613,7 +635,7 @@ mod tests {
         let refusal = |features: BitFlags<BuildFeature>, overrides: &[EnvironmentVariable]| {
             let environment = cargo_environment(features, overrides);
 
-            link_directives(&context_of(&environment), &environment)
+            LinkDirectives::of(&BuildContext::of_linux_host(&environment), &environment)
                 .err()
                 .map(|error| error.to_string())
         };

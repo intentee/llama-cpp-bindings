@@ -25,14 +25,11 @@ use llama_cpp_test_harness_macros::llama_test;
     embeddings = true,
 )]
 fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let LlamaToken(eos) = fixture
-        .model
-        .token_eos()
-        .context("model declares an EOS token")?;
+    let LlamaToken(eos) = model.token_eos().context("model declares an EOS token")?;
 
-    ensure!(fixture.model.approximate_tok_env()?.tok_trie().eos_token() == eos.cast_unsigned());
+    ensure!(model.approximate_tok_env()?.tok_trie().eos_token() == eos.cast_unsigned());
 
     Ok(())
 }
@@ -47,19 +44,23 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
     embeddings = true,
 )]
 fn approximate_tok_env_of_a_model_without_eot_and_eos_has_no_eos(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture {
+        backend,
+        model_path,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model_without_eos_path = env::temp_dir().join(format!(
         "llama_cpp_bindings_{}_model_without_eos.gguf",
         process::id()
     ));
-    let mut gguf_context = GgufContext::from_file(fixture.model_path)?;
+    let mut gguf_context = GgufContext::from_file(model_path)?;
 
     gguf_context.remove_key("tokenizer.ggml.eos_token_id")?;
     gguf_context.write_to_file(&model_without_eos_path)?;
 
     let model_without_eos = LlamaModel::load_from_file(
-        fixture.backend,
+        backend,
         &model_without_eos_path,
         &LlamaModelParams::default(),
     )?;
