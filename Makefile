@@ -79,6 +79,9 @@ coverage: node_modules
 		--gated llama-cpp-bindings-tests=100 \
 		--gated llama-cpp-bindings-types=100 \
 		--gated llama-cpp-capturing-logger=100 \
+		--gated llama-cpp-context=100 \
+		--gated llama-cpp-context-memory=100 \
+		--gated llama-cpp-context-state=100 \
 		--gated llama-cpp-error-recorder=100 \
 		--gated llama-cpp-fault-injection=100 \
 		--gated llama-cpp-ffi-status=100 \
@@ -141,6 +144,7 @@ test.llms: clippy test.harness test.unit
 test.unit: clippy
 	cargo test -p llama-cpp-backend -p llama-cpp-backend-tests -p llama-cpp-bindings \
 		-p llama-cpp-bindings-build -p llama-cpp-bindings-types -p llama-cpp-capturing-logger \
+		-p llama-cpp-context -p llama-cpp-context-memory -p llama-cpp-context-state \
 		-p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf -p llama-cpp-gguf \
 		-p llama-cpp-log-decoder -p llama-cpp-model -p llama-cpp-params -p llama-cpp-token-usage \
 		-p llama-cpp-wrapper-sources \

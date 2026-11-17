@@ -1,10 +1,9 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
@@ -33,7 +32,7 @@ fn token_embedding_reports_embeddings_not_enabled_on_a_context_without_embedding
         (*context_params).into_llama_context_params(),
     )?;
 
-    ensure!(context.embeddings_ith(0) == Err(EmbeddingsError::NotEnabled));
+    ensure!(context.embeddings_ith(0) == Err(ContextError::EmbeddingsNotEnabled));
 
     Ok(())
 }
@@ -60,7 +59,7 @@ fn sequence_embedding_reports_embeddings_not_enabled_on_a_context_without_embedd
         (*context_params).into_llama_context_params(),
     )?;
 
-    ensure!(context.embeddings_seq_ith(0) == Err(EmbeddingsError::NotEnabled));
+    ensure!(context.embeddings_seq_ith(0) == Err(ContextError::EmbeddingsNotEnabled));
 
     Ok(())
 }
@@ -90,13 +89,13 @@ fn sequence_embedding_of_a_sequence_missing_from_the_decoded_batch_is_unavailabl
             .with_pooling_type(LlamaPoolingType::Last),
     )?;
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     ensure!(
         context.embeddings_seq_ith(999)
-            == Err(EmbeddingsError::SequenceEmbeddingUnavailable {
+            == Err(ContextError::SequenceEmbeddingUnavailable {
                 sequence_index: 999
             })
     );
@@ -130,7 +129,8 @@ fn token_embedding_of_an_index_without_a_decoded_output_names_no_output_row(
     )?;
 
     ensure!(
-        context.embeddings_ith(999) == Err(EmbeddingsError::TokenNotAnOutput { token_index: 999 })
+        context.embeddings_ith(999)
+            == Err(ContextError::EmbeddingTokenNotAnOutput { token_index: 999 })
     );
 
     Ok(())

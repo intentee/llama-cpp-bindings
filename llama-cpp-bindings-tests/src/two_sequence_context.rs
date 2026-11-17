@@ -1,5 +1,5 @@
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 
 /// # Errors
@@ -11,7 +11,7 @@ pub fn two_sequence_context<'model>(
         context_params,
         ..
     }: &LlamaFixture<'model>,
-) -> Result<LlamaContext<'model>, LlamaContextLoadError> {
+) -> Result<LlamaContext<'model>, ContextError> {
     LlamaContext::from_model(
         model,
         backend,

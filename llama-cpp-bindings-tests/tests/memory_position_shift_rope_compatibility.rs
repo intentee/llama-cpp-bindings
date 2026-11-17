@@ -3,9 +3,9 @@ use anyhow::Result;
 use anyhow::ensure;
 use std::num::NonZeroU8;
 
-use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
-use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
+use llama_cpp_context_memory::context_memory::ContextMemory;
+use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -35,7 +35,8 @@ fn memory_seq_add_refuses_an_mrope_model(fixture: &LlamaFixture<'_>) -> Result<(
     let result = context.memory_seq_add(0, Some(0), None, 1);
 
     ensure!(
-        result.err().context("the operation must fail")? == MemorySeqAddError::IncompatibleRopeType
+        result.err().context("the operation must fail")?
+            == ContextMemoryError::IncompatibleRopeType
     );
 
     Ok(())
@@ -66,7 +67,8 @@ fn memory_seq_div_refuses_an_mrope_model(fixture: &LlamaFixture<'_>) -> Result<(
     let result = context.memory_seq_div(0, Some(0), None, divisor);
 
     ensure!(
-        result.err().context("the operation must fail")? == MemorySeqDivError::IncompatibleRopeType
+        result.err().context("the operation must fail")?
+            == ContextMemoryError::IncompatibleRopeType
     );
 
     Ok(())
@@ -147,7 +149,7 @@ fn memory_seq_add_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
 
     ensure!(
         context.memory_seq_add(0, None, None, 1)
-            == Err(MemorySeqAddError::UnknownRopeType(
+            == Err(ContextMemoryError::UnknownRopeType(
                 ModelError::UnknownRopeType(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1)
             ))
     );
@@ -171,7 +173,7 @@ fn memory_seq_div_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
 
     ensure!(
         context.memory_seq_div(0, None, None, NonZeroU8::MIN)
-            == Err(MemorySeqDivError::UnknownRopeType(
+            == Err(ContextMemoryError::UnknownRopeType(
                 ModelError::UnknownRopeType(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1)
             ))
     );

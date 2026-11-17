@@ -4,19 +4,18 @@ use anyhow::bail;
 use anyhow::ensure;
 
 use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::ingest_error::IngestError;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings::error::sample_error::SampleError;
 use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token_piece::TokenPiece;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_model::add_bos::AddBos;
@@ -318,7 +317,7 @@ fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>)
     let prompt_tokens = session.tokenize_prompt(fixture.model)?;
     let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let mut context = fixture.build_context()?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
     context.decode(&batch)?;

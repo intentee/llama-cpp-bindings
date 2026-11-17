@@ -6,10 +6,7 @@ use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
@@ -21,6 +18,8 @@ use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_s
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_bindings_tests::system_message::system_message;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -89,7 +88,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -197,7 +196,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     )?;
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -306,7 +305,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,

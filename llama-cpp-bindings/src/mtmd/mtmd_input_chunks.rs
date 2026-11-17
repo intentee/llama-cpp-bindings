@@ -2,6 +2,7 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
@@ -11,7 +12,6 @@ use super::mtmd_eval_limits::MtmdEvalLimits;
 use super::mtmd_input_chunk::MtmdInputChunk;
 use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunks_error::MtmdInputChunksError;
-use crate::context::LlamaContext;
 
 fn input_chunks_init_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_init_status,

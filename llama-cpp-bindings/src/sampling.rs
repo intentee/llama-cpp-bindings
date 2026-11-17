@@ -6,6 +6,7 @@ use std::mem;
 use std::ptr;
 use std::ptr::NonNull;
 
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_error_recorder::error_scope::ErrorScope;
 use llama_cpp_error_recorder::recorded_error::RecordedError;
 use llama_cpp_ffi_status::ffi_error::FfiError;
@@ -17,7 +18,6 @@ use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 
-use crate::context::LlamaContext;
 use crate::dry_sequence_breakers::dry_sequence_breakers;
 use crate::error::grammar_error::GrammarError;
 use crate::error::sample_error::SampleError;

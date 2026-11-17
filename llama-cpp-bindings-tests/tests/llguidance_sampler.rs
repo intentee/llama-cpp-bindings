@@ -4,16 +4,15 @@ use anyhow::bail;
 use anyhow::ensure;
 use std::ffi::CStr;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::grammar_error::GrammarError;
 use llama_cpp_bindings::error::grammar_runtime_error::GrammarRuntimeError;
 use llama_cpp_bindings::error::sample_error::SampleError;
 use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::llama_model::LlamaModel;
@@ -456,7 +455,7 @@ fn llguidance_chain_samples_yes_as_the_first_answer_token(
 
     let prompt = "Answer yes or no:";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
@@ -623,7 +622,7 @@ fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 

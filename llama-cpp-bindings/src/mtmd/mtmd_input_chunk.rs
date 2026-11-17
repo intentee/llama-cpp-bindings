@@ -4,6 +4,7 @@ use std::ptr::NonNull;
 use std::slice;
 use std::str::Utf8Error;
 
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 use llama_cpp_model::llama_token::LlamaToken;
@@ -15,7 +16,6 @@ use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 use super::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 use super::optional_mtmd_id::optional_mtmd_id;
-use crate::context::LlamaContext;
 
 /// # Safety
 ///

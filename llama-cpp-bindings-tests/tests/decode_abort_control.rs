@@ -3,10 +3,9 @@ use anyhow::ensure;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::decode_error::DecodeError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -37,12 +36,12 @@ fn set_abort_flag_aborts_decode(
     context.set_abort_flag(abort_flag);
 
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
 
     let result = context.decode(&batch);
 
-    ensure!(result == Err(DecodeError::Aborted));
+    ensure!(result == Err(ContextError::DecodeAborted));
 
     Ok(())
 }
@@ -72,7 +71,7 @@ fn set_abort_flag_false_allows_decode(
     context.set_abort_flag(abort_flag);
 
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
 
     ensure!(context.decode(&batch) == Ok(()));
@@ -106,7 +105,7 @@ fn clear_abort_callback_allows_decode_with_flag_true(
     context.clear_abort_callback();
 
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
 
     ensure!(context.decode(&batch) == Ok(()));

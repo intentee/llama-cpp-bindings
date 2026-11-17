@@ -1,15 +1,15 @@
+use llama_cpp_context::context_error::ContextError;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 
 use crate::error::ingest_error::IngestError;
-use crate::error::logits_error::LogitsError;
 use crate::error::sampler_apply_error::SamplerApplyError;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum SampleError {
     #[error(transparent)]
     Ffi(#[from] FfiError),
-    #[error("the logits to sample from are unavailable: {0}")]
-    Logits(#[from] LogitsError),
+    #[error("the logits to sample from are unavailable")]
+    Logits(#[from] ContextError),
     #[error("not enough memory")]
     NotEnoughMemory,
     #[error("the llama.cpp library ran out of memory")]

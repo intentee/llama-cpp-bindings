@@ -2,10 +2,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::batch_transfer_error::BatchTransferError;
-use llama_cpp_bindings::error::decode_error::DecodeError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::context_limits::ContextLimits;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -23,7 +22,7 @@ fn decoding_a_batch_built_for_other_context_limits_is_refused(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
-    let context_limits = ContextLimits::of(&context);
+    let context_limits = context.limits();
     let other_limits = ContextLimits {
         batch: context_limits
             .batch
@@ -36,12 +35,10 @@ fn decoding_a_batch_built_for_other_context_limits_is_refused(
 
     ensure!(
         context.decode(&batch)
-            == Err(DecodeError::BatchTransfer(
-                BatchTransferError::LimitsMismatch {
-                    batch: other_limits,
-                    context: context_limits,
-                }
-            ))
+            == Err(ContextError::BatchLimitsMismatch {
+                batch: other_limits,
+                context: context_limits,
+            })
     );
 
     Ok(())

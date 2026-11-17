@@ -3,11 +3,10 @@ use anyhow::Result;
 use anyhow::ensure;
 use serde_json::json;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings_tests::highest_score_index::highest_score_index;
 use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -52,7 +51,7 @@ fn openjev_gives_the_label_of_the_matching_option_the_highest_logit(
         backend,
         (*context_params).into_llama_context_params(),
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;

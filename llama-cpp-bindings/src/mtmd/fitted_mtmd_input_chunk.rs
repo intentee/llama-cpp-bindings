@@ -1,6 +1,8 @@
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
+use llama_cpp_context::llama_context::LlamaContext;
+
 use super::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use super::mtmd_context::MtmdContext;
 use super::mtmd_eval_error::MtmdEvalError;
@@ -8,7 +10,6 @@ use super::mtmd_eval_limits::MtmdEvalLimits;
 use super::mtmd_input_chunk::MtmdInputChunk;
 use super::mtmd_input_chunk_type::MtmdInputChunkType;
 use super::mtmd_input_chunks::MtmdInputChunks;
-use crate::context::LlamaContext;
 
 #[derive(Debug)]
 pub struct FittedMtmdInputChunk<'fitted> {

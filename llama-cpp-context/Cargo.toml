@@ -1,0 +1,22 @@
+[package]
+name = "llama-cpp-context"
+description = "Running a llama.cpp model in a context: its limits, building batches and handing them over, decoding and encoding, and reading the logits and embeddings of the last decode"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-backend = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-ffi-status = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-params = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

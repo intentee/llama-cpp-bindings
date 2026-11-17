@@ -3,25 +3,29 @@ use std::ffi::c_char;
 use std::path::Path;
 use std::ptr;
 
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 use llama_cpp_model::llama_token::LlamaToken;
 
-use crate::context::LlamaContext;
-use crate::context::llama_state_seq_flags::LlamaStateSeqFlags;
-use crate::context::load_seq_state_error::LoadSeqStateError;
-use crate::context::load_session_error::LoadSessionError;
-use crate::context::loaded_seq_state::LoadedSeqState;
-use crate::context::save_seq_state_error::SaveSeqStateError;
-use crate::context::save_session_error::SaveSessionError;
-use crate::context::state_data_error::StateDataError;
+use crate::context_state_error::ContextStateError;
+use crate::llama_state_seq_flags::LlamaStateSeqFlags;
+use crate::loaded_seq_state::LoadedSeqState;
+
+fn path_c_string(path: &Path) -> Result<CString, ContextStateError> {
+    let path = path
+        .to_str()
+        .ok_or_else(|| ContextStateError::PathNotUtf8(path.to_path_buf()))?;
+
+    Ok(CString::new(path)?)
+}
 
 fn state_data_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_state_data_status,
     byte_count: usize,
     out_error: *mut c_char,
     operation: &'static str,
-) -> Result<usize, StateDataError> {
+) -> Result<usize, ContextStateError> {
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_OK => Ok(byte_count),
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => {
@@ -53,10 +57,10 @@ fn state_data_status_to_result(
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(StateDataError::NotEnoughMemory)
+            Err(ContextStateError::StateDataNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(StateDataError::LlamaCppOutOfMemory)
+            Err(ContextStateError::StateDataLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -67,7 +71,7 @@ fn state_data_status_to_result(
                 )
             }?;
 
-            Err(StateDataError::Reported { message })
+            Err(ContextStateError::StateDataReported { message })
         }
         other => Err(FfiError::UnknownStatus {
             operation,
@@ -83,11 +87,11 @@ fn state_data_restore_status_to_result(
     provided_bytes: usize,
     out_error: *mut c_char,
     operation: &'static str,
-) -> Result<usize, StateDataError> {
+) -> Result<usize, ContextStateError> {
     let restored = state_data_status_to_result(status, restored_bytes, out_error, operation)?;
 
     if restored == 0 && provided_bytes != 0 {
-        return Err(StateDataError::NothingRestored { provided_bytes });
+        return Err(ContextStateError::StateDataNothingRestored { provided_bytes });
     }
 
     Ok(restored)
@@ -97,9 +101,9 @@ fn process_session_load_result(
     success: bool,
     n_out: usize,
     mut tokens: Vec<LlamaToken>,
-) -> Result<Vec<LlamaToken>, LoadSessionError> {
+) -> Result<Vec<LlamaToken>, ContextStateError> {
     if !success {
-        return Err(LoadSessionError::FailedToLoad);
+        return Err(ContextStateError::SessionFileNotLoaded);
     }
 
     tokens.truncate(n_out);
@@ -111,9 +115,9 @@ fn process_seq_load_result(
     bytes_read: usize,
     n_out: usize,
     mut tokens: Vec<LlamaToken>,
-) -> Result<LoadedSeqState, LoadSeqStateError> {
+) -> Result<LoadedSeqState, ContextStateError> {
     if bytes_read == 0 {
-        return Err(LoadSeqStateError::FailedToLoad);
+        return Err(ContextStateError::SeqStateFileNotLoaded);
     }
 
     tokens.truncate(n_out);
@@ -121,16 +125,106 @@ fn process_seq_load_result(
     Ok(LoadedSeqState { tokens, bytes_read })
 }
 
-impl LlamaContext<'_> {
+pub trait ContextState {
     /// # Errors
     ///
-    /// Returns [`StateDataError`] when the llama.cpp serializer fails; the exception is
+    /// Returns [`ContextStateError`] when the llama.cpp serializer fails; the exception is
     /// caught in the C++ wrapper so it can never unwind across the FFI boundary.
     ///
     /// # Safety
     ///
     /// The `dest` buffer must be large enough to hold the complete state data.
-    pub unsafe fn state_get_data(&self, dest: &mut [u8]) -> Result<usize, StateDataError> {
+    unsafe fn state_get_data(&self, dest: &mut [u8]) -> Result<usize, ContextStateError>;
+
+    #[must_use]
+    fn state_get_size(&self) -> usize;
+
+    /// # Errors
+    ///
+    /// Fails if the path is not a valid utf8 or llama.cpp fails to load the state file.
+    fn state_load_file(
+        &mut self,
+        path_session: impl AsRef<Path>,
+        max_tokens: usize,
+    ) -> Result<Vec<LlamaToken>, ContextStateError>;
+
+    /// # Errors
+    ///
+    /// Fails if the path is not a valid utf8 or llama.cpp fails to save the state file.
+    fn state_save_file(
+        &self,
+        path_session: impl AsRef<Path>,
+        tokens: &[LlamaToken],
+    ) -> Result<(), ContextStateError>;
+
+    /// # Safety
+    ///
+    /// The `dest` buffer must be large enough to hold the complete state data.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContextStateError`] when the llama.cpp serializer fails.
+    unsafe fn state_seq_get_data_ext(
+        &self,
+        dest: &mut [u8],
+        seq_id: i32,
+        flags: LlamaStateSeqFlags,
+    ) -> Result<usize, ContextStateError>;
+
+    #[must_use]
+    fn state_seq_get_size_ext(&self, seq_id: i32, flags: LlamaStateSeqFlags) -> usize;
+
+    /// # Errors
+    ///
+    /// Fails if the path is not a valid utf8 or llama.cpp fails to load the sequence state file.
+    ///
+    fn state_seq_load_file(
+        &mut self,
+        filepath: impl AsRef<Path>,
+        dest_seq_id: i32,
+        max_tokens: usize,
+    ) -> Result<LoadedSeqState, ContextStateError>;
+
+    /// # Errors
+    ///
+    /// Fails if the path is not a valid utf8 or llama.cpp fails to save the sequence state file.
+    ///
+    fn state_seq_save_file(
+        &self,
+        filepath: impl AsRef<Path>,
+        seq_id: i32,
+        tokens: &[LlamaToken],
+    ) -> Result<usize, ContextStateError>;
+
+    /// # Safety
+    ///
+    /// The `src` buffer must contain data previously obtained from
+    /// [`state_seq_get_data_ext`](Self::state_seq_get_data_ext) on a compatible context.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContextStateError`] when the llama.cpp deserializer rejects the buffer.
+    unsafe fn state_seq_set_data_ext(
+        &mut self,
+        src: &[u8],
+        dest_seq_id: i32,
+        flags: LlamaStateSeqFlags,
+    ) -> Result<usize, ContextStateError>;
+
+    /// # Safety
+    ///
+    /// The `src` buffer must contain data previously obtained from [`state_get_data`](Self::state_get_data)
+    /// on a compatible context (same model and parameters). Passing arbitrary or corrupted bytes
+    /// will lead to undefined behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContextStateError`] when the llama.cpp deserializer rejects the buffer.
+    unsafe fn state_set_data(&mut self, src: &[u8]) -> Result<usize, ContextStateError>;
+}
+
+impl ContextState for LlamaContext<'_> {
+    unsafe fn state_get_data(&self, dest: &mut [u8]) -> Result<usize, ContextStateError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -146,25 +240,16 @@ impl LlamaContext<'_> {
         state_data_status_to_result(status, byte_count, out_error, "llama_rs_state_get_data")
     }
 
-    #[must_use]
-    pub fn state_get_size(&self) -> usize {
+    fn state_get_size(&self) -> usize {
         unsafe { llama_cpp_bindings_sys::llama_state_get_size(self.context.as_ptr()) }
     }
 
-    /// # Errors
-    ///
-    /// Fails if the path is not a valid utf8 or llama.cpp fails to load the state file.
-    pub fn state_load_file(
+    fn state_load_file(
         &mut self,
         path_session: impl AsRef<Path>,
         max_tokens: usize,
-    ) -> Result<Vec<LlamaToken>, LoadSessionError> {
-        let path = path_session.as_ref();
-        let path = path
-            .to_str()
-            .ok_or_else(|| LoadSessionError::PathToStrError(path.to_path_buf()))?;
-
-        let cstr = CString::new(path)?;
+    ) -> Result<Vec<LlamaToken>, ContextStateError> {
+        let cstr = path_c_string(path_session.as_ref())?;
         let mut tokens = vec![LlamaToken::new(0); max_tokens];
         let mut n_out = 0;
 
@@ -184,20 +269,12 @@ impl LlamaContext<'_> {
         process_session_load_result(success, n_out, tokens)
     }
 
-    /// # Errors
-    ///
-    /// Fails if the path is not a valid utf8 or llama.cpp fails to save the state file.
-    pub fn state_save_file(
+    fn state_save_file(
         &self,
         path_session: impl AsRef<Path>,
         tokens: &[LlamaToken],
-    ) -> Result<(), SaveSessionError> {
-        let path = path_session.as_ref();
-        let path = path
-            .to_str()
-            .ok_or_else(|| SaveSessionError::PathToStrError(path.to_path_buf()))?;
-
-        let cstr = CString::new(path)?;
+    ) -> Result<(), ContextStateError> {
+        let cstr = path_c_string(path_session.as_ref())?;
 
         if unsafe {
             llama_cpp_bindings_sys::llama_state_save_file(
@@ -211,23 +288,16 @@ impl LlamaContext<'_> {
         } {
             Ok(())
         } else {
-            Err(SaveSessionError::FailedToSave)
+            Err(ContextStateError::SessionFileNotSaved)
         }
     }
 
-    /// # Safety
-    ///
-    /// The `dest` buffer must be large enough to hold the complete state data.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`StateDataError`] when the llama.cpp serializer fails.
-    pub unsafe fn state_seq_get_data_ext(
+    unsafe fn state_seq_get_data_ext(
         &self,
         dest: &mut [u8],
         seq_id: i32,
-        flags: &LlamaStateSeqFlags,
-    ) -> Result<usize, StateDataError> {
+        flags: LlamaStateSeqFlags,
+    ) -> Result<usize, ContextStateError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -245,8 +315,7 @@ impl LlamaContext<'_> {
         state_data_status_to_result(status, byte_count, out_error, "llama_rs_state_seq_get_data")
     }
 
-    #[must_use]
-    pub fn state_seq_get_size_ext(&self, seq_id: i32, flags: &LlamaStateSeqFlags) -> usize {
+    fn state_seq_get_size_ext(&self, seq_id: i32, flags: LlamaStateSeqFlags) -> usize {
         unsafe {
             llama_cpp_bindings_sys::llama_state_seq_get_size_ext(
                 self.context.as_ptr(),
@@ -256,22 +325,13 @@ impl LlamaContext<'_> {
         }
     }
 
-    /// # Errors
-    ///
-    /// Fails if the path is not a valid utf8 or llama.cpp fails to load the sequence state file.
-    ///
-    pub fn state_seq_load_file(
+    fn state_seq_load_file(
         &mut self,
         filepath: impl AsRef<Path>,
         dest_seq_id: i32,
         max_tokens: usize,
-    ) -> Result<LoadedSeqState, LoadSeqStateError> {
-        let path = filepath.as_ref();
-        let path = path
-            .to_str()
-            .ok_or_else(|| LoadSeqStateError::PathToStrError(path.to_path_buf()))?;
-
-        let cstr = CString::new(path)?;
+    ) -> Result<LoadedSeqState, ContextStateError> {
+        let cstr = path_c_string(filepath.as_ref())?;
         let mut tokens = vec![LlamaToken::new(0); max_tokens];
         let mut n_out = 0;
 
@@ -293,22 +353,13 @@ impl LlamaContext<'_> {
         process_seq_load_result(bytes_read, n_out, tokens)
     }
 
-    /// # Errors
-    ///
-    /// Fails if the path is not a valid utf8 or llama.cpp fails to save the sequence state file.
-    ///
-    pub fn state_seq_save_file(
+    fn state_seq_save_file(
         &self,
         filepath: impl AsRef<Path>,
         seq_id: i32,
         tokens: &[LlamaToken],
-    ) -> Result<usize, SaveSeqStateError> {
-        let path = filepath.as_ref();
-        let path = path
-            .to_str()
-            .ok_or_else(|| SaveSeqStateError::PathToStrError(path.to_path_buf()))?;
-
-        let cstr = CString::new(path)?;
+    ) -> Result<usize, ContextStateError> {
+        let cstr = path_c_string(filepath.as_ref())?;
 
         let bytes_written = unsafe {
             llama_cpp_bindings_sys::llama_state_seq_save_file(
@@ -323,26 +374,18 @@ impl LlamaContext<'_> {
         };
 
         if bytes_written == 0 {
-            Err(SaveSeqStateError::FailedToSave)
+            Err(ContextStateError::SeqStateFileNotSaved)
         } else {
             Ok(bytes_written)
         }
     }
 
-    /// # Safety
-    ///
-    /// The `src` buffer must contain data previously obtained from
-    /// [`state_seq_get_data_ext`](Self::state_seq_get_data_ext) on a compatible context.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`StateDataError`] when the llama.cpp deserializer rejects the buffer.
-    pub unsafe fn state_seq_set_data_ext(
+    unsafe fn state_seq_set_data_ext(
         &mut self,
         src: &[u8],
         dest_seq_id: i32,
-        flags: &LlamaStateSeqFlags,
-    ) -> Result<usize, StateDataError> {
+        flags: LlamaStateSeqFlags,
+    ) -> Result<usize, ContextStateError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -366,16 +409,7 @@ impl LlamaContext<'_> {
         )
     }
 
-    /// # Safety
-    ///
-    /// The `src` buffer must contain data previously obtained from [`state_get_data`](Self::state_get_data)
-    /// on a compatible context (same model and parameters). Passing arbitrary or corrupted bytes
-    /// will lead to undefined behavior.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`StateDataError`] when the llama.cpp deserializer rejects the buffer.
-    pub unsafe fn state_set_data(&mut self, src: &[u8]) -> Result<usize, StateDataError> {
+    unsafe fn state_set_data(&mut self, src: &[u8]) -> Result<usize, ContextStateError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -409,10 +443,8 @@ mod tests {
     use super::process_session_load_result;
     use super::state_data_restore_status_to_result;
     use super::state_data_status_to_result;
-    use crate::context::load_seq_state_error::LoadSeqStateError;
-    use crate::context::load_session_error::LoadSessionError;
-    use crate::context::loaded_seq_state::LoadedSeqState;
-    use crate::context::state_data_error::StateDataError;
+    use crate::context_state_error::ContextStateError;
+    use crate::loaded_seq_state::LoadedSeqState;
 
     #[test]
     fn session_load_truncates_the_tokens_to_the_loaded_count() {
@@ -429,7 +461,7 @@ mod tests {
         let tokens = vec![LlamaToken::new(0); 100];
         let result = process_session_load_result(false, 0, tokens);
 
-        assert_eq!(result, Err(LoadSessionError::FailedToLoad));
+        assert_eq!(result, Err(ContextStateError::SessionFileNotLoaded));
     }
 
     #[test]
@@ -450,7 +482,7 @@ mod tests {
         let tokens = vec![LlamaToken::new(0); 100];
         let result = process_seq_load_result(0, 0, tokens);
 
-        assert_eq!(result, Err(LoadSeqStateError::FailedToLoad));
+        assert_eq!(result, Err(ContextStateError::SeqStateFileNotLoaded));
     }
 
     #[test]
@@ -461,7 +493,10 @@ mod tests {
             ptr::null_mut(),
             "",
         );
-        assert_eq!(outcome.err(), Some(StateDataError::LlamaCppOutOfMemory));
+        assert_eq!(
+            outcome.err(),
+            Some(ContextStateError::StateDataLlamaCppOutOfMemory)
+        );
     }
 
     #[test]
@@ -487,7 +522,7 @@ mod tests {
         ] {
             assert_eq!(
                 state_data_status_to_result(status, 0, ptr::null_mut(), "llama_rs_state_get_data"),
-                Err(StateDataError::Ffi(FfiError::ContractViolated {
+                Err(ContextStateError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_state_get_data",
                     detail,
                 }))
@@ -504,7 +539,7 @@ mod tests {
                 ptr::null_mut(),
                 "llama_rs_state_get_data",
             ),
-            Err(StateDataError::NotEnoughMemory)
+            Err(ContextStateError::StateDataNotEnoughMemory)
         );
     }
 
@@ -520,7 +555,7 @@ mod tests {
                 out_error,
                 "llama_rs_state_get_data",
             ),
-            Err(StateDataError::Reported {
+            Err(ContextStateError::StateDataReported {
                 message: "serializer threw".to_owned()
             })
         );
@@ -535,7 +570,7 @@ mod tests {
                 ptr::null_mut(),
                 "llama_rs_state_get_data",
             ),
-            Err(StateDataError::Ffi(FfiError::ContractViolated {
+            Err(ContextStateError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_state_get_data",
                 detail: "reported a thrown C++ exception without an error message",
             }))
@@ -546,7 +581,7 @@ mod tests {
     fn state_data_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             state_data_status_to_result(255, 0, ptr::null_mut(), "llama_rs_state_get_data"),
-            Err(StateDataError::Ffi(FfiError::UnknownStatus {
+            Err(ContextStateError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_state_get_data",
                 code: 255,
             }))
@@ -566,7 +601,7 @@ mod tests {
                 )
             }),
             [
-                Err(StateDataError::NothingRestored { provided_bytes: 16 }),
+                Err(ContextStateError::StateDataNothingRestored { provided_bytes: 16 }),
                 Ok(0),
                 Ok(16),
             ]
@@ -583,7 +618,7 @@ mod tests {
                 ptr::null_mut(),
                 "llama_rs_state_seq_set_data",
             ),
-            Err(StateDataError::LlamaCppOutOfMemory)
+            Err(ContextStateError::StateDataLlamaCppOutOfMemory)
         );
     }
 }

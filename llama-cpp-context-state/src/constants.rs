@@ -1,4 +1,4 @@
-use crate::context::llama_state_seq_flags::LlamaStateSeqFlags;
+use crate::llama_state_seq_flags::LlamaStateSeqFlags;
 
 pub const LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY: LlamaStateSeqFlags = LlamaStateSeqFlags { flags: 1 };
 

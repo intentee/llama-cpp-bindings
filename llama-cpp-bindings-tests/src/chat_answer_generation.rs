@@ -2,10 +2,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 
 use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 
 use crate::chat_answer::ChatAnswer;
@@ -54,7 +53,7 @@ impl ChatAnswerGeneration<'_, '_> {
         let thinking_tags = thinking_tags(&session)?;
         let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)
             .context("the session must read its empty answer")?;
-        let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+        let mut batch = LlamaBatch::new(context.limits());
 
         classifier
             .feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)

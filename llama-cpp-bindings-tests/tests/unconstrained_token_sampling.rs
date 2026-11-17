@@ -2,12 +2,11 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::generation_progress::GenerationProgress;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
@@ -78,7 +77,7 @@ fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
     let prompt =
         "<|im_start|>user\nSay hello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&tokens, 0, false)?;
 
@@ -151,7 +150,7 @@ fn a_greedy_sampler_selects_the_most_likely_candidate_of_a_decoded_row(
         (*context_params).into_llama_context_params(),
     )?;
     let tokens = model.str_to_token("Hi", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
@@ -222,7 +221,7 @@ fn sampling_the_last_decoded_row_with_a_greedy_chain_yields_its_most_likely_toke
         (*context_params).into_llama_context_params(),
     )?;
     let tokens = model.str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
     let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;

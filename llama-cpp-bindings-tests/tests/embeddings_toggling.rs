@@ -2,9 +2,8 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
@@ -53,7 +52,7 @@ fn decode_tokens(
     first_position: i32,
     output_on_last_token: bool,
 ) -> Result<i32> {
-    let mut batch = LlamaBatch::new(ContextLimits::of(context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     add_tokens(&mut batch, tokens, first_position, 0, output_on_last_token)?;
     context.decode(&batch)?;

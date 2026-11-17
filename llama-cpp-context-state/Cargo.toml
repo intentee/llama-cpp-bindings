@@ -1,0 +1,20 @@
+[package]
+name = "llama-cpp-context-state"
+description = "Saving and restoring the state of a llama.cpp context: session files, sequence state files and raw state data"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-ffi-status = { workspace = true }
+llama-cpp-model = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

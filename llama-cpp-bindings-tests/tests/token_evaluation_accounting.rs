@@ -4,11 +4,10 @@ use anyhow::ensure;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -34,7 +33,7 @@ fn greeting_batch(
     context: &LlamaContext<'_>,
 ) -> Result<LlamaBatch> {
     let tokens = model.str_to_token("hello there", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&tokens, 0, false)?;
 

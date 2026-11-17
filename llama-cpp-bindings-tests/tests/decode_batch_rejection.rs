@@ -1,11 +1,9 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::batch_transfer_error::BatchTransferError;
-use llama_cpp_bindings::error::decode_error::DecodeError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_model::add_bos::AddBos;
@@ -35,9 +33,9 @@ fn decoding_an_empty_batch_is_refused_as_invalid(
         backend,
         (*context_params).into_llama_context_params(),
     )?;
-    let batch = LlamaBatch::new(ContextLimits::of(&context));
+    let batch = LlamaBatch::new(context.limits());
 
-    ensure!(context.decode(&batch) == Err(DecodeError::BatchInvalid));
+    ensure!(context.decode(&batch) == Err(ContextError::DecodeBatchInvalid));
 
     Ok(())
 }
@@ -70,13 +68,13 @@ fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_is_refuse
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 
     ensure!(
         context.decode(&batch)
-            == Err(DecodeError::BatchExceedsMicroBatch {
+            == Err(ContextError::DecodeBatchExceedsMicroBatch {
                 n_tokens,
                 n_ubatch: context.n_ubatch(),
             })
@@ -103,13 +101,13 @@ fn decoding_more_tokens_than_the_micro_batch_on_an_encoder_is_refused(
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 
     ensure!(
         context.decode(&batch)
-            == Err(DecodeError::BatchExceedsMicroBatch {
+            == Err(ContextError::DecodeBatchExceedsMicroBatch {
                 n_tokens,
                 n_ubatch: context.n_ubatch(),
             })
@@ -133,7 +131,7 @@ fn decoding_reports_an_exception_thrown_while_transferring_the_batch(
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS,
@@ -141,9 +139,9 @@ fn decoding_reports_an_exception_thrown_while_transferring_the_batch(
 
     ensure!(
         context.decode(&batch)
-            == Err(DecodeError::BatchTransfer(BatchTransferError::Reported {
+            == Err(ContextError::BatchTransferReported {
                 message: injected_fault_message()?,
-            }))
+            })
     );
 
     Ok(())

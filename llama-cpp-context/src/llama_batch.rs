@@ -8,17 +8,16 @@ use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 
-use crate::batch_add_error::BatchAddError;
-use crate::context::context_limits::ContextLimits;
+use crate::context_error::ContextError;
+use crate::context_limits::ContextLimits;
 use crate::decision_order::DecisionOrder;
-use crate::error::batch_transfer_error::BatchTransferError;
 
 fn batch_ext_assign_entries_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_batch_ext_assign_entries_status,
     out_llama_cpp_return_code: i32,
     out_error: *mut c_char,
-) -> Result<(), BatchTransferError> {
-    let refused_validated_entry = |detail: &'static str| -> Result<(), BatchTransferError> {
+) -> Result<(), ContextError> {
+    let refused_validated_entry = |detail: &'static str| -> Result<(), ContextError> {
         Err(FfiError::ContractViolated {
             operation: "llama_rs_batch_ext_assign_entries",
             detail,
@@ -29,10 +28,10 @@ fn batch_ext_assign_entries_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(BatchTransferError::NotEnoughMemory)
+            Err(ContextError::BatchTransferNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(BatchTransferError::LlamaCppOutOfMemory)
+            Err(ContextError::BatchTransferLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
@@ -42,7 +41,7 @@ fn batch_ext_assign_entries_status_to_result(
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
-            Err(BatchTransferError::Reported { message })
+            Err(ContextError::BatchTransferReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_BATCH_FULL => refused_validated_entry(
             "refused an entry of a batch validated against its limits as full",
@@ -125,7 +124,7 @@ impl LlamaBatch {
 
     /// # Errors
     ///
-    /// Returns [`BatchAddError`] when the batch already holds as many tokens as one decode of the
+    /// Returns [`ContextError`] when the batch already holds as many tokens as one decode of the
     /// context takes, the token is outside the vocabulary, `seq_ids` is empty or names a sequence
     /// the context does not have, or the token count would overflow.
     pub fn add(
@@ -134,29 +133,41 @@ impl LlamaBatch {
         pos: llama_pos,
         seq_ids: &[llama_seq_id],
         logits: bool,
-    ) -> Result<(), BatchAddError> {
+    ) -> Result<(), ContextError> {
         if self.n_tokens.unsigned_abs() >= self.limits.batch {
-            return Err(BatchAddError::BatchFull {
+            return Err(ContextError::BatchFull {
                 n_batch: self.limits.batch,
             });
         }
 
-        let token = self
-            .limits
-            .ensure_token_in_vocabulary(sampled_token.token())?;
+        let token = sampled_token.token();
 
-        if seq_ids.is_empty() {
-            return Err(BatchAddError::NoSequenceIds);
+        if !token.is_within_vocabulary(self.limits.vocabulary_size) {
+            return Err(ContextError::TokenOutsideVocabulary {
+                token,
+                n_vocab: self.limits.vocabulary_size,
+            });
         }
 
-        for seq_id in seq_ids {
-            self.limits.ensure_sequence_id(*seq_id)?;
+        if seq_ids.is_empty() {
+            return Err(ContextError::NoSequenceIds);
+        }
+
+        if let Some(seq_id) = seq_ids
+            .iter()
+            .copied()
+            .find(|seq_id| !self.limits.holds_sequence(*seq_id))
+        {
+            return Err(ContextError::SequenceIdOutOfRange {
+                seq_id,
+                n_seq_max: self.limits.max_sequences,
+            });
         }
 
         let token_index = self.n_tokens;
         self.n_tokens = token_index
             .checked_add(1)
-            .ok_or(BatchAddError::TokenCountOverflow {
+            .ok_or(ContextError::TokenCountOverflow {
                 n_tokens: token_index,
             })?;
 
@@ -182,13 +193,13 @@ impl LlamaBatch {
     ///
     /// # Errors
     ///
-    /// Returns the [`BatchAddError`] of the first token [`Self::add`] refuses.
+    /// Returns the [`ContextError`] of the first token [`Self::add`] refuses.
     pub fn add_sequence(
         &mut self,
         tokens: &[LlamaToken],
         seq_id: llama_seq_id,
         logits_all: bool,
-    ) -> Result<(), BatchAddError> {
+    ) -> Result<(), ContextError> {
         let last_token_index = tokens.len().checked_sub(1);
 
         for ((token_index, token), pos) in tokens.iter().enumerate().zip(0..) {
@@ -212,11 +223,11 @@ impl LlamaBatch {
     ///
     /// # Errors
     ///
-    /// Returns [`BatchTransferError`] when llama.cpp refuses an entry or the wrapper fails.
+    /// Returns [`ContextError`] when llama.cpp refuses an entry or the wrapper fails.
     pub unsafe fn assign_to(
         &self,
         batch_ext: NonNull<llama_cpp_bindings_sys::llama_batch_ext>,
-    ) -> Result<(), BatchTransferError> {
+    ) -> Result<(), ContextError> {
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
@@ -258,18 +269,18 @@ impl LlamaBatch {
 
     /// # Errors
     ///
-    /// Returns [`BatchAddError::TokenIndexOutsideBatch`] when the batch holds no token at
+    /// Returns [`ContextError::TokenIndexOutsideBatch`] when the batch holds no token at
     /// `token_index`.
     pub fn set_decision_order(
         &mut self,
         token_index: i32,
         decision_order: DecisionOrder,
-    ) -> Result<(), BatchAddError> {
+    ) -> Result<(), ContextError> {
         let n_tokens = self.n_tokens;
         let entry = usize::try_from(token_index)
             .ok()
             .and_then(|entry_index| self.entries.get_mut(entry_index))
-            .ok_or(BatchAddError::TokenIndexOutsideBatch {
+            .ok_or(ContextError::TokenIndexOutsideBatch {
                 token_index,
                 n_tokens,
             })?;
@@ -291,11 +302,9 @@ mod tests {
 
     use super::LlamaBatch;
     use super::batch_ext_assign_entries_status_to_result;
-    use crate::batch_add_error::BatchAddError;
-    use crate::context::context_limits::ContextLimits;
+    use crate::context_error::ContextError;
+    use crate::context_limits::ContextLimits;
     use crate::decision_order::DecisionOrder;
-    use crate::error::batch_transfer_error::BatchTransferError;
-    use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 
     const LIMITS: ContextLimits = ContextLimits {
         batch: 4,
@@ -320,7 +329,7 @@ mod tests {
 
         assert_eq!(
             batch.add(content(1), 0, &[0], false),
-            Err(BatchAddError::TokenCountOverflow { n_tokens: i32::MAX })
+            Err(ContextError::TokenCountOverflow { n_tokens: i32::MAX })
         );
     }
 
@@ -388,7 +397,7 @@ mod tests {
             [-1, 1]
                 .map(|token_index| batch
                     .set_decision_order(token_index, DecisionOrder::QuestionChoice)),
-            [-1, 1].map(|token_index| Err(BatchAddError::TokenIndexOutsideBatch {
+            [-1, 1].map(|token_index| Err(ContextError::TokenIndexOutsideBatch {
                 token_index,
                 n_tokens: 1,
             }))
@@ -414,7 +423,7 @@ mod tests {
 
         assert_eq!(
             batch.add(content(5), 4, &[0], false),
-            Err(BatchAddError::BatchFull { n_batch: 4 })
+            Err(ContextError::BatchFull { n_batch: 4 })
         );
     }
 
@@ -424,9 +433,42 @@ mod tests {
 
         assert_eq!(
             batch.add(content(100), 0, &[0], false),
-            Err(BatchAddError::TokenOutsideVocabulary {
+            Err(ContextError::TokenOutsideVocabulary {
                 token: LlamaToken::new(100),
                 n_vocab: 100,
+            })
+        );
+    }
+
+    #[test]
+    fn the_last_token_of_the_vocabulary_is_accepted() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        assert_eq!(batch.add(content(99), 0, &[0], false), Ok(()));
+    }
+
+    #[test]
+    fn a_negative_token_is_refused() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        assert_eq!(
+            batch.add(content(-1), 0, &[0], false),
+            Err(ContextError::TokenOutsideVocabulary {
+                token: LlamaToken::new(-1),
+                n_vocab: 100,
+            })
+        );
+    }
+
+    #[test]
+    fn a_token_in_a_negative_sequence_is_refused() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        assert_eq!(
+            batch.add(content(1), 0, &[-1], false),
+            Err(ContextError::SequenceIdOutOfRange {
+                seq_id: -1,
+                n_seq_max: 2,
             })
         );
     }
@@ -437,7 +479,7 @@ mod tests {
 
         assert_eq!(
             batch.add(content(1), 0, &[], false),
-            Err(BatchAddError::NoSequenceIds)
+            Err(ContextError::NoSequenceIds)
         );
     }
 
@@ -447,10 +489,10 @@ mod tests {
 
         assert_eq!(
             batch.add(content(1), 0, &[0, 2], false),
-            Err(BatchAddError::SequenceIdOutOfRange(SequenceIdOutOfRange {
+            Err(ContextError::SequenceIdOutOfRange {
                 seq_id: 2,
                 n_seq_max: 2,
-            }))
+            })
         );
         assert_eq!(batch, LlamaBatch::new(LIMITS));
     }
@@ -494,7 +536,7 @@ mod tests {
 
         assert_eq!(
             batch.add_sequence(&[1, 2, 3, 4, 5].map(LlamaToken::new), 0, false),
-            Err(BatchAddError::BatchFull { n_batch: 4 })
+            Err(ContextError::BatchFull { n_batch: 4 })
         );
         assert_eq!(batch.n_tokens(), 4);
     }
@@ -558,7 +600,7 @@ mod tests {
         ] {
             assert_eq!(
                 batch_ext_assign_entries_status_to_result(status, 0, ptr::null_mut()),
-                Err(BatchTransferError::Ffi(FfiError::ContractViolated {
+                Err(ContextError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_batch_ext_assign_entries",
                     detail,
                 }))
@@ -574,7 +616,7 @@ mod tests {
                 -7,
                 ptr::null_mut(),
             ),
-            Err(BatchTransferError::Ffi(FfiError::UnknownStatus {
+            Err(ContextError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_batch_ext_add_token",
                 code: -7,
             }))
@@ -590,8 +632,8 @@ mod tests {
             ]
             .map(|status| batch_ext_assign_entries_status_to_result(status, 0, ptr::null_mut())),
             [
-                Err(BatchTransferError::NotEnoughMemory),
-                Err(BatchTransferError::LlamaCppOutOfMemory),
+                Err(ContextError::BatchTransferNotEnoughMemory),
+                Err(ContextError::BatchTransferLlamaCppOutOfMemory),
             ]
         );
     }
@@ -608,7 +650,7 @@ mod tests {
                 0,
                 out_error,
             ),
-            Err(BatchTransferError::Reported {
+            Err(ContextError::BatchTransferReported {
                 message: "entry insertion threw".to_owned()
             })
         );
@@ -622,7 +664,7 @@ mod tests {
                 0,
                 ptr::null_mut(),
             ),
-            Err(BatchTransferError::Ffi(FfiError::ContractViolated {
+            Err(ContextError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_batch_ext_assign_entries",
                     detail: "reported a thrown C++ exception without an error message",
                 }))
@@ -633,7 +675,7 @@ mod tests {
     fn adding_a_batch_entry_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_assign_entries_status_to_result(255, 0, ptr::null_mut()),
-            Err(BatchTransferError::Ffi(FfiError::UnknownStatus {
+            Err(ContextError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_batch_ext_assign_entries",
                 code: 255,
             }))

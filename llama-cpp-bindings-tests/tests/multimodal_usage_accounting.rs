@@ -2,7 +2,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 
-use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
@@ -15,6 +14,7 @@ use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsage;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

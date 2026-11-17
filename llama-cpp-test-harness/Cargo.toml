@@ -15,6 +15,7 @@ inventory = { workspace = true }
 libtest-mimic = { workspace = true }
 llama-cpp-backend = { workspace = true }
 llama-cpp-bindings = { workspace = true }
+llama-cpp-context = { workspace = true }
 llama-cpp-model = { workspace = true }
 llama-cpp-params = { workspace = true }
 llama-cpp-test-harness-macros = { workspace = true }

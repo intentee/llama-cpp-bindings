@@ -1,6 +1,5 @@
 use llama_cpp_ffi_status::ffi_error::FfiError;
 
-use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use crate::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
 use crate::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 
@@ -12,8 +11,8 @@ pub enum MtmdEvalError {
     BatchSizeExceedsContextLimit { requested: i32, context_max: u32 },
     #[error("batch size {requested} must be positive")]
     NonPositiveBatchSize { requested: i32 },
-    #[error(transparent)]
-    SequenceIdOutOfRange(#[from] SequenceIdOutOfRange),
+    #[error("sequence id {seq_id} names no sequence of a context with {n_seq_max} sequences")]
+    SequenceIdOutOfRange { seq_id: i32, n_seq_max: u32 },
     #[error(
         "a chunk decoded non-causally has {} tokens but a single decode fits {}",
         .0.chunk_tokens,

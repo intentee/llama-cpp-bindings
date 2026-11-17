@@ -3,10 +3,9 @@ use anyhow::Result;
 use anyhow::ensure;
 use serde_json::json;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings_tests::highest_score_index::highest_score_index;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
@@ -57,7 +56,7 @@ fn laya_scores_the_matching_option_highest_at_its_mask_token(
             .into_llama_context_params()
             .with_pooling_type(LlamaPoolingType::None),
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&tokens, 0, true)?;
     context.decode(&batch)?;

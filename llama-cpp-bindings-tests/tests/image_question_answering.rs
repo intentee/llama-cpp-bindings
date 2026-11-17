@@ -2,10 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_capability::MtmdCapability;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
@@ -15,6 +12,8 @@ use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -105,7 +104,7 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
     }
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
+    let mut batch = LlamaBatch::new(ctx.limits());
     let totals = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,

@@ -2,6 +2,9 @@ use std::collections::VecDeque;
 
 use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_sys::llama_seq_id;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
@@ -9,7 +12,6 @@ use llama_cpp_model::sampled_token_section::SampledTokenSection;
 use llama_cpp_token_usage::token_usage::TokenUsage;
 use llama_cpp_token_usage::token_usage_error::TokenUsageError;
 
-use crate::batch_add_error::BatchAddError;
 use crate::chat_output::ChatOutput;
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_piece_role::ChatPieceRole;
@@ -17,7 +19,6 @@ use crate::chat_reading::ChatReading;
 use crate::chat_session::ChatSession;
 use crate::chat_session_attribution::ChatSessionAttribution;
 use crate::classified_sample::ClassifiedSample;
-use crate::context::LlamaContext;
 use crate::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use crate::error::ingest_error::IngestError;
 use crate::error::parse_chat_message_error::ParseChatMessageError;
@@ -25,7 +26,6 @@ use crate::error::sample_error::SampleError;
 use crate::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use crate::generation_progress::GenerationProgress;
 use crate::ingest_outcome::IngestOutcome;
-use crate::llama_batch::LlamaBatch;
 use crate::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use crate::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use crate::mtmd::mtmd_context::MtmdContext;
@@ -184,7 +184,7 @@ impl<'model> SampledTokenClassifier<'model> {
         tokens: &[LlamaToken],
         seq_id: llama_seq_id,
         logits_all: bool,
-    ) -> Result<(), BatchAddError> {
+    ) -> Result<(), ContextError> {
         batch.add_sequence(tokens, seq_id, logits_all)?;
         self.pending_prompt_tokens = self
             .pending_prompt_tokens
@@ -202,7 +202,7 @@ impl<'model> SampledTokenClassifier<'model> {
         position: llama_pos,
         seq_ids: &[llama_seq_id],
         logits: bool,
-    ) -> Result<(), BatchAddError> {
+    ) -> Result<(), ContextError> {
         batch.add(SampledToken::Content(token), position, seq_ids, logits)?;
         self.pending_prompt_tokens = self.pending_prompt_tokens.saturating_add(1);
 

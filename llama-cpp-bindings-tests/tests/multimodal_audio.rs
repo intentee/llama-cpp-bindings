@@ -7,10 +7,7 @@ use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
@@ -22,6 +19,8 @@ use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsa
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::system_message::system_message;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -129,7 +128,7 @@ fn transcribe_audio(
         assistant_turn,
         |classifier, context, _chunk_breakdown, n_past| {
             let mut sampler = LlamaSampler::greedy()?;
-            let mut batch = LlamaBatch::new(ContextLimits::of(context));
+            let mut batch = LlamaBatch::new(context.limits());
             let outcome = ClassifySampleLoop {
                 classifier,
                 sampler: &mut sampler,

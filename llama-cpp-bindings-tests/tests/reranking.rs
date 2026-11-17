@@ -1,10 +1,9 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings_tests::normalize::normalize;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -46,7 +45,7 @@ fn the_relevant_document_embeds_closer_to_the_query_than_an_unrelated_one(
         backend,
         (*context_params).into_llama_context_params(),
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     for (sequence_id, text) in (0..).zip([QUERY, RELEVANT_DOCUMENT, UNRELATED_DOCUMENT]) {
         let tokens = model.str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;

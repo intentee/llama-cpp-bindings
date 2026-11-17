@@ -6,13 +6,12 @@ use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -74,7 +73,7 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
         .context(format!("failed to tokenize {prompt}"))?;
     let prompt_token_count = u64::try_from(tokens_list.len())?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
+    let mut batch = LlamaBatch::new(ctx.limits());
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens_list, 0, false)?;
 
     ctx.decode(&batch)
@@ -203,7 +202,7 @@ fn chat_completion_usage_matches_the_classified_tokens(
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     context.decode(&batch)?;

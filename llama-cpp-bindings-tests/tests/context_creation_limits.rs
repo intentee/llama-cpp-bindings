@@ -3,8 +3,8 @@ use anyhow::ensure;
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_params::params_error::ParamsError;
@@ -46,7 +46,7 @@ use llama_cpp_test_harness_macros::llama_test;
 fn a_context_size_overflowing_llama_cpp_padding_is_unconstructible(fixture: &LlamaFixture<'_>) {
     assert_eq!(
         fixture.build_context().err(),
-        Some(LlamaContextLoadError::Unconstructible)
+        Some(ContextError::ContextUnconstructible)
     );
 }
 
@@ -76,7 +76,7 @@ fn new_context_rejects_more_sequences_than_one_batch_can_output(
 
     assert_eq!(
         context_load.err(),
-        Some(LlamaContextLoadError::SequencesExceedOutputCapacity {
+        Some(ContextError::SequencesExceedOutputCapacity {
             n_seq_max: 2,
             output_capacity: 1,
         })
@@ -110,7 +110,7 @@ fn new_context_rejects_more_sequences_than_a_causal_context_can_output(
 
     assert_eq!(
         context_load.err(),
-        Some(LlamaContextLoadError::SequencesExceedOutputCapacity {
+        Some(ContextError::SequencesExceedOutputCapacity {
             n_seq_max: 2,
             output_capacity: 1,
         })
@@ -142,7 +142,7 @@ fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(
             (*context_params).into_llama_context_params(),
         )
         .err()
-            == Some(LlamaContextLoadError::Reported {
+            == Some(ContextError::CreateReported {
                 message: injected_fault_message()?,
             })
     );
@@ -163,9 +163,9 @@ fn a_context_whose_pooling_type_llama_cpp_does_not_define_is_refused(fixture: &L
 
     assert_eq!(
         fixture.build_context().err(),
-        Some(LlamaContextLoadError::Params(
-            ParamsError::UnknownPoolingType(llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_RANK + 1)
-        ))
+        Some(ContextError::Params(ParamsError::UnknownPoolingType(
+            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_RANK + 1
+        )))
     );
 }
 
@@ -190,8 +190,6 @@ fn context_params_with_an_attention_type_llama_cpp_does_not_define_are_refused(
 
     assert_eq!(
         LlamaContext::from_model(model, backend, params).err(),
-        Some(LlamaContextLoadError::Params(
-            ParamsError::UnknownAttentionType(99)
-        ))
+        Some(ContextError::Params(ParamsError::UnknownAttentionType(99)))
     );
 }

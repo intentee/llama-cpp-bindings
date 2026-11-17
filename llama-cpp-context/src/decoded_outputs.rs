@@ -1,7 +1,7 @@
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 
-use crate::context::decoded_output_rows::DecodedOutputRows;
-use crate::error::logits_error::LogitsError;
+use crate::context_error::ContextError;
+use crate::decoded_output_rows::DecodedOutputRows;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecodedOutputs {
@@ -15,9 +15,9 @@ impl DecodedOutputs {
     ///
     /// # Errors
     ///
-    /// Returns [`LogitsError::TokenNotInitialized`] when the index names no output of the last
+    /// Returns [`ContextError::LogitTokenNotInitialized`] when the index names no output of the last
     /// decode.
-    pub fn ensure_output(&self, token_index: i32) -> Result<(), LogitsError> {
+    pub fn ensure_output(&self, token_index: i32) -> Result<(), ContextError> {
         let names_an_output = match &self.rows {
             DecodedOutputRows::BatchIndices(output_token_indices) if token_index >= 0 => {
                 output_token_indices.binary_search(&token_index).is_ok()
@@ -31,21 +31,21 @@ impl DecodedOutputs {
         if names_an_output {
             Ok(())
         } else {
-            Err(LogitsError::TokenNotInitialized(token_index))
+            Err(ContextError::LogitTokenNotInitialized(token_index))
         }
     }
 
     #[must_use]
-    pub const fn missing_logits_error(&self) -> LogitsError {
+    pub const fn missing_logits_error(&self) -> ContextError {
         match self.pooling_type {
             LlamaPoolingType::None | LlamaPoolingType::Unspecified => {
-                LogitsError::GraphProducesNoLogits
+                ContextError::GraphProducesNoLogits
             }
             pooling_type @ (LlamaPoolingType::Mean
             | LlamaPoolingType::Cls
             | LlamaPoolingType::Last
             | LlamaPoolingType::Rank) => {
-                LogitsError::PooledEmbeddingsProduceNoLogits { pooling_type }
+                ContextError::PooledEmbeddingsProduceNoLogits { pooling_type }
             }
         }
     }
@@ -56,8 +56,8 @@ mod tests {
     use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 
     use super::DecodedOutputs;
-    use crate::context::decoded_output_rows::DecodedOutputRows;
-    use crate::error::logits_error::LogitsError;
+    use crate::context_error::ContextError;
+    use crate::decoded_output_rows::DecodedOutputRows;
 
     fn outputs_at(output_token_indices: Vec<i32>) -> DecodedOutputs {
         DecodedOutputs {
@@ -82,7 +82,7 @@ mod tests {
     fn a_batch_index_not_marked_as_output_is_refused() {
         assert_eq!(
             outputs_at(vec![2, 5]).ensure_output(3),
-            Err(LogitsError::TokenNotInitialized(3))
+            Err(ContextError::LogitTokenNotInitialized(3))
         );
     }
 
@@ -95,7 +95,7 @@ mod tests {
     fn a_negative_index_beyond_the_first_output_is_refused() {
         assert_eq!(
             outputs_at(vec![2, 5]).ensure_output(-3),
-            Err(LogitsError::TokenNotInitialized(-3))
+            Err(ContextError::LogitTokenNotInitialized(-3))
         );
     }
 
@@ -108,7 +108,7 @@ mod tests {
     fn a_decode_outputting_only_its_last_row_refuses_batch_indices() {
         assert_eq!(
             last_row_only().ensure_output(0),
-            Err(LogitsError::TokenNotInitialized(0))
+            Err(ContextError::LogitTokenNotInitialized(0))
         );
     }
 
@@ -121,7 +121,7 @@ mod tests {
 
         assert_eq!(
             decoded.missing_logits_error(),
-            LogitsError::PooledEmbeddingsProduceNoLogits {
+            ContextError::PooledEmbeddingsProduceNoLogits {
                 pooling_type: LlamaPoolingType::Mean
             }
         );
@@ -131,7 +131,7 @@ mod tests {
     fn missing_logits_of_an_unpooled_decode_are_attributed_to_the_graph() {
         assert_eq!(
             outputs_at(vec![0]).missing_logits_error(),
-            LogitsError::GraphProducesNoLogits
+            ContextError::GraphProducesNoLogits
         );
     }
 }

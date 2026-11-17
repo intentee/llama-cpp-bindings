@@ -1,9 +1,10 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_bindings_tests::two_sequence_context::two_sequence_context;
+use llama_cpp_context_memory::context_memory::ContextMemory;
+use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -151,7 +152,7 @@ fn qwen35_recurrent_memory_refuses_to_remove_part_of_a_sequence(
 
     ensure!(
         context.memory_seq_rm(Some(0), Some(1), Some(2))
-            == Err(MemorySeqRmError::PartialSequenceNotRemoved {
+            == Err(ContextMemoryError::PartialSequenceNotRemoved {
                 seq_id: 0,
                 p0: 1,
                 p1: 2,

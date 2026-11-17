@@ -6,10 +6,7 @@ use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
 use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
@@ -20,6 +17,8 @@ use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -150,7 +149,7 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
     }
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,

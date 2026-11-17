@@ -2,10 +2,10 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_context_memory::context_memory::ContextMemory;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
@@ -44,7 +44,7 @@ fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
     let prompt_token_count = u64::try_from(tokens.len())?;
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
-    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
+    let mut batch = LlamaBatch::new(ctx.limits());
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     ctx.decode(&batch)
@@ -81,7 +81,7 @@ fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
         (*context_params).into_llama_context_params(),
     )?;
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
@@ -122,7 +122,7 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
         "gamma waits",
         "delta jumps",
     ];
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     for (sequence_index, text) in inputs.iter().enumerate() {
         let tokens = model.str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
@@ -200,7 +200,7 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
     ];
 
     let n_embd = usize::try_from(model.n_embd())?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let mut collected: Vec<Vec<f32>> = Vec::new();
 
     for iteration_inputs in iterations {
@@ -281,7 +281,7 @@ fn a_token_embedding_is_as_wide_as_the_model_embedding(
             .checked_sub(1)
             .context("`tokens.len() - 1` must not overflow")?,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 

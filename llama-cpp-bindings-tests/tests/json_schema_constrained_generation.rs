@@ -4,13 +4,12 @@ use anyhow::ensure;
 use serde_json::Value;
 use serde_json::json;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_gbnf::json_schema_to_grammar::json_schema_to_grammar;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
@@ -39,7 +38,7 @@ fn json_schema_constrained_answer(
     let session =
         closed_reasoning_chat_session(model, "What is 2+2? Respond with a JSON object.", &[])?;
     let tokens = session.tokenize_prompt(model)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
@@ -181,7 +180,7 @@ fn an_llguidance_json_schema_constrains_the_answer_to_the_schema(
 
     let tokens_list = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
+    let mut batch = LlamaBatch::new(ctx.limits());
     let last_index = i32::try_from(tokens_list.len())?
         .checked_sub(1)
         .context("`i32::try_from(tokens_list.len())? - 1` must not overflow")?;

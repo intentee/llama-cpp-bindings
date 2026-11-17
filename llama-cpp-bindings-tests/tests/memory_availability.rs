@@ -4,12 +4,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
-use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
-use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
-use llama_cpp_bindings::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
-use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
 use llama_cpp_bindings_tests::two_sequence_context::two_sequence_context;
+use llama_cpp_context_memory::context_memory::ContextMemory;
+use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -83,16 +80,18 @@ fn memory_operations_needing_a_memory_module_report_its_absence(
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
 
     ensure!(
-        context.memory_seq_cp(0, 1, None, None) == Err(MemorySeqCpError::MemoryHandleUnavailable)
+        context.memory_seq_cp(0, 1, None, None)
+            == Err(ContextMemoryError::SeqCpMemoryHandleUnavailable)
     );
     ensure!(
-        context.memory_seq_add(0, None, None, 1) == Err(MemorySeqAddError::MemoryHandleUnavailable)
+        context.memory_seq_add(0, None, None, 1)
+            == Err(ContextMemoryError::MemoryHandleUnavailable)
     );
     ensure!(
         context.memory_seq_div(0, None, None, divisor)
-            == Err(MemorySeqDivError::MemoryHandleUnavailable)
+            == Err(ContextMemoryError::MemoryHandleUnavailable)
     );
-    ensure!(context.memory_seq_pos_max(0) == Err(MemorySeqPosMaxError::MemoryHandleUnavailable));
+    ensure!(context.memory_seq_pos_max(0) == Err(ContextMemoryError::MemoryHandleUnavailable));
 
     Ok(())
 }
@@ -116,7 +115,7 @@ fn removing_a_sequence_without_a_memory_module_still_validates_its_id(
         context.memory_seq_rm(Some(u32::MAX), None, None).err()
             == i32::try_from(u32::MAX)
                 .err()
-                .map(MemorySeqRmError::SeqIdTooLarge)
+                .map(ContextMemoryError::SequenceIdTooLarge)
     );
 
     Ok(())

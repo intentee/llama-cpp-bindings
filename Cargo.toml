@@ -9,6 +9,9 @@ members = [
   "llama-cpp-bindings",
   "llama-cpp-bindings-tests",
   "llama-cpp-capturing-logger",
+  "llama-cpp-context",
+  "llama-cpp-context-memory",
+  "llama-cpp-context-state",
   "llama-cpp-error-recorder",
   "llama-cpp-fault-injection",
   "llama-cpp-ffi-status",
@@ -48,6 +51,9 @@ llama-cpp-bindings-build = { path = "llama-cpp-bindings-build", version = "0.29"
 llama-cpp-bindings-sys = { path = "llama-cpp-bindings-sys", version = "0.29" }
 llama-cpp-bindings-types = { path = "llama-cpp-bindings-types", version = "0.29" }
 llama-cpp-capturing-logger = { path = "llama-cpp-capturing-logger" }
+llama-cpp-context = { path = "llama-cpp-context", version = "0.29" }
+llama-cpp-context-memory = { path = "llama-cpp-context-memory", version = "0.29" }
+llama-cpp-context-state = { path = "llama-cpp-context-state", version = "0.29" }
 llama-cpp-error-recorder = { path = "llama-cpp-error-recorder", version = "0.29" }
 llama-cpp-ffi-status = { path = "llama-cpp-ffi-status", version = "0.29" }
 llama-cpp-gbnf = { path = "llama-cpp-gbnf", version = "0.29" }

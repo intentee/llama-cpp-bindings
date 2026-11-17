@@ -1193,6 +1193,7 @@ dependencies = [
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
+ "llama-cpp-context",
  "llama-cpp-error-recorder",
  "llama-cpp-fault-injection",
  "llama-cpp-ffi-status",
@@ -1202,7 +1203,6 @@ dependencies = [
  "llama-cpp-token-usage",
  "llama-cpp-wrapper-error-fixture",
  "llguidance",
- "log",
  "serde_json",
  "thiserror",
  "toktrie",
@@ -1241,6 +1241,9 @@ dependencies = [
  "llama-cpp-bindings",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
+ "llama-cpp-context",
+ "llama-cpp-context-memory",
+ "llama-cpp-context-state",
  "llama-cpp-fault-injection",
  "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
@@ -1269,6 +1272,41 @@ name = "llama-cpp-capturing-logger"
 version = "0.29.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "llama-cpp-context"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-backend",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-ffi-status",
+ "llama-cpp-model",
+ "llama-cpp-params",
+ "log",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-context-memory"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-context",
+ "llama-cpp-ffi-status",
+ "llama-cpp-model",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-context-state"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-context",
+ "llama-cpp-ffi-status",
+ "llama-cpp-model",
+ "thiserror",
 ]
 
 [[package]]
@@ -1351,6 +1389,7 @@ dependencies = [
  "libtest-mimic",
  "llama-cpp-backend",
  "llama-cpp-bindings",
+ "llama-cpp-context",
  "llama-cpp-model",
  "llama-cpp-params",
  "llama-cpp-test-harness-macros",

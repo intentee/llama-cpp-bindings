@@ -1,9 +1,8 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
@@ -36,7 +35,7 @@ pub fn context_after_decoding_text<'fixture>(
     let tokens = model
         .str_to_token(TEXT, AddBos::Always, ParseSpecialTokens::Never)
         .context("the sentence must tokenize")?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch
         .add_sequence(&tokens, 0, false)

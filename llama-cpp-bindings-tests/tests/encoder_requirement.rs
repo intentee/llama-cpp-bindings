@@ -1,10 +1,9 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::encode_error::EncodeError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -32,12 +31,12 @@ fn encoding_with_a_decoder_only_model_reports_it_has_no_encoder(
         (*context_params).into_llama_context_params(),
     )?;
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
 
     let result = context.encode(&batch);
 
-    ensure!(result == Err(EncodeError::ModelHasNoEncoder));
+    ensure!(result == Err(ContextError::EncodeModelHasNoEncoder));
 
     Ok(())
 }
@@ -65,7 +64,7 @@ fn an_encoder_model_encodes_a_prompt(
         (*context_params).into_llama_context_params(),
     )?;
     let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
 
     let result = context.encode(&batch);

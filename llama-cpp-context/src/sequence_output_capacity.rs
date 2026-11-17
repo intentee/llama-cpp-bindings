@@ -1,6 +1,6 @@
 use llama_cpp_params::llama_attention_type::LlamaAttentionType;
 
-use crate::error::llama_context_load_error::LlamaContextLoadError;
+use crate::context_error::ContextError;
 
 pub struct SequenceOutputCapacity {
     pub attention_type: LlamaAttentionType,
@@ -15,9 +15,9 @@ pub struct SequenceOutputCapacity {
 
 impl SequenceOutputCapacity {
     /// # Errors
-    /// Returns [`LlamaContextLoadError::SequencesExceedOutputCapacity`] when there are more
+    /// Returns [`ContextError::SequencesExceedOutputCapacity`] when there are more
     /// sequences than one batch can output.
-    pub fn validate(&self) -> Result<(), LlamaContextLoadError> {
+    pub fn validate(&self) -> Result<(), ContextError> {
         let n_ctx = if self.n_ctx == 0 {
             self.model_n_ctx_train
         } else {
@@ -41,7 +41,7 @@ impl SequenceOutputCapacity {
         let n_seq_max = self.n_seq_max.max(1);
 
         if n_seq_max > output_capacity {
-            return Err(LlamaContextLoadError::SequencesExceedOutputCapacity {
+            return Err(ContextError::SequencesExceedOutputCapacity {
                 n_seq_max,
                 output_capacity,
             });
@@ -56,10 +56,10 @@ mod tests {
     use llama_cpp_params::llama_attention_type::LlamaAttentionType;
 
     use super::SequenceOutputCapacity;
-    use crate::error::llama_context_load_error::LlamaContextLoadError;
+    use crate::context_error::ContextError;
 
-    const TWO_SEQUENCES_PAST_ONE_OUTPUT: Result<(), LlamaContextLoadError> =
-        Err(LlamaContextLoadError::SequencesExceedOutputCapacity {
+    const TWO_SEQUENCES_PAST_ONE_OUTPUT: Result<(), ContextError> =
+        Err(ContextError::SequencesExceedOutputCapacity {
             n_seq_max: 2,
             output_capacity: 1,
         });

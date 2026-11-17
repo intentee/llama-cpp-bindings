@@ -1,8 +1,9 @@
 use std::num::NonZeroU32;
 
+use llama_cpp_context::context_limits::ContextLimits;
+use llama_cpp_context::llama_context::LlamaContext;
+
 use super::mtmd_eval_error::MtmdEvalError;
-use crate::context::LlamaContext;
-use crate::context::context_limits::ContextLimits;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MtmdEvalLimits {
@@ -13,7 +14,7 @@ impl MtmdEvalLimits {
     #[must_use]
     pub const fn of(llama_ctx: &LlamaContext) -> Self {
         Self {
-            context: ContextLimits::of(llama_ctx),
+            context: llama_ctx.limits(),
         }
     }
 
@@ -42,7 +43,12 @@ impl MtmdEvalLimits {
             });
         }
 
-        self.context.ensure_sequence_id(seq_id)?;
+        if !self.context.holds_sequence(seq_id) {
+            return Err(MtmdEvalError::SequenceIdOutOfRange {
+                seq_id,
+                n_seq_max: self.context.max_sequences,
+            });
+        }
 
         Ok(batch_tokens)
     }
@@ -52,8 +58,8 @@ impl MtmdEvalLimits {
 mod tests {
     use std::num::NonZeroU32;
 
-    use crate::context::context_limits::ContextLimits;
-    use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
+    use llama_cpp_context::context_limits::ContextLimits;
+
     use crate::mtmd::mtmd_eval_error::MtmdEvalError;
     use crate::mtmd::mtmd_eval_limits::MtmdEvalLimits;
 
@@ -105,10 +111,10 @@ mod tests {
     fn a_sequence_id_the_context_lacks_is_rejected() {
         assert_eq!(
             LIMITS.batch_tokens(64, 2),
-            Err(MtmdEvalError::SequenceIdOutOfRange(SequenceIdOutOfRange {
+            Err(MtmdEvalError::SequenceIdOutOfRange {
                 seq_id: 2,
                 n_seq_max: 2,
-            }))
+            })
         );
     }
 }

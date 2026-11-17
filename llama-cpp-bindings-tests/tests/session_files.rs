@@ -3,12 +3,9 @@ use anyhow::ensure;
 use std::env;
 use std::fs;
 
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::context::load_seq_state_error::LoadSeqStateError;
-use llama_cpp_bindings::context::load_session_error::LoadSessionError;
-use llama_cpp_bindings::context::save_seq_state_error::SaveSeqStateError;
-use llama_cpp_bindings::context::save_session_error::SaveSessionError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context_state::context_state::ContextState;
+use llama_cpp_context_state::context_state_error::ContextStateError;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -55,7 +52,7 @@ fn a_loaded_state_file_restores_the_tokens_it_was_saved_with(
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
@@ -111,7 +108,7 @@ fn a_loaded_sequence_state_file_restores_its_tokens_and_bytes(
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
@@ -173,7 +170,7 @@ fn state_load_file_reports_a_missing_file_as_failed_to_load(
         context
             .state_load_file("/nonexistent/session.bin", 512)
             .err()
-            == Some(LoadSessionError::FailedToLoad)
+            == Some(ContextStateError::SessionFileNotLoaded)
     );
 
     Ok(())
@@ -220,7 +217,7 @@ fn state_seq_load_file_reports_a_missing_file_as_failed_to_load(
         context
             .state_seq_load_file("/nonexistent/seq_state.bin", 0, 512)
             .err()
-            == Some(LoadSeqStateError::FailedToLoad)
+            == Some(ContextStateError::SeqStateFileNotLoaded)
     );
 
     Ok(())
@@ -265,7 +262,7 @@ fn state_save_file_to_invalid_directory_returns_failed_to_save(
 
     ensure!(
         context.state_save_file("/nonexistent_dir/session.bin", &[])
-            == Err(SaveSessionError::FailedToSave)
+            == Err(ContextStateError::SessionFileNotSaved)
     );
 
     Ok(())
@@ -310,7 +307,7 @@ fn state_seq_save_file_to_invalid_directory_returns_failed_to_save(
 
     ensure!(
         context.state_seq_save_file("/nonexistent_dir/seq_state.bin", 0, &[])
-            == Err(SaveSeqStateError::FailedToSave)
+            == Err(ContextStateError::SeqStateFileNotSaved)
     );
 
     Ok(())

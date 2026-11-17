@@ -2,10 +2,10 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::context_limits::ContextLimits;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -303,7 +303,7 @@ fn a_prompt_token_refused_by_a_full_batch_is_not_counted(
 
     assert_eq!(
         classifier.feed_prompt_to_batch(&mut batch, LlamaToken::new(0), 0, &[0], false),
-        Err(BatchAddError::BatchFull { n_batch: 0 })
+        Err(ContextError::BatchFull { n_batch: 0 })
     );
     assert_eq!(classifier.pending_prompt_tokens(), 0);
 }
@@ -329,7 +329,7 @@ fn a_prompt_sequence_refused_by_a_full_batch_is_not_counted(
 
     assert_eq!(
         classifier.feed_prompt_sequence_to_batch(&mut batch, &[LlamaToken::new(0)], 0, false),
-        Err(BatchAddError::BatchFull { n_batch: 0 })
+        Err(ContextError::BatchFull { n_batch: 0 })
     );
     assert_eq!(classifier.pending_prompt_tokens(), 0);
 }

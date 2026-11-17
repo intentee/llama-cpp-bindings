@@ -9,8 +9,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::llama_lora_adapters_error::LlamaLoraAdaptersError;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_model::model_error::ModelError;
@@ -111,7 +111,7 @@ fn setting_lora_adapters_reports_a_status_llama_cpp_returns(
         context.set_lora_adapters(&[LoraAdapterScale {
             adapter: &adapter,
             scale: 1.0,
-        }]) == Err(LlamaLoraAdaptersError::ErrorResult(-1))
+        }]) == Err(ContextError::SetLoraAdaptersFailed(-1))
     );
 
     Ok(())

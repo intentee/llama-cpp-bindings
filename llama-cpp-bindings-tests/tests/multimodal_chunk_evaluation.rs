@@ -3,12 +3,8 @@ use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
-use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
@@ -26,6 +22,9 @@ use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_s
 use llama_cpp_bindings_tests::prime_memory_with::prime_memory_with;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_prompt_with_synthetic_image;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_context_memory::context_memory::ContextMemory;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_ffi_status::ffi_error::FfiError;
@@ -470,10 +469,10 @@ fn eval_chunks_rejects_a_sequence_the_context_does_not_have_instead_of_aborting(
 
     ensure!(
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, missing_sequence, n_batch, true)
-            == Err(MtmdEvalError::SequenceIdOutOfRange(SequenceIdOutOfRange {
+            == Err(MtmdEvalError::SequenceIdOutOfRange {
                 seq_id: missing_sequence,
                 n_seq_max,
-            }))
+            })
     );
     ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
@@ -720,7 +719,7 @@ fn gemma3_decoding_follows_the_causal_attention_the_mtmd_helper_leaves_on_the_co
         .len()
         .checked_sub(1)
         .context("`tokens.len() - 1` must not overflow")?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_ctx));
+    let mut batch = LlamaBatch::new(llama_ctx.limits());
 
     for (index, token) in tokens.iter().enumerate() {
         batch.add(

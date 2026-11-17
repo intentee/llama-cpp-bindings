@@ -3,16 +3,15 @@ use anyhow::Result;
 use anyhow::ensure;
 use std::ffi::CString;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::grammar_error::GrammarError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_model::add_bos::AddBos;
@@ -71,7 +70,7 @@ fn grammar_sampler_constrains_the_first_token_of_the_answer_to_yes(
 
     let prompt = "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&tokens, 0, false)?;
 
@@ -163,7 +162,7 @@ fn grammar_constrained_chat_answer_is_yes_content_that_ends_generation(
 
     let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", &[])?;
     let tokens = session.tokenize_prompt(model)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
@@ -256,7 +255,7 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
         AddBos::Never,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&prompt_tokens, 0, false)?;
     context.decode(&batch)?;

@@ -2,9 +2,8 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::llama_token_data::LlamaTokenData;
@@ -41,7 +40,7 @@ fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
             .checked_sub(1)
             .context("`tokens.len() - 1` must not overflow")?,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
@@ -74,7 +73,7 @@ fn qwen35_refilled_candidate_array_matches_a_freshly_built_one(
         (*context_params).into_llama_context_params(),
     )?;
     let prompt_tokens = model.str_to_token("Hello", AddBos::Never, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&prompt_tokens, 0, false)?;
     context.decode(&batch)?;

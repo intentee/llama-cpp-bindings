@@ -1,11 +1,11 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::logits_error::LogitsError;
 use llama_cpp_bindings::error::sample_error::SampleError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
+use llama_cpp_context::context_error::ContextError;
 use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -29,7 +29,7 @@ fn sampling_after_a_pooled_embeddings_decode_is_refused_instead_of_aborting(
     ensure!(
         sampler.sample(&context, -1)
             == Err(SampleError::Logits(
-                LogitsError::PooledEmbeddingsProduceNoLogits {
+                ContextError::PooledEmbeddingsProduceNoLogits {
                     pooling_type: LlamaPoolingType::Mean,
                 }
             ))
@@ -52,7 +52,7 @@ fn a_model_whose_embeddings_graph_has_no_logits_head_produces_no_logits(
 ) -> Result<()> {
     let context = context_after_decoding_text(fixture, LlamaPoolingType::None)?;
 
-    ensure!(context.get_logits_ith(-1) == Err(LogitsError::GraphProducesNoLogits));
+    ensure!(context.get_logits_ith(-1) == Err(ContextError::GraphProducesNoLogits));
 
     Ok(())
 }
@@ -80,7 +80,7 @@ fn every_logits_accessor_refuses_a_pooled_embeddings_decode(
                 .fill_token_data_array_ith(-1, &mut LlamaTokenDataArray::new(Vec::new(), false))
                 .err(),
         ] == [(); 4].map(|()| {
-            Some(LogitsError::PooledEmbeddingsProduceNoLogits {
+            Some(ContextError::PooledEmbeddingsProduceNoLogits {
                 pooling_type: LlamaPoolingType::Mean,
             })
         })
@@ -109,7 +109,7 @@ fn classified_sampling_after_a_pooled_embeddings_decode_is_refused(
             .sample(&mut LlamaSampler::greedy()?, &context, -1, &mut Vec::new())
             .err()
             == Some(SampleError::Logits(
-                LogitsError::PooledEmbeddingsProduceNoLogits {
+                ContextError::PooledEmbeddingsProduceNoLogits {
                     pooling_type: LlamaPoolingType::Mean,
                 }
             ))

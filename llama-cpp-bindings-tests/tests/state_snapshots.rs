@@ -1,10 +1,10 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::context::llama_state_seq_flags::LlamaStateSeqFlags;
-use llama_cpp_bindings::context::state_data_error::StateDataError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context_state::context_state::ContextState;
+use llama_cpp_context_state::context_state_error::ContextStateError;
+use llama_cpp_context_state::llama_state_seq_flags::LlamaStateSeqFlags;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -89,7 +89,7 @@ fn state_set_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
@@ -99,7 +99,7 @@ fn state_set_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
 
     ensure!(
         unsafe { context.state_set_data(&state_data) }
-            == Err(StateDataError::NothingRestored {
+            == Err(ContextStateError::StateDataNothingRestored {
                 provided_bytes: state_data.len(),
             }),
         "a truncated snapshot restores nothing, and that must not be reported as success"
@@ -125,7 +125,7 @@ fn state_set_data_consumes_exactly_the_bytes_state_get_data_wrote(
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
@@ -184,19 +184,19 @@ fn state_seq_set_data_ext_consumes_exactly_the_bytes_state_seq_get_data_ext_wrot
         fixture
             .model
             .str_to_token("Hello world", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     let flags = LlamaStateSeqFlags::empty();
-    let size = context.state_seq_get_size_ext(0, &flags);
+    let size = context.state_seq_get_size_ext(0, flags);
     let mut buffer = vec![0u8; size];
-    let bytes_written = unsafe { context.state_seq_get_data_ext(&mut buffer, 0, &flags) }?;
+    let bytes_written = unsafe { context.state_seq_get_data_ext(&mut buffer, 0, flags) }?;
 
     ensure!(bytes_written > 0);
     ensure!(bytes_written == size);
 
-    let bytes_read = unsafe { context.state_seq_set_data_ext(&buffer, 0, &flags) }?;
+    let bytes_read = unsafe { context.state_seq_set_data_ext(&buffer, 0, flags) }?;
 
     ensure!(
         bytes_read == bytes_written,
