@@ -3,6 +3,7 @@
 #include "wrapper_report_current_exception.h"
 
 #include <llama.h>
+#include <src/llama-ext.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -44,6 +45,16 @@ extern "C" auto llama_rs_batch_ext_init(
 }
 
 namespace {
+
+static_assert(static_cast<int>(LLAMA_RS_DECISION_ORDER_NONE) == static_cast<int>(LLAMA_DECISION_ORDER_NONE));
+static_assert(
+    static_cast<int>(LLAMA_RS_DECISION_ORDER_QUESTION_NOUL) == static_cast<int>(LLAMA_DECISION_ORDER_QUESTION_NOUL));
+static_assert(
+    static_cast<int>(LLAMA_RS_DECISION_ORDER_QUESTION_CHOICE) ==
+    static_cast<int>(LLAMA_DECISION_ORDER_QUESTION_CHOICE));
+static_assert(
+    static_cast<int>(LLAMA_RS_DECISION_ORDER_QUESTION_SCORE) == static_cast<int>(LLAMA_DECISION_ORDER_QUESTION_SCORE));
+static_assert(static_cast<int>(LLAMA_RS_DECISION_ORDER_OPTION) == static_cast<int>(LLAMA_DECISION_ORDER_OPTION));
 
 auto add_entry(
     struct llama_batch_ext * batch,
@@ -87,6 +98,10 @@ auto add_entry(
 
     if (!llama_batch_ext_set_output_logits(batch, index, entry.output)) {
         return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED;
+    }
+
+    if (!llama_batch_ext_set_decision_order(batch, index, static_cast<llama_decision_order>(entry.decision_order))) {
+        return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_DECISION_ORDER_REJECTED;
     }
 
     return LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OK;

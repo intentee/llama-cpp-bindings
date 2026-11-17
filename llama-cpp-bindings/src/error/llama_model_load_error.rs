@@ -5,6 +5,8 @@ use llama_cpp_ffi_status::cpp_string_error::CppStringError;
 use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
 use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
 
+use crate::error::path_c_string_error::PathCStringError;
+
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LlamaModelLoadError {
     #[error(transparent)]
@@ -27,4 +29,13 @@ pub enum LlamaModelLoadError {
     LlamaCppOutOfMemory,
     #[error("{message}")]
     Reported { message: String },
+}
+
+impl From<PathCStringError> for LlamaModelLoadError {
+    fn from(error: PathCStringError) -> Self {
+        match error {
+            PathCStringError::NotUtf8(path) => Self::PathToStrError(path),
+            PathCStringError::ContainsNulByte(nul_error) => Self::NullError(nul_error),
+        }
+    }
 }

@@ -9,6 +9,7 @@ pub mod context_after_decoding_text;
 pub mod evaluated_multimodal_usage;
 pub mod fixtures_dir;
 pub mod get_weather_tools;
+pub mod highest_score_index;
 pub mod ingested_generation;
 pub mod logits_left_by;
 pub mod media_question_chat_session;

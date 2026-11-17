@@ -9,6 +9,7 @@ use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::batch_add_error::BatchAddError;
 use crate::context::context_limits::ContextLimits;
+use crate::decision_order::DecisionOrder;
 use crate::error::batch_transfer_error::BatchTransferError;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
@@ -65,6 +66,9 @@ fn batch_ext_assign_entries_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED => {
             refused_validated_entry("refused the output flag of an entry it had just added")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_DECISION_ORDER_REJECTED => {
+            refused_validated_entry("refused the decision order of an entry it had just added")
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_EMPTY_SEQ_IDS => {
             refused_validated_entry("was given an entry without sequence ids")
@@ -174,8 +178,32 @@ impl LlamaBatch {
             seq_ids_offset: self.seq_ids.len(),
             seq_ids_count: seq_ids.len(),
             output: logits,
+            decision_order: DecisionOrder::None.to_raw(),
         });
         self.seq_ids.extend_from_slice(seq_ids);
+
+        Ok(())
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`BatchAddError::TokenIndexOutsideBatch`] when the batch holds no token at
+    /// `token_index`.
+    pub fn set_decision_order(
+        &mut self,
+        token_index: i32,
+        decision_order: DecisionOrder,
+    ) -> Result<(), BatchAddError> {
+        let n_tokens = self.n_tokens;
+        let entry = usize::try_from(token_index)
+            .ok()
+            .and_then(|entry_index| self.entries.get_mut(entry_index))
+            .ok_or(BatchAddError::TokenIndexOutsideBatch {
+                token_index,
+                n_tokens,
+            })?;
+
+        entry.decision_order = decision_order.to_raw();
 
         Ok(())
     }
@@ -258,6 +286,7 @@ mod tests {
     use super::LlamaBatch;
     use crate::batch_add_error::BatchAddError;
     use crate::context::context_limits::ContextLimits;
+    use crate::decision_order::DecisionOrder;
     use crate::error::sequence_id_out_of_range::SequenceIdOutOfRange;
     use crate::error::token_outside_vocabulary::TokenOutsideVocabulary;
     use crate::sampled_token::SampledToken;
@@ -306,6 +335,7 @@ mod tests {
                     seq_ids_offset: 0,
                     seq_ids_count: 1,
                     output: false,
+                    decision_order: llama_cpp_bindings_sys::LLAMA_RS_DECISION_ORDER_NONE,
                 },
                 llama_rs_batch_entry {
                     token: 2,
@@ -313,12 +343,51 @@ mod tests {
                     seq_ids_offset: 1,
                     seq_ids_count: 2,
                     output: true,
+                    decision_order: llama_cpp_bindings_sys::LLAMA_RS_DECISION_ORDER_NONE,
                 },
             ]
         );
         assert_eq!(batch.seq_ids, [0, 0, 1]);
         assert_eq!(batch.output_token_indices(), [1]);
         assert_eq!(batch.n_tokens(), 2);
+    }
+
+    #[test]
+    fn a_decision_order_is_kept_on_the_token_it_marks_only() {
+        let mut batch = LlamaBatch::new(LIMITS);
+        batch
+            .add_sequence(&[1, 2].map(LlamaToken::new), 0, false)
+            .unwrap();
+
+        batch.set_decision_order(1, DecisionOrder::Option).unwrap();
+
+        assert_eq!(
+            batch
+                .entries
+                .iter()
+                .map(|entry| entry.decision_order)
+                .collect::<Vec<_>>(),
+            [
+                llama_cpp_bindings_sys::LLAMA_RS_DECISION_ORDER_NONE,
+                llama_cpp_bindings_sys::LLAMA_RS_DECISION_ORDER_OPTION,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_decision_order_for_a_token_the_batch_does_not_hold_is_refused() {
+        let mut batch = LlamaBatch::new(LIMITS);
+        batch.add(&content(1), 0, &[0], false).unwrap();
+
+        assert_eq!(
+            [-1, 1]
+                .map(|token_index| batch
+                    .set_decision_order(token_index, DecisionOrder::QuestionChoice)),
+            [-1, 1].map(|token_index| Err(BatchAddError::TokenIndexOutsideBatch {
+                token_index,
+                n_tokens: 1,
+            }))
+        );
     }
 
     #[test]
@@ -400,6 +469,7 @@ mod tests {
                 seq_ids_offset: 2,
                 seq_ids_count: 1,
                 output: true,
+                decision_order: llama_cpp_bindings_sys::LLAMA_RS_DECISION_ORDER_NONE,
             })
         );
     }
@@ -461,6 +531,10 @@ mod batch_ext_assign_entries_status_to_result_tests {
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED,
                 "refused the output flag of an entry it had just added",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_DECISION_ORDER_REJECTED,
+                "refused the decision order of an entry it had just added",
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_EMPTY_SEQ_IDS,

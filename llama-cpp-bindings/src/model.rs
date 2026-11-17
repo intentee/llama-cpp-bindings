@@ -1,4 +1,5 @@
 pub mod add_bos;
+pub mod decision_type;
 pub mod llama_chat_template;
 pub mod llama_lazy_mode;
 pub mod llama_lazy_mode_parse_error;
@@ -45,6 +46,8 @@ use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 use crate::chat_templates::ChatTemplates;
 use crate::error::chat_template_error::ChatTemplateError;
 use crate::error::chat_templates_error::ChatTemplatesError;
+use crate::error::decision_labels_error::DecisionLabelsError;
+use crate::error::decision_type_error::DecisionTypeError;
 use crate::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
 use crate::error::llama_model_load_error::LlamaModelLoadError;
 use crate::error::meta_val_error::MetaValError;
@@ -56,6 +59,7 @@ use crate::error::unknown_rope_type::UnknownRopeType;
 use crate::llama_backend::LlamaBackend;
 use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::model::add_bos::AddBos;
+use crate::model::decision_type::DecisionType;
 use crate::model::llama_chat_template::LlamaChatTemplate;
 use crate::model::llama_lora_adapter::LlamaLoraAdapter;
 use crate::model::parse_special_tokens::ParseSpecialTokens;
@@ -65,6 +69,7 @@ use crate::model::tokenizer_input::TokenizerInput;
 use crate::model::vocab_type::VocabType;
 use crate::model::vocab_type_from_int_error::VocabTypeFromIntError;
 use crate::model::vocabulary_token::VocabularyToken;
+use crate::path_c_string::path_c_string;
 use crate::sampled_token::SampledToken;
 use crate::token::LlamaToken;
 
@@ -214,6 +219,85 @@ unsafe fn load_model_from_file_status_to_result(
     }
 }
 
+/// # Safety
+///
+/// `out_error` must be the pointer populated by the preceding `llama_rs_model_decision_type` call
+/// (or null); it is read and freed only in the CXX-exception arm.
+unsafe fn model_decision_type_status_to_result(
+    status: llama_cpp_bindings_sys::llama_rs_model_decision_type_status,
+    out_decision_type: llama_cpp_bindings_sys::llama_rs_decision_type,
+    out_error: *mut c_char,
+) -> Result<DecisionType, DecisionTypeError> {
+    let contract_violation = |detail: &'static str| -> Result<DecisionType, DecisionTypeError> {
+        Err(FfiContractError {
+            operation: "llama_rs_model_decision_type",
+            detail,
+        }
+        .into())
+    };
+
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_OK => {
+            Ok(DecisionType::try_from(out_decision_type)?)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(DecisionTypeError::NotEnoughMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(DecisionTypeError::LlamaCppOutOfMemory)
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe {
+                read_and_free_cpp_string(
+                    out_error,
+                    "llama_rs_model_decision_type",
+                    "reported a thrown C++ exception without an error message",
+                )
+            }?;
+            Err(DecisionTypeError::Reported { message })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_MODEL_ARG => {
+            contract_violation("was given a null model argument")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_DECISION_TYPE_ARG => {
+            contract_violation("was given a null out_decision_type argument")
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_ERROR_ARG => {
+            contract_violation("was given a null out_error argument")
+        }
+        other => Err(FfiStatusError {
+            operation: "llama_rs_model_decision_type",
+            code: i64::from(other),
+        }
+        .into()),
+    }
+}
+
+/// # Safety
+///
+/// Every non-null pointer `read_label` returns must point to a null-terminated C string that
+/// stays valid until this function returns.
+unsafe fn collect_decision_labels(
+    read_label: impl Fn(u32) -> *const c_char,
+) -> Result<Vec<String>, DecisionLabelsError> {
+    (0..=u32::MAX)
+        .map_while(|index| {
+            let label = read_label(index);
+
+            if label.is_null() {
+                return None;
+            }
+
+            Some(
+                unsafe { CStr::from_ptr(label) }
+                    .to_str()
+                    .map(str::to_owned)
+                    .map_err(|source| DecisionLabelsError::LabelNotUtf8 { index, source }),
+            )
+        })
+        .collect()
+}
+
 impl LlamaModel {
     fn require_vocabulary_token(
         &self,
@@ -293,6 +377,21 @@ impl LlamaModel {
     #[must_use]
     pub fn token_sep(&self) -> Option<LlamaToken> {
         present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_sep(self.vocab_ptr()) })
+    }
+
+    #[must_use]
+    pub fn token_mask(&self) -> Option<LlamaToken> {
+        present_special_token(unsafe { llama_cpp_bindings_sys::llama_vocab_mask(self.vocab_ptr()) })
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`TokenOutsideVocabulary`] when the token is not part of this model's vocabulary.
+    pub fn token_text_bytes(&self, token: LlamaToken) -> Result<Vec<u8>, TokenOutsideVocabulary> {
+        let LlamaToken(id) = self.require_vocabulary_token(token)?;
+        let text = unsafe { llama_cpp_bindings_sys::llama_vocab_get_text(self.vocab_ptr(), id) };
+
+        Ok(unsafe { CStr::from_ptr(text) }.to_bytes().to_vec())
     }
 
     /// # Errors
@@ -574,6 +673,42 @@ impl LlamaModel {
 
     /// # Errors
     ///
+    /// Returns [`DecisionTypeError`] when the wrapper fails or reports a decision type it does
+    /// not define.
+    pub fn decision_type(&self) -> Result<DecisionType, DecisionTypeError> {
+        let mut out_decision_type = llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE;
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::llama_rs_model_decision_type(
+                self.model.as_ptr(),
+                &raw mut out_decision_type,
+                &raw mut out_error,
+            )
+        };
+
+        unsafe { model_decision_type_status_to_result(status, out_decision_type, out_error) }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`DecisionLabelsError::LabelNotUtf8`] when a label is not valid UTF-8.
+    pub fn decision_labels(&self) -> Result<Vec<String>, DecisionLabelsError> {
+        unsafe {
+            collect_decision_labels(|index| {
+                llama_cpp_bindings_sys::llama_rs_model_decision_label(self.model.as_ptr(), index)
+            })
+        }
+    }
+
+    #[must_use]
+    pub fn classifier_free_guidance(&self) -> bool {
+        unsafe {
+            llama_cpp_bindings_sys::llama_rs_model_classifier_free_guidance(self.model.as_ptr())
+        }
+    }
+
+    /// # Errors
+    ///
     /// Returns [`ChatTemplateError::NullError`] when `name` contains a NUL byte, or
     /// [`ChatTemplateError::MissingTemplate`] when the model has no chat template by that name.
     pub fn chat_template(
@@ -608,11 +743,7 @@ impl LlamaModel {
         params: &LlamaModelParams,
     ) -> Result<Self, LlamaModelLoadError> {
         let path = path.as_ref();
-
-        let path_str = path
-            .to_str()
-            .ok_or_else(|| LlamaModelLoadError::PathToStrError(path.to_path_buf()))?;
-        let cstr = CString::new(path_str)?;
+        let cstr = path_c_string(path)?;
 
         if !path.exists() {
             return Err(LlamaModelLoadError::FileNotFound(path.to_path_buf()));
@@ -1354,6 +1485,192 @@ mod load_model_from_file_status_to_result_tests {
         assert_eq!(
             outcome.err(),
             Some(LlamaModelLoadError::LlamaCppOutOfMemory)
+        );
+    }
+}
+
+#[cfg(test)]
+mod model_decision_type_status_to_result_tests {
+    use std::ptr;
+
+    use llama_cpp_ffi_status::cpp_string_error::CppStringError;
+    use llama_cpp_ffi_status::ffi_contract_error::FfiContractError;
+    use llama_cpp_ffi_status::ffi_status_error::FfiStatusError;
+
+    use super::model_decision_type_status_to_result;
+    use crate::error::decision_type_error::DecisionTypeError;
+    use crate::error::unknown_decision_type::UnknownDecisionType;
+    use crate::model::decision_type::DecisionType;
+
+    const NOT_A_DECISION_MODEL: llama_cpp_bindings_sys::llama_rs_decision_type =
+        llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE;
+
+    #[test]
+    fn the_decision_type_the_wrapper_reports_is_returned() {
+        assert_eq!(
+            unsafe {
+                model_decision_type_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_OK,
+                    llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_KEV,
+                    ptr::null_mut(),
+                )
+            },
+            Ok(DecisionType::Kev)
+        );
+    }
+
+    #[test]
+    fn a_decision_type_the_wrapper_does_not_define_is_refused() {
+        assert_eq!(
+            unsafe {
+                model_decision_type_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_OK,
+                    9999,
+                    ptr::null_mut(),
+                )
+            },
+            Err(DecisionTypeError::UnknownDecisionType(UnknownDecisionType(
+                9999
+            )))
+        );
+    }
+
+    #[test]
+    fn reading_the_decision_type_reports_each_null_argument_as_a_contract_violation() {
+        for (status, detail) in [
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_MODEL_ARG,
+                "was given a null model argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_DECISION_TYPE_ARG,
+                "was given a null out_decision_type argument",
+            ),
+            (
+                llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_ERROR_ARG,
+                "was given a null out_error argument",
+            ),
+        ] {
+            assert_eq!(
+                unsafe {
+                    model_decision_type_status_to_result(
+                        status,
+                        NOT_A_DECISION_MODEL,
+                        ptr::null_mut(),
+                    )
+                },
+                Err(DecisionTypeError::FfiContract(FfiContractError {
+                    operation: "llama_rs_model_decision_type",
+                    detail,
+                }))
+            );
+        }
+    }
+
+    #[test]
+    fn reading_the_decision_type_reports_memory_exhaustion() {
+        assert_eq!(
+            [
+                llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_ERROR_STRING_ALLOCATION_FAILED,
+                llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_OUT_OF_MEMORY,
+            ]
+            .map(|status| unsafe {
+                model_decision_type_status_to_result(status, NOT_A_DECISION_MODEL, ptr::null_mut())
+            }),
+            [
+                Err(DecisionTypeError::NotEnoughMemory),
+                Err(DecisionTypeError::LlamaCppOutOfMemory),
+            ]
+        );
+    }
+
+    #[test]
+    fn reading_the_decision_type_reports_an_exception_message() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"metadata read threw".as_ptr()) };
+
+        assert_eq!(
+            unsafe {
+                model_decision_type_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    NOT_A_DECISION_MODEL,
+                    out_error,
+                )
+            },
+            Err(DecisionTypeError::Reported {
+                message: "metadata read threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn reading_the_decision_type_reports_an_exception_without_a_message_as_a_contract_violation() {
+        assert_eq!(
+            unsafe {
+                model_decision_type_status_to_result(
+                    llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    NOT_A_DECISION_MODEL,
+                    ptr::null_mut(),
+                )
+            },
+            Err(DecisionTypeError::CppString(CppStringError::Missing(
+                FfiContractError {
+                    operation: "llama_rs_model_decision_type",
+                    detail: "reported a thrown C++ exception without an error message",
+                }
+            )))
+        );
+    }
+
+    #[test]
+    fn reading_the_decision_type_preserves_an_unknown_status() {
+        assert_eq!(
+            unsafe {
+                model_decision_type_status_to_result(255, NOT_A_DECISION_MODEL, ptr::null_mut())
+            },
+            Err(DecisionTypeError::FfiStatus(FfiStatusError {
+                operation: "llama_rs_model_decision_type",
+                code: 255,
+            }))
+        );
+    }
+}
+
+#[cfg(test)]
+mod collect_decision_labels_tests {
+    use std::ffi::CStr;
+    use std::ffi::c_char;
+    use std::ptr;
+
+    use super::collect_decision_labels;
+    use crate::error::decision_labels_error::DecisionLabelsError;
+
+    fn label_at(labels: &[&CStr], index: u32) -> *const c_char {
+        labels
+            .get(index as usize)
+            .map_or(ptr::null(), |label| label.as_ptr())
+    }
+
+    #[test]
+    fn labels_are_read_in_order_until_the_first_missing_one() {
+        let labels = [c"yes", c"no"];
+
+        assert_eq!(
+            unsafe { collect_decision_labels(|index| label_at(&labels, index)) },
+            Ok(vec!["yes".to_owned(), "no".to_owned()])
+        );
+    }
+
+    #[test]
+    fn a_label_that_is_not_utf8_is_reported_with_its_index() {
+        let labels = [c"yes", c"\xff"];
+
+        assert_eq!(
+            unsafe { collect_decision_labels(|index| label_at(&labels, index)) },
+            Err(DecisionLabelsError::LabelNotUtf8 {
+                index: 1,
+                source: c"\xff".to_str().unwrap_err(),
+            })
         );
     }
 }

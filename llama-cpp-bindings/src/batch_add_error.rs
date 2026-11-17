@@ -13,4 +13,6 @@ pub enum BatchAddError {
     SequenceIdOutOfRange(#[from] SequenceIdOutOfRange),
     #[error("the batch already holds {n_tokens} tokens and one more would overflow i32")]
     TokenCountOverflow { n_tokens: i32 },
+    #[error("token index {token_index} is not one of the {n_tokens} tokens the batch holds")]
+    TokenIndexOutsideBatch { token_index: i32, n_tokens: i32 },
 }

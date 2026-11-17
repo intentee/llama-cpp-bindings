@@ -25,12 +25,21 @@ llama_rs_batch_ext_init_status llama_rs_batch_ext_init(
     struct llama_batch_ext ** out_batch,
     char ** out_error);
 
+typedef enum llama_rs_decision_order {
+    LLAMA_RS_DECISION_ORDER_NONE = 0,
+    LLAMA_RS_DECISION_ORDER_QUESTION_NOUL = 1,
+    LLAMA_RS_DECISION_ORDER_QUESTION_CHOICE = 2,
+    LLAMA_RS_DECISION_ORDER_QUESTION_SCORE = 3,
+    LLAMA_RS_DECISION_ORDER_OPTION = 4,
+} llama_rs_decision_order;
+
 typedef struct llama_rs_batch_entry {
     llama_token token;
     llama_pos pos;
     size_t seq_ids_offset;
     size_t seq_ids_count;
     bool output;
+    llama_rs_decision_order decision_order;
 } llama_rs_batch_entry;
 
 typedef enum llama_rs_batch_ext_assign_entries_status {
@@ -48,6 +57,7 @@ typedef enum llama_rs_batch_ext_assign_entries_status {
     LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_RETURNED_UNKNOWN_CODE,
     LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_POSITION_REJECTED,
     LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED,
+    LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_DECISION_ORDER_REJECTED,
     LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION,
