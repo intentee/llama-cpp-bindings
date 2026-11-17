@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
-use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_mtmd::mtmd_context::MtmdContext;
 
 use crate::context_params::ContextParams;
 

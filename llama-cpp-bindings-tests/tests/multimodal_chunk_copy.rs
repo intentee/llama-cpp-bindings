@@ -2,8 +2,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -36,7 +37,7 @@ fn copy_creates_owned_duplicate(
         add_special: true,
         parse_special: true,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     let copied = first_chunk.copy()?;
 

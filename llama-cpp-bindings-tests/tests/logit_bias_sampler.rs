@@ -1,9 +1,9 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

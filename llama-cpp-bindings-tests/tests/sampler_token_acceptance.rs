@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 

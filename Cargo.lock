@@ -1187,25 +1187,20 @@ dependencies = [
 name = "llama-cpp-bindings"
 version = "0.29.0"
 dependencies = [
- "anyhow",
  "encoding_rs",
- "enumflags2",
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
  "llama-cpp-context",
- "llama-cpp-error-recorder",
- "llama-cpp-fault-injection",
  "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
  "llama-cpp-model",
+ "llama-cpp-mtmd",
  "llama-cpp-params",
+ "llama-cpp-sampler",
  "llama-cpp-token-usage",
- "llama-cpp-wrapper-error-fixture",
- "llguidance",
  "serde_json",
  "thiserror",
- "toktrie",
 ]
 
 [[package]]
@@ -1249,7 +1244,9 @@ dependencies = [
  "llama-cpp-gbnf",
  "llama-cpp-gguf",
  "llama-cpp-model",
+ "llama-cpp-mtmd",
  "llama-cpp-params",
+ "llama-cpp-sampler",
  "llama-cpp-test-harness",
  "llama-cpp-test-harness-macros",
  "llama-cpp-test-model-provisioning",
@@ -1371,6 +1368,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "llama-cpp-mtmd"
+version = "0.29.0"
+dependencies = [
+ "enumflags2",
+ "llama-cpp-backend",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-context",
+ "llama-cpp-fault-injection",
+ "llama-cpp-ffi-status",
+ "llama-cpp-model",
+ "llama-cpp-wrapper-error-fixture",
+ "thiserror",
+]
+
+[[package]]
 name = "llama-cpp-params"
 version = "0.29.0"
 dependencies = [
@@ -1381,6 +1393,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "llama-cpp-sampler"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-context",
+ "llama-cpp-error-recorder",
+ "llama-cpp-fault-injection",
+ "llama-cpp-ffi-status",
+ "llama-cpp-gbnf",
+ "llama-cpp-model",
+ "llguidance",
+ "thiserror",
+ "toktrie",
+]
+
+[[package]]
 name = "llama-cpp-test-harness"
 version = "0.29.0"
 dependencies = [
@@ -1388,9 +1416,9 @@ dependencies = [
  "inventory",
  "libtest-mimic",
  "llama-cpp-backend",
- "llama-cpp-bindings",
  "llama-cpp-context",
  "llama-cpp-model",
+ "llama-cpp-mtmd",
  "llama-cpp-params",
  "llama-cpp-test-harness-macros",
  "llama-cpp-test-model-provisioning",
@@ -1412,8 +1440,8 @@ version = "0.29.0"
 dependencies = [
  "hf-hub",
  "llama-cpp-backend",
- "llama-cpp-bindings",
  "llama-cpp-model",
+ "llama-cpp-mtmd",
  "llama-cpp-params",
  "thiserror",
 ]

@@ -1,13 +1,14 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::sample_error::SampleError;
+use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+use llama_cpp_sampler::sampler_error::SamplerError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -28,7 +29,7 @@ fn sampling_after_a_pooled_embeddings_decode_is_refused_instead_of_aborting(
 
     ensure!(
         sampler.sample(&context, -1)
-            == Err(SampleError::Logits(
+            == Err(SamplerError::Logits(
                 ContextError::PooledEmbeddingsProduceNoLogits {
                     pooling_type: LlamaPoolingType::Mean,
                 }
@@ -108,11 +109,11 @@ fn classified_sampling_after_a_pooled_embeddings_decode_is_refused(
         classifier
             .sample(&mut LlamaSampler::greedy()?, &context, -1, &mut Vec::new())
             .err()
-            == Some(SampleError::Logits(
+            == Some(LlamaCppError::Sampler(SamplerError::Logits(
                 ContextError::PooledEmbeddingsProduceNoLogits {
                     pooling_type: LlamaPoolingType::Mean,
                 }
-            ))
+            )))
     );
 
     Ok(())

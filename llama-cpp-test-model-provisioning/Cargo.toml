@@ -12,8 +12,8 @@ doctest = false
 [dependencies]
 hf-hub = { workspace = true }
 llama-cpp-backend = { workspace = true }
-llama-cpp-bindings = { workspace = true }
 llama-cpp-model = { workspace = true }
+llama-cpp-mtmd = { workspace = true }
 llama-cpp-params = { workspace = true }
 thiserror = { workspace = true }
 

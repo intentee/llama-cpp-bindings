@@ -4,8 +4,8 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::sampling_error::SamplingError;
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+use llama_cpp_sampler::sampler_error::SamplerError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -43,7 +43,7 @@ fn dry_sampler_refuses_a_sequence_breaker_with_a_nul_byte(
 
     ensure!(
         result.err()
-            == Some(SamplingError::DrySequenceBreakerContainsNul {
+            == Some(SamplerError::DrySequenceBreakerContainsNul {
                 index: 0,
                 source: CString::new(&b"hello\0world"[..])
                     .err()

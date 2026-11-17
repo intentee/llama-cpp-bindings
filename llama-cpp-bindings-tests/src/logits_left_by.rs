@@ -1,10 +1,10 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::llama_token_data::LlamaTokenData;
 use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
 /// # Errors
 /// Fails when `sampler` cannot be applied to the candidates.

@@ -9,6 +9,13 @@ use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
+use llama_cpp_mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
+use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
+use llama_cpp_mtmd::mtmd_context::MtmdContext;
+use llama_cpp_mtmd::mtmd_eval_limits::MtmdEvalLimits;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_token_usage::token_usage::TokenUsage;
 use llama_cpp_token_usage::token_usage_error::TokenUsageError;
 
@@ -21,19 +28,12 @@ use crate::chat_session_attribution::ChatSessionAttribution;
 use crate::classified_sample::ClassifiedSample;
 use crate::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use crate::error::ingest_error::IngestError;
+use crate::error::llama_cpp_error::LlamaCppError;
 use crate::error::parse_chat_message_error::ParseChatMessageError;
-use crate::error::sample_error::SampleError;
 use crate::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use crate::generation_progress::GenerationProgress;
 use crate::ingest_outcome::IngestOutcome;
-use crate::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
-use crate::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
-use crate::mtmd::mtmd_context::MtmdContext;
-use crate::mtmd::mtmd_eval_limits::MtmdEvalLimits;
-use crate::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use crate::mtmd::mtmd_input_chunks::MtmdInputChunks;
 use crate::pending_chat_piece::PendingChatPiece;
-use crate::sampling::LlamaSampler;
 use crate::token_attribution::TokenAttribution;
 use crate::token_piece::TokenPiece;
 
@@ -337,7 +337,7 @@ impl<'model> SampledTokenClassifier<'model> {
         context: &LlamaContext,
         idx: i32,
         outcomes: &mut Vec<IngestOutcome>,
-    ) -> Result<ClassifiedSample, SampleError> {
+    ) -> Result<ClassifiedSample, LlamaCppError> {
         let token = sampler.sample(context, idx)?;
         let progress = self.ingest(token, outcomes)?;
 

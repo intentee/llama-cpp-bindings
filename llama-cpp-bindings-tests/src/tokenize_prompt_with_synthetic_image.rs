@@ -1,9 +1,9 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 
 const SYNTHETIC_IMAGE_BYTES: usize = 64 * 64 * 3;
@@ -28,7 +28,6 @@ pub fn tokenize_prompt_with_synthetic_image(
         parse_special: true,
     };
 
-    mtmd_ctx
-        .tokenize(input_text, &[&bitmap])
+    MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])
         .context("the prompt and image must tokenize")
 }

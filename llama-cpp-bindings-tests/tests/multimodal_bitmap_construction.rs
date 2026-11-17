@@ -5,9 +5,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_bitmap_error::MtmdBitmapError;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_error::MtmdError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -76,7 +76,7 @@ fn from_file_refuses_a_path_with_a_nul_byte(
         MtmdBitmap::from_file(mtmd_ctx, "path\0null").err()
             == CString::new("path\0null")
                 .err()
-                .map(MtmdBitmapError::CStringError)
+                .map(MtmdError::BitmapPathContainsNul)
     );
 
     Ok(())

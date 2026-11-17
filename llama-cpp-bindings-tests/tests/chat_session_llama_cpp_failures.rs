@@ -7,14 +7,13 @@ use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::error::grammar_error::GrammarError;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
-use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_model::model_error::ModelError;
+use llama_cpp_sampler::sampler_error::SamplerError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -169,7 +168,7 @@ fn the_grammar_sampler_reports_a_grammar_llama_cpp_cannot_load(
     ensure!(!session.grammar_is_lazy());
     ensure!(
         session.grammar_sampler(model).err()
-            == Some(ChatSessionError::Grammar(GrammarError::Reported {
+            == Some(ChatSessionError::Grammar(SamplerError::GrammarReported {
                 message: injected_fault_message()?,
             }))
     );
@@ -195,7 +194,7 @@ fn the_grammar_sampler_reports_a_generation_prompt_token_the_grammar_cannot_acce
     ensure!(
         session.grammar_sampler(model).err()
             == Some(ChatSessionError::GrammarPrefill(
-                SamplerAcceptError::GrammarStateCorrupted {
+                SamplerError::GrammarStateCorrupted {
                     message: injected_fault_message()?,
                 }
             ))
@@ -221,7 +220,7 @@ fn the_grammar_sampler_reports_a_trigger_word_llama_cpp_cannot_escape(
     ensure!(session.grammar_is_lazy());
     ensure!(
         session.grammar_sampler(model).err()
-            == Some(ChatSessionError::Grammar(GrammarError::Reported {
+            == Some(ChatSessionError::Grammar(SamplerError::GrammarReported {
                 message: injected_fault_message()?,
             }))
     );
@@ -247,7 +246,7 @@ fn the_grammar_sampler_reports_a_lazy_grammar_llama_cpp_cannot_load(
 
     ensure!(
         session.grammar_sampler(model).err()
-            == Some(ChatSessionError::Grammar(GrammarError::Reported {
+            == Some(ChatSessionError::Grammar(SamplerError::GrammarReported {
                 message: injected_fault_message()?,
             }))
     );

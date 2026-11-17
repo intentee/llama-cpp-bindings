@@ -3,9 +3,7 @@ use anyhow::Result;
 use anyhow::ensure;
 use std::ffi::CString;
 
-use llama_cpp_bindings::error::grammar_error::GrammarError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
@@ -17,6 +15,8 @@ use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+use llama_cpp_sampler::sampler_error::SamplerError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -291,7 +291,7 @@ fn qwen35_grammar_without_its_root_reports_the_missing_root(
 ) {
     assert_eq!(
         LlamaSampler::grammar(model, r#"answer ::= <think> "x""#, "root").err(),
-        Some(GrammarError::RootNotFound)
+        Some(SamplerError::RootNotFound)
     );
 }
 
@@ -306,7 +306,7 @@ fn qwen35_grammar_without_its_root_reports_the_missing_root(
 fn qwen35_grammar_with_a_syntax_error_reports_it(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert_eq!(
         LlamaSampler::grammar(model, "root ::= (<think>", "root").err(),
-        Some(GrammarError::GrammarRejected(GbnfError::SyntaxError))
+        Some(SamplerError::GrammarRejected(GbnfError::SyntaxError))
     );
 }
 
@@ -323,7 +323,7 @@ fn a_grammar_with_a_nul_byte_is_refused(&LlamaFixture { model, .. }: &LlamaFixtu
         LlamaSampler::grammar(model, "root ::= \"a\0\"", "root").err(),
         CString::new("root ::= \"a\0\"")
             .err()
-            .map(GrammarError::GrammarContainsNul)
+            .map(SamplerError::GrammarContainsNul)
     );
 }
 
@@ -344,6 +344,6 @@ fn a_valid_grammar_llama_cpp_refuses_to_load_is_reported_malformed(
 
     assert_eq!(
         LlamaSampler::grammar(model, "root ::= \"a\"", "root").err(),
-        Some(GrammarError::GrammarMalformed)
+        Some(SamplerError::GrammarMalformed)
     );
 }

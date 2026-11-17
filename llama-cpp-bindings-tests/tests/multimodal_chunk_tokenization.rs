@@ -3,17 +3,16 @@ use anyhow::Result;
 use anyhow::ensure;
 use std::ffi::CString;
 
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk::MtmdInputChunk;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
-use llama_cpp_bindings::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
-use llama_cpp_bindings::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
 use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_prompt_with_synthetic_image;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_error::MtmdError;
+use llama_cpp_mtmd::mtmd_input_chunk::MtmdInputChunk;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -238,7 +237,7 @@ fn tokenizing_text_with_an_image_produces_chunks(
         add_special: true,
         parse_special: true,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
 
     ensure!(!chunks.is_empty());
     ensure!(chunks.total_tokens() > 0);
@@ -276,8 +275,8 @@ fn tokenizing_more_bitmaps_than_media_markers_reports_a_tokenization_failure(
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
 
     ensure!(
-        mtmd_ctx.tokenize(input_text, &[&bitmap]).err()
-            == Some(MtmdTokenizeError::MediaPreprocessingOrTokenizationFailed)
+        MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap]).err()
+            == Some(MtmdError::MediaPreprocessingOrTokenizationFailed)
     );
     Ok(())
 }
@@ -311,10 +310,10 @@ fn tokenize_refuses_text_with_a_nul_byte(
     };
 
     ensure!(
-        mtmd_ctx.tokenize(input_text, &[]).err()
+        MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[]).err()
             == CString::new("text\0null")
                 .err()
-                .map(MtmdTokenizeError::CStringError)
+                .map(MtmdError::InputTextContainsNul)
     );
 
     Ok(())
@@ -337,21 +336,19 @@ fn tokenizing_reports_a_chunk_list_llama_cpp_cannot_allocate(
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS);
 
     ensure!(
-        mtmd_ctx
-            .tokenize(
-                MtmdInputText {
-                    text: "Hello".to_owned(),
-                    add_special: true,
-                    parse_special: true,
-                },
-                &[],
-            )
-            .err()
-            == Some(MtmdTokenizeError::InputChunksError(
-                MtmdInputChunksError::Reported {
-                    message: injected_fault_message()?,
-                }
-            ))
+        MtmdInputChunks::tokenize(
+            mtmd_ctx,
+            MtmdInputText {
+                text: "Hello".to_owned(),
+                add_special: true,
+                parse_special: true,
+            },
+            &[],
+        )
+        .err()
+            == Some(MtmdError::InputChunksReported {
+                message: injected_fault_message()?,
+            })
     );
 
     Ok(())

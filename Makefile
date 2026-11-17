@@ -89,7 +89,9 @@ coverage: node_modules
 		--gated llama-cpp-gguf=100 \
 		--gated llama-cpp-log-decoder=100 \
 		--gated llama-cpp-model=100 \
+		--gated llama-cpp-mtmd=100 \
 		--gated llama-cpp-params=100 \
+		--gated llama-cpp-sampler=100 \
 		--gated llama-cpp-test-harness=100 \
 		--gated llama-cpp-test-harness-macros=100 \
 		--gated llama-cpp-test-model-provisioning=100 \
@@ -146,6 +148,7 @@ test.unit: clippy
 		-p llama-cpp-bindings-build -p llama-cpp-bindings-types -p llama-cpp-capturing-logger \
 		-p llama-cpp-context -p llama-cpp-context-memory -p llama-cpp-context-state \
 		-p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf -p llama-cpp-gguf \
-		-p llama-cpp-log-decoder -p llama-cpp-model -p llama-cpp-params -p llama-cpp-token-usage \
+		-p llama-cpp-log-decoder -p llama-cpp-model -p llama-cpp-mtmd -p llama-cpp-params \
+		-p llama-cpp-sampler -p llama-cpp-token-usage \
 		-p llama-cpp-wrapper-sources \
 		$(DEVICE_FEATURE)

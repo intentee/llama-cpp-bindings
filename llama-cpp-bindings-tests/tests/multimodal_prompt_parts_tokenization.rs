@@ -3,19 +3,18 @@ use anyhow::Result;
 use anyhow::ensure;
 use std::ffi::CString;
 
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
-use llama_cpp_bindings::mtmd::mtmd_input_chunks_error::MtmdInputChunksError;
-use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
-use llama_cpp_bindings::mtmd::mtmd_input_text_part::MtmdInputTextPart;
-use llama_cpp_bindings::mtmd::mtmd_tokenize_error::MtmdTokenizeError;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_default_marker::mtmd_default_marker;
+use llama_cpp_mtmd::mtmd_error::MtmdError;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_part::MtmdInputPart;
+use llama_cpp_mtmd::mtmd_input_text_part::MtmdInputTextPart;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -59,7 +58,8 @@ fn only_bitmap_parts_become_image_chunks(
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
-    let chunks = mtmd_ctx.tokenize_from_parts(
+    let chunks = MtmdInputChunks::tokenize_from_parts(
+        mtmd_ctx,
         &[
             text_part(
                 &format!("What does {} mean? ", mtmd_default_marker()?),
@@ -107,7 +107,7 @@ fn a_media_marker_inside_a_text_part_tokenizes_as_plain_text(
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let marker = mtmd_default_marker()?;
-    let chunks = mtmd_ctx.tokenize_from_parts(&[text_part(marker, true)], false)?;
+    let chunks = MtmdInputChunks::tokenize_from_parts(mtmd_ctx, &[text_part(marker, true)], false)?;
 
     ensure!(
         tokens_of_text_chunks(&chunks)?
@@ -134,7 +134,8 @@ fn parse_special_applies_to_each_text_part_on_its_own(
     }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
-    let chunks = mtmd_ctx.tokenize_from_parts(
+    let chunks = MtmdInputChunks::tokenize_from_parts(
+        mtmd_ctx,
         &[
             text_part(SPECIAL_TOKEN_TEXT, true),
             text_part(SPECIAL_TOKEN_TEXT, false),
@@ -174,12 +175,15 @@ fn a_text_part_containing_a_nul_byte_is_rejected(
     let text_with_nul_byte = "before\0after";
 
     ensure!(
-        mtmd_ctx
-            .tokenize_from_parts(&[text_part(text_with_nul_byte, true)], false)
-            .err()
+        MtmdInputChunks::tokenize_from_parts(
+            mtmd_ctx,
+            &[text_part(text_with_nul_byte, true)],
+            false
+        )
+        .err()
             == CString::new(text_with_nul_byte)
                 .err()
-                .map(MtmdTokenizeError::CStringError)
+                .map(MtmdError::InputTextContainsNul)
     );
 
     Ok(())
@@ -202,14 +206,10 @@ fn tokenizing_parts_reports_a_chunk_list_llama_cpp_cannot_allocate(
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS);
 
     ensure!(
-        mtmd_ctx
-            .tokenize_from_parts(&[text_part("Hello", true)], true)
-            .err()
-            == Some(MtmdTokenizeError::InputChunksError(
-                MtmdInputChunksError::Reported {
-                    message: injected_fault_message()?,
-                }
-            ))
+        MtmdInputChunks::tokenize_from_parts(mtmd_ctx, &[text_part("Hello", true)], true).err()
+            == Some(MtmdError::InputChunksReported {
+                message: injected_fault_message()?,
+            })
     );
 
     Ok(())
@@ -233,10 +233,8 @@ fn tokenizing_parts_reports_a_tokenizer_llama_cpp_fails(
     );
 
     ensure!(
-        mtmd_ctx
-            .tokenize_from_parts(&[text_part("Hello", true)], true)
-            .err()
-            == Some(MtmdTokenizeError::Reported {
+        MtmdInputChunks::tokenize_from_parts(mtmd_ctx, &[text_part("Hello", true)], true).err()
+            == Some(MtmdError::TokenizeReported {
                 message: injected_fault_message()?,
             })
     );

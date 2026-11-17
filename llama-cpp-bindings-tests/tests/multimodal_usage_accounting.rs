@@ -3,18 +3,19 @@ use anyhow::Result;
 use anyhow::bail;
 
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
-use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsage;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
+use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_default_marker::mtmd_default_marker;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -44,7 +45,7 @@ fn build_multimodal_chunks_and_eval_into_usage(
         parse_special: true,
     };
 
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
     let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
 
     let mut context = LlamaContext::from_model(
@@ -211,7 +212,7 @@ fn text_chunk_records_prompt_tokens(
         (*context_params).into_llama_context_params(),
     )?;
     let fitted_chunks = FittedMtmdInputChunks::fit(
-        mtmd_ctx.tokenize(input_text, &[])?,
+        MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[])?,
         mtmd_ctx,
         llama_ctx.n_ubatch(),
     )?;
@@ -288,7 +289,7 @@ fn image_chunk_records_input_image_tokens_only(
         (*context_params).into_llama_context_params(),
     )?;
     let fitted_chunks = FittedMtmdInputChunks::fit(
-        mtmd_ctx.tokenize(input_text, &[&bitmap])?,
+        MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?,
         mtmd_ctx,
         llama_ctx.n_ubatch(),
     )?;

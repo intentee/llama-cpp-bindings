@@ -3,10 +3,10 @@ use std::ffi::CString;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::grammar_error::GrammarError;
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+use llama_cpp_sampler::sampler_error::SamplerError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -48,7 +48,7 @@ fn grammar_lazy_without_its_root_reports_the_missing_root(
     let patterns = vec!["function".to_owned()];
     let result = LlamaSampler::grammar_lazy(model, "expr ::= \"hello\"", "root", &patterns, &[]);
 
-    assert_eq!(result.err(), Some(GrammarError::RootNotFound));
+    assert_eq!(result.err(), Some(SamplerError::RootNotFound));
 }
 
 #[llama_test(
@@ -69,7 +69,7 @@ fn grammar_lazy_refuses_a_trigger_pattern_with_a_nul_byte(
         result.err(),
         CString::new("hel\0lo")
             .err()
-            .map(GrammarError::TriggerPatternContainsNul)
+            .map(SamplerError::TriggerPatternContainsNul)
     );
 }
 
@@ -117,7 +117,7 @@ fn grammar_lazy_refuses_a_grammar_with_a_nul_byte(&LlamaFixture { model, .. }: &
         result.err(),
         CString::new("root ::= \"hel\0lo\"")
             .err()
-            .map(GrammarError::GrammarContainsNul)
+            .map(SamplerError::GrammarContainsNul)
     );
 }
 
@@ -137,6 +137,6 @@ fn grammar_lazy_with_malformed_regex_returns_invalid_trigger_pattern(
 
     assert!(matches!(
         result,
-        Err(GrammarError::InvalidTriggerPattern { .. }),
+        Err(SamplerError::InvalidTriggerPattern { .. }),
     ));
 }

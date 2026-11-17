@@ -7,8 +7,8 @@ use anyhow::Result;
 use anyhow::ensure;
 
 use llama_cpp_backend::max_devices::max_devices;
-use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
-use llama_cpp_bindings::mtmd::mtmd_memory_usage::MtmdMemoryUsage;
+use llama_cpp_mtmd::mtmd_context_params::MtmdContextParams;
+use llama_cpp_mtmd::mtmd_memory_usage::MtmdMemoryUsage;
 use llama_cpp_params::fit_extra_model::FitExtraModel;
 use llama_cpp_params::llama_context_params::LlamaContextParams;
 use llama_cpp_params::llama_model_params::LlamaModelParams;

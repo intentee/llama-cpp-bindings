@@ -3,10 +3,11 @@ use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
 
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_capability::MtmdCapability;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_capability::MtmdCapability;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -41,13 +42,13 @@ fn qwen_image_chunks_decode_causally(
         add_special: true,
         parse_special: true,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
     for chunk_index in 0..chunks.len() {
         let chunk = chunks
             .get(chunk_index)
             .context(format!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
-            ensure!(!mtmd_ctx.decode_use_non_causal(&chunk));
+            ensure!(!chunk.decode_use_non_causal(mtmd_ctx));
 
             return Ok(());
         }

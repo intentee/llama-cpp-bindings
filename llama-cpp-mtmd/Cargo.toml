@@ -1,0 +1,26 @@
+[package]
+name = "llama-cpp-mtmd"
+description = "The llama.cpp multimodal projector: loading it, decoding media into bitmaps, tokenizing text and media into chunks, encoding and evaluating the chunks, and measuring the projector's memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+enumflags2 = { workspace = true }
+llama-cpp-backend = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-ffi-status = { workspace = true }
+llama-cpp-model = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-fault-injection = { workspace = true }
+llama-cpp-wrapper-error-fixture = { workspace = true }
+
+[lints]
+workspace = true

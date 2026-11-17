@@ -13,10 +13,12 @@ use llama_cpp_model::chat_templates::ChatTemplates;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_sampler::chat_grammar_trigger::ChatGrammarTrigger;
+use llama_cpp_sampler::lazy_grammar_triggers::LazyGrammarTriggers;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 
 use crate::chat_assistant_prefill::ChatAssistantPrefill;
 use crate::chat_assistant_turn::ChatAssistantTurn;
-use crate::chat_grammar_trigger::ChatGrammarTrigger;
 use crate::chat_output::ChatOutput;
 use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_prompt_part::ChatPromptPart;
@@ -25,8 +27,6 @@ use crate::chat_session_options::ChatSessionOptions;
 use crate::cpp_text_view::cpp_text_view;
 use crate::error::chat_session_error::ChatSessionError;
 use crate::error::parse_chat_message_error::ParseChatMessageError;
-use crate::lazy_grammar_triggers::LazyGrammarTriggers;
-use crate::sampling::LlamaSampler;
 
 const ASSISTANT_ROLE: &str = "assistant";
 const GRAMMAR_ROOT: &str = "root";
@@ -347,25 +347,24 @@ impl ChatSession {
         }
 
         if !self.grammar_is_lazy() {
-            let mut sampler = LlamaSampler::grammar(model, &grammar, GRAMMAR_ROOT)?;
+            let mut sampler = LlamaSampler::grammar(model, &grammar, GRAMMAR_ROOT)
+                .map_err(ChatSessionError::Grammar)?;
 
             for token in self.generation_prompt_tokens() {
-                sampler.accept(token)?;
+                sampler
+                    .accept(token)
+                    .map_err(ChatSessionError::GrammarPrefill)?;
             }
 
             return Ok(Some(sampler));
         }
 
         let LazyGrammarTriggers { patterns, tokens } =
-            LazyGrammarTriggers::of(self.grammar_triggers()?)?;
+            LazyGrammarTriggers::of(self.grammar_triggers()?).map_err(ChatSessionError::Grammar)?;
 
-        Ok(Some(LlamaSampler::grammar_lazy(
-            model,
-            &grammar,
-            GRAMMAR_ROOT,
-            &patterns,
-            &tokens,
-        )?))
+        LlamaSampler::grammar_lazy(model, &grammar, GRAMMAR_ROOT, &patterns, &tokens)
+            .map(Some)
+            .map_err(ChatSessionError::Grammar)
     }
 
     /// # Errors
@@ -429,7 +428,7 @@ impl ChatSession {
             .collect()
     }
 
-    /// The rendered prompt as one string, for [`crate::mtmd::mtmd_context::MtmdContext::tokenize`], which
+    /// The rendered prompt as one string, for `MtmdInputChunks::tokenize`, which
     /// finds the media markers in it the way llama-server hands a multimodal prompt to mtmd.
     ///
     /// # Errors

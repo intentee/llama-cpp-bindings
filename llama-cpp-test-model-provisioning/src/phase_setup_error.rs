@@ -1,8 +1,8 @@
 use hf_hub::api::sync::ApiError;
 use std::path::PathBuf;
 
-use llama_cpp_bindings::mtmd::mtmd_init_error::MtmdInitError;
 use llama_cpp_model::model_error::ModelError;
+use llama_cpp_mtmd::mtmd_error::MtmdError;
 
 use crate::gguf_source::GgufSource;
 use crate::phase_setup_failure_kind::PhaseSetupFailureKind;
@@ -33,7 +33,7 @@ pub enum PhaseSetupError {
     MmprojLoad {
         mmproj_path: PathBuf,
         #[source]
-        cause: MtmdInitError,
+        cause: MtmdError,
     },
 }
 

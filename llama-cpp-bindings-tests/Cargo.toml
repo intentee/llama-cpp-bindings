@@ -26,7 +26,9 @@ llama-cpp-ffi-status = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
 llama-cpp-gguf = { workspace = true }
 llama-cpp-model = { workspace = true }
+llama-cpp-mtmd = { workspace = true }
 llama-cpp-params = { workspace = true }
+llama-cpp-sampler = { workspace = true }
 llama-cpp-test-harness = { workspace = true }
 llama-cpp-test-harness-macros = { workspace = true }
 llama-cpp-test-model-provisioning = { workspace = true }

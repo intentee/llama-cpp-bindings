@@ -4,12 +4,13 @@ use anyhow::ensure;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -97,7 +98,8 @@ fn evaluated_media_chunks_count_every_token_the_mtmd_helper_decoded(
         .mtmd_context
         .context("mmproj_file declared in attribute")?;
     let bitmap = MtmdBitmap::from_image_data(64, 64, &[128_u8; 64 * 64 * 3])?;
-    let chunks = mtmd_ctx.tokenize(
+    let chunks = MtmdInputChunks::tokenize(
+        mtmd_ctx,
         MtmdInputText {
             text: "Describe: <__media__>".to_owned(),
             add_special: true,

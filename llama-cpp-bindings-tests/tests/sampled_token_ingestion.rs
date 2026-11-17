@@ -5,12 +5,11 @@ use anyhow::ensure;
 
 use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_bindings::error::ingest_error::IngestError;
+use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
 use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
-use llama_cpp_bindings::error::sample_error::SampleError;
 use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token_piece::TokenPiece;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
@@ -24,6 +23,7 @@ use llama_cpp_model::model_error::ModelError;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -337,7 +337,7 @@ fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>)
                 &mut Vec::new(),
             )
             .err()
-            == Some(SampleError::Ingest(failed_classification()?))
+            == Some(LlamaCppError::Ingest(failed_classification()?))
     );
 
     Ok(())

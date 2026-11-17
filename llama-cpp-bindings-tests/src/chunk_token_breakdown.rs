@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
 
 pub struct ChunkTokenBreakdown {
     pub text: u64,

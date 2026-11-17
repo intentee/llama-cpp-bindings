@@ -5,16 +5,6 @@ use anyhow::ensure;
 
 use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
-use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
-use llama_cpp_bindings::mtmd::mtmd_eval_error::MtmdEvalError;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type_error::MtmdInputChunkTypeError;
-use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
-use llama_cpp_bindings::mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
@@ -31,6 +21,15 @@ use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
+use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_context::MtmdContext;
+use llama_cpp_mtmd::mtmd_error::MtmdError;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
+use llama_cpp_mtmd::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 use llama_cpp_params::llama_attention_type::LlamaAttentionType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -105,7 +104,7 @@ fn eval_synthetic_bitmap(
         add_special: true,
         parse_special: true,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
     let n_positions = chunks.total_positions();
     let required_n_ctx = u32::try_from(
         n_positions
@@ -146,7 +145,8 @@ fn tokenize_question_about_llamas(
         .with_context(|| "image path is not valid UTF-8")?;
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, image_path_str)?;
 
-    Ok(mtmd_ctx.tokenize(
+    Ok(MtmdInputChunks::tokenize(
+        mtmd_ctx,
         MtmdInputText {
             text: media_question_chat_session(model, PROMPT_QUESTION)?.prompt()?,
             add_special: true,
@@ -202,7 +202,7 @@ fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
 
     ensure!(
         result
-            == Err(MtmdEvalError::BatchSizeExceedsContextLimit {
+            == Err(MtmdError::BatchSizeExceedsContextLimit {
                 requested: huge_batch,
                 context_max: llama_ctx.n_batch(),
             })
@@ -234,7 +234,7 @@ fn eval_chunks_reports_an_exception_llama_cpp_throws_while_evaluating_a_chunk(
 
     ensure!(
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true)
-            == Err(MtmdEvalError::Reported {
+            == Err(MtmdError::EvalReported {
                 message: injected_fault_message()?
             })
     );
@@ -270,7 +270,7 @@ fn eval_chunks_reports_a_chunk_llama_cpp_does_not_return_before_evaluating_any(
 
     ensure!(
         evaluation
-            == Err(MtmdEvalError::Ffi(FfiError::ContractViolated {
+            == Err(MtmdError::Ffi(FfiError::ContractViolated {
                 operation: "mtmd_input_chunks_get",
                 detail: "returned a null chunk within the chunk count",
             }))
@@ -311,7 +311,7 @@ fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
 
     ensure!(
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true)
-            == Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
+            == Err(MtmdError::NonPositiveBatchSize { requested: 0 })
     );
     ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
@@ -397,7 +397,7 @@ fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
 
     ensure!(
         first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true)
-            == Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
+            == Err(MtmdError::NonPositiveBatchSize { requested: 0 })
     );
     ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
@@ -436,7 +436,7 @@ fn eval_single_rejects_a_batch_larger_than_the_context_batch_before_evaluating(
 
     ensure!(
         first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, oversized_batch, true)
-            == Err(MtmdEvalError::BatchSizeExceedsContextLimit {
+            == Err(MtmdError::BatchSizeExceedsContextLimit {
                 requested: oversized_batch,
                 context_max,
             })
@@ -469,7 +469,7 @@ fn eval_chunks_rejects_a_sequence_the_context_does_not_have_instead_of_aborting(
 
     ensure!(
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, missing_sequence, n_batch, true)
-            == Err(MtmdEvalError::SequenceIdOutOfRange {
+            == Err(MtmdError::SequenceIdOutOfRange {
                 seq_id: missing_sequence,
                 n_seq_max,
             })
@@ -528,7 +528,7 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
             0,
             i32::try_from(smaller_micro_batch_tokens)?,
             true
-        ) == Err(MtmdEvalError::EvaluatedMicroBatchSmallerThanFitted {
+        ) == Err(MtmdError::EvaluatedMicroBatchSmallerThanFitted {
             evaluated_micro_batch_tokens: smaller_micro_batch_tokens,
             fitted_micro_batch_tokens,
         })
@@ -581,7 +581,7 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
             },
         ),
         Err(EvalMultimodalChunksError::EvalFailed(
-            MtmdEvalError::NonPositiveBatchSize { requested: 0 }
+            MtmdError::NonPositiveBatchSize { requested: 0 }
         ))
     ));
     ensure!(classifier.usage().prompt == 0);
@@ -630,7 +630,7 @@ fn eval_chunks_advances_past_every_position_of_a_standard_image(
         add_special: true,
         parse_special: true,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
     let n_positions = chunks.total_positions();
     let required_n_ctx = u32::try_from(
         n_positions
@@ -766,7 +766,7 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
 
     ensure!(
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true)
-            == Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
+            == Err(MtmdError::NonCausalChunkExceedsMicroBatch(
                 NonCausalChunkMicroBatchMismatch {
                     chunk_tokens: usize::try_from(image_tokens)?,
                     micro_batch_tokens,
@@ -806,7 +806,7 @@ fn gemma3_fitting_rejects_a_non_causal_image_larger_than_the_micro_batch(
 
     ensure!(
         image_chunk.fit_to_micro_batch(mtmd_ctx, llama_ctx.n_ubatch())
-            == Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
+            == Err(MtmdError::NonCausalChunkExceedsMicroBatch(
                 NonCausalChunkMicroBatchMismatch {
                     chunk_tokens: image_chunk.n_tokens(),
                     micro_batch_tokens: llama_ctx.n_ubatch(),
@@ -856,7 +856,7 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
     ensure!(matches!(
         evaluation,
         Err(EvalMultimodalChunksError::EvalFailed(
-            MtmdEvalError::NonCausalChunkExceedsMicroBatch(NonCausalChunkMicroBatchMismatch {
+            MtmdError::NonCausalChunkExceedsMicroBatch(NonCausalChunkMicroBatchMismatch {
                 micro_batch_tokens,
                 ..
             })
@@ -916,7 +916,7 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
             },
         ),
         Err(EvalMultimodalChunksError::EvalFailed(
-            MtmdEvalError::EvalFailed { code: 1 }
+            MtmdError::EvalFailed { code: 1 }
         ))
     ));
     ensure!(classifier.usage().input_image == 0);
@@ -951,7 +951,7 @@ fn eval_chunks_reports_an_image_the_context_has_no_room_left_for(
 
     ensure!(
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, primed_positions, 0, 256, true)
-            == Err(MtmdEvalError::EvalFailed { code: 1 })
+            == Err(MtmdError::EvalFailed { code: 1 })
     );
 
     Ok(())
@@ -977,7 +977,7 @@ fn fitting_reports_a_chunk_llama_cpp_does_not_return(fixture: &LlamaFixture<'_>)
 
     ensure!(
         chunks.fit_to_micro_batch(mtmd_ctx, 256)
-            == Err(MtmdEvalError::Ffi(FfiError::ContractViolated {
+            == Err(MtmdError::Ffi(FfiError::ContractViolated {
                 operation: "mtmd_input_chunks_get",
                 detail: "returned a null chunk within the chunk count",
             }))
@@ -1007,9 +1007,9 @@ fn fitting_reports_a_chunk_type_the_bindings_do_not_recognize(
 
     ensure!(
         chunks.fit_to_micro_batch(mtmd_ctx, 256)
-            == Err(MtmdEvalError::UnknownChunkType(MtmdInputChunkTypeError(
+            == Err(MtmdError::UnknownInputChunkType(
                 llama_cpp_bindings_sys::MTMD_INPUT_CHUNK_TYPE_COUNT
-            )))
+            ))
     );
 
     Ok(())

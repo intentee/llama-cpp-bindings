@@ -4,11 +4,6 @@ use anyhow::bail;
 use anyhow::ensure;
 use std::ffi::CStr;
 
-use llama_cpp_bindings::error::grammar_error::GrammarError;
-use llama_cpp_bindings::error::grammar_runtime_error::GrammarRuntimeError;
-use llama_cpp_bindings::error::sample_error::SampleError;
-use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_context::llama_batch::LlamaBatch;
@@ -21,6 +16,8 @@ use llama_cpp_model::model_error::ModelError;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+use llama_cpp_sampler::sampler_error::SamplerError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -31,7 +28,7 @@ const REGEX_GRAMMAR: &str = r"yes|no";
 const LARK_GRAMMAR: &str = r#"start: "yes" | "no""#;
 
 fn out_of_vocabulary_failure() -> String {
-    GrammarRuntimeError::InternalParserError {
+    SamplerError::GrammarInternalParserError {
         message: "token id 2147483646 out of range".to_owned(),
     }
     .to_string()
@@ -221,7 +218,7 @@ fn an_unknown_grammar_kind_is_reported_as_an_invalid_grammar(
 ) {
     assert_eq!(
         LlamaSampler::llguidance(model, "not_a_real_kind", "anything").err(),
-        Some(GrammarError::LlguidanceGrammarInvalid {
+        Some(SamplerError::LlguidanceGrammarInvalid {
             message: "unknown constraint type: not_a_real_kind".to_owned(),
         })
     );
@@ -264,7 +261,7 @@ fn a_json_schema_that_is_not_json_is_reported_as_an_invalid_grammar(
 ) {
     assert_eq!(
         LlamaSampler::llguidance(model, "json", "{this is not valid json").err(),
-        Some(GrammarError::LlguidanceGrammarInvalid {
+        Some(SamplerError::LlguidanceGrammarInvalid {
             message: "key must be a string at line 1 column 2".to_owned(),
         })
     );
@@ -305,7 +302,7 @@ fn a_json_schema_that_is_not_json_is_reported_as_an_invalid_grammar(
 fn a_malformed_regex_leaves_llguidance_without_a_parser(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let Err(GrammarError::LlguidanceParserUnavailable { .. }) =
+    let Err(SamplerError::LlguidanceParserUnavailable { .. }) =
         LlamaSampler::llguidance(model, "regex", "[invalid")
     else {
         bail!("a regex with an unclosed character class must leave llguidance without a parser");
@@ -552,7 +549,7 @@ fn accept_maps_an_out_of_vocabulary_token_to_grammar_callback_failure(
 
     ensure!(
         sampler.accept(LlamaToken(i32::MAX - 1))
-            == Err(SamplerAcceptError::GrammarCallbackFailed {
+            == Err(SamplerError::AcceptGrammarCallbackFailed {
                 message: out_of_vocabulary_failure(),
             })
     );
@@ -633,7 +630,7 @@ fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
 
     ensure!(
         chain.accept(LlamaToken(i32::MAX - 1))
-            == Err(SamplerAcceptError::GrammarCallbackFailed {
+            == Err(SamplerError::AcceptGrammarCallbackFailed {
                 message: out_of_vocabulary_failure(),
             })
     );
@@ -644,7 +641,7 @@ fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
                 .n_tokens()
                 .checked_sub(1)
                 .context("`batch.n_tokens() - 1` must not overflow")?
-        ) == Err(SampleError::GrammarCallbackFailed {
+        ) == Err(SamplerError::SampleGrammarCallbackFailed {
             message: out_of_vocabulary_failure(),
         })
     );
@@ -682,7 +679,7 @@ fn creating_a_sampler_reports_a_vocabulary_llama_cpp_cannot_render(
 
     ensure!(
         LlamaSampler::llguidance(&model, "regex", REGEX_GRAMMAR).err()
-            == Some(GrammarError::TokEnvUnavailable(
+            == Some(SamplerError::TokEnvUnavailable(
                 ModelError::PieceInsufficientBufferSpace(-34)
             ))
     );
