@@ -13,50 +13,6 @@ use crate::cargo_directive::CargoDirective;
 use crate::target_os::TargetOs;
 
 const DEPRECATED_FUNCTIONS: &[&str] = &[
-    "ggml_add1",
-    "ggml_add1_inplace",
-    "ggml_flash_attn_ext_set_prec",
-    "ggml_mul_mat_set_prec",
-    "ggml_rope_custom",
-    "ggml_rope_custom_inplace",
-    "ggml_type_sizef",
-    "ggml_upscale_ext",
-    "llama_add_bos_token",
-    "llama_add_eos_token",
-    "llama_copy_state_data",
-    "llama_free_model",
-    "llama_get_state_size",
-    "llama_load_model_from_file",
-    "llama_load_session_file",
-    "llama_n_ctx_train",
-    "llama_n_embd",
-    "llama_n_head",
-    "llama_n_layer",
-    "llama_n_vocab",
-    "llama_new_context_with_model",
-    "llama_sampler_init_grammar_lazy",
-    "llama_save_session_file",
-    "llama_set_state_data",
-    "llama_set_warmup",
-    "llama_token_bos",
-    "llama_token_cls",
-    "llama_token_eos",
-    "llama_token_eot",
-    "llama_token_fim_mid",
-    "llama_token_fim_pad",
-    "llama_token_fim_pre",
-    "llama_token_fim_rep",
-    "llama_token_fim_sep",
-    "llama_token_fim_suf",
-    "llama_token_get_attr",
-    "llama_token_get_score",
-    "llama_token_get_text",
-    "llama_token_is_control",
-    "llama_token_is_eog",
-    "llama_token_nl",
-    "llama_token_pad",
-    "llama_token_sep",
-    "llama_vocab_cls",
     "mtmd_encode",
     "mtmd_helper_model_can_chat",
     "mtmd_helper_support_video",
@@ -323,7 +279,7 @@ mod tests {
                 PathBuf::from("/out/bindings.rs")
             ),
             Some(
-                "bindgen never saw field llama_context_params::defrag_thold, so it can no longer \
+                "bindgen never saw field mtmd_context_params::image_marker, so it can no longer \
                  be kept private"
                     .to_owned()
             )

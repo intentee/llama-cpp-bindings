@@ -7,14 +7,8 @@ pub struct PrivatizedField {
 }
 
 impl PrivatizedField {
-    pub const ALL: &'static [Self] = &[
-        Self {
-            type_name: "llama_context_params",
-            field_name: "defrag_thold",
-        },
-        Self {
-            type_name: "mtmd_context_params",
-            field_name: "image_marker",
-        },
-    ];
+    pub const ALL: &'static [Self] = &[Self {
+        type_name: "mtmd_context_params",
+        field_name: "image_marker",
+    }];
 }

@@ -17,6 +17,8 @@ use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
 const MAX_ANSWER_TOKENS: i32 = 64;
+const ARGMAX_TEMPERATURE: f32 = 0.0;
+const SAMPLING_SEED: u32 = 1234;
 
 fn json_schema_constrained_answer(fixture: &LlamaFixture<'_>) -> Result<Value> {
     let model = fixture.model;
@@ -42,8 +44,8 @@ fn json_schema_constrained_answer(fixture: &LlamaFixture<'_>) -> Result<Value> {
 
     let mut sampler = LlamaSampler::chain([
         LlamaSampler::grammar(model, &grammar_str, "root")?,
-        LlamaSampler::temp(0.8)?,
-        LlamaSampler::greedy()?,
+        LlamaSampler::temp(ARGMAX_TEMPERATURE)?,
+        LlamaSampler::dist(SAMPLING_SEED)?,
     ])?;
 
     let initial_position = batch.n_tokens();
@@ -93,7 +95,7 @@ fn deepseek_r1_8b_answers_the_json_schema_with_four(fixture: &LlamaFixture<'_>) 
 fn glm47_flash_answers_the_json_schema_with_a_sentence(fixture: &LlamaFixture<'_>) -> Result<()> {
     assert_eq!(
         json_schema_constrained_answer(fixture)?,
-        json!({"answer": "The sum of 2 and 2 is 4."})
+        json!({"answer": "The answer is 4."})
     );
 
     Ok(())

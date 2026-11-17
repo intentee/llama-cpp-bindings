@@ -186,7 +186,7 @@ fn audio_mmproj_reports_audio_support_at_sixteen_kilohertz(fixture: &LlamaFixtur
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn gemma4_mmproj_reports_chat_vision_audio_and_text_generation_capabilities(
+fn gemma4_mmproj_reports_chat_vision_audio_audio_stream_and_text_generation_capabilities(
     fixture: &LlamaFixture<'_>,
 ) {
     let mtmd_ctx = fixture
@@ -198,6 +198,7 @@ fn gemma4_mmproj_reports_chat_vision_audio_and_text_generation_capabilities(
         MtmdCapability::Chat
             | MtmdCapability::Vision
             | MtmdCapability::Audio
+            | MtmdCapability::AudioStream
             | MtmdCapability::TextGeneration
     );
 }

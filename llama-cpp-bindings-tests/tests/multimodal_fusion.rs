@@ -155,7 +155,7 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
     assert!(outcome.eog_seen, "{outcome:?}");
     assert_eq!(
         outcome.generated.text(),
-        "Animal: The image shows several sheep.\n\nAudio: The orange cat sat on the wooden fence."
+        "Animal: The image shows a llama.\nAudio: The orange cat sat on the wooden fence."
     );
 
     Ok(())

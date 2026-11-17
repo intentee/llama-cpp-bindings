@@ -56,14 +56,14 @@ extern "C" auto llama_rs_fit_params(
     try {
         common_fit_extra_model llama_cpp_extra{};
         if (extra != nullptr) {
-            llama_cpp_extra.path_model   = extra->path_model;
+            llama_cpp_extra.paths_model  = {extra->path_model};
             llama_cpp_extra.mparams      = extra->mparams;
             llama_cpp_extra.cparams      = extra->cparams;
             llama_cpp_extra.shares_model = extra->shares_model;
         }
 
         const common_params_fit_status status = common_fit_params(
-            path_model, mparams, cparams, tensor_split, tensor_buft_overrides,
+            {path_model}, mparams, cparams, tensor_split, tensor_buft_overrides,
             margins, n_ctx_min, extra == nullptr ? nullptr : &llama_cpp_extra, log_level);
         switch (status) {
             case COMMON_PARAMS_FIT_STATUS_SUCCESS:

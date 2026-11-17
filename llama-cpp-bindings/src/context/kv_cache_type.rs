@@ -36,6 +36,7 @@ pub enum KvCacheType {
     Nvfp4,
     Q10,
     Q20,
+    F8E4m3,
 }
 
 impl From<KvCacheType> for llama_cpp_bindings_sys::ggml_type {
@@ -77,6 +78,7 @@ impl From<KvCacheType> for llama_cpp_bindings_sys::ggml_type {
             KvCacheType::Nvfp4 => llama_cpp_bindings_sys::GGML_TYPE_NVFP4,
             KvCacheType::Q10 => llama_cpp_bindings_sys::GGML_TYPE_Q1_0,
             KvCacheType::Q20 => llama_cpp_bindings_sys::GGML_TYPE_Q2_0,
+            KvCacheType::F8E4m3 => llama_cpp_bindings_sys::GGML_TYPE_F8_E4M3,
         }
     }
 }
@@ -119,6 +121,7 @@ impl From<llama_cpp_bindings_sys::ggml_type> for KvCacheType {
             llama_cpp_bindings_sys::GGML_TYPE_NVFP4 => Self::Nvfp4,
             llama_cpp_bindings_sys::GGML_TYPE_Q1_0 => Self::Q10,
             llama_cpp_bindings_sys::GGML_TYPE_Q2_0 => Self::Q20,
+            llama_cpp_bindings_sys::GGML_TYPE_F8_E4M3 => Self::F8E4m3,
             _ => Self::Unknown(value),
         }
     }
@@ -205,6 +208,7 @@ mod tests {
             KvCacheType::Nvfp4,
             KvCacheType::Q10,
             KvCacheType::Q20,
+            KvCacheType::F8E4m3,
         ];
 
         let ggml_types = all_variants.map(llama_cpp_bindings_sys::ggml_type::from);
@@ -219,7 +223,7 @@ mod tests {
                 "f32", "f16", "q4_0", "q4_1", "q5_0", "q5_1", "q8_0", "q8_1", "q2_K", "q3_K",
                 "q4_K", "q5_K", "q6_K", "q8_K", "iq2_xxs", "iq2_xs", "iq3_xxs", "iq1_s", "iq4_nl",
                 "iq3_s", "iq2_s", "iq4_xs", "i8", "i16", "i32", "i64", "f64", "iq1_m", "bf16",
-                "tq1_0", "tq2_0", "mxfp4", "nvfp4", "q1_0", "q2_0",
+                "tq1_0", "tq2_0", "mxfp4", "nvfp4", "q1_0", "q2_0", "f8_e4m3",
             ]
         );
         assert_eq!(ggml_types.map(KvCacheType::from), all_variants);
