@@ -7,7 +7,7 @@ use std::ptr;
 use std::str::Utf8Error;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 
 use crate::model_error::ModelError;
 
@@ -21,28 +21,24 @@ unsafe fn render_template_status_to_result(
     out_rendered: *mut c_char,
     out_error: *mut c_char,
 ) -> Result<String, ModelError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_render_template");
+
     let reported_message = || -> Result<String, FfiError> {
         unsafe {
-            read_and_free_cpp_string(
+            OPERATION.read_and_free_cpp_string(
                 out_error,
-                "llama_rs_render_template",
                 "reported a thrown C++ exception without an error message",
             )
         }
     };
     let contract_violation = |detail: &'static str| -> Result<String, ModelError> {
-        Err(FfiError::ContractViolated {
-            operation: "llama_rs_render_template",
-            detail,
-        }
-        .into())
+        Err(OPERATION.contract_violated(detail).into())
     };
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_OK => Ok(unsafe {
-            read_and_free_cpp_string(
+            OPERATION.read_and_free_cpp_string(
                 out_rendered,
-                "llama_rs_render_template",
                 "success status contained a null rendered string",
             )
         }?),
@@ -87,11 +83,7 @@ unsafe fn render_template_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_ERROR_ARG => {
             contract_violation("was given a null out_error argument")
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_render_template",
-            code: i64::from(other),
-        }
-        .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 

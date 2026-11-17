@@ -1,8 +1,7 @@
 use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 
 use crate::gbnf_error::GbnfError;
 
@@ -17,14 +16,14 @@ unsafe fn json_schema_to_grammar_status_to_result(
     out: *mut c_char,
     error_ptr: *mut c_char,
 ) -> Result<String, GbnfError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_json_schema_to_grammar");
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK => {
             if out.is_null() {
-                return Err(FfiError::ContractViolated {
-                    operation: "llama_rs_json_schema_to_grammar",
-                    detail: "success status contained a null grammar string",
-                }
-                .into());
+                return Err(OPERATION
+                    .contract_violated("success status contained a null grammar string")
+                    .into());
             }
             let grammar_bytes = unsafe { CStr::from_ptr(out) }.to_bytes().to_vec();
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out) };
@@ -38,9 +37,8 @@ unsafe fn json_schema_to_grammar_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     error_ptr,
-                    "llama_rs_json_schema_to_grammar",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
@@ -48,9 +46,8 @@ unsafe fn json_schema_to_grammar_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     error_ptr,
-                    "llama_rs_json_schema_to_grammar",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
@@ -58,40 +55,29 @@ unsafe fn json_schema_to_grammar_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     error_ptr,
-                    "llama_rs_json_schema_to_grammar",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
             Err(GbnfError::SchemaConversionReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_json_schema_to_grammar",
-                detail: "was given a null schema_json argument",
-            }
-            .into())
+            Err(OPERATION
+                .contract_violated("was given a null schema_json argument")
+                .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_json_schema_to_grammar",
-                detail: "was given a null out_grammar argument",
-            }
-            .into())
+            Err(OPERATION
+                .contract_violated("was given a null out_grammar argument")
+                .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_json_schema_to_grammar",
-                detail: "was given a null out_error argument",
-            }
-            .into())
+            Err(OPERATION
+                .contract_violated("was given a null out_error argument")
+                .into())
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_json_schema_to_grammar",
-            code: i64::from(other),
-        }
-        .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 

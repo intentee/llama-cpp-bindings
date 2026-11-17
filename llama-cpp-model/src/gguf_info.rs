@@ -3,8 +3,7 @@ use std::path::Path;
 use std::ptr;
 
 use llama_cpp_bindings_sys::llama_rs_gguf_info;
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 
 use crate::decision_type::DecisionType;
 use crate::model_error::ModelError;
@@ -23,12 +22,10 @@ unsafe fn read_gguf_info_status_to_result(
     }: llama_rs_gguf_info,
     out_error: *mut c_char,
 ) -> Result<GgufInfo, ModelError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_read_gguf_info");
+
     let contract_violation = |detail: &'static str| -> Result<GgufInfo, ModelError> {
-        Err(FfiError::ContractViolated {
-            operation: "llama_rs_read_gguf_info",
-            detail,
-        }
-        .into())
+        Err(OPERATION.contract_violated(detail).into())
     };
 
     match status {
@@ -45,9 +42,8 @@ unsafe fn read_gguf_info_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    "llama_rs_read_gguf_info",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
@@ -62,11 +58,7 @@ unsafe fn read_gguf_info_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_ERROR_ARG => {
             contract_violation("was given a null out_error argument")
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_read_gguf_info",
-            code: i64::from(other),
-        }
-        .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 

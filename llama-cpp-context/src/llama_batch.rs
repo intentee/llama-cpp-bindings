@@ -3,8 +3,7 @@ use std::ptr;
 use std::ptr::NonNull;
 
 use llama_cpp_bindings_sys::{llama_pos, llama_rs_batch_entry, llama_seq_id};
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 
@@ -17,12 +16,10 @@ fn batch_ext_assign_entries_status_to_result(
     out_llama_cpp_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), ContextError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_batch_ext_assign_entries");
+
     let refused_validated_entry = |detail: &'static str| -> Result<(), ContextError> {
-        Err(FfiError::ContractViolated {
-            operation: "llama_rs_batch_ext_assign_entries",
-            detail,
-        }
-        .into())
+        Err(OPERATION.contract_violated(detail).into())
     };
 
     match status {
@@ -35,11 +32,7 @@ fn batch_ext_assign_entries_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
-                    out_error,
-                    "llama_rs_batch_ext_assign_entries",
-                    "reported a thrown C++ exception without an error message",
-                )
+                OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message")
             }?;
             Err(ContextError::BatchTransferReported { message })
         }
@@ -53,10 +46,7 @@ fn batch_ext_assign_entries_status_to_result(
             refused_validated_entry("refused a sequence id validated against the context")
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_RETURNED_UNKNOWN_CODE => {
-            Err(FfiError::UnknownStatus {
-                operation: "llama_batch_ext_add_token",
-                code: i64::from(out_llama_cpp_return_code),
-            }
+            Err(WrapperOperation::new("llama_batch_ext_add_token").unknown_status(i64::from(out_llama_cpp_return_code))
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_POSITION_REJECTED => {
@@ -91,10 +81,7 @@ fn batch_ext_assign_entries_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_ERROR_ARG => {
             refused_validated_entry("was given a null out_error argument")
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_batch_ext_assign_entries",
-            code: i64::from(other),
-        }
+        other => Err(OPERATION.unknown_status(i64::from(other))
         .into()),
     }
 }

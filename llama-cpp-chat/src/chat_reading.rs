@@ -5,7 +5,7 @@ use std::ptr::NonNull;
 use std::slice;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 
 use crate::chat_classification::ChatClassification;
 use crate::chat_error::ChatError;
@@ -85,23 +85,20 @@ fn chat_reading_parse_status_to_result(
     out_handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
     out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_parsed_chat>, ChatError> {
-    const OPERATION: &str = "llama_rs_chat_reading_parse";
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_chat_reading_parse");
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_OK => NonNull::new(out_handle)
             .ok_or_else(|| {
-                FfiError::ContractViolated {
-                    operation: OPERATION,
-                    detail: "success status contained a null handle",
-                }
-                .into()
+                OPERATION
+                    .contract_violated("success status contained a null handle")
+                    .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(ChatError::ParseReported {
                 message: unsafe {
-                    read_and_free_cpp_string(
+                    OPERATION.read_and_free_cpp_string(
                         out_error,
-                        OPERATION,
                         "reported a thrown C++ exception without an error message",
                     )
                 }?,
@@ -113,32 +110,16 @@ fn chat_reading_parse_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ChatError::ParseLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null reading argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null out_handle argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null out_error argument",
-            }
-            .into())
-        }
-        other => Err(FfiError::UnknownStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }
-        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG => Err(OPERATION
+            .contract_violated("was given a null reading argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG => Err(OPERATION
+            .contract_violated("was given a null out_handle argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG => Err(OPERATION
+            .contract_violated("was given a null out_error argument")
+            .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 

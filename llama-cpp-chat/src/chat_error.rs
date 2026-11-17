@@ -14,6 +14,8 @@ pub enum ChatError {
     Grammar(#[source] SamplerError),
     #[error("the grammar sampler refused a generation-prompt token")]
     GrammarPrefill(#[source] SamplerError),
+    #[error("a grammar trigger of the chat session could not be read")]
+    GrammarTrigger(#[source] SamplerError),
     #[error("the llama.cpp library ran out of memory")]
     ParseLlamaCppOutOfMemory,
     #[error("not enough memory")]

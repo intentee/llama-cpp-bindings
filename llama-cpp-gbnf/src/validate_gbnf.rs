@@ -10,8 +10,7 @@ use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
 use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
 use llama_cpp_bindings_sys::llama_rs_validate_gbnf;
 use llama_cpp_bindings_sys::llama_vocab;
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 
 use crate::gbnf_error::GbnfError;
 
@@ -20,6 +19,8 @@ fn validation_status_to_result(
     root: &str,
     out_error: *mut c_char,
 ) -> Result<(), GbnfError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_validate_gbnf");
+
     match status {
         LLAMA_RS_GBNF_VALIDATION_OK => Ok(()),
         LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR => Err(GbnfError::SyntaxError),
@@ -28,27 +29,15 @@ fn validation_status_to_result(
             root: root.to_owned(),
         }),
         LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR => Err(GbnfError::UnsupportedGrammar),
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_validate_gbnf",
-                detail: "grammar pointer was null",
-            }
-            .into())
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG => Err(OPERATION
+            .contract_violated("grammar pointer was null")
+            .into()),
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_validate_gbnf",
-                detail: "root pointer was null",
-            }
-            .into())
+            Err(OPERATION.contract_violated("root pointer was null").into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_validate_gbnf",
-                detail: "output error pointer was null",
-            }
-            .into())
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG => Err(OPERATION
+            .contract_violated("output error pointer was null")
+            .into()),
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GbnfError::ValidationNotEnoughMemory)
         }
@@ -57,20 +46,15 @@ fn validation_status_to_result(
         }
         LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    "llama_rs_validate_gbnf",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
 
             Err(GbnfError::ValidationReported { message })
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_validate_gbnf",
-            code: i64::from(other),
-        }
-        .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 

@@ -3,8 +3,7 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 
 use crate::llama_chat_template::LlamaChatTemplate;
 use crate::model_error::ModelError;
@@ -14,14 +13,14 @@ fn chat_templates_init_status_to_result(
     out_templates: llama_cpp_bindings_sys::llama_rs_chat_templates_handle,
     out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_chat_templates>, ModelError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_chat_templates_init");
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_OK => NonNull::new(out_templates)
             .ok_or_else(|| {
-                FfiError::ContractViolated {
-                    operation: "llama_rs_chat_templates_init",
-                    detail: "success status contained a null templates handle",
-                }
-                .into()
+                OPERATION
+                    .contract_violated("success status contained a null templates handle")
+                    .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_MODEL_HAS_NO_CHAT_TEMPLATE => {
             Err(ModelError::ModelHasNoChatTemplate)
@@ -34,47 +33,30 @@ fn chat_templates_init_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    "llama_rs_chat_templates_init",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
             Err(ModelError::ChatTemplatesReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_MODEL_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_chat_templates_init",
-                detail: "was given a null model argument",
-            }
-            .into())
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_MODEL_ARG => Err(OPERATION
+            .contract_violated("was given a null model argument")
+            .into()),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_TEMPLATE_OVERRIDE_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_chat_templates_init",
-                detail: "was given a null template_override argument",
-            }
-            .into())
+            Err(OPERATION
+                .contract_violated("was given a null template_override argument")
+                .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_TEMPLATES_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_chat_templates_init",
-                detail: "was given a null out_templates argument",
-            }
-            .into())
+            Err(OPERATION
+                .contract_violated("was given a null out_templates argument")
+                .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_ERROR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_chat_templates_init",
-                detail: "was given a null out_error argument",
-            }
-            .into())
-        }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_chat_templates_init",
-            code: i64::from(other),
-        }
-        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_ERROR_ARG => Err(OPERATION
+            .contract_violated("was given a null out_error argument")
+            .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 

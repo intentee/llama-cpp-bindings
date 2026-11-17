@@ -1,5 +1,7 @@
-use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_token::LlamaToken;
+
+use crate::sampler_error::SamplerError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ChatGrammarTrigger {
@@ -15,12 +17,12 @@ impl ChatGrammarTrigger {
     ///
     /// # Errors
     ///
-    /// Returns [`FfiError::UnknownStatus`] for a trigger type unknown to this binding.
+    /// Returns [`SamplerError::Ffi`] for a trigger type unknown to this binding.
     pub fn from_wrapper(
         trigger_type: llama_cpp_bindings_sys::llama_rs_chat_grammar_trigger_type,
         value: String,
         token: impl FnOnce() -> LlamaToken,
-    ) -> Result<Self, FfiError> {
+    ) -> Result<Self, SamplerError> {
         match trigger_type {
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN => {
                 Ok(Self::Token(token()))
@@ -34,10 +36,11 @@ impl ChatGrammarTrigger {
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL => {
                 Ok(Self::PatternFull(value))
             }
-            other => Err(FfiError::UnknownStatus {
-                operation: "llama_rs_chat_session_grammar_trigger_type",
-                code: i64::from(other),
-            }),
+            other => Err(
+                WrapperOperation::new("llama_rs_chat_session_grammar_trigger_type")
+                    .unknown_status(i64::from(other))
+                    .into(),
+            ),
         }
     }
 }
@@ -48,10 +51,11 @@ mod tests {
     use llama_cpp_model::llama_token::LlamaToken;
 
     use crate::chat_grammar_trigger::ChatGrammarTrigger;
+    use crate::sampler_error::SamplerError;
 
     fn trigger_of(
         trigger_type: llama_cpp_bindings_sys::llama_rs_chat_grammar_trigger_type,
-    ) -> Result<ChatGrammarTrigger, FfiError> {
+    ) -> Result<ChatGrammarTrigger, SamplerError> {
         ChatGrammarTrigger::from_wrapper(trigger_type, "<tool_call>".to_owned(), || {
             LlamaToken::new(151_657)
         })
@@ -80,10 +84,10 @@ mod tests {
     fn an_unknown_wrapper_trigger_type_is_a_status_error() {
         assert_eq!(
             trigger_of(99),
-            Err(FfiError::UnknownStatus {
+            Err(SamplerError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_chat_session_grammar_trigger_type",
                 code: 99,
-            })
+            }))
         );
     }
 }

@@ -24,6 +24,8 @@ pub enum SamplerError {
         "the llama.cpp sampler threw a C++ exception while applying to the token data array: {message}"
     )]
     ApplyReported { message: String },
+    #[error("the candidates could not be exchanged with the llama.cpp sampler")]
+    CandidateExchange(#[source] ModelError),
     #[error("DRY sequence breaker {index} contains an interior NUL byte")]
     DrySequenceBreakerContainsNul {
         index: usize,

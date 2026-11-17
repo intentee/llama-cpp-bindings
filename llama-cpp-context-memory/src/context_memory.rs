@@ -5,8 +5,7 @@ use std::ptr;
 
 use llama_cpp_context::context_limits::ContextLimits;
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::rope_type::RopeType;
 
 use crate::context_memory_error::ContextMemoryError;
@@ -44,6 +43,8 @@ fn memory_seq_add_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_memory_seq_add_status,
     out_error: *mut c_char,
 ) -> Result<(), ContextMemoryError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_memory_seq_add");
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM => {
@@ -57,26 +58,17 @@ fn memory_seq_add_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    "llama_rs_memory_seq_add",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
             Err(ContextMemoryError::SeqAddReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_memory_seq_add",
-                detail: "was given a null ctx argument",
-            }
-            .into())
-        }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_memory_seq_add",
-            code: i64::from(other),
-        }
-        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG => Err(OPERATION
+            .contract_violated("was given a null ctx argument")
+            .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 
@@ -84,6 +76,8 @@ fn memory_seq_div_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_memory_seq_div_status,
     out_error: *mut c_char,
 ) -> Result<(), ContextMemoryError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_memory_seq_div");
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM => {
@@ -97,26 +91,17 @@ fn memory_seq_div_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    "llama_rs_memory_seq_div",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
             Err(ContextMemoryError::SeqDivReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_memory_seq_div",
-                detail: "was given a null ctx argument",
-            }
-            .into())
-        }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_memory_seq_div",
-            code: i64::from(other),
-        }
-        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG => Err(OPERATION
+            .contract_violated("was given a null ctx argument")
+            .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 
@@ -125,29 +110,19 @@ fn memory_seq_pos_max_status_to_result(
     position: i32,
     out_error: *mut c_char,
 ) -> Result<i32, ContextMemoryError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_memory_seq_pos_max");
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK => Ok(position),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_memory_seq_pos_max",
-                detail: "context pointer was null",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_memory_seq_pos_max",
-                detail: "output position pointer was null",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_memory_seq_pos_max",
-                detail: "output error pointer was null",
-            }
-            .into())
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG => Err(OPERATION
+            .contract_violated("context pointer was null")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG => Err(OPERATION
+            .contract_violated("output position pointer was null")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG => Err(OPERATION
+            .contract_violated("output error pointer was null")
+            .into()),
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM => {
             Err(ContextMemoryError::MemoryHandleUnavailable)
         }
@@ -159,19 +134,14 @@ fn memory_seq_pos_max_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    "llama_rs_memory_seq_pos_max",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
             Err(ContextMemoryError::SeqPosMaxReported { message })
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_memory_seq_pos_max",
-            code: i64::from(other),
-        }
-        .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 

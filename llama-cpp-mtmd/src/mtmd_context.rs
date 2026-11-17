@@ -5,8 +5,7 @@ use std::path::PathBuf;
 use std::ptr;
 use std::ptr::NonNull;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_model::LlamaModel;
 
 use crate::mtmd_capability::MtmdCapability;
@@ -50,13 +49,15 @@ fn map_init_from_file_status(
     out_error: *mut c_char,
     mmproj_path: &str,
 ) -> Result<MtmdContext, MtmdError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_init_from_file");
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_OK => {
             let context = NonNull::new(out_ctx).ok_or_else(|| {
-                MtmdError::from(FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_init_from_file",
-                    detail: "success status contained a null multimodal context",
-                })
+                MtmdError::from(
+                    OPERATION
+                        .contract_violated("success status contained a null multimodal context"),
+                )
             })?;
             Ok(MtmdContext { context })
         }
@@ -73,40 +74,23 @@ fn map_init_from_file_status(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    "llama_rs_mtmd_init_from_file",
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
             Err(MtmdError::InitReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_MMPROJ_PATH_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_init_from_file",
-                detail: "was given a null mmproj_path argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_TEXT_MODEL_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_init_from_file",
-                detail: "was given a null text_model argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_OUT_CTX_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_init_from_file",
-                detail: "was given a null out_ctx argument",
-            }
-            .into())
-        }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_mtmd_init_from_file",
-            code: i64::from(other),
-        }
-        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_MMPROJ_PATH_ARG => Err(OPERATION
+            .contract_violated("was given a null mmproj_path argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_TEXT_MODEL_ARG => Err(OPERATION
+            .contract_violated("was given a null text_model argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_NULL_OUT_CTX_ARG => Err(OPERATION
+            .contract_violated("was given a null out_ctx argument")
+            .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 

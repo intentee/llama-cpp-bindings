@@ -4,14 +4,13 @@ use std::num::NonZeroU32;
 use std::ptr;
 
 use llama_cpp_backend::backend_device_index::backend_device_index;
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 
 use crate::mtmd_context_params::MtmdContextParams;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_image_token_limit::MtmdImageTokenLimit;
 
-const OPERATION: &str = "llama_rs_mtmd_get_memory_usage";
+const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_get_memory_usage");
 
 fn get_memory_usage_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_get_memory_usage_status,
@@ -51,28 +50,20 @@ fn get_memory_usage_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    OPERATION,
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
 
             Err(MtmdError::MemoryUsageReported { message })
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }
-        .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 
 const fn contract_violation(detail: &'static str) -> MtmdError {
-    MtmdError::Ffi(FfiError::ContractViolated {
-        operation: OPERATION,
-        detail,
-    })
+    MtmdError::Ffi(OPERATION.contract_violated(detail))
 }
 
 /// The worst-case memory a multimodal projector takes on each backend device, with the image

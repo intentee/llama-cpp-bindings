@@ -4,8 +4,7 @@ use std::path::Path;
 use std::ptr;
 
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
@@ -27,36 +26,24 @@ fn state_data_status_to_result(
     out_error: *mut c_char,
     operation: &'static str,
 ) -> Result<usize, ContextStateError> {
+    let wrapper_operation = WrapperOperation::new(operation);
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_OK => Ok(byte_count),
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => {
-            Err(FfiError::ContractViolated {
-                operation,
-                detail: "was given a null ctx argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG => {
-            Err(FfiError::ContractViolated {
-                operation,
-                detail: "was given a null buffer argument",
-            }
-            .into())
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => Err(wrapper_operation
+            .contract_violated("was given a null ctx argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG => Err(wrapper_operation
+            .contract_violated("was given a null buffer argument")
+            .into()),
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_BYTE_COUNT_ARG => {
-            Err(FfiError::ContractViolated {
-                operation,
-                detail: "was given a null out_byte_count argument",
-            }
-            .into())
+            Err(wrapper_operation
+                .contract_violated("was given a null out_byte_count argument")
+                .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation,
-                detail: "was given a null out_error argument",
-            }
-            .into())
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG => Err(wrapper_operation
+            .contract_violated("was given a null out_error argument")
+            .into()),
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ContextStateError::StateDataNotEnoughMemory)
         }
@@ -65,20 +52,15 @@ fn state_data_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                wrapper_operation.read_and_free_cpp_string(
                     out_error,
-                    operation,
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
 
             Err(ContextStateError::StateDataReported { message })
         }
-        other => Err(FfiError::UnknownStatus {
-            operation,
-            code: i64::from(other),
-        }
-        .into()),
+        other => Err(wrapper_operation.unknown_status(i64::from(other)).into()),
     }
 }
 

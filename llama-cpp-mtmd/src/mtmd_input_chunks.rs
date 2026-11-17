@@ -4,8 +4,7 @@ use std::ptr;
 use std::ptr::NonNull;
 
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 
 use crate::mtmd_bitmap::MtmdBitmap;
 use crate::mtmd_context::MtmdContext;
@@ -22,24 +21,20 @@ fn input_chunks_init_status_to_result(
     out_chunks: *mut llama_cpp_bindings_sys::mtmd_input_chunks,
     out_error: *mut c_char,
 ) -> Result<MtmdInputChunks, MtmdError> {
-    const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_input_chunks_init");
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => NonNull::new(out_chunks)
             .map(|chunks| MtmdInputChunks { chunks })
             .ok_or_else(|| {
-                FfiError::ContractViolated {
-                    operation: OPERATION,
-                    detail: "success status contained null chunks",
-                }
-                .into()
+                OPERATION
+                    .contract_violated("success status contained null chunks")
+                    .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null out_chunks argument",
-            }
-            .into())
+            Err(OPERATION
+                .contract_violated("was given a null out_chunks argument")
+                .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::InputChunksNotEnoughMemory)
@@ -49,20 +44,15 @@ fn input_chunks_init_status_to_result(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
+                OPERATION.read_and_free_cpp_string(
                     out_error,
-                    OPERATION,
                     "reported a thrown C++ exception without an error message",
                 )
             }?;
 
             Err(MtmdError::InputChunksReported { message })
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }
-        .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 
@@ -71,6 +61,8 @@ fn map_tokenize_status(
     undocumented_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_tokenize");
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT => {
@@ -91,35 +83,20 @@ fn map_tokenize_status(
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_cpp_string(out_error, "llama_rs_mtmd_tokenize", "reported a thrown C++ exception without an error message") }?;
+            let message = unsafe { OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message") }?;
             Err(MtmdError::TokenizeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_tokenize",
-                detail: "nonzero bitmap count was observed with a null bitmap array",
-            }
+            Err(OPERATION.contract_violated("nonzero bitmap count was observed with a null bitmap array")
             .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG => Err(FfiError::ContractViolated {
-            operation: "llama_rs_mtmd_tokenize",
-            detail: "was given a null ctx argument",
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG => Err(OPERATION.contract_violated("was given a null ctx argument")
         .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG => Err(FfiError::ContractViolated {
-            operation: "llama_rs_mtmd_tokenize",
-            detail: "was given a null output argument",
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG => Err(OPERATION.contract_violated("was given a null output argument")
         .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG => Err(FfiError::ContractViolated {
-            operation: "llama_rs_mtmd_tokenize",
-            detail: "was given a null text argument",
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG => Err(OPERATION.contract_violated("was given a null text argument")
         .into()),
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_mtmd_tokenize",
-            code: i64::from(other),
-        }
+        other => Err(OPERATION.unknown_status(i64::from(other))
         .into()),
     }
 }
@@ -129,13 +106,12 @@ fn map_tokenize_from_parts_status(
     undocumented_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_tokenize_from_parts");
+
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                detail: "llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts",
-            }
+            Err(OPERATION.contract_violated("llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts")
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE => {
@@ -154,46 +130,27 @@ fn map_tokenize_from_parts_status(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                read_and_free_cpp_string(
-                    out_error,
-                    "llama_rs_mtmd_tokenize_from_parts",
-                    "reported a thrown C++ exception without an error message",
-                )
+                OPERATION.read_and_free_cpp_string(out_error, "reported a thrown C++ exception without an error message")
             }?;
             Err(MtmdError::TokenizeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                detail: "was given a null ctx argument",
-            }
+            Err(OPERATION.contract_violated("was given a null ctx argument")
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                detail: "was given a null output argument",
-            }
+            Err(OPERATION.contract_violated("was given a null output argument")
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                detail: "nonzero part count was observed with a null part array",
-            }
+            Err(OPERATION.contract_violated("nonzero part count was observed with a null part array")
             .into())
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT => {
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                detail: "was given a null element in the parts argument",
-            }
+            Err(OPERATION.contract_violated("was given a null element in the parts argument")
             .into())
         }
-        other => Err(FfiError::UnknownStatus {
-            operation: "llama_rs_mtmd_tokenize_from_parts",
-            code: i64::from(other),
-        }
+        other => Err(OPERATION.unknown_status(i64::from(other))
         .into()),
     }
 }
@@ -416,11 +373,9 @@ impl MtmdInputChunks {
         (0..self.len())
             .map(|index| {
                 self.get(index).ok_or_else(|| {
-                    FfiError::ContractViolated {
-                        operation: "mtmd_input_chunks_get",
-                        detail: "returned a null chunk within the chunk count",
-                    }
-                    .into()
+                    WrapperOperation::new("mtmd_input_chunks_get")
+                        .contract_violated("returned a null chunk within the chunk count")
+                        .into()
                 })
             })
             .collect()
@@ -438,7 +393,7 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_ffi_status::ffi_error::FfiError;
-    use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+    use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
 
     use super::input_chunks_init_status_to_result;
@@ -586,9 +541,8 @@ mod tests {
     #[test]
     fn tokenize_from_parts_status_maps_a_thrown_exception_with_its_message() {
         let expected_message = unsafe {
-            read_and_free_cpp_string(
+            WrapperOperation::new("llama_rs_mtmd_tokenize_from_parts").read_and_free_cpp_string(
                 wrapper_allocated_error_message_pointer(),
-                "llama_rs_mtmd_tokenize_from_parts",
                 "reported a thrown C++ exception without an error message",
             )
         };

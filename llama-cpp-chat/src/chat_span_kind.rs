@@ -1,4 +1,5 @@
 use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
 use crate::chat_piece_role::ChatPieceRole;
@@ -41,10 +42,8 @@ impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
             llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER => {
                 Ok(Self::ToolCallMarker)
             }
-            other => Err(FfiError::UnknownStatus {
-                operation: "llama_rs_chat_reading_spans_view",
-                code: i64::from(other),
-            }),
+            other => Err(WrapperOperation::new("llama_rs_chat_reading_spans_view")
+                .unknown_status(i64::from(other))),
         }
     }
 }

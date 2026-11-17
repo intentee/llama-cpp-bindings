@@ -12,6 +12,8 @@ use crate::llama_token::LlamaToken;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ModelError {
+    #[error("the llama.cpp sampler grew the token data array beyond its capacity")]
+    CandidatesGrownBeyondCapacity { size: usize, capacity: usize },
     #[error("chat template not found - returned null pointer")]
     ChatTemplateMissing,
     #[error("null byte in string")]
@@ -90,6 +92,16 @@ pub enum ModelError {
     RenderNotEnoughMemory,
     #[error("{message}")]
     RenderReported { message: String },
+    #[error("the llama.cpp sampler selected a token outside the token data array")]
+    SamplerSelectedCandidateOutsideCandidates {
+        selected: i64,
+        candidate_count: usize,
+    },
+    #[error("the token data array selects a token outside itself")]
+    SelectedCandidateOutsideCandidates {
+        selected: usize,
+        candidate_count: usize,
+    },
     #[error("template could not be executed: {message}")]
     TemplateExecutionFailed { message: String },
     #[error("template globals contain an interior NUL byte")]

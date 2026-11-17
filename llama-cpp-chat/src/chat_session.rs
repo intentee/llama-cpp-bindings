@@ -6,8 +6,7 @@ use std::ptr::NonNull;
 use llama_cpp_bindings_types::chat_message::ChatMessage;
 use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
 use llama_cpp_bindings_types::chat_tool::ChatTool;
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
+use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::chat_templates::ChatTemplates;
 use llama_cpp_model::llama_model::LlamaModel;
@@ -73,14 +72,11 @@ fn chat_session_create_status_to_result(
     out_session: llama_cpp_bindings_sys::llama_rs_chat_session_handle,
     out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_chat_session>, ChatError> {
-    const OPERATION: &str = "llama_rs_chat_session_create";
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_chat_session_create");
     let reported_message = || {
         unsafe {
-            read_and_free_cpp_string(
-                out_error,
-                OPERATION,
-                "reported a failure without an error message",
-            )
+            OPERATION
+                .read_and_free_cpp_string(out_error, "reported a failure without an error message")
         }
         .map_err(ChatError::from)
     };
@@ -88,11 +84,9 @@ fn chat_session_create_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_OK => NonNull::new(out_session)
             .ok_or_else(|| {
-                FfiError::ContractViolated {
-                    operation: OPERATION,
-                    detail: "success status contained a null session",
-                }
-                .into()
+                OPERATION
+                    .contract_violated("success status contained a null session")
+                    .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_TEMPLATE_CANNOT_SERVE_REQUEST => {
             Err(ChatError::TemplateCannotServeRequest {
@@ -110,53 +104,27 @@ fn chat_session_create_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ChatError::SessionLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_TEMPLATES_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null templates argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_VOCAB_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null vocab argument",
-            }
-            .into())
-        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_TEMPLATES_ARG => Err(OPERATION
+            .contract_violated("was given a null templates argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_VOCAB_ARG => Err(OPERATION
+            .contract_violated("was given a null vocab argument")
+            .into()),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_MESSAGES_JSON_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null messages_json argument",
-            }
-            .into())
+            Err(OPERATION
+                .contract_violated("was given a null messages_json argument")
+                .into())
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_TOOLS_JSON_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null tools_json argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_SESSION_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null out_session argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_ERROR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null out_error argument",
-            }
-            .into())
-        }
-        other => Err(FfiError::UnknownStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }
-        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_TOOLS_JSON_ARG => Err(OPERATION
+            .contract_violated("was given a null tools_json argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_SESSION_ARG => Err(OPERATION
+            .contract_violated("was given a null out_session argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_ERROR_ARG => Err(OPERATION
+            .contract_violated("was given a null out_error argument")
+            .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 
@@ -165,23 +133,20 @@ fn chat_session_read_status_to_result(
     out_reading: llama_cpp_bindings_sys::llama_rs_chat_reading_handle,
     out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>, ChatError> {
-    const OPERATION: &str = "llama_rs_chat_session_read";
+    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_chat_session_read");
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_OK => NonNull::new(out_reading)
             .ok_or_else(|| {
-                FfiError::ContractViolated {
-                    operation: OPERATION,
-                    detail: "success status contained a null reading",
-                }
-                .into()
+                OPERATION
+                    .contract_violated("success status contained a null reading")
+                    .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(ChatError::ParseReported {
                 message: unsafe {
-                    read_and_free_cpp_string(
+                    OPERATION.read_and_free_cpp_string(
                         out_error,
-                        OPERATION,
                         "reported a thrown C++ exception without an error message",
                     )
                 }?,
@@ -193,46 +158,22 @@ fn chat_session_read_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ChatError::ParseLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_SESSION_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null session argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_TEXT_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null text argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_BYTE_TOKENS_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null byte_tokens argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_READING_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null out_reading argument",
-            }
-            .into())
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_ERROR_ARG => {
-            Err(FfiError::ContractViolated {
-                operation: OPERATION,
-                detail: "was given a null out_error argument",
-            }
-            .into())
-        }
-        other => Err(FfiError::UnknownStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }
-        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_SESSION_ARG => Err(OPERATION
+            .contract_violated("was given a null session argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_TEXT_ARG => Err(OPERATION
+            .contract_violated("was given a null text argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_BYTE_TOKENS_ARG => Err(OPERATION
+            .contract_violated("was given a null byte_tokens argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_READING_ARG => Err(OPERATION
+            .contract_violated("was given a null out_reading argument")
+            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_ERROR_ARG => Err(OPERATION
+            .contract_violated("was given a null out_error argument")
+            .into()),
+        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
     }
 }
 
@@ -386,18 +327,15 @@ impl ChatSession {
                     )
                 })?;
 
-                Ok(ChatGrammarTrigger::from_wrapper(
-                    trigger_type,
-                    value,
-                    || {
-                        LlamaToken::new(unsafe {
-                            llama_cpp_bindings_sys::llama_rs_chat_session_grammar_trigger_token(
-                                self.session.as_ptr(),
-                                index,
-                            )
-                        })
-                    },
-                )?)
+                ChatGrammarTrigger::from_wrapper(trigger_type, value, || {
+                    LlamaToken::new(unsafe {
+                        llama_cpp_bindings_sys::llama_rs_chat_session_grammar_trigger_token(
+                            self.session.as_ptr(),
+                            index,
+                        )
+                    })
+                })
+                .map_err(ChatError::GrammarTrigger)
             })
             .collect()
     }

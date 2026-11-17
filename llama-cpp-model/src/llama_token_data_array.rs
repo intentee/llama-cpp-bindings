@@ -1,9 +1,8 @@
 use std::ptr;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
-
 use crate::llama_token::LlamaToken;
 use crate::llama_token_data::LlamaTokenData;
+use crate::model_error::ModelError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LlamaTokenDataArray {
@@ -49,7 +48,7 @@ impl LlamaTokenDataArray {
 impl LlamaTokenDataArray {
     /// # Errors
     ///
-    /// Returns [`FfiError::ContractViolated`] when the llama.cpp sampler grows the array beyond the
+    /// Returns [`ModelError::Ffi`] when the llama.cpp sampler grows the array beyond the
     /// capacity this buffer was allocated with, which would make the following `set_len`
     /// undefined behaviour.
     ///
@@ -61,7 +60,7 @@ impl LlamaTokenDataArray {
     pub unsafe fn modify_as_c_llama_token_data_array<TResult>(
         &mut self,
         modify: impl FnOnce(&mut llama_cpp_bindings_sys::llama_token_data_array) -> TResult,
-    ) -> Result<TResult, FfiError> {
+    ) -> Result<TResult, ModelError> {
         let size = self.data.len();
         let data = self
             .data
@@ -78,9 +77,9 @@ impl LlamaTokenDataArray {
         let result = modify(&mut c_llama_token_data_array);
 
         if c_llama_token_data_array.size > self.data.capacity() {
-            return Err(FfiError::ContractViolated {
-                operation: "modify_as_c_llama_token_data_array",
-                detail: "the llama.cpp sampler grew the token data array beyond its capacity",
+            return Err(ModelError::CandidatesGrownBeyondCapacity {
+                size: c_llama_token_data_array.size,
+                capacity: self.data.capacity(),
             });
         }
 
@@ -101,7 +100,7 @@ impl LlamaTokenDataArray {
         Ok(result)
     }
 
-    fn c_selection(&self) -> Result<i64, FfiError> {
+    fn c_selection(&self) -> Result<i64, ModelError> {
         let Some(selected_index) = self.selected else {
             return Ok(-1);
         };
@@ -109,13 +108,13 @@ impl LlamaTokenDataArray {
         self.data
             .get(selected_index)
             .and_then(|_selected_candidate| i64::try_from(selected_index).ok())
-            .ok_or(FfiError::ContractViolated {
-                operation: "modify_as_c_llama_token_data_array",
-                detail: "the token data array selects a token outside itself",
+            .ok_or(ModelError::SelectedCandidateOutsideCandidates {
+                selected: selected_index,
+                candidate_count: self.data.len(),
             })
     }
 
-    fn selection_of(&self, c_selected: i64) -> Result<Option<usize>, FfiError> {
+    fn selection_of(&self, c_selected: i64) -> Result<Option<usize>, ModelError> {
         if c_selected == -1 {
             return Ok(None);
         }
@@ -124,20 +123,19 @@ impl LlamaTokenDataArray {
             .ok()
             .filter(|&selected_index| selected_index < self.data.len())
             .map(Some)
-            .ok_or(FfiError::ContractViolated {
-                operation: "modify_as_c_llama_token_data_array",
-                detail: "the llama.cpp sampler selected a token outside the token data array",
+            .ok_or(ModelError::SamplerSelectedCandidateOutsideCandidates {
+                selected: c_selected,
+                candidate_count: self.data.len(),
             })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_ffi_status::ffi_error::FfiError;
-
     use super::LlamaTokenDataArray;
     use crate::llama_token::LlamaToken;
     use crate::llama_token_data::LlamaTokenData;
+    use crate::model_error::ModelError;
 
     #[test]
     fn selected_token_returns_none_when_no_selection() {
@@ -208,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn a_sampler_selecting_a_token_outside_the_array_is_a_contract_violation() {
+    fn a_sampler_selecting_a_token_outside_the_array_is_refused() {
         let mut array = LlamaTokenDataArray::new(
             vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
             false,
@@ -224,9 +222,9 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "modify_as_c_llama_token_data_array",
-                detail: "the llama.cpp sampler selected a token outside the token data array",
+            Err(ModelError::SamplerSelectedCandidateOutsideCandidates {
+                selected: 5,
+                candidate_count: 1,
             })
         );
     }
@@ -244,16 +242,16 @@ mod tests {
 
             assert_eq!(
                 result,
-                Err(FfiError::ContractViolated {
-                    operation: "modify_as_c_llama_token_data_array",
-                    detail: "the token data array selects a token outside itself",
+                Err(ModelError::SelectedCandidateOutsideCandidates {
+                    selected,
+                    candidate_count: 1,
                 })
             );
         }
     }
 
     #[test]
-    fn oversized_result_is_reported_as_a_contract_error() {
+    fn a_sampler_growing_the_array_beyond_its_capacity_is_refused() {
         let mut array = LlamaTokenDataArray::new(
             vec![LlamaTokenData::new(LlamaToken::new(0), 1.0, 0.0)],
             false,
@@ -270,9 +268,9 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "modify_as_c_llama_token_data_array",
-                detail: "the llama.cpp sampler grew the token data array beyond its capacity",
+            Err(ModelError::CandidatesGrownBeyondCapacity {
+                size: capacity + 1,
+                capacity,
             })
         );
         assert_eq!(array.data.len(), 1);

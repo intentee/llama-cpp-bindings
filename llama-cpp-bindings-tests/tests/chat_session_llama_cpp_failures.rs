@@ -115,12 +115,14 @@ fn grammar_triggers_refuse_a_trigger_type_the_bindings_do_not_recognize(
 
     ensure!(
         session.grammar_triggers().err()
-            == Some(ChatError::Ffi(FfiError::UnknownStatus {
-                operation: "llama_rs_chat_session_grammar_trigger_type",
-                code: i64::from(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED
-                ),
-            }))
+            == Some(ChatError::GrammarTrigger(SamplerError::Ffi(
+                FfiError::UnknownStatus {
+                    operation: "llama_rs_chat_session_grammar_trigger_type",
+                    code: i64::from(
+                        llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED
+                    ),
+                }
+            )))
     );
 
     Ok(())
