@@ -1,3 +1,5 @@
+use anyhow::Context as _;
+use anyhow::Result;
 use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
 use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
 
@@ -8,12 +10,11 @@ pub struct ChunkTokenBreakdown {
 }
 
 impl ChunkTokenBreakdown {
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when a chunk below the chunk count is missing or reports a type unknown to the
+    /// Fails when a chunk below the chunk count is missing or reports a type unknown to the
     /// bindings.
-    #[must_use]
-    pub fn from_chunks(chunks: &MtmdInputChunks) -> Self {
+    pub fn from_chunks(chunks: &MtmdInputChunks) -> Result<Self> {
         let mut breakdown = Self {
             text: 0,
             image: 0,
@@ -23,19 +24,24 @@ impl ChunkTokenBreakdown {
         for index in 0..chunks.len() {
             let chunk = chunks
                 .get(index)
-                .expect("every index below the chunk count must hold a chunk");
-            let n_tokens = u64::try_from(chunk.n_tokens()).expect("a chunk's token count fits u64");
+                .context("every index below the chunk count must hold a chunk")?;
+            let n_tokens =
+                u64::try_from(chunk.n_tokens()).context("a chunk's token count fits u64")?;
 
-            match chunk
+            let chunk_type_tokens = match chunk
                 .chunk_type()
-                .expect("every chunk must have a known type")
+                .context("every chunk must have a known type")?
             {
-                MtmdInputChunkType::Text => breakdown.text += n_tokens,
-                MtmdInputChunkType::Image => breakdown.image += n_tokens,
-                MtmdInputChunkType::Audio => breakdown.audio += n_tokens,
-            }
+                MtmdInputChunkType::Text => &mut breakdown.text,
+                MtmdInputChunkType::Image => &mut breakdown.image,
+                MtmdInputChunkType::Audio => &mut breakdown.audio,
+            };
+
+            *chunk_type_tokens = chunk_type_tokens
+                .checked_add(n_tokens)
+                .context("the tokens of one chunk type must fit u64")?;
         }
 
-        breakdown
+        Ok(breakdown)
     }
 }

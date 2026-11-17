@@ -1813,11 +1813,11 @@ mod sampler_init_status_to_result_tests {
             [
                 Some(SamplingError::Reported {
                     sampler: "distribution",
-                    message: injected_fault_message(),
+                    message: injected_fault_message().unwrap(),
                 }),
                 Some(SamplingError::Reported {
                     sampler: "greedy",
-                    message: injected_fault_message(),
+                    message: injected_fault_message().unwrap(),
                 }),
             ]
         );
@@ -2325,7 +2325,7 @@ mod sampler_application_tests {
         assert_eq!(
             greedy_sampler.apply(&mut excluded_candidates()),
             Err(SampleError::SamplerApply(SamplerApplyError::Reported {
-                message: injected_fault_message(),
+                message: injected_fault_message().unwrap(),
             }))
         );
     }

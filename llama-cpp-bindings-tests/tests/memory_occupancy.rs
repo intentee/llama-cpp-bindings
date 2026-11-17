@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
@@ -48,7 +50,7 @@ fn memory_clear_resets_positions(fixture: &LlamaFixture<'_>) -> Result<()> {
     prime_memory(fixture, &mut context)?;
 
     context.memory_clear();
-    assert_eq!(context.memory_seq_pos_max(0)?, -1);
+    ensure!(context.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -96,9 +98,11 @@ fn memory_seq_pos_max_is_the_position_of_the_last_decoded_token(
 
     prime_memory_with(fixture, &mut context, PRIMED_TEXT)?;
 
-    assert_eq!(
-        context.memory_seq_pos_max(0)?,
-        i32::try_from(primed_tokens.len())? - 1
+    ensure!(
+        context.memory_seq_pos_max(0)?
+            == i32::try_from(primed_tokens.len())?
+                .checked_sub(1)
+                .context("`i32::try_from(primed_tokens.len())? - 1` must not overflow")?
     );
 
     Ok(())
@@ -146,8 +150,8 @@ fn memory_seq_keep_removes_every_other_sequence(fixture: &LlamaFixture<'_>) -> R
     context.memory_seq_cp(0, 1, None, None)?;
     context.memory_seq_keep(1)?;
 
-    assert_eq!(context.memory_seq_pos_max(0)?, -1);
-    assert_eq!(context.memory_seq_pos_max(1)?, primed_position_max);
+    ensure!(context.memory_seq_pos_max(0)? == -1);
+    ensure!(context.memory_seq_pos_max(1)? == primed_position_max);
 
     Ok(())
 }

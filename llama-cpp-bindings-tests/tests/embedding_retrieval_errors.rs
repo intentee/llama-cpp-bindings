@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -27,7 +28,7 @@ fn token_embedding_reports_embeddings_not_enabled_on_a_context_without_embedding
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    assert_eq!(context.embeddings_ith(0), Err(EmbeddingsError::NotEnabled));
+    ensure!(context.embeddings_ith(0) == Err(EmbeddingsError::NotEnabled));
 
     Ok(())
 }
@@ -49,10 +50,7 @@ fn sequence_embedding_reports_embeddings_not_enabled_on_a_context_without_embedd
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    assert_eq!(
-        context.embeddings_seq_ith(0),
-        Err(EmbeddingsError::NotEnabled)
-    );
+    ensure!(context.embeddings_seq_ith(0) == Err(EmbeddingsError::NotEnabled));
 
     Ok(())
 }
@@ -83,11 +81,11 @@ fn sequence_embedding_of_a_sequence_missing_from_the_decoded_batch_is_unavailabl
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    assert_eq!(
-        context.embeddings_seq_ith(999),
-        Err(EmbeddingsError::SequenceEmbeddingUnavailable {
-            sequence_index: 999
-        })
+    ensure!(
+        context.embeddings_seq_ith(999)
+            == Err(EmbeddingsError::SequenceEmbeddingUnavailable {
+                sequence_index: 999
+            })
     );
 
     Ok(())
@@ -113,9 +111,8 @@ fn token_embedding_of_an_index_without_a_decoded_output_names_no_output_row(
             .with_pooling_type(LlamaPoolingType::None),
     )?;
 
-    assert_eq!(
-        context.embeddings_ith(999),
-        Err(EmbeddingsError::TokenNotAnOutput { token_index: 999 })
+    ensure!(
+        context.embeddings_ith(999) == Err(EmbeddingsError::TokenNotAnOutput { token_index: 999 })
     );
 
     Ok(())

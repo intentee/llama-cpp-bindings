@@ -1,6 +1,8 @@
 use std::ffi::CString;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -80,25 +82,32 @@ fn grammar_sampler_constrains_the_first_token_of_the_answer_to_yes(
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut outcomes = Vec::new();
-    let turn = classifier.sample(&mut sampler, &context, batch.n_tokens() - 1, &mut outcomes)?;
+    let turn = classifier.sample(
+        &mut sampler,
+        &context,
+        batch
+            .n_tokens()
+            .checked_sub(1)
+            .context("`batch.n_tokens() - 1` must not overflow")?,
+        &mut outcomes,
+    )?;
     classifier.finish(&mut outcomes)?;
 
-    assert_eq!(
-        outcomes.len(),
-        1,
+    ensure!(
+        outcomes.len() == 1,
         "expected one finalised outcome after finishing"
     );
-    let outcome = &outcomes[0];
+    let outcome = outcomes.first().context("outcomes has no element 0")?;
 
     let raw_as_sampled = SampledToken::Content(turn.token);
-    assert!(
+    ensure!(
         !model.is_eog_token(&raw_as_sampled),
         "Grammar sampler should not allow EOS as first token"
     );
 
     let piece = outcome.piece.raw();
 
-    assert_eq!(piece, "Yes");
+    ensure!(piece == "Yes");
 
     Ok(())
 }
@@ -145,7 +154,7 @@ fn grammar_constrained_chat_answer_is_yes_content_that_ends_generation(
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", &[]);
+    let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", &[])?;
     let tokens = session.tokenize_prompt(fixture.model)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
 
@@ -170,22 +179,22 @@ fn grammar_constrained_chat_answer_is_yes_content_that_ends_generation(
         initial_position,
         max_generated_tokens: 10,
     }
-    .run();
+    .run()?;
 
-    assert_eq!(outcome.generated.text(), "yes");
-    assert!(
+    ensure!(outcome.generated.text() == "yes");
+    ensure!(
         outcome.eog_seen,
         "loop must terminate via EOG once grammar accepts, not by exhausting the budget; outcome={outcome:?}"
     );
-    assert_eq!(outcome.observed_reasoning, 0);
-    assert_eq!(outcome.observed_undeterminable, 0);
-    assert_eq!(outcome.observed_tool_call, 0);
-    assert_eq!(outcome.observed_content, YES_TOKEN_AND_END_OF_GENERATION);
+    ensure!(outcome.observed_reasoning == 0);
+    ensure!(outcome.observed_undeterminable == 0);
+    ensure!(outcome.observed_tool_call == 0);
+    ensure!(outcome.observed_content == YES_TOKEN_AND_END_OF_GENERATION);
 
     let usage = classifier.into_usage();
-    assert_eq!(usage.completion_tokens(), outcome.observed_content);
-    assert_eq!(usage.reasoning_tokens, 0);
-    assert_eq!(usage.undeterminable_tokens, 0);
+    ensure!(usage.completion_tokens() == outcome.observed_content);
+    ensure!(usage.reasoning == 0);
+    ensure!(usage.undeterminable == 0);
 
     Ok(())
 }
@@ -204,12 +213,11 @@ fn a_grammar_sampler_masks_tokens_that_cannot_start_the_grammar(
     let model = fixture.model;
     let sampler = LlamaSampler::grammar(model, "root ::= \"hello\"", "root")?;
 
-    assert_eq!(
+    ensure!(
         logits_left_by(
             &sampler,
-            &[single_token(model, "hello"), single_token(model, "yes")]
-        ),
-        [0.0, f32::NEG_INFINITY]
+            &[single_token(model, "hello")?, single_token(model, "yes")?]
+        )? == [0.0, f32::NEG_INFINITY]
     );
 
     Ok(())
@@ -227,7 +235,7 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let think_token = single_token(model, "<think>");
+    let think_token = single_token(model, "<think>")?;
     let mut context = LlamaContext::from_model(
         model,
         fixture.backend,
@@ -248,7 +256,15 @@ fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
         LlamaSampler::greedy()?,
     ])?;
 
-    assert_eq!(sampler.sample(&context, batch.n_tokens() - 1)?, think_token);
+    ensure!(
+        sampler.sample(
+            &context,
+            batch
+                .n_tokens()
+                .checked_sub(1)
+                .context("`batch.n_tokens() - 1` must not overflow")?
+        )? == think_token
+    );
 
     Ok(())
 }

@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
@@ -44,12 +46,16 @@ fn the_first_token_of_tokenized_text_decodes_to_its_first_word(
 ) -> Result<()> {
     let model = fixture.model;
     let tokens = model.str_to_token("hello world", AddBos::Never, ParseSpecialTokens::Always)?;
-    assert_ne!(tokens, Vec::<LlamaToken>::new());
+    ensure!(tokens != Vec::<LlamaToken>::new());
     let mut decoder = encoding_rs::UTF_8.new_decoder();
-    let piece =
-        model.token_to_piece(&SampledToken::Content(tokens[0]), &mut decoder, false, None)?;
+    let piece = model.token_to_piece(
+        SampledToken::Content(*tokens.first().context("tokens has no element 0")?),
+        &mut decoder,
+        false,
+        None,
+    )?;
 
-    assert_eq!(piece, "hello");
+    ensure!(piece == "hello");
 
     Ok(())
 }
@@ -72,11 +78,8 @@ fn str_to_token_prepends_bos_for_a_model_that_adds_it(fixture: &LlamaFixture<'_>
         .chain(tokens_without_bos)
         .collect::<Vec<_>>();
 
-    assert!(model.adds_bos_token());
-    assert_eq!(
-        model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?,
-        expected
-    );
+    ensure!(model.adds_bos_token());
+    ensure!(model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)? == expected);
 
     Ok(())
 }
@@ -94,10 +97,10 @@ fn str_to_token_adds_nothing_for_a_model_that_adds_no_bos(
 ) -> Result<()> {
     let model = fixture.model;
 
-    assert!(!model.adds_bos_token());
-    assert_eq!(
-        model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?,
-        model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?
+    ensure!(!model.adds_bos_token());
+    ensure!(
+        model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?
+            == model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?
     );
 
     Ok(())
@@ -148,7 +151,7 @@ fn str_to_token_regrows_its_buffer_for_more_tokens_than_it_estimated(
             .model
             .str_to_token(&many_numbers, AddBos::Always, ParseSpecialTokens::Always)?;
 
-    assert!(tokens.len() > many_numbers.len() / 2);
+    ensure!(tokens.len() > many_numbers.len() / 2);
 
     Ok(())
 }
@@ -172,9 +175,9 @@ fn tokenizing_without_special_token_parsing_keeps_control_markup_as_text(
         .model
         .str_to_token(markup, AddBos::Never, ParseSpecialTokens::Never)?;
 
-    assert_eq!(parsed.len(), 1);
-    assert!(plain.len() > 1);
-    assert!(!plain.contains(&parsed[0]));
+    ensure!(parsed.len() == 1);
+    ensure!(plain.len() > 1);
+    ensure!(!plain.contains(parsed.first().context("parsed has no element 0")?));
 
     Ok(())
 }

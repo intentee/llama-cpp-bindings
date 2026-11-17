@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
@@ -88,48 +89,47 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
         initial_position,
         max_generated_tokens,
     }
-    .run();
+    .run()?;
     let total_observed =
-        outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable;
+        outcome.observed_content.checked_add(outcome.observed_reasoning).context("`outcome.observed_content + outcome.observed_reasoning` must not overflow")?.checked_add(outcome.observed_undeterminable).context("`outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable` must not overflow")?;
 
-    assert!(
+    ensure!(
         !outcome.generated.text().is_empty(),
         "model should generate at least one token"
     );
-    assert_eq!(
-        outcome.observed_tool_call, 0,
+    ensure!(
+        outcome.observed_tool_call == 0,
         "raw prompt without tool-call markers must not produce ToolCall tokens; \
          outcome={outcome:?}"
     );
-    assert!(
+    ensure!(
         total_observed > 0,
         "model must produce at least one classified token; outcome={outcome:?}"
     );
 
     let usage = classifier.into_usage();
-    assert_eq!(
-        usage.prompt_tokens, prompt_token_count,
+    ensure!(
+        usage.prompt == prompt_token_count,
         "prompt_tokens must equal the tokenizer's prompt length"
     );
-    assert_eq!(
-        usage.content_tokens, outcome.observed_content,
+    ensure!(
+        usage.content == outcome.observed_content,
         "content_tokens must equal observed Content variants"
     );
-    assert_eq!(
-        usage.reasoning_tokens, outcome.observed_reasoning,
+    ensure!(
+        usage.reasoning == outcome.observed_reasoning,
         "reasoning_tokens must equal observed Reasoning variants"
     );
-    assert_eq!(
-        usage.undeterminable_tokens, outcome.observed_undeterminable,
+    ensure!(
+        usage.undeterminable == outcome.observed_undeterminable,
         "undeterminable_tokens must equal observed Undeterminable variants"
     );
-    assert_eq!(
-        usage.tool_call_tokens, outcome.observed_tool_call,
+    ensure!(
+        usage.tool_call == outcome.observed_tool_call,
         "tool_call_tokens must equal observed ToolCall variants"
     );
-    assert_eq!(
-        usage.completion_tokens(),
-        total_observed,
+    ensure!(
+        usage.completion_tokens() == total_observed,
         "completion_tokens must equal Content + Reasoning + Undeterminable"
     );
 
@@ -212,48 +212,47 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         initial_position,
         max_generated_tokens: 512,
     }
-    .run();
+    .run()?;
 
-    assert!(
+    ensure!(
         !outcome.generated.text().is_empty(),
         "model should generate at least one token"
     );
     let total_observed =
-        outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable;
-    assert!(
+        outcome.observed_content.checked_add(outcome.observed_reasoning).context("`outcome.observed_content + outcome.observed_reasoning` must not overflow")?.checked_add(outcome.observed_undeterminable).context("`outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable` must not overflow")?;
+    ensure!(
         total_observed > 0,
         "model must produce at least one classified token; outcome={outcome:?}"
     );
-    assert_eq!(
-        outcome.observed_tool_call, 0,
+    ensure!(
+        outcome.observed_tool_call == 0,
         "chat without tool definitions must not produce ToolCall tokens; outcome={outcome:?}"
     );
 
     let usage = classifier.into_usage();
 
-    assert_eq!(
-        usage.prompt_tokens, prompt_token_count,
+    ensure!(
+        usage.prompt == prompt_token_count,
         "prompt_tokens must equal the tokenizer's prompt length"
     );
-    assert_eq!(
-        usage.content_tokens, outcome.observed_content,
+    ensure!(
+        usage.content == outcome.observed_content,
         "content_tokens must equal observed Content variants"
     );
-    assert_eq!(
-        usage.reasoning_tokens, outcome.observed_reasoning,
+    ensure!(
+        usage.reasoning == outcome.observed_reasoning,
         "reasoning_tokens must equal observed Reasoning variants"
     );
-    assert_eq!(
-        usage.undeterminable_tokens, outcome.observed_undeterminable,
+    ensure!(
+        usage.undeterminable == outcome.observed_undeterminable,
         "undeterminable_tokens must equal observed Undeterminable variants"
     );
-    assert_eq!(
-        usage.completion_tokens(),
-        total_observed,
+    ensure!(
+        usage.completion_tokens() == total_observed,
         "completion_tokens must equal Content + Reasoning + Undeterminable"
     );
-    assert_eq!(
-        usage.tool_call_tokens, outcome.observed_tool_call,
+    ensure!(
+        usage.tool_call == outcome.observed_tool_call,
         "tool_call_tokens must equal observed ToolCall variants"
     );
 

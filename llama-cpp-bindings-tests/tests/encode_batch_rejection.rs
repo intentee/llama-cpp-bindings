@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::batch_transfer_error::BatchTransferError;
@@ -31,12 +32,12 @@ fn encoding_more_tokens_than_the_micro_batch_is_refused(fixture: &LlamaFixture<'
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 
-    assert_eq!(
-        context.encode(&batch),
-        Err(EncodeError::BatchExceedsMicroBatch {
-            n_tokens,
-            n_ubatch: context.n_ubatch(),
-        })
+    ensure!(
+        context.encode(&batch)
+            == Err(EncodeError::BatchExceedsMicroBatch {
+                n_tokens,
+                n_ubatch: context.n_ubatch(),
+            })
     );
 
     Ok(())
@@ -64,11 +65,11 @@ fn encoding_reports_an_exception_thrown_while_transferring_the_batch(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS,
     );
 
-    assert_eq!(
-        context.encode(&batch),
-        Err(EncodeError::BatchTransfer(BatchTransferError::Reported {
-            message: injected_fault_message(),
-        }))
+    ensure!(
+        context.encode(&batch)
+            == Err(EncodeError::BatchTransfer(BatchTransferError::Reported {
+                message: injected_fault_message()?,
+            }))
     );
 
     Ok(())

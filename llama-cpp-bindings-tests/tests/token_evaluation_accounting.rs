@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -49,10 +51,7 @@ fn a_decoded_batch_counts_every_token_llama_cpp_evaluated(
 
     context.decode(&batch)?;
 
-    assert_eq!(
-        context.evaluated_tokens(),
-        u64::from(batch.n_tokens().unsigned_abs())
-    );
+    ensure!(context.evaluated_tokens() == u64::from(batch.n_tokens().unsigned_abs()));
 
     Ok(())
 }
@@ -71,8 +70,8 @@ fn an_aborted_decode_counts_no_evaluated_tokens(fixture: &LlamaFixture<'_>) -> R
 
     context.set_abort_flag(Arc::new(AtomicBool::new(true)));
 
-    assert!(context.decode(&batch).is_err());
-    assert_eq!(context.evaluated_tokens(), 0);
+    ensure!(context.decode(&batch).is_err());
+    ensure!(context.evaluated_tokens() == 0);
 
     Ok(())
 }
@@ -91,7 +90,7 @@ fn evaluated_media_chunks_count_every_token_the_mtmd_helper_decoded(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let bitmap = MtmdBitmap::from_image_data(64, 64, &[128_u8; 64 * 64 * 3])?;
     let chunks = mtmd_ctx.tokenize(
         MtmdInputText {
@@ -106,7 +105,7 @@ fn evaluated_media_chunks_count_every_token_the_mtmd_helper_decoded(
 
     chunks.eval_chunks(mtmd_ctx, &mut context, 0, 0, n_batch, true)?;
 
-    assert_eq!(context.evaluated_tokens(), chunks.total_tokens() as u64);
+    ensure!(context.evaluated_tokens() == chunks.total_tokens() as u64);
 
     Ok(())
 }

@@ -2,6 +2,7 @@ use std::num::NonZeroU8;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
 use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
@@ -22,7 +23,7 @@ use llama_cpp_test_harness_macros::llama_test;
     embeddings = true,
 )]
 fn an_encoder_context_keeps_no_memory(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert!(!fixture.build_context()?.has_memory());
+    ensure!(!fixture.build_context()?.has_memory());
 
     Ok(())
 }
@@ -37,7 +38,7 @@ fn an_encoder_context_keeps_no_memory(fixture: &LlamaFixture<'_>) -> Result<()> 
     embeddings = true,
 )]
 fn a_causal_embedding_context_keeps_memory(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert!(fixture.build_context()?.has_memory());
+    ensure!(fixture.build_context()?.has_memory());
 
     Ok(())
 }
@@ -55,12 +56,12 @@ fn a_causal_embedding_context_keeps_memory(fixture: &LlamaFixture<'_>) -> Result
 fn memory_edits_without_a_memory_module_trivially_succeed(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
     context.memory_clear();
 
-    assert_eq!(context.memory_seq_keep(0), Ok(()));
-    assert_eq!(context.memory_seq_rm(Some(0), None, None), Ok(()));
+    ensure!(context.memory_seq_keep(0) == Ok(()));
+    ensure!(context.memory_seq_rm(Some(0), None, None) == Ok(()));
 
     Ok(())
 }
@@ -81,22 +82,17 @@ fn memory_operations_needing_a_memory_module_report_its_absence(
     let mut context = two_sequence_context(fixture)?;
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
 
-    assert_eq!(
-        context.memory_seq_cp(0, 1, None, None),
-        Err(MemorySeqCpError::MemoryHandleUnavailable)
+    ensure!(
+        context.memory_seq_cp(0, 1, None, None) == Err(MemorySeqCpError::MemoryHandleUnavailable)
     );
-    assert_eq!(
-        context.memory_seq_add(0, None, None, 1),
-        Err(MemorySeqAddError::MemoryHandleUnavailable)
+    ensure!(
+        context.memory_seq_add(0, None, None, 1) == Err(MemorySeqAddError::MemoryHandleUnavailable)
     );
-    assert_eq!(
-        context.memory_seq_div(0, None, None, divisor),
-        Err(MemorySeqDivError::MemoryHandleUnavailable)
+    ensure!(
+        context.memory_seq_div(0, None, None, divisor)
+            == Err(MemorySeqDivError::MemoryHandleUnavailable)
     );
-    assert_eq!(
-        context.memory_seq_pos_max(0),
-        Err(MemorySeqPosMaxError::MemoryHandleUnavailable)
-    );
+    ensure!(context.memory_seq_pos_max(0) == Err(MemorySeqPosMaxError::MemoryHandleUnavailable));
 
     Ok(())
 }
@@ -114,13 +110,13 @@ fn memory_operations_needing_a_memory_module_report_its_absence(
 fn removing_a_sequence_without_a_memory_module_still_validates_its_id(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
-    assert_eq!(
-        context.memory_seq_rm(Some(u32::MAX), None, None).err(),
-        i32::try_from(u32::MAX)
-            .err()
-            .map(MemorySeqRmError::SeqIdTooLarge)
+    ensure!(
+        context.memory_seq_rm(Some(u32::MAX), None, None).err()
+            == i32::try_from(u32::MAX)
+                .err()
+                .map(MemorySeqRmError::SeqIdTooLarge)
     );
 
     Ok(())

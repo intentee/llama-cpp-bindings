@@ -1,14 +1,13 @@
 use std::ffi::CStr;
+use std::str::Utf8Error;
 
 /// The message of the C++ exception an armed fault point throws.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics when the wrappers' fault message is not UTF-8.
-#[must_use]
-pub fn injected_fault_message() -> String {
+/// Returns [`Utf8Error`] when the wrappers' fault message is not UTF-8.
+pub fn injected_fault_message() -> Result<String, Utf8Error> {
     unsafe { CStr::from_ptr(llama_cpp_bindings_sys::llama_rs_fault_injection_message()) }
         .to_str()
-        .expect("the wrappers' fault message must be UTF-8")
-        .to_owned()
+        .map(str::to_owned)
 }

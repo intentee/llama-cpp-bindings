@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -30,17 +32,19 @@ fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let last_index = i32::try_from(tokens.len() - 1)?;
+    let last_index = i32::try_from(
+        tokens
+            .len()
+            .checked_sub(1)
+            .context("`tokens.len() - 1` must not overflow")?,
+    )?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     let token_data_array = context.token_data_array_ith(last_index)?;
 
-    assert_eq!(
-        token_data_array.data.len(),
-        usize::try_from(fixture.model.n_vocab())?
-    );
+    ensure!(token_data_array.data.len() == usize::try_from(fixture.model.n_vocab())?);
 
     Ok(())
 }
@@ -68,7 +72,10 @@ fn qwen35_refilled_candidate_array_matches_a_freshly_built_one(
     batch.add_sequence(&prompt_tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let last_index = batch.n_tokens() - 1;
+    let last_index = batch
+        .n_tokens()
+        .checked_sub(1)
+        .context("`batch.n_tokens() - 1` must not overflow")?;
     let mut reused_candidates = LlamaTokenDataArray::new(
         vec![LlamaTokenData::new(LlamaToken::new(7), 1.0, 0.5)],
         true,
@@ -77,7 +84,7 @@ fn qwen35_refilled_candidate_array_matches_a_freshly_built_one(
 
     context.fill_token_data_array_ith(last_index, &mut reused_candidates)?;
 
-    assert_eq!(reused_candidates, context.token_data_array_ith(last_index)?);
+    ensure!(reused_candidates == context.token_data_array_ith(last_index)?);
 
     Ok(())
 }

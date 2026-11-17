@@ -1,3 +1,6 @@
+use anyhow::Result;
+use anyhow::ensure;
+
 use std::num::NonZeroU32;
 
 use llama_cpp_bindings::context::LlamaContext;
@@ -109,20 +112,24 @@ fn new_context_rejects_more_sequences_than_a_causal_context_can_output(fixture: 
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(fixture: &LlamaFixture<'_>) {
+fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_INIT_THROWS);
 
-    assert_eq!(
+    ensure!(
         LlamaContext::from_model(
             fixture.model,
             fixture.backend,
             (*fixture.context_params).into_llama_context_params(),
         )
-        .err(),
-        Some(LlamaContextLoadError::Reported {
-            message: injected_fault_message(),
-        })
+        .err()
+            == Some(LlamaContextLoadError::Reported {
+                message: injected_fault_message()?,
+            })
     );
+
+    Ok(())
 }
 
 #[llama_test(

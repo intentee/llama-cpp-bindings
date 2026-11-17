@@ -2,6 +2,7 @@ use std::env;
 use std::fs;
 
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::load_seq_state_error::LoadSeqStateError;
@@ -61,9 +62,8 @@ fn state_load_file_with_too_small_a_token_capacity_reports_failed_to_load(
     let session_path = env::temp_dir().join("llama_test_session_insuf.bin");
     context.state_save_file(&session_path, &tokens)?;
 
-    assert_eq!(
-        context.state_load_file(&session_path, 1).err(),
-        Some(LoadSessionError::FailedToLoad)
+    ensure!(
+        context.state_load_file(&session_path, 1).err() == Some(LoadSessionError::FailedToLoad)
     );
     fs::remove_file(&session_path)?;
 
@@ -119,9 +119,9 @@ fn state_seq_load_file_with_too_small_a_token_capacity_reports_failed_to_load(
     let session_path = env::temp_dir().join("llama_test_seq_state_insuf.bin");
     context.state_seq_save_file(&session_path, 0, &tokens)?;
 
-    assert_eq!(
-        context.state_seq_load_file(&session_path, 0, 1).err(),
-        Some(LoadSeqStateError::FailedToLoad)
+    ensure!(
+        context.state_seq_load_file(&session_path, 0, 1).err()
+            == Some(LoadSeqStateError::FailedToLoad)
     );
     fs::remove_file(&session_path)?;
 

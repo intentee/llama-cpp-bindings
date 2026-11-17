@@ -328,7 +328,7 @@ impl LlamaModel {
     ) -> impl Iterator<Item = Result<VocabularyToken, TokenToStringError>> + '_ {
         (0..self.n_vocab()).map(LlamaToken::new).map(move |token| {
             self.token_to_piece(
-                &SampledToken::Content(token),
+                SampledToken::Content(token),
                 &mut encoding_rs::UTF_8.new_decoder(),
                 decode_special,
                 None,
@@ -413,7 +413,7 @@ impl LlamaModel {
             ParseSpecialTokens::Never => false,
         };
 
-        let tokens_estimation = cmp::max(8, (str.len() / 2) + usize::from(add_bos));
+        let tokens_estimation = cmp::max(8, (str.len() / 2).saturating_add(usize::from(add_bos)));
         let TokenizerInput {
             text: c_string,
             length: c_string_len,
@@ -453,16 +453,14 @@ impl LlamaModel {
     /// - if the returned size from llama.cpp does not fit into a `usize`
     pub fn token_to_piece(
         &self,
-        token: &SampledToken,
+        token: SampledToken,
         decoder: &mut encoding_rs::Decoder,
         special: bool,
         lstrip: Option<NonZeroU16>,
     ) -> Result<String, TokenToStringError> {
-        let (SampledToken::Content(inner)
-        | SampledToken::Reasoning(inner)
-        | SampledToken::ToolCall(inner)
-        | SampledToken::Undeterminable(inner)) = *token;
-        self.read_piece(inner, special, lstrip, |piece| decode_piece(decoder, piece))
+        self.read_piece(token.token(), special, lstrip, |piece| {
+            decode_piece(decoder, piece)
+        })
     }
 
     /// # Errors
@@ -839,7 +837,7 @@ fn build_approximate_tok_env(
             if special_bytes.is_empty() {
                 words.push(vec![]);
             } else {
-                let mut marked = Vec::with_capacity(special_bytes.len() + 1);
+                let mut marked = Vec::with_capacity(special_bytes.len().saturating_add(1));
                 marked.push(0xFF);
                 marked.extend(special_bytes);
                 words.push(marked);
@@ -1186,9 +1184,7 @@ mod extract_meta_string_tests {
         let result = extract_meta_string(
             |buf_ptr, buf_len| {
                 let buffer = unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
-                buffer[0] = b'a';
-                buffer[1] = b'b';
-                buffer[2] = b'c';
+                buffer.get_mut(..3).unwrap().copy_from_slice(b"abc");
                 2
             },
             4,
@@ -1209,9 +1205,10 @@ mod extract_meta_string_tests {
         let result = extract_meta_string(
             |buf_ptr, buf_len| {
                 let buffer = unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
-                buffer[0] = 0xFF;
-                buffer[1] = 0xFE;
-                buffer[2] = 0;
+                buffer
+                    .get_mut(..3)
+                    .unwrap()
+                    .copy_from_slice(&[0xFF, 0xFE, 0]);
                 2
             },
             4,
@@ -1237,9 +1234,10 @@ mod extract_meta_string_tests {
                 } else {
                     let buffer =
                         unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
-                    buffer[0] = b'h';
-                    buffer[1] = b'i';
-                    buffer[2] = 0;
+                    buffer
+                        .get_mut(..3)
+                        .unwrap()
+                        .copy_from_slice(&[b'h', b'i', 0]);
                     written_length
                 }
             },

@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::model::add_bos::AddBos;
 use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
@@ -42,7 +43,7 @@ fn the_eos_token_differs_from_the_bos_token(fixture: &LlamaFixture<'_>) -> Resul
     let model = fixture.model;
     let eos = model.token_eos().context("model declares an EOS token")?;
 
-    assert_ne!(model.token_bos(), Some(eos));
+    ensure!(model.token_bos() != Some(eos));
     Ok(())
 }
 
@@ -95,7 +96,7 @@ fn token_nl_is_the_first_token_of_a_tokenized_newline(fixture: &LlamaFixture<'_>
     let model = fixture.model;
     let newline_tokens = model.str_to_token("\n", AddBos::Never, ParseSpecialTokens::Never)?;
 
-    assert_eq!(model.token_nl(), newline_tokens.first().copied());
+    ensure!(model.token_nl() == newline_tokens.first().copied());
     Ok(())
 }
 

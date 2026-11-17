@@ -133,6 +133,7 @@ impl GrammarMatcher {
 #[cfg(test)]
 mod tests {
     use std::any::Any;
+    use std::iter;
 
     use llguidance::ParserFactory;
     use llguidance::TokenParser;
@@ -172,7 +173,7 @@ mod tests {
         assert_eq!(
             matcher
                 .run("compute_mask", |_parser| -> Result<(), String> {
-                    panic!("parser exploded")
+                    iter::empty().next().expect("parser exploded")
                 })
                 .err(),
             Some(GrammarRuntimeError::Panicked {

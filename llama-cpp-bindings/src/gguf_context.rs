@@ -379,7 +379,7 @@ impl GgufContext {
         let file = File::open(&self.path).map_err(read_failed)?;
         let mut bytes = vec![0; tensor_size];
 
-        file.read_exact_at(&mut bytes, (data_offset + tensor_offset) as u64)
+        file.read_exact_at(&mut bytes, data_offset.saturating_add(tensor_offset) as u64)
             .map_err(read_failed)?;
 
         let (value_byte_chunks, _bytes_after_the_last_value) =
@@ -557,7 +557,7 @@ mod tests {
             self.key_values
                 .extend_from_slice(&gguf_type.to_raw().to_le_bytes());
             self.key_values.extend_from_slice(value);
-            self.key_value_count += 1;
+            self.key_value_count = self.key_value_count.checked_add(1).unwrap();
             self
         }
 

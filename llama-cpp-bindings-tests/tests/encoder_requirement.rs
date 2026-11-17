@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -33,7 +34,7 @@ fn encoding_with_a_decoder_only_model_reports_it_has_no_encoder(
 
     let result = context.encode(&batch);
 
-    assert_eq!(result, Err(EncodeError::ModelHasNoEncoder));
+    ensure!(result == Err(EncodeError::ModelHasNoEncoder));
 
     Ok(())
 }
@@ -61,7 +62,7 @@ fn an_encoder_model_encodes_a_prompt(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let result = context.encode(&batch);
 
-    assert_eq!(result, Ok(()));
+    ensure!(result == Ok(()));
 
     Ok(())
 }

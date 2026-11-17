@@ -1,6 +1,8 @@
 use std::ffi::CString;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::sampling_error::SamplingError;
 use llama_cpp_bindings::sampling::LlamaSampler;
@@ -33,15 +35,21 @@ fn building_a_dry_sampler_with_sequence_breakers_succeeds(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn dry_sampler_refuses_a_sequence_breaker_with_a_nul_byte(fixture: &LlamaFixture<'_>) {
+fn dry_sampler_refuses_a_sequence_breaker_with_a_nul_byte(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let breakers: Vec<&[u8]> = vec![b"hello\0world"];
     let result = LlamaSampler::dry(fixture.model, 1.5, 2.0, 128, 2, breakers);
 
-    assert_eq!(
-        result.err(),
-        Some(SamplingError::DrySequenceBreakerContainsNul {
-            index: 0,
-            source: CString::new(&b"hello\0world"[..]).unwrap_err(),
-        })
+    ensure!(
+        result.err()
+            == Some(SamplingError::DrySequenceBreakerContainsNul {
+                index: 0,
+                source: CString::new(&b"hello\0world"[..])
+                    .err()
+                    .context("the operation must fail")?,
+            })
     );
+
+    Ok(())
 }

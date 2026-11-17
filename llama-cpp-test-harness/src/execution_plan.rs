@@ -220,7 +220,7 @@ mod tests {
             .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
-        assert_eq!(plan.phases[0].registrations.len(), 2);
+        assert_eq!(plan.phases.first().unwrap().registrations.len(), 2);
     }
 
     #[test]
@@ -230,14 +230,14 @@ mod tests {
 
         assert_eq!(plan.phases.len(), 2);
         assert_eq!(
-            plan.phases[0].key.model_source,
+            plan.phases.first().unwrap().key.model_source,
             GgufSource::HuggingFace {
                 repo: "alpha",
                 file: "f"
             }
         );
         assert_eq!(
-            plan.phases[1].key.model_source,
+            plan.phases.get(1).unwrap().key.model_source,
             GgufSource::HuggingFace {
                 repo: "beta",
                 file: "f"
@@ -251,8 +251,26 @@ mod tests {
             .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
-        assert_eq!(plan.phases[0].registrations[0].name, "alpha");
-        assert_eq!(plan.phases[0].registrations[1].name, "bravo");
+        assert_eq!(
+            plan.phases
+                .first()
+                .unwrap()
+                .registrations
+                .first()
+                .unwrap()
+                .name,
+            "alpha"
+        );
+        assert_eq!(
+            plan.phases
+                .first()
+                .unwrap()
+                .registrations
+                .get(1)
+                .unwrap()
+                .name,
+            "bravo"
+        );
     }
 
     #[test]
@@ -261,8 +279,11 @@ mod tests {
             .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
-        assert_eq!(plan.phases[0].registrations.len(), 2);
-        let context_lengths: Vec<u32> = plan.phases[0]
+        assert_eq!(plan.phases.first().unwrap().registrations.len(), 2);
+        let context_lengths: Vec<u32> = plan
+            .phases
+            .first()
+            .unwrap()
             .registrations
             .iter()
             .map(|registration| registration.context_params.n_ctx)

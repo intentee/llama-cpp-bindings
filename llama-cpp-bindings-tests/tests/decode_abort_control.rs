@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -37,7 +38,7 @@ fn set_abort_flag_aborts_decode(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let result = context.decode(&batch);
 
-    assert_eq!(result, Err(DecodeError::Aborted));
+    ensure!(result == Err(DecodeError::Aborted));
 
     Ok(())
 }
@@ -65,7 +66,7 @@ fn set_abort_flag_false_allows_decode(fixture: &LlamaFixture<'_>) -> Result<()> 
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
-    assert_eq!(context.decode(&batch), Ok(()));
+    ensure!(context.decode(&batch) == Ok(()));
 
     Ok(())
 }
@@ -94,7 +95,7 @@ fn clear_abort_callback_allows_decode_with_flag_true(fixture: &LlamaFixture<'_>)
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
 
-    assert_eq!(context.decode(&batch), Ok(()));
+    ensure!(context.decode(&batch) == Ok(()));
 
     Ok(())
 }

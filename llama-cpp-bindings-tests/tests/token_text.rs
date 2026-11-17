@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::token_outside_vocabulary::TokenOutsideVocabulary;
 use llama_cpp_bindings::token::LlamaToken;
@@ -19,10 +20,7 @@ fn the_text_of_a_token_is_the_vocabulary_entry_it_was_tokenized_from(
 ) -> Result<()> {
     let model = fixture.model;
 
-    assert_eq!(
-        model.token_text_bytes(single_token(model, "Hello"))?,
-        b"Hello"
-    );
+    ensure!(model.token_text_bytes(single_token(model, "Hello")?)? == b"Hello");
 
     Ok(())
 }

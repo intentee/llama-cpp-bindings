@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -20,7 +21,7 @@ fn context_debug_format_contains_struct_name(fixture: &LlamaFixture<'_>) -> Resu
     )?;
     let debug_output = format!("{context:?}");
 
-    assert!(debug_output.contains("LlamaContext"));
+    ensure!(debug_output.contains("LlamaContext"));
 
     Ok(())
 }

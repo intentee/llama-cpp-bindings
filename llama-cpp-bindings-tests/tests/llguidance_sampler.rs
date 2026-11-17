@@ -3,6 +3,7 @@ use std::ffi::CStr;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -39,12 +40,12 @@ fn out_of_vocabulary_failure() -> String {
     .to_string()
 }
 
-fn yes_no_and_hello(model: &LlamaModel) -> [LlamaToken; 3] {
-    [
-        single_token(model, "yes"),
-        single_token(model, "no"),
-        single_token(model, "hello"),
-    ]
+fn yes_no_and_hello(model: &LlamaModel) -> Result<[LlamaToken; 3]> {
+    Ok([
+        single_token(model, "yes")?,
+        single_token(model, "no")?,
+        single_token(model, "hello")?,
+    ])
 }
 
 #[llama_test(
@@ -85,12 +86,11 @@ fn a_json_schema_sampler_masks_tokens_that_cannot_start_the_schema(
     let model = fixture.model;
     let sampler = create_llg_sampler(model, "json", JSON_SCHEMA)?;
 
-    assert_eq!(
+    ensure!(
         logits_left_by(
             &sampler,
-            &[single_token(model, "{"), single_token(model, "hello")]
-        ),
-        [0.0, f32::NEG_INFINITY]
+            &[single_token(model, "{")?, single_token(model, "hello")?]
+        )? == [0.0, f32::NEG_INFINITY]
     );
 
     Ok(())
@@ -142,10 +142,7 @@ fn a_regex_sampler_masks_tokens_that_cannot_start_a_match(
     let model = fixture.model;
     let sampler = LlamaSampler::llguidance(model, "regex", REGEX_GRAMMAR)?;
 
-    assert_eq!(
-        logits_left_by(&sampler, &yes_no_and_hello(model)),
-        [0.0, 0.0, f32::NEG_INFINITY]
-    );
+    ensure!(logits_left_by(&sampler, &yes_no_and_hello(model)?)? == [0.0, 0.0, f32::NEG_INFINITY]);
 
     Ok(())
 }
@@ -188,10 +185,7 @@ fn a_lark_sampler_masks_tokens_that_cannot_start_the_grammar(
     let model = fixture.model;
     let sampler = create_llg_sampler(model, "lark", LARK_GRAMMAR)?;
 
-    assert_eq!(
-        logits_left_by(&sampler, &yes_no_and_hello(model)),
-        [0.0, 0.0, f32::NEG_INFINITY]
-    );
+    ensure!(logits_left_by(&sampler, &yes_no_and_hello(model)?)? == [0.0, 0.0, f32::NEG_INFINITY]);
 
     Ok(())
 }
@@ -356,10 +350,10 @@ fn name_callback_returns_llguidance(fixture: &LlamaFixture<'_>) -> Result<()> {
     let sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
 
     let name_ptr = unsafe { llama_cpp_bindings_sys::llama_sampler_name(sampler.as_ptr()) };
-    assert!(!name_ptr.is_null());
+    ensure!(!name_ptr.is_null());
     let name = unsafe { CStr::from_ptr(name_ptr) }.to_str()?;
 
-    assert_eq!(name, "llguidance");
+    ensure!(name == "llguidance");
 
     Ok(())
 }
@@ -408,8 +402,8 @@ fn a_sampler_cloned_through_ffi_keeps_its_own_grammar_state(
         )
     }?;
 
-    assert_eq!(cloned.accept(single_token(model, "yes")), Ok(()));
-    assert_eq!(sampler.accept(single_token(model, "no")), Ok(()));
+    ensure!(cloned.accept(single_token(model, "yes")?) == Ok(()));
+    ensure!(sampler.accept(single_token(model, "no")?) == Ok(()));
 
     Ok(())
 }
@@ -466,15 +460,21 @@ fn llguidance_chain_samples_yes_as_the_first_answer_token(
     let llg_sampler = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
     let mut chain = LlamaSampler::chain([llg_sampler, LlamaSampler::greedy()?])?;
 
-    let token = chain.sample(&context, batch.n_tokens() - 1)?;
+    let token = chain.sample(
+        &context,
+        batch
+            .n_tokens()
+            .checked_sub(1)
+            .context("`batch.n_tokens() - 1` must not overflow")?,
+    )?;
     let piece = model.token_to_piece(
-        &SampledToken::Content(token),
+        SampledToken::Content(token),
         &mut encoding_rs::UTF_8.new_decoder(),
         false,
         None,
     )?;
 
-    assert_eq!(piece, "yes");
+    ensure!(piece == "yes");
 
     Ok(())
 }
@@ -530,9 +530,8 @@ fn reset_rolls_back_accepted_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
         .reset()
         .context("reset must roll a healthy grammar matcher back to its initial state")?;
 
-    assert_eq!(
-        sampler.accept(first_allowed_token),
-        Ok(()),
+    ensure!(
+        sampler.accept(first_allowed_token) == Ok(()),
         "after reset the same token must be acceptable again, which is what rollback means"
     );
 
@@ -552,11 +551,11 @@ fn accept_maps_an_out_of_vocabulary_token_to_grammar_callback_failure(
 ) -> Result<()> {
     let mut sampler = create_llg_sampler(fixture.model, "regex", REGEX_GRAMMAR)?;
 
-    assert_eq!(
-        sampler.accept(LlamaToken(i32::MAX - 1)),
-        Err(SamplerAcceptError::GrammarCallbackFailed {
-            message: out_of_vocabulary_failure(),
-        })
+    ensure!(
+        sampler.accept(LlamaToken(i32::MAX - 1))
+            == Err(SamplerAcceptError::GrammarCallbackFailed {
+                message: out_of_vocabulary_failure(),
+            })
     );
 
     Ok(())
@@ -598,14 +597,11 @@ fn samplers_sharing_the_cached_tokenizer_environment_mask_alike(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = fixture.model;
-    let candidates = yes_no_and_hello(model);
+    let candidates = yes_no_and_hello(model)?;
     let first = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
     let second = create_llg_sampler(model, "regex", REGEX_GRAMMAR)?;
 
-    assert_eq!(
-        logits_left_by(&first, &candidates),
-        logits_left_by(&second, &candidates)
-    );
+    ensure!(logits_left_by(&first, &candidates)? == logits_left_by(&second, &candidates)?);
 
     Ok(())
 }
@@ -637,15 +633,20 @@ fn sampling_through_a_grammar_in_an_error_state_reports_the_grammar_failure(
         LlamaSampler::greedy()?,
     ])?;
 
-    assert_eq!(
-        chain.accept(LlamaToken(i32::MAX - 1)),
-        Err(SamplerAcceptError::GrammarCallbackFailed {
-            message: out_of_vocabulary_failure(),
-        })
+    ensure!(
+        chain.accept(LlamaToken(i32::MAX - 1))
+            == Err(SamplerAcceptError::GrammarCallbackFailed {
+                message: out_of_vocabulary_failure(),
+            })
     );
-    assert_eq!(
-        chain.sample(&context, batch.n_tokens() - 1),
-        Err(SampleError::GrammarCallbackFailed {
+    ensure!(
+        chain.sample(
+            &context,
+            batch
+                .n_tokens()
+                .checked_sub(1)
+                .context("`batch.n_tokens() - 1` must not overflow")?
+        ) == Err(SampleError::GrammarCallbackFailed {
             message: out_of_vocabulary_failure(),
         })
     );
@@ -675,11 +676,11 @@ fn creating_a_sampler_reports_a_vocabulary_llama_cpp_cannot_render(
     let model = freshly_loaded(fixture)?;
     let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_TOKEN_TO_PIECE_FAILS);
 
-    assert_eq!(
-        create_llg_sampler(&model, "regex", REGEX_GRAMMAR).err(),
-        Some(GrammarError::TokEnvUnavailable(
-            TokenToStringError::InsufficientBufferSpace(-34)
-        ))
+    ensure!(
+        create_llg_sampler(&model, "regex", REGEX_GRAMMAR).err()
+            == Some(GrammarError::TokEnvUnavailable(
+                TokenToStringError::InsufficientBufferSpace(-34)
+            ))
     );
 
     Ok(())
@@ -700,9 +701,8 @@ fn the_tokenizer_environment_reports_a_control_token_llama_cpp_cannot_render(
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SPECIAL_TOKEN_TO_PIECE_FAILS);
 
-    assert_eq!(
-        model.approximate_tok_env().err(),
-        Some(TokenToStringError::InsufficientBufferSpace(-34))
+    ensure!(
+        model.approximate_tok_env().err() == Some(TokenToStringError::InsufficientBufferSpace(-34))
     );
 
     Ok(())

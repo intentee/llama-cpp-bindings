@@ -21,7 +21,7 @@ impl SampledToken {
     }
 
     #[must_use]
-    pub const fn section(&self) -> SampledTokenSection {
+    pub const fn section(self) -> SampledTokenSection {
         match self {
             Self::Reasoning(_) => SampledTokenSection::Reasoning,
             Self::Content(_) => SampledTokenSection::Content,
@@ -31,8 +31,8 @@ impl SampledToken {
     }
 
     #[must_use]
-    pub const fn token(&self) -> LlamaToken {
-        match *self {
+    pub const fn token(self) -> LlamaToken {
+        match self {
             Self::Content(token)
             | Self::Reasoning(token)
             | Self::ToolCall(token)
@@ -58,7 +58,7 @@ mod tests {
                 SampledToken::ToolCall(token),
                 SampledToken::Undeterminable(token),
             ]
-            .map(|sampled_token| sampled_token.token()),
+            .map(SampledToken::token),
             [token; 4]
         );
     }

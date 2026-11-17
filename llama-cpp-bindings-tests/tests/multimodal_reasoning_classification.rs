@@ -42,7 +42,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let backend = fixture.backend;
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
     let mut context = LlamaContext::from_model(
         model,
@@ -96,7 +96,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run();
+    .run()?;
 
     let usage = classifier.usage();
 
@@ -106,10 +106,8 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
              when the prompt opens a `<|channel>thought` block; outcome={outcome:?}"
         );
     }
-    if usage.reasoning_tokens == 0 {
-        bail!(
-            "Gemma 4 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
-        );
+    if usage.reasoning == 0 {
+        bail!("Gemma 4 multimodal + thinking: usage.reasoning must be non-zero; usage={usage:?}");
     }
 
     Ok(())
@@ -133,7 +131,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let backend = fixture.backend;
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
     let mut context = LlamaContext::from_model(
         model,
@@ -204,7 +202,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run();
+    .run()?;
 
     let usage = classifier.usage();
 
@@ -214,10 +212,8 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
              when the model opens a `[THINK]` block; outcome={outcome:?}"
         );
     }
-    if usage.reasoning_tokens == 0 {
-        bail!(
-            "Mistral 3 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
-        );
+    if usage.reasoning == 0 {
+        bail!("Mistral 3 multimodal + thinking: usage.reasoning must be non-zero; usage={usage:?}");
     }
 
     Ok(())
@@ -259,7 +255,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let backend = fixture.backend;
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
     let mut context = LlamaContext::from_model(
         model,
@@ -313,7 +309,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run();
+    .run()?;
 
     let usage = classifier.usage();
 
@@ -323,10 +319,8 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
              when the prompt opens a `<think>` block; outcome={outcome:?}"
         );
     }
-    if usage.reasoning_tokens == 0 {
-        bail!(
-            "Qwen multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
-        );
+    if usage.reasoning == 0 {
+        bail!("Qwen multimodal + thinking: usage.reasoning must be non-zero; usage={usage:?}");
     }
 
     Ok(())

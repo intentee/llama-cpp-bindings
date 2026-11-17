@@ -1,6 +1,8 @@
 use std::ffi::CString;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::chat_template_error::ChatTemplateError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -39,7 +41,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
 )]
 fn default_chat_template_is_not_empty(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_ne!(fixture.model.chat_template(None)?.to_str()?, "");
+    ensure!(fixture.model.chat_template(None)?.to_str()? != "");
 
     Ok(())
 }
@@ -76,11 +78,13 @@ fn default_chat_template_is_not_empty(fixture: &LlamaFixture<'_>) -> Result<()> 
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>) {
+fn chat_template_with_nonexistent_name_returns_error(fixture: &LlamaFixture<'_>) -> Result<()> {
     let result = fixture
         .model
         .chat_template(Some("nonexistent_template_name_xyz"));
-    assert_eq!(result.unwrap_err(), ChatTemplateError::MissingTemplate);
+    ensure!(result.err().context("the operation must fail")? == ChatTemplateError::MissingTemplate);
+
+    Ok(())
 }
 
 #[llama_test(

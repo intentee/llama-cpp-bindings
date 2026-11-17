@@ -75,7 +75,7 @@ mod tests {
             .append_kv_override(&key, ParamOverrideValue::Int(99))
             .unwrap();
 
-        params.kv_overrides[0].tag = 9999;
+        params.kv_overrides.first_mut().unwrap().tag = 9999;
 
         let entry = params
             .kv_overrides()

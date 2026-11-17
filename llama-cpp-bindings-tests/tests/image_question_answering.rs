@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -32,7 +33,7 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
     let model = fixture.model;
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
     let mut ctx = LlamaContext::from_model(
         model,
@@ -41,7 +42,7 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
     )
     .with_context(|| "unable to create llama context")?;
 
-    assert!(
+    ensure!(
         mtmd_ctx
             .capabilities(model)
             .contains(MtmdCapability::Vision),
@@ -66,14 +67,14 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
         .tokenize(input_text, &[&bitmap])
         .with_context(|| "failed to tokenize multimodal input")?;
 
-    assert!(
+    ensure!(
         !chunks.is_empty(),
         "tokenization should produce at least one chunk"
     );
 
-    let expected = ChunkTokenBreakdown::from_chunks(&chunks);
+    let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
 
-    assert!(
+    ensure!(
         expected.image > 0,
         "vision input must produce at least one image chunk"
     );
@@ -95,9 +96,9 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
 
     {
         let usage = classifier.usage();
-        assert_eq!(usage.prompt_tokens, expected.text);
-        assert_eq!(usage.input_image_tokens, expected.image);
-        assert_eq!(usage.input_audio_tokens, expected.audio);
+        ensure!(usage.prompt == expected.text);
+        ensure!(usage.input_image == expected.image);
+        ensure!(usage.input_audio == expected.audio);
     }
 
     let mut sampler = LlamaSampler::greedy()?;
@@ -110,22 +111,27 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
         initial_position: n_past,
         max_generated_tokens: 512,
     }
-    .run();
+    .run()?;
 
-    assert!(
+    ensure!(
         !totals.generated.text().is_empty(),
         "model should generate at least one token from image input"
     );
 
     let usage = classifier.into_usage();
-    assert_eq!(usage.prompt_tokens, expected.text);
-    assert_eq!(usage.input_image_tokens, expected.image);
-    assert_eq!(usage.input_audio_tokens, expected.audio);
-    assert_eq!(usage.content_tokens, totals.observed_content);
-    assert_eq!(usage.reasoning_tokens, totals.observed_reasoning);
-    assert_eq!(
-        usage.completion_tokens(),
-        totals.observed_content + totals.observed_reasoning
+    ensure!(usage.prompt == expected.text);
+    ensure!(usage.input_image == expected.image);
+    ensure!(usage.input_audio == expected.audio);
+    ensure!(usage.content == totals.observed_content);
+    ensure!(usage.reasoning == totals.observed_reasoning);
+    ensure!(
+        usage.completion_tokens()
+            == totals
+                .observed_content
+                .checked_add(totals.observed_reasoning)
+                .context(
+                    "`totals.observed_content + totals.observed_reasoning` must not overflow"
+                )?
     );
 
     Ok(())

@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
@@ -70,13 +71,13 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
     let model = fixture.model;
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
     let image_bitmap = load_fixture_bitmap(mtmd_ctx, "llamas.jpg")?;
-    assert!(!image_bitmap.is_audio(), "llamas.jpg must decode as image");
+    ensure!(!image_bitmap.is_audio(), "llamas.jpg must decode as image");
 
     let audio_bitmap = load_fixture_bitmap(mtmd_ctx, "orange_cat.wav")?;
-    assert!(
+    ensure!(
         audio_bitmap.is_audio(),
         "orange_cat.wav must decode as audio"
     );
@@ -92,18 +93,23 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
         .tokenize(input_text, &[&image_bitmap, &audio_bitmap])
         .with_context(|| "failed to tokenize combined image and audio input")?;
 
-    let expected = ChunkTokenBreakdown::from_chunks(&chunks);
-    assert!(
+    let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
+    ensure!(
         expected.image > 0,
         "image input must produce at least one image-chunk token"
     );
-    assert!(
+    ensure!(
         expected.audio > 0,
         "audio input must produce at least one audio-chunk token"
     );
 
-    let required_n_ctx = u32::try_from(chunks.total_positions() + MAX_GENERATED_TOKENS)?;
-    assert!(
+    let required_n_ctx = u32::try_from(
+        chunks
+            .total_positions()
+            .checked_add(MAX_GENERATED_TOKENS)
+            .context("`chunks.total_positions() + MAX_GENERATED_TOKENS` must not overflow")?,
+    )?;
+    ensure!(
         fixture.context_params.n_ctx >= required_n_ctx,
         "fixture n_ctx ({}) below required ({}); update the attribute literal",
         fixture.context_params.n_ctx,
@@ -135,9 +141,9 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
 
     {
         let usage = classifier.usage();
-        assert_eq!(usage.input_image_tokens, expected.image);
-        assert_eq!(usage.input_audio_tokens, expected.audio);
-        assert_eq!(usage.prompt_tokens, expected.text);
+        ensure!(usage.input_image == expected.image);
+        ensure!(usage.input_audio == expected.audio);
+        ensure!(usage.prompt == expected.text);
     }
 
     let mut sampler = LlamaSampler::greedy()?;
@@ -150,12 +156,12 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run();
+    .run()?;
 
-    assert!(outcome.eog_seen, "{outcome:?}");
-    assert_eq!(
-        outcome.generated.text(),
-        "Animal: The image shows a llama.\nAudio: The orange cat sat on the wooden fence."
+    ensure!(outcome.eog_seen, "{outcome:?}");
+    ensure!(
+        outcome.generated.text()
+            == "Animal: The image shows a llama.\nAudio: The orange cat sat on the wooden fence."
     );
 
     Ok(())

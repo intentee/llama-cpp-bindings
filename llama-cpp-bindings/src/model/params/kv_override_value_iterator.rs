@@ -38,7 +38,7 @@ impl Iterator for KvOverrideValueIterator<'_> {
             return None;
         }
 
-        self.current += 1;
+        self.current = self.current.saturating_add(1);
         let value = ParamOverrideValue::try_from(&current);
 
         Some(value.map(|value| KvOverrideEntry {

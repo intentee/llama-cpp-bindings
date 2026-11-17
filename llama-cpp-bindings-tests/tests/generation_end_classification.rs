@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::model::add_bos::AddBos;
@@ -35,13 +37,12 @@ fn qwen35_classifier_ends_generation_without_emitting_the_end_of_generation_toke
     let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", &[], false)?;
     let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
 
-    assert_eq!(
+    ensure!(
         visible_text(&ingested_generation(
             &mut classifier,
             fixture.model,
             GENERATED_TEXT
-        )),
-        GENERATED_TEXT
+        )?) == GENERATED_TEXT
     );
 
     Ok(())
@@ -82,14 +83,13 @@ fn an_answer_stopped_inside_unclosed_reasoning_releases_its_unsettled_tail_as_re
     }
     classifier.finish(&mut outcomes)?;
 
-    assert_eq!(
+    ensure!(
         [
             visible_text_in(&outcomes, SampledTokenSection::Reasoning),
             visible_text_in(&outcomes, SampledTokenSection::Content),
             visible_text_in(&outcomes, SampledTokenSection::ToolCall),
             visible_text_in(&outcomes, SampledTokenSection::Pending),
-        ],
-        [
+        ] == [
             format!("{SETTLED_REASONING}{UNSETTLED_TAIL}"),
             String::new(),
             String::new(),
@@ -115,25 +115,28 @@ fn gemma3_whose_template_cannot_render_tool_calls_keeps_a_bare_json_tool_call_as
 
     let session = user_turn_chat_session(fixture.model, "What is 2 + 2?", &[], false)?;
     let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
-    let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT);
+    let outcomes = ingested_generation(&mut classifier, fixture.model, GENERATED_TEXT)?;
 
-    assert_eq!(
+    ensure!(
         [
             visible_text_in(&outcomes, SampledTokenSection::Reasoning),
             visible_text_in(&outcomes, SampledTokenSection::Content),
             visible_text_in(&outcomes, SampledTokenSection::ToolCall),
             visible_text_in(&outcomes, SampledTokenSection::Pending),
-        ],
-        [
+        ] == [
             String::new(),
             GENERATED_TEXT.to_owned(),
             String::new(),
             String::new()
         ]
     );
-    assert_eq!(
-        classifier.usage().content_tokens,
-        u64::try_from(outcomes.len())? + END_OF_GENERATION_TOKENS
+    ensure!(
+        classifier.usage().content
+            == u64::try_from(outcomes.len())?
+                .checked_add(END_OF_GENERATION_TOKENS)
+                .context(
+                    "`u64::try_from(outcomes.len())? + END_OF_GENERATION_TOKENS` must not overflow"
+                )?
     );
 
     Ok(())

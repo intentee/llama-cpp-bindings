@@ -2,6 +2,7 @@ use std::ptr;
 use std::sync::Arc;
 
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -18,7 +19,7 @@ fn approximate_tok_env_is_cached_across_calls(fixture: &LlamaFixture<'_>) -> Res
     let first = fixture.model.approximate_tok_env()?;
     let second = fixture.model.approximate_tok_env()?;
 
-    assert!(Arc::ptr_eq(&first, &second));
+    ensure!(Arc::ptr_eq(&first, &second));
 
     Ok(())
 }
@@ -35,7 +36,7 @@ fn chat_templates_are_prepared_once_per_model(fixture: &LlamaFixture<'_>) -> Res
     let first = fixture.model.chat_templates()?;
     let second = fixture.model.chat_templates()?;
 
-    assert!(ptr::eq(first, second));
+    ensure!(ptr::eq(first, second));
 
     Ok(())
 }

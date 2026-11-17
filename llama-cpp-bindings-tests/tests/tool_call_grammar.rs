@@ -1,5 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::ensure;
 
 use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
@@ -28,12 +30,11 @@ fn generated_tool_call_answer(
         sampler: &mut sampler,
         max_generated_tokens: MAX_TOOL_CALL_TOKENS,
     }
-    .run();
+    .run()?;
 
-    Ok(answer
-        .parse
-        .into_recognized()
-        .expect("the generated answer must be recognized"))
+    answer.parse.into_recognized().map_err(|raw_chat_message| {
+        anyhow!("the generated answer must be recognized: {raw_chat_message:?}")
+    })
 }
 
 #[llama_test(
@@ -47,7 +48,7 @@ fn generated_tool_call_answer(
 fn a_chat_session_without_tools_needs_no_grammar_sampler(fixture: &LlamaFixture<'_>) -> Result<()> {
     let session = user_turn_chat_session(fixture.model, "Hello!", &[], false)?;
 
-    assert!(session.grammar_sampler(fixture.model)?.is_none());
+    ensure!(session.grammar_sampler(fixture.model)?.is_none());
 
     Ok(())
 }
@@ -61,9 +62,9 @@ fn a_chat_session_without_tools_needs_no_grammar_sampler(fixture: &LlamaFixture<
     n_ubatch = 128,
 )]
 fn a_tool_choice_of_none_needs_no_grammar_sampler(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::None);
+    let session = weather_chat_session(fixture.model, ChatToolChoice::None)?;
 
-    assert!(session.grammar_sampler(fixture.model)?.is_none());
+    ensure!(session.grammar_sampler(fixture.model)?.is_none());
 
     Ok(())
 }
@@ -79,12 +80,11 @@ fn a_tool_choice_of_none_needs_no_grammar_sampler(fixture: &LlamaFixture<'_>) ->
 fn qwen36_required_tool_call_grammar_constrains_the_answer_to_a_tool_call(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Required);
+    let session = weather_chat_session(fixture.model, ChatToolChoice::Required)?;
 
-    assert!(!session.grammar_is_lazy());
-    assert_eq!(
-        generated_tool_call_answer(fixture, session)?.tool_calls,
-        [paris_weather_tool_call()]
+    ensure!(!session.grammar_is_lazy());
+    ensure!(
+        generated_tool_call_answer(fixture, session)?.tool_calls == [paris_weather_tool_call()]
     );
 
     Ok(())
@@ -101,12 +101,11 @@ fn qwen36_required_tool_call_grammar_constrains_the_answer_to_a_tool_call(
 fn qwen36_automatic_tool_call_grammar_constrains_the_tool_call_after_its_trigger(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto);
+    let session = weather_chat_session(fixture.model, ChatToolChoice::Auto)?;
 
-    assert!(session.grammar_is_lazy());
-    assert_eq!(
-        generated_tool_call_answer(fixture, session)?.tool_calls,
-        [paris_weather_tool_call()]
+    ensure!(session.grammar_is_lazy());
+    ensure!(
+        generated_tool_call_answer(fixture, session)?.tool_calls == [paris_weather_tool_call()]
     );
 
     Ok(())

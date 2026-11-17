@@ -14,12 +14,12 @@ impl LlamaStateSeqFlags {
     }
 
     #[must_use]
-    pub const fn bits(&self) -> u32 {
+    pub const fn bits(self) -> u32 {
         self.flags
     }
 
     #[must_use]
-    pub const fn contains(&self, other: Self) -> bool {
+    pub const fn contains(self, other: Self) -> bool {
         (self.flags & other.flags) == other.flags
     }
 }

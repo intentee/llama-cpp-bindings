@@ -2,7 +2,9 @@ use std::ffi::CString;
 use std::num::NonZeroU32;
 use std::pin::pin;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::max_devices::max_devices;
@@ -63,7 +65,7 @@ fn fit_params_fits_a_nonzero_context_for_the_model(fixture: &LlamaFixture<'_>) -
     );
 
     let fit = result?;
-    assert!(fit.n_ctx > 0);
+    ensure!(fit.n_ctx > 0);
 
     Ok(())
 }
@@ -106,16 +108,12 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
     );
 
     let fit = result?;
-    assert!(fit.n_ctx > 0);
-    assert_ne!(
-        extra_context_params.n_ctx(),
-        Some(unfittable_extra_n_ctx),
+    ensure!(fit.n_ctx > 0);
+    ensure!(
+        extra_context_params.n_ctx() != Some(unfittable_extra_n_ctx),
         "the llama.cpp fit must overwrite the extra model's context size"
     );
-    assert_eq!(
-        extra_context_params.context_params.n_ctx,
-        context_params.context_params.n_ctx
-    );
+    ensure!(extra_context_params.context_params.n_ctx == context_params.context_params.n_ctx);
 
     Ok(())
 }
@@ -146,7 +144,10 @@ fn fit_params_fits_the_model_beside_the_projector_memory_reserved_on_its_device(
     MtmdMemoryUsage::measure(&mmproj_path_c, &MtmdContextParams::default())?
         .add_to_fit_margins(&mut margins);
 
-    assert_ne!(margins[0], 0, "{margins:?}");
+    ensure!(
+        *margins.first().context("margins has no element 0")? != 0,
+        "{margins:?}"
+    );
 
     let fit = params.as_mut().fit_params(
         &model_path_c,
@@ -157,7 +158,7 @@ fn fit_params_fits_the_model_beside_the_projector_memory_reserved_on_its_device(
         llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
     )?;
 
-    assert!(fit.n_ctx > 0);
+    ensure!(fit.n_ctx > 0);
 
     Ok(())
 }

@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
@@ -73,13 +75,12 @@ fn deepseek_r1_served_with_the_llama_cpp_template_parses_its_tool_call(
         ChatTemplates::with_override(fixture.model, &llama_cpp_deepseek_r1_template()?)?;
     let session = weather_session(fixture.model, &templates)?;
 
-    assert_eq!(
+    ensure!(
         recognized_answer(
             &session,
             &format!("{REASONING}{R1_WEATHER_TOOL_CALL}"),
             ChatOutputCompleteness::Finished
-        ),
-        ParsedChatMessage::new(
+        )? == ParsedChatMessage::new(
             String::new(),
             "\nThe user wants the weather in Paris.".to_owned(),
             vec![paris_weather_tool_call()]
@@ -109,18 +110,17 @@ fn deepseek_r1_served_with_the_llama_cpp_template_streams_its_tool_call_tokens_a
         &mut classifier,
         fixture.model,
         &format!("{REASONING}{R1_WEATHER_TOOL_CALL}"),
-    );
+    )?;
 
-    assert_eq!(
+    ensure!(
         [
-            classifier.usage().reasoning_tokens,
-            classifier.usage().content_tokens,
-            classifier.usage().tool_call_tokens,
-        ],
-        [
+            classifier.usage().reasoning,
+            classifier.usage().content,
+            classifier.usage().tool_call,
+        ] == [
             token_count(fixture.model, REASONING)?,
             0,
-            token_count(fixture.model, R1_WEATHER_TOOL_CALL)? + END_OF_GENERATION_TOKENS,
+            token_count(fixture.model, R1_WEATHER_TOOL_CALL)?.checked_add(END_OF_GENERATION_TOKENS).context("`token_count(fixture.model, R1_WEATHER_TOOL_CALL)? + END_OF_GENERATION_TOKENS` must not overflow")?,
         ]
     );
 
@@ -136,9 +136,9 @@ fn deepseek_r1_served_with_the_llama_cpp_template_streams_its_tool_call_tokens_a
     n_ubatch = 64,
 )]
 fn an_empty_template_override_is_refused(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(
-        ChatTemplates::with_override(fixture.model, &LlamaChatTemplate::new("")?).err(),
-        Some(ChatTemplatesError::EmptyTemplateOverride)
+    ensure!(
+        ChatTemplates::with_override(fixture.model, &LlamaChatTemplate::new("")?).err()
+            == Some(ChatTemplatesError::EmptyTemplateOverride)
     );
 
     Ok(())
@@ -155,16 +155,13 @@ fn an_empty_template_override_is_refused(fixture: &LlamaFixture<'_>) -> Result<(
 fn a_template_override_llama_cpp_cannot_parse_reports_its_parse_error(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    assert_eq!(
-        ChatTemplates::with_override(
+    ensure!(ChatTemplates::with_override(
             fixture.model,
             &LlamaChatTemplate::new("{{invalid jinja template")?
         )
-        .err(),
-        Some(ChatTemplatesError::Reported {
+        .err() == Some(ChatTemplatesError::Reported {
             message: "parser: Parser Error: Expected }} (Got jinja)\n...{{invalid jinja template...\n             ^".to_owned(),
-        })
-    );
+        }));
 
     Ok(())
 }

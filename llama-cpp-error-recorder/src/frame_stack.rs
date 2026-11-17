@@ -11,8 +11,14 @@ thread_local! {
 pub struct FrameStack;
 
 impl FrameStack {
-    pub fn push_frame() {
-        FRAMES.with(|cell| cell.borrow_mut().push(None));
+    pub fn push_frame() -> usize {
+        FRAMES.with(|cell| {
+            let mut frames = cell.borrow_mut();
+            let frame_index = frames.len();
+            frames.push(None);
+
+            frame_index
+        })
     }
 
     pub fn pop_frame() {
@@ -21,8 +27,12 @@ impl FrameStack {
         });
     }
 
-    pub fn take_from_top() -> Option<RecordedError> {
-        FRAMES.with(|cell| cell.borrow_mut().last_mut().and_then(Option::take))
+    pub fn take_from_frame(frame_index: usize) -> Option<RecordedError> {
+        FRAMES.with(|cell| {
+            cell.borrow_mut()
+                .get_mut(frame_index)
+                .and_then(Option::take)
+        })
     }
 
     pub fn record_into_top(error: RecordedError) {

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -57,7 +58,7 @@ fn the_relevant_document_embeds_closer_to_the_query_than_an_unrelated_one(
     let relevant_similarity = cosine_similarity(query_embedding, context.embeddings_seq_ith(1)?);
     let unrelated_similarity = cosine_similarity(query_embedding, context.embeddings_seq_ith(2)?);
 
-    assert!(
+    ensure!(
         relevant_similarity > unrelated_similarity,
         "the relevant document must rank above the unrelated one; \
          relevant={relevant_similarity} unrelated={unrelated_similarity}"

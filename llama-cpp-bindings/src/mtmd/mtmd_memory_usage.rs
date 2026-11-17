@@ -148,7 +148,7 @@ impl MtmdMemoryUsage {
                 .and_then(|device_index| margins.get_mut(device_index));
 
             if let Some(margin) = margin {
-                *margin += bytes;
+                *margin = margin.saturating_add(*bytes);
             }
         }
     }
@@ -259,7 +259,7 @@ mod tests {
             MtmdMemoryUsage::measure(c"/nonexistent/mmproj.gguf", &MtmdContextParams::default())
                 .err(),
             Some(MtmdMemoryUsageError::Reported {
-                message: injected_fault_message(),
+                message: injected_fault_message().unwrap(),
             })
         );
     }

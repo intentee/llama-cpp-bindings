@@ -275,7 +275,7 @@ mod tests {
         assert_eq!(
             LazyGrammarTriggers::of(vec![ChatGrammarTrigger::Word("<tool_call>".to_owned())]),
             Err(GrammarError::Reported {
-                message: injected_fault_message(),
+                message: injected_fault_message().unwrap(),
             })
         );
     }

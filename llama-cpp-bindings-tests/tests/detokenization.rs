@@ -4,6 +4,7 @@ use std::num::NonZeroU16;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
 use llama_cpp_bindings::model::add_bos::AddBos;
@@ -54,9 +55,13 @@ fn token_to_piece_bytes_returns_the_bytes_of_the_token_piece(
     let model = fixture.model;
     let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
 
-    assert_eq!(
-        model.token_to_piece_bytes(tokens[0], PIECE_PROBE_BYTES, false, None)?,
-        b"hello"
+    ensure!(
+        model.token_to_piece_bytes(
+            *tokens.first().context("tokens has no element 0")?,
+            PIECE_PROBE_BYTES,
+            false,
+            None
+        )? == b"hello"
     );
     Ok(())
 }
@@ -119,14 +124,9 @@ fn token_to_piece_returns_a_piece_longer_than_its_probe_buffer_whole(
     )?;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
 
-    assert_eq!(
-        model.token_to_piece(
-            &SampledToken::Content(long_token),
-            &mut decoder,
-            false,
-            None
-        )?,
-        String::from_utf8(long_piece)?
+    ensure!(
+        model.token_to_piece(SampledToken::Content(long_token), &mut decoder, false, None)?
+            == String::from_utf8(long_piece)?
     );
     Ok(())
 }
@@ -169,10 +169,16 @@ fn token_to_piece_bytes_with_a_too_small_buffer_reports_the_size_the_piece_needs
     let model = fixture.model;
     let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
 
-    assert_eq!(
-        model.token_to_piece_bytes(tokens[0], 1, false, None),
-        Err(TokenToStringError::InsufficientBufferSpace(
-            -c_int::try_from("hello".len())?
+    ensure!(
+        model.token_to_piece_bytes(
+            *tokens.first().context("tokens has no element 0")?,
+            1,
+            false,
+            None
+        ) == Err(TokenToStringError::InsufficientBufferSpace(
+            c_int::try_from("hello".len())?
+                .checked_neg()
+                .context("`-c_int::try_from(\"hello\".len())?` must not overflow")?
         ))
     );
     Ok(())
@@ -217,14 +223,13 @@ fn token_to_piece_strips_the_requested_count_of_leading_spaces(
     let mut decoder = encoding_rs::UTF_8.new_decoder();
     let tokens = model.str_to_token(" hello", AddBos::Never, ParseSpecialTokens::Always)?;
 
-    assert_eq!(
+    ensure!(
         model.token_to_piece(
-            &SampledToken::Content(tokens[0]),
+            SampledToken::Content(*tokens.first().context("tokens has no element 0")?),
             &mut decoder,
             false,
             NonZeroU16::new(1),
-        )?,
-        "hello"
+        )? == "hello"
     );
     Ok(())
 }
@@ -261,11 +266,13 @@ fn token_to_piece_strips_the_requested_count_of_leading_spaces(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_to_piece_decodes_a_token_alike_in_every_non_content_section(fixture: &LlamaFixture<'_>) {
+fn token_to_piece_decodes_a_token_alike_in_every_non_content_section(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
-    let hi_token = single_token(model, "hi");
+    let hi_token = single_token(model, "hi")?;
 
-    assert_eq!(
+    ensure!(
         [
             SampledToken::Reasoning(hi_token),
             SampledToken::ToolCall(hi_token),
@@ -273,18 +280,19 @@ fn token_to_piece_decodes_a_token_alike_in_every_non_content_section(fixture: &L
         ]
         .map(|sampled_token| {
             model.token_to_piece(
-                &sampled_token,
+                sampled_token,
                 &mut encoding_rs::UTF_8.new_decoder(),
                 true,
                 None,
             )
-        }),
-        [
+        }) == [
             Ok("hi".to_owned()),
             Ok("hi".to_owned()),
             Ok("hi".to_owned())
         ]
     );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -331,14 +339,13 @@ fn token_to_piece_replaces_a_lone_continuation_byte_with_the_replacement_charact
         .context("the byte-level vocabulary has a token for the byte 0x80")?;
     let mut decoder = encoding_rs::UTF_8.new_decoder();
 
-    assert_eq!(
+    ensure!(
         model.token_to_piece(
-            &SampledToken::Content(continuation_byte_token),
+            SampledToken::Content(continuation_byte_token),
             &mut decoder,
             true,
             None
-        )?,
-        "\u{FFFD}"
+        )? == "\u{FFFD}"
     );
 
     Ok(())
@@ -352,17 +359,20 @@ fn token_to_piece_replaces_a_lone_continuation_byte_with_the_replacement_charact
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn a_control_token_decoded_without_special_rendering_is_an_empty_piece(fixture: &LlamaFixture<'_>) {
+fn a_control_token_decoded_without_special_rendering_is_an_empty_piece(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
-    let control_token = single_token(model, "<|im_start|>");
+    let control_token = single_token(model, "<|im_start|>")?;
 
-    assert_eq!(
+    ensure!(
         model.token_to_piece(
-            &SampledToken::Content(control_token),
+            SampledToken::Content(control_token),
             &mut encoding_rs::UTF_8.new_decoder(),
             false,
             None
-        ),
-        Ok(String::new())
+        ) == Ok(String::new())
     );
+
+    Ok(())
 }

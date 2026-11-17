@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::chat_assistant_prefill::ChatAssistantPrefill;
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
@@ -41,7 +42,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
     let model = fixture.model;
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
     let mut context = LlamaContext::from_model(
         model,
@@ -80,13 +81,13 @@ fn evaluate_audio_prompt<'model, TOutcome>(
     let bitmap = MtmdBitmap::from_file(mtmd_ctx, audio_path_str)
         .with_context(|| "failed to load audio from file")?;
 
-    assert!(bitmap.is_audio(), "fixture must decode as audio");
+    ensure!(bitmap.is_audio(), "fixture must decode as audio");
 
     let chunks = mtmd_ctx
         .tokenize(input_text, &[&bitmap])
         .with_context(|| "failed to tokenize multimodal audio input")?;
 
-    assert!(
+    ensure!(
         !chunks.is_empty(),
         "tokenization should produce at least one chunk"
     );
@@ -109,7 +110,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
     after_evaluation(
         &mut classifier,
         &mut context,
-        ChunkTokenBreakdown::from_chunks(&chunks),
+        ChunkTokenBreakdown::from_chunks(&chunks)?,
         n_past,
     )
 }
@@ -134,7 +135,7 @@ fn transcribe_audio(
                 initial_position: n_past,
                 max_generated_tokens: 512,
             }
-            .run();
+            .run()?;
 
             Ok(outcome.generated.text().to_owned())
         },
@@ -146,9 +147,8 @@ fn assert_audio_transcription(
     audio_file_name: &str,
     expected_transcript: &str,
 ) -> Result<()> {
-    assert_eq!(
-        transcribe_audio(fixture, audio_file_name, ChatAssistantTurn::New)?,
-        expected_transcript
+    ensure!(
+        transcribe_audio(fixture, audio_file_name, ChatAssistantTurn::New)? == expected_transcript
     );
 
     Ok(())
@@ -172,7 +172,7 @@ fn assert_audio_transcription(
 fn ultravox_transcribes_the_spoken_sentence_into_an_opened_quote(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    assert_eq!(
+    ensure!(
         transcribe_audio(
             fixture,
             "quick_brown_fox.wav",
@@ -180,8 +180,7 @@ fn ultravox_transcribes_the_spoken_sentence_into_an_opened_quote(
                 reasoning_content: String::new(),
                 content: "\"".to_owned(),
             }),
-        )?,
-        "Quick brown fox jumps over the lazy dog.\""
+        )? == "Quick brown fox jumps over the lazy dog.\""
     );
 
     Ok(())
@@ -263,9 +262,9 @@ fn audio_input_records_each_chunk_type_in_its_own_usage_counter(
         },
     )?;
 
-    assert_eq!(usage.input_audio_tokens, chunk_breakdown.audio);
-    assert_eq!(usage.input_image_tokens, chunk_breakdown.image);
-    assert_eq!(usage.prompt_tokens, chunk_breakdown.text);
+    ensure!(usage.input_audio == chunk_breakdown.audio);
+    ensure!(usage.input_image == chunk_breakdown.image);
+    ensure!(usage.prompt == chunk_breakdown.text);
 
     Ok(())
 }

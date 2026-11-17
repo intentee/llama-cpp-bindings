@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
@@ -43,7 +44,7 @@ fn memory_seq_rm_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> Result
 
     prime_memory(fixture, &mut context)?;
 
-    assert_eq!(context.memory_seq_rm(Some(0), Some(0), Some(1)), Ok(()));
+    ensure!(context.memory_seq_rm(Some(0), Some(0), Some(1)) == Ok(()));
 
     Ok(())
 }
@@ -85,11 +86,8 @@ fn memory_seq_cp_copies_a_whole_primed_sequence(fixture: &LlamaFixture<'_>) -> R
 
     prime_memory(fixture, &mut context)?;
 
-    assert_eq!(context.memory_seq_cp(0, 1, None, None), Ok(()));
-    assert_eq!(
-        context.memory_seq_pos_max(1)?,
-        context.memory_seq_pos_max(0)?
-    );
+    ensure!(context.memory_seq_cp(0, 1, None, None) == Ok(()));
+    ensure!(context.memory_seq_pos_max(1)? == context.memory_seq_pos_max(0)?);
 
     Ok(())
 }
@@ -131,7 +129,7 @@ fn memory_seq_cp_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> Result
 
     prime_memory(fixture, &mut context)?;
 
-    assert_eq!(context.memory_seq_cp(0, 1, Some(0), Some(1)), Ok(()));
+    ensure!(context.memory_seq_cp(0, 1, Some(0), Some(1)) == Ok(()));
 
     Ok(())
 }
@@ -151,13 +149,13 @@ fn qwen35_recurrent_memory_refuses_to_remove_part_of_a_sequence(
 
     prime_memory(fixture, &mut context)?;
 
-    assert_eq!(
-        context.memory_seq_rm(Some(0), Some(1), Some(2)),
-        Err(MemorySeqRmError::PartialSequenceNotRemoved {
-            seq_id: 0,
-            p0: 1,
-            p1: 2,
-        })
+    ensure!(
+        context.memory_seq_rm(Some(0), Some(1), Some(2))
+            == Err(MemorySeqRmError::PartialSequenceNotRemoved {
+                seq_id: 0,
+                p0: 1,
+                p1: 2,
+            })
     );
 
     Ok(())
@@ -178,8 +176,8 @@ fn removing_from_every_sequence_empties_the_primed_kv_cache(
 
     prime_memory(fixture, &mut context)?;
 
-    assert_eq!(context.memory_seq_rm(None, None, None), Ok(()));
-    assert_eq!(context.memory_seq_pos_max(0)?, -1);
+    ensure!(context.memory_seq_rm(None, None, None) == Ok(()));
+    ensure!(context.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }

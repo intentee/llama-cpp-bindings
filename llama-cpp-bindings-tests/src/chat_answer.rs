@@ -1,3 +1,6 @@
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::ensure;
 use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_bindings_types::token_usage::TokenUsage;
 
@@ -32,8 +35,8 @@ impl ChatAnswer {
         assert!(outcome.observed_content > 0, "{outcome:?}");
         assert_eq!(outcome.observed_reasoning, 0, "{outcome:?}");
         assert_eq!(outcome.observed_undeterminable, 0, "{outcome:?}");
-        assert_eq!(usage.reasoning_tokens, 0, "{usage:?}");
-        assert_eq!(usage.undeterminable_tokens, 0, "{usage:?}");
+        assert_eq!(usage.reasoning, 0, "{usage:?}");
+        assert_eq!(usage.undeterminable, 0, "{usage:?}");
         assert_eq!(
             usage.completion_tokens(),
             outcome.observed_content,
@@ -53,45 +56,52 @@ impl ChatAnswer {
     /// the generation prompt itself holds, which the parser shows in front of the first
     /// generated text.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when the parser fails on or does not recognize the answer, or when the answer
+    /// Fails when the parser fails on or does not recognize the answer, or when the answer
     /// does not reason, holds a token of no section, leaks a thinking tag, or streams text the
     /// parser does not extract.
-    pub fn assert_reasoning_matches_parse(&self, prompted_reasoning: &str) {
+    pub fn assert_reasoning_matches_parse(&self, prompted_reasoning: &str) -> Result<()> {
         let Self {
             outcome,
             usage,
             thinking_tags,
             parse,
         } = self;
+        ensure!(
+            matches!(parse, ChatMessageParseOutcome::Recognized(_)),
+            "the session's parser must recognize the generated answer: {parse:?}"
+        );
+
         let parsed = parse
             .clone()
             .into_recognized()
-            .expect("the session's parser must recognize the generated answer");
+            .ok()
+            .context("the session's parser must recognize the generated answer")?;
+        let observed_completion = outcome
+            .observed_content
+            .checked_add(outcome.observed_reasoning)
+            .context("the observed completion token count must fit u64")?;
 
-        assert!(outcome.observed_reasoning > 0, "{outcome:?}");
-        assert_eq!(outcome.observed_undeterminable, 0, "{outcome:?}");
-        assert_eq!(
-            usage.reasoning_tokens, outcome.observed_reasoning,
+        ensure!(outcome.observed_reasoning > 0, "{outcome:?}");
+        ensure!(outcome.observed_undeterminable == 0, "{outcome:?}");
+        ensure!(usage.reasoning == outcome.observed_reasoning, "{usage:?}");
+        ensure!(usage.undeterminable == 0, "{usage:?}");
+        ensure!(
+            usage.completion_tokens() == observed_completion,
             "{usage:?}"
         );
-        assert_eq!(usage.undeterminable_tokens, 0, "{usage:?}");
-        assert_eq!(
-            usage.completion_tokens(),
-            outcome.observed_content + outcome.observed_reasoning,
-            "{usage:?}"
+        ensure!(!parsed.reasoning_content.is_empty(), "{outcome:?}");
+        ensure!(
+            format!("{prompted_reasoning}{}", outcome.reasoning_stream) == parsed.reasoning_content
         );
-        assert_ne!(parsed.reasoning_content, "", "{outcome:?}");
-        assert_eq!(
-            format!("{prompted_reasoning}{}", outcome.reasoning_stream),
-            parsed.reasoning_content
-        );
-        assert_eq!(outcome.content_stream, parsed.content);
+        ensure!(outcome.content_stream == parsed.content);
 
         for tag in thinking_tags {
-            assert!(!outcome.reasoning_stream.contains(tag), "{outcome:?}");
-            assert!(!outcome.content_stream.contains(tag), "{outcome:?}");
+            ensure!(!outcome.reasoning_stream.contains(tag), "{outcome:?}");
+            ensure!(!outcome.content_stream.contains(tag), "{outcome:?}");
         }
+
+        Ok(())
     }
 }

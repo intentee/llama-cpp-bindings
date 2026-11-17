@@ -195,8 +195,8 @@ mod tests {
         }
 
         assert_eq!(array.data.len(), 2);
-        assert_eq!(array.data[0].id(), LlamaToken::new(10));
-        assert_eq!(array.data[1].id(), LlamaToken::new(20));
+        assert_eq!(array.data.first().unwrap().id(), LlamaToken::new(10));
+        assert_eq!(array.data.get(1).unwrap().id(), LlamaToken::new(20));
         assert_eq!(array.selected, Some(0));
     }
 

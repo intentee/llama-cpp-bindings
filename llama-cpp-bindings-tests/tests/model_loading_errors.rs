@@ -7,6 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
 use llama_cpp_bindings::model::LlamaModel;
@@ -52,7 +53,7 @@ fn load_model_with_invalid_file_content_reports_it_unloadable(
 
     let result = LlamaModel::load_from_file(fixture.backend, &dummy_path, &model_params);
 
-    assert_eq!(result.err(), Some(LlamaModelLoadError::Unloadable));
+    ensure!(result.err() == Some(LlamaModelLoadError::Unloadable));
     fs::remove_file(&dummy_path)?;
     Ok(())
 }

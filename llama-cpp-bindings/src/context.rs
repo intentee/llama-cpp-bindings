@@ -330,10 +330,10 @@ impl<'model> LlamaContext<'model> {
             },
             batch_ext,
             limits: ContextLimits {
-                n_batch: unsafe { llama_cpp_bindings_sys::llama_n_batch(context.as_ptr()) },
-                n_ubatch: unsafe { llama_cpp_bindings_sys::llama_n_ubatch(context.as_ptr()) },
-                n_seq_max: unsafe { llama_cpp_bindings_sys::llama_n_seq_max(context.as_ptr()) },
-                n_vocab: model.n_vocab(),
+                batch: unsafe { llama_cpp_bindings_sys::llama_n_batch(context.as_ptr()) },
+                micro_batch: unsafe { llama_cpp_bindings_sys::llama_n_ubatch(context.as_ptr()) },
+                max_sequences: unsafe { llama_cpp_bindings_sys::llama_n_seq_max(context.as_ptr()) },
+                vocabulary_size: model.n_vocab(),
             },
             keeps_no_memory,
             embeddings,
@@ -387,17 +387,17 @@ impl<'model> LlamaContext<'model> {
 
     #[must_use]
     pub const fn n_batch(&self) -> u32 {
-        self.limits.n_batch
+        self.limits.batch
     }
 
     #[must_use]
     pub const fn n_ubatch(&self) -> u32 {
-        self.limits.n_ubatch
+        self.limits.micro_batch
     }
 
     #[must_use]
     pub const fn n_seq_max(&self) -> u32 {
-        self.limits.n_seq_max
+        self.limits.max_sequences
     }
 
     fn decodes_batches_in_one_micro_batch(&self) -> bool {
@@ -448,7 +448,7 @@ impl<'model> LlamaContext<'model> {
     /// this context without one of this context's batches, such as the mtmd helper decoding media
     /// chunks.
     pub fn record_helper_decode(&mut self, evaluated_tokens: u64, logits_last: bool) {
-        self.evaluated_tokens += evaluated_tokens;
+        self.evaluated_tokens = self.evaluated_tokens.saturating_add(evaluated_tokens);
         self.decoded_outputs.rows = DecodedOutputRows::of_helper_decode(logits_last);
     }
 
@@ -503,7 +503,9 @@ impl<'model> LlamaContext<'model> {
         };
 
         process_status_to_result::<TProcessError>(status, out_llama_cpp_return_code, out_error)?;
-        self.evaluated_tokens += u64::from(batch.n_tokens().unsigned_abs());
+        self.evaluated_tokens = self
+            .evaluated_tokens
+            .saturating_add(u64::from(batch.n_tokens().unsigned_abs()));
         self.record_batch_output_rows(batch.output_token_indices());
 
         Ok(())

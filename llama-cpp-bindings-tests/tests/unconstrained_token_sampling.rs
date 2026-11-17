@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -95,25 +96,29 @@ fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
             break;
         }
 
-        sampled_count += 1;
+        sampled_count = sampled_count
+            .checked_add(1)
+            .context("`sampled_count += 1` must not overflow")?;
 
         let raw_as_sampled = SampledToken::Content(turn.token);
 
         batch.clear();
-        batch.add(&raw_as_sampled, position, &[0], true)?;
+        batch.add(raw_as_sampled, position, &[0], true)?;
 
         context.decode(&batch)?;
     }
 
     classifier.finish(&mut outcomes)?;
 
-    assert!(
+    ensure!(
         sampled_count > 0,
         "Should produce at least one token without grammar"
     );
-    assert_eq!(
-        classifier.into_usage().completion_tokens(),
-        sampled_count + u64::from(ended),
+    ensure!(
+        classifier.into_usage().completion_tokens()
+            == sampled_count
+                .checked_add(u64::from(ended))
+                .context("`sampled_count + u64::from(ended)` must not overflow")?,
         "completion_tokens must count every sample, the end of generation included"
     );
 
@@ -143,15 +148,15 @@ fn a_greedy_sampler_selects_the_most_likely_candidate_of_a_decoded_row(
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let last_index = batch.n_tokens() - 1;
+    let last_index = batch
+        .n_tokens()
+        .checked_sub(1)
+        .context("`batch.n_tokens() - 1` must not overflow")?;
     let mut data_array = context.token_data_array_ith(last_index)?;
     let sampler = LlamaSampler::greedy()?;
     sampler.apply(&mut data_array)?;
 
-    assert_eq!(
-        data_array.selected_token(),
-        Some(most_likely_token(&context, last_index)?)
-    );
+    ensure!(data_array.selected_token() == Some(most_likely_token(&context, last_index)?));
 
     Ok(())
 }
@@ -211,12 +216,12 @@ fn sampling_the_last_decoded_row_with_a_greedy_chain_yields_its_most_likely_toke
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
     let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
-    let last_index = batch.n_tokens() - 1;
+    let last_index = batch
+        .n_tokens()
+        .checked_sub(1)
+        .context("`batch.n_tokens() - 1` must not overflow")?;
 
-    assert_eq!(
-        sampler.sample(&context, last_index)?,
-        most_likely_token(&context, last_index)?
-    );
+    ensure!(sampler.sample(&context, last_index)? == most_likely_token(&context, last_index)?);
 
     Ok(())
 }

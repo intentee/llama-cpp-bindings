@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 use serde_json::json;
 
 use llama_cpp_bindings::context::LlamaContext;
@@ -95,7 +97,7 @@ fn clef_scores_the_matching_option_highest_among_the_options_marked_in_the_batch
         for token in model.str_to_token(text, AddBos::Never, ParseSpecialTokens::Always)? {
             let token_index = batch.n_tokens();
 
-            batch.add(&SampledToken::Content(token), token_index, &[0], true)?;
+            batch.add(SampledToken::Content(token), token_index, &[0], true)?;
             batch.set_decision_order(token_index, decision_order)?;
         }
     }
@@ -105,12 +107,16 @@ fn clef_scores_the_matching_option_highest_among_the_options_marked_in_the_batch
     let mut option_scores = Vec::new();
 
     for option_index in 0..OPTION_COUNT {
-        option_scores.push(context.embeddings_ith(option_index)?[0]);
+        option_scores.push(
+            *context
+                .embeddings_ith(option_index)?
+                .first()
+                .context("the option's embedding must hold its score")?,
+        );
     }
 
-    assert_eq!(
-        highest_score_index(&option_scores),
-        Some(1),
+    ensure!(
+        highest_score_index(&option_scores) == Some(1),
         "option scores were {option_scores:?}"
     );
 

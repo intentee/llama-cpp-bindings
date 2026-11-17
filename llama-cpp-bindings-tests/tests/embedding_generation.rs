@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -48,8 +49,8 @@ fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
     classifier.commit_prompt_tokens();
 
     let usage = classifier.into_usage();
-    assert_eq!(usage.prompt_tokens, prompt_token_count);
-    assert_eq!(usage.completion_tokens(), 0);
+    ensure!(usage.prompt == prompt_token_count);
+    ensure!(usage.completion_tokens() == 0);
 
     Ok(())
 }
@@ -80,7 +81,7 @@ fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
 
     let embeddings = context.embeddings_seq_ith(0)?;
 
-    assert_eq!(embeddings.len(), usize::try_from(fixture.model.n_embd())?);
+    ensure!(embeddings.len() == usize::try_from(fixture.model.n_embd())?);
 
     Ok(())
 }
@@ -131,9 +132,8 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
         let sequence_id = i32::try_from(sequence_index)?;
         let embedding = context.embeddings_seq_ith(sequence_id)?;
 
-        assert_eq!(
-            embedding.len(),
-            n_embd,
+        ensure!(
+            embedding.len() == n_embd,
             "sequence {sequence_index} embedding length mismatch"
         );
 
@@ -141,10 +141,14 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
     }
 
     for (left_index, left) in collected.iter().enumerate() {
-        for (right_index, right) in collected.iter().enumerate().skip(left_index + 1) {
-            assert_ne!(
-                left, right,
-                "embedding for sequence {left_index} must differ from sequence {right_index}",
+        for (right_index, right) in collected.iter().enumerate().skip(
+            left_index
+                .checked_add(1)
+                .context("`left_index + 1` must not overflow")?,
+        ) {
+            ensure!(
+                left != right,
+                "embedding for sequence {left_index} must differ from sequence {right_index}"
             );
         }
     }
@@ -204,9 +208,8 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
             let sequence_id = i32::try_from(sequence_index)?;
             let embedding = context.embeddings_seq_ith(sequence_id)?;
 
-            assert_eq!(
-                embedding.len(),
-                n_embd,
+            ensure!(
+                embedding.len() == n_embd,
                 "iteration sequence {sequence_index} embedding length mismatch"
             );
 
@@ -216,17 +219,20 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
         batch.clear();
     }
 
-    assert_eq!(
-        collected.len(),
-        iterations.iter().flatten().count(),
+    ensure!(
+        collected.len() == iterations.iter().flatten().count(),
         "expected one embedding per input across every iteration"
     );
 
     for (left_index, left) in collected.iter().enumerate() {
-        for (right_index, right) in collected.iter().enumerate().skip(left_index + 1) {
-            assert_ne!(
-                left, right,
-                "embedding {left_index} must differ from embedding {right_index} across reused-batch iterations",
+        for (right_index, right) in collected.iter().enumerate().skip(
+            left_index
+                .checked_add(1)
+                .context("`left_index + 1` must not overflow")?,
+        ) {
+            ensure!(
+                left != right,
+                "embedding {left_index} must differ from embedding {right_index} across reused-batch iterations"
             );
         }
     }
@@ -254,14 +260,19 @@ fn a_token_embedding_is_as_wide_as_the_model_embedding(fixture: &LlamaFixture<'_
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let last_index = i32::try_from(tokens.len() - 1)?;
+    let last_index = i32::try_from(
+        tokens
+            .len()
+            .checked_sub(1)
+            .context("`tokens.len() - 1` must not overflow")?,
+    )?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     let embeddings = context.embeddings_ith(last_index)?;
 
-    assert_eq!(embeddings.len(), usize::try_from(fixture.model.n_embd())?);
+    ensure!(embeddings.len() == usize::try_from(fixture.model.n_embd())?);
 
     Ok(())
 }

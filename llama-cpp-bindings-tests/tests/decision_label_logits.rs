@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 use serde_json::json;
 
 use llama_cpp_bindings::context::LlamaContext;
@@ -51,16 +53,27 @@ fn openjev_gives_the_label_of_the_matching_option_the_highest_logit(
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let logits = context.get_logits_ith(batch.n_tokens() - 1)?;
-    let label_logits = OPTION_LABELS.map(|label| {
-        let label_token = single_token(model, label);
+    let logits = context.get_logits_ith(
+        batch
+            .n_tokens()
+            .checked_sub(1)
+            .context("`batch.n_tokens() - 1` must not overflow")?,
+    )?;
+    let mut label_logits = Vec::new();
 
-        logits[usize::try_from(label_token.0).expect("token ids are not negative")]
-    });
+    for label in OPTION_LABELS {
+        let label_token = single_token(model, label)?;
+        let label_index = usize::try_from(label_token.0).context("token ids are not negative")?;
 
-    assert_eq!(
-        highest_score_index(&label_logits),
-        Some(2),
+        label_logits.push(
+            *logits
+                .get(label_index)
+                .context("the logits must cover the label token")?,
+        );
+    }
+
+    ensure!(
+        highest_score_index(&label_logits) == Some(2),
         "label logits were {label_logits:?}"
     );
 

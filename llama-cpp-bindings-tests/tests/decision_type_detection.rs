@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::model::decision_type::DecisionType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -13,7 +14,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
 )]
 fn openjev_is_detected_as_an_openjev_decision_model(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(fixture.model.decision_type()?, DecisionType::OpenJev);
+    ensure!(fixture.model.decision_type()? == DecisionType::OpenJev);
 
     Ok(())
 }
@@ -27,7 +28,7 @@ fn openjev_is_detected_as_an_openjev_decision_model(fixture: &LlamaFixture<'_>) 
     n_ubatch = 64,
 )]
 fn laya_is_detected_as_a_laya_decision_model(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(fixture.model.decision_type()?, DecisionType::Laya);
+    ensure!(fixture.model.decision_type()? == DecisionType::Laya);
 
     Ok(())
 }
@@ -41,7 +42,7 @@ fn laya_is_detected_as_a_laya_decision_model(fixture: &LlamaFixture<'_>) -> Resu
     n_ubatch = 64,
 )]
 fn clef_flash_is_detected_as_a_clef_decision_model(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(fixture.model.decision_type()?, DecisionType::Clef);
+    ensure!(fixture.model.decision_type()? == DecisionType::Clef);
 
     Ok(())
 }
@@ -55,7 +56,7 @@ fn clef_flash_is_detected_as_a_clef_decision_model(fixture: &LlamaFixture<'_>) -
     n_ubatch = 64,
 )]
 fn a_text_generation_model_is_not_a_decision_model(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(fixture.model.decision_type()?, DecisionType::None);
+    ensure!(fixture.model.decision_type()? == DecisionType::None);
 
     Ok(())
 }

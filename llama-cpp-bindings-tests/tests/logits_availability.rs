@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_bindings::error::logits_error::LogitsError;
@@ -22,16 +23,16 @@ use llama_cpp_test_harness_macros::llama_test;
 fn sampling_after_a_pooled_embeddings_decode_is_refused_instead_of_aborting(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean);
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean)?;
     let mut sampler = LlamaSampler::greedy()?;
 
-    assert_eq!(
-        sampler.sample(&context, -1),
-        Err(SampleError::Logits(
-            LogitsError::PooledEmbeddingsProduceNoLogits {
-                pooling_type: LlamaPoolingType::Mean,
-            }
-        ))
+    ensure!(
+        sampler.sample(&context, -1)
+            == Err(SampleError::Logits(
+                LogitsError::PooledEmbeddingsProduceNoLogits {
+                    pooling_type: LlamaPoolingType::Mean,
+                }
+            ))
     );
 
     Ok(())
@@ -48,13 +49,12 @@ fn sampling_after_a_pooled_embeddings_decode_is_refused_instead_of_aborting(
 )]
 fn a_model_whose_embeddings_graph_has_no_logits_head_produces_no_logits(
     fixture: &LlamaFixture<'_>,
-) {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::None);
+) -> Result<()> {
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::None)?;
 
-    assert_eq!(
-        context.get_logits_ith(-1),
-        Err(LogitsError::GraphProducesNoLogits)
-    );
+    ensure!(context.get_logits_ith(-1) == Err(LogitsError::GraphProducesNoLogits));
+
+    Ok(())
 }
 
 #[llama_test(
@@ -66,10 +66,12 @@ fn a_model_whose_embeddings_graph_has_no_logits_head_produces_no_logits(
     n_ubatch = 512,
     embeddings = true,
 )]
-fn every_logits_accessor_refuses_a_pooled_embeddings_decode(fixture: &LlamaFixture<'_>) {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean);
+fn every_logits_accessor_refuses_a_pooled_embeddings_decode(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean)?;
 
-    assert_eq!(
+    ensure!(
         [
             context.get_logits_ith(-1).err(),
             context.candidates_ith(-1).err(),
@@ -77,13 +79,14 @@ fn every_logits_accessor_refuses_a_pooled_embeddings_decode(fixture: &LlamaFixtu
             context
                 .fill_token_data_array_ith(-1, &mut LlamaTokenDataArray::new(Vec::new(), false))
                 .err(),
-        ],
-        [(); 4].map(|()| {
+        ] == [(); 4].map(|()| {
             Some(LogitsError::PooledEmbeddingsProduceNoLogits {
                 pooling_type: LlamaPoolingType::Mean,
             })
         })
     );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -98,18 +101,18 @@ fn every_logits_accessor_refuses_a_pooled_embeddings_decode(fixture: &LlamaFixtu
 fn classified_sampling_after_a_pooled_embeddings_decode_is_refused(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean);
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean)?;
     let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
 
-    assert_eq!(
+    ensure!(
         classifier
             .sample(&mut LlamaSampler::greedy()?, &context, -1, &mut Vec::new())
-            .err(),
-        Some(SampleError::Logits(
-            LogitsError::PooledEmbeddingsProduceNoLogits {
-                pooling_type: LlamaPoolingType::Mean,
-            }
-        ))
+            .err()
+            == Some(SampleError::Logits(
+                LogitsError::PooledEmbeddingsProduceNoLogits {
+                    pooling_type: LlamaPoolingType::Mean,
+                }
+            ))
     );
 
     Ok(())

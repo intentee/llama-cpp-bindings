@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::llama_token_attrs::LlamaTokenAttrs;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -41,9 +42,9 @@ fn the_eos_token_carries_only_the_control_attribute(fixture: &LlamaFixture<'_>) 
     let model = fixture.model;
     let eos = model.token_eos().context("model declares an EOS token")?;
 
-    assert_eq!(
-        model.token_attr(eos)?,
-        LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_CONTROL)?
+    ensure!(
+        model.token_attr(eos)?
+            == LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_CONTROL)?
     );
     Ok(())
 }

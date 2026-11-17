@@ -1,5 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::ensure;
 
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::sampled_token::SampledToken;
@@ -46,7 +48,7 @@ fn qwen35_reasoning_closed_by_a_tool_call_is_attributed_to_each_section(
     )?;
     let answer = format!("{REASONING_BEFORE_THE_CALL}{QWEN_XML_PARIS_WEATHER_CALL}");
     let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
-    let outcomes = ingested_generation(&mut classifier, fixture.model, &answer);
+    let outcomes = ingested_generation(&mut classifier, fixture.model, &answer)?;
     let parsed = classifier
         .latest_reading()
         .context("the classifier must have read the answer")?
@@ -54,29 +56,29 @@ fn qwen35_reasoning_closed_by_a_tool_call_is_attributed_to_each_section(
         .cloned()
         .map_err(Clone::clone)?
         .into_recognized()
-        .expect("the answer must be recognized");
+        .map_err(|raw_chat_message| {
+            anyhow!("the answer must be recognized: {raw_chat_message:?}")
+        })?;
 
-    assert_eq!(
+    ensure!(
         raw_text_where(&outcomes, |token| matches!(
             token,
             SampledToken::Reasoning(_)
-        )),
-        REASONING_BEFORE_THE_CALL
+        )) == REASONING_BEFORE_THE_CALL
     );
-    assert_eq!(
+    ensure!(
         raw_text_where(&outcomes, |token| matches!(
             token,
             SampledToken::ToolCall(_)
-        )),
-        QWEN_XML_PARIS_WEATHER_CALL
+        )) == QWEN_XML_PARIS_WEATHER_CALL
     );
-    assert_eq!(
+    ensure!(
         outcomes
             .iter()
             .filter(|outcome| matches!(outcome.sampled_token, SampledToken::Reasoning(_)))
             .map(|outcome| outcome.piece.visible())
-            .collect::<String>(),
-        parsed.reasoning_content
+            .collect::<String>()
+            == parsed.reasoning_content
     );
 
     Ok(())

@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
+use anyhow::ensure;
 
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_capability::MtmdCapability;
@@ -32,7 +33,7 @@ const AUDIO_SAMPLE_RATE_HZ: u32 = 16_000;
 fn qwen_image_chunks_decode_causally(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
     let input_text = MtmdInputText {
@@ -46,7 +47,7 @@ fn qwen_image_chunks_decode_causally(fixture: &LlamaFixture<'_>) -> Result<()> {
             .get(chunk_index)
             .context(format!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
-            assert!(!mtmd_ctx.decode_use_non_causal(&chunk));
+            ensure!(!mtmd_ctx.decode_use_non_causal(&chunk));
 
             return Ok(());
         }
@@ -72,15 +73,17 @@ fn qwen_image_chunks_decode_causally(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn qwen_mmproj_reports_vision_only_chat_capabilities(fixture: &LlamaFixture<'_>) {
+fn qwen_mmproj_reports_vision_only_chat_capabilities(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
-    assert_eq!(
-        mtmd_ctx.capabilities(fixture.model),
-        MtmdCapability::Chat | MtmdCapability::Vision | MtmdCapability::TextGeneration
+    ensure!(
+        mtmd_ctx.capabilities(fixture.model)
+            == (MtmdCapability::Chat | MtmdCapability::Vision | MtmdCapability::TextGeneration)
     );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -101,14 +104,16 @@ fn qwen_mmproj_reports_vision_only_chat_capabilities(fixture: &LlamaFixture<'_>)
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn decode_use_mrope_is_true_for_qwen_vision(fixture: &LlamaFixture<'_>) {
+fn decode_use_mrope_is_true_for_qwen_vision(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    assert!(
+        .context("mmproj_file declared in attribute")?;
+    ensure!(
         mtmd_ctx.decode_use_mrope(),
         "Qwen 3.5 / 3.6 mmproj uses mrope; decode_use_mrope must return true"
     );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -129,14 +134,16 @@ fn decode_use_mrope_is_true_for_qwen_vision(fixture: &LlamaFixture<'_>) {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn get_audio_sample_rate_is_none_for_vision_only_mmproj(fixture: &LlamaFixture<'_>) {
+fn get_audio_sample_rate_is_none_for_vision_only_mmproj(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    assert!(
+        .context("mmproj_file declared in attribute")?;
+    ensure!(
         mtmd_ctx.get_audio_sample_rate().is_none(),
         "Qwen 3.5 / 3.6 mmproj has no audio; get_audio_sample_rate must return None"
     );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -163,18 +170,22 @@ fn get_audio_sample_rate_is_none_for_vision_only_mmproj(fixture: &LlamaFixture<'
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
-fn audio_mmproj_reports_audio_support_at_sixteen_kilohertz(fixture: &LlamaFixture<'_>) {
+fn audio_mmproj_reports_audio_support_at_sixteen_kilohertz(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
-    assert!(
+    ensure!(
         mtmd_ctx
             .capabilities(fixture.model)
             .contains(MtmdCapability::Audio),
         "an audio mmproj must report audio support"
     );
-    assert_eq!(mtmd_ctx.get_audio_sample_rate(), Some(AUDIO_SAMPLE_RATE_HZ));
+    ensure!(mtmd_ctx.get_audio_sample_rate() == Some(AUDIO_SAMPLE_RATE_HZ));
+
+    Ok(())
 }
 
 #[llama_test(
@@ -188,17 +199,19 @@ fn audio_mmproj_reports_audio_support_at_sixteen_kilohertz(fixture: &LlamaFixtur
 )]
 fn gemma4_mmproj_reports_chat_vision_audio_audio_stream_and_text_generation_capabilities(
     fixture: &LlamaFixture<'_>,
-) {
+) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
-    assert_eq!(
-        mtmd_ctx.capabilities(fixture.model),
-        MtmdCapability::Chat
-            | MtmdCapability::Vision
-            | MtmdCapability::Audio
-            | MtmdCapability::AudioStream
-            | MtmdCapability::TextGeneration
+    ensure!(
+        mtmd_ctx.capabilities(fixture.model)
+            == (MtmdCapability::Chat
+                | MtmdCapability::Vision
+                | MtmdCapability::Audio
+                | MtmdCapability::AudioStream
+                | MtmdCapability::TextGeneration)
     );
+
+    Ok(())
 }

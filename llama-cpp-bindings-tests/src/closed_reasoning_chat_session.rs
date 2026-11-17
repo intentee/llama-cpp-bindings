@@ -1,3 +1,5 @@
+use anyhow::Context as _;
+use anyhow::Result;
 use llama_cpp_bindings::chat_assistant_prefill::ChatAssistantPrefill;
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
@@ -16,20 +18,19 @@ const PREFILLED_CONTENT: &str = "\n\n";
 /// The prefill closes a reasoning block before the content begins, so the model writes only
 /// content even when its template cannot disable thinking.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics when the model's template cannot serve the request.
-#[must_use]
+/// Fails when the model's template cannot serve the request.
 pub fn closed_reasoning_chat_session(
     model: &LlamaModel,
     question: &str,
     tools: &[ChatTool],
-) -> ChatSession {
+) -> Result<ChatSession> {
     ChatSession::new(
         model,
         model
             .chat_templates()
-            .expect("the model must have chat templates"),
+            .context("the model must have chat templates")?,
         &[user_message(question)],
         tools,
         &ChatSessionOptions {
@@ -42,5 +43,5 @@ pub fn closed_reasoning_chat_session(
             tool_choice: ChatToolChoice::Auto,
         },
     )
-    .expect("the model's template must serve a prefilled answer")
+    .context("the model's template must serve a prefilled answer")
 }

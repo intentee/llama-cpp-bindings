@@ -363,12 +363,11 @@ impl LlamaModelParams {
         if devices.len() > max_devices {
             return Err(LlamaCppError::MaxDevicesExceeded(max_devices));
         }
-        for (i, &dev) in devices.iter().enumerate() {
+        for (device_slot, &dev) in self.devices.iter_mut().zip(devices) {
             if dev >= unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
                 return Err(LlamaCppError::BackendDeviceNotFound(dev));
             }
-            let backend_dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(dev) };
-            self.devices[i] = backend_dev;
+            *device_slot = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(dev) };
         }
         self.params.devices = self.devices.as_mut_ptr();
 
@@ -404,7 +403,7 @@ impl LlamaModelParams {
 
         self.buft_overrides.clear();
         self.buft_overrides.resize(
-            max_buft + 1,
+            max_buft.saturating_add(1),
             llama_cpp_bindings_sys::llama_model_tensor_buft_override {
                 pattern: null(),
                 buft: ptr::null_mut(),
@@ -460,7 +459,9 @@ impl Default for LlamaModelParams {
                 buft: ptr::null_mut(),
             }],
             buft_override_patterns: Vec::new(),
-            devices: Pin::new(vec![ptr::null_mut(); max_devices() + 1].into_boxed_slice()),
+            devices: Pin::new(
+                vec![ptr::null_mut(); max_devices().saturating_add(1)].into_boxed_slice(),
+            ),
             tensor_split: Vec::new(),
         }
     }
@@ -663,13 +664,13 @@ mod tests {
             Ok(())
         );
         assert_eq!(
-            unsafe { CStr::from_ptr(params.buft_overrides[0].pattern) },
+            unsafe { CStr::from_ptr(params.buft_overrides.first().unwrap().pattern) },
             c"test_pattern"
         );
-        assert_eq!(params.buft_overrides[0].buft, unsafe {
+        assert_eq!(params.buft_overrides.first().unwrap().buft, unsafe {
             llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type()
         });
-        assert_eq!(params.buft_overrides[1].pattern, ptr::null());
+        assert_eq!(params.buft_overrides.get(1).unwrap().pattern, ptr::null());
         assert_eq!(
             params.params.tensor_buft_overrides,
             params.buft_overrides.as_ptr()
@@ -688,7 +689,7 @@ mod tests {
         caller_buffer.fill(b'x');
 
         assert_eq!(
-            unsafe { CStr::from_ptr(params.buft_overrides[0].pattern) },
+            unsafe { CStr::from_ptr(params.buft_overrides.first().unwrap().pattern) },
             c"blk\\.0\\.ffn"
         );
     }
@@ -711,10 +712,10 @@ mod tests {
 
         assert_eq!(params.as_mut().add_cpu_moe_override(), Ok(()));
         assert_eq!(
-            unsafe { CStr::from_ptr(params.buft_overrides[0].pattern) },
+            unsafe { CStr::from_ptr(params.buft_overrides.first().unwrap().pattern) },
             c"\\.ffn_(up|down|gate)_(ch|)exps"
         );
-        assert_eq!(params.buft_overrides[0].buft, unsafe {
+        assert_eq!(params.buft_overrides.first().unwrap().buft, unsafe {
             llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type()
         });
     }
@@ -767,7 +768,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            unsafe { CStr::from_ptr(params.kv_overrides[0].key.as_ptr()) },
+            unsafe { CStr::from_ptr(params.kv_overrides.first().unwrap().key.as_ptr()) },
             key
         );
     }

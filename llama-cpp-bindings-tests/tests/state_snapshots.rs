@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::llama_state_seq_flags::LlamaStateSeqFlags;
@@ -44,7 +45,7 @@ use llama_cpp_test_harness_macros::llama_test;
 fn a_fresh_context_reports_a_nonempty_state_size(fixture: &LlamaFixture<'_>) -> Result<()> {
     let context = fixture.build_context()?;
 
-    assert!(context.state_get_size() > 0);
+    ensure!(context.state_get_size() > 0);
 
     Ok(())
 }
@@ -96,11 +97,11 @@ fn state_set_data_rejects_a_truncated_snapshot(fixture: &LlamaFixture<'_>) -> Re
     let bytes_copied = unsafe { context.state_get_data(&mut state_data) }?;
     state_data.truncate(bytes_copied / 2);
 
-    assert_eq!(
-        unsafe { context.state_set_data(&state_data) },
-        Err(StateDataError::NothingRestored {
-            provided_bytes: state_data.len(),
-        }),
+    ensure!(
+        unsafe { context.state_set_data(&state_data) }
+            == Err(StateDataError::NothingRestored {
+                provided_bytes: state_data.len(),
+            }),
         "a truncated snapshot restores nothing, and that must not be reported as success"
     );
 
@@ -131,11 +132,11 @@ fn state_set_data_consumes_exactly_the_bytes_state_get_data_wrote(
     let state_size = context.state_get_size();
     let mut state_data = vec![0u8; state_size];
     let bytes_copied = unsafe { context.state_get_data(&mut state_data) }?;
-    assert!(bytes_copied > 0);
+    ensure!(bytes_copied > 0);
 
     let bytes_read = unsafe { context.state_set_data(&state_data) }?;
-    assert_eq!(
-        bytes_read, bytes_copied,
+    ensure!(
+        bytes_read == bytes_copied,
         "restoring the state must consume exactly the bytes the snapshot produced"
     );
 
@@ -192,13 +193,13 @@ fn state_seq_set_data_ext_consumes_exactly_the_bytes_state_seq_get_data_ext_wrot
     let mut buffer = vec![0u8; size];
     let bytes_written = unsafe { context.state_seq_get_data_ext(&mut buffer, 0, &flags) }?;
 
-    assert!(bytes_written > 0);
-    assert_eq!(bytes_written, size);
+    ensure!(bytes_written > 0);
+    ensure!(bytes_written == size);
 
     let bytes_read = unsafe { context.state_seq_set_data_ext(&buffer, 0, &flags) }?;
 
-    assert_eq!(
-        bytes_read, bytes_written,
+    ensure!(
+        bytes_read == bytes_written,
         "restoring the sequence state must consume exactly the bytes the snapshot produced"
     );
 

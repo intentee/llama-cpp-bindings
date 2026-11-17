@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -27,14 +29,19 @@ fn a_logits_row_holds_one_logit_per_vocabulary_token(fixture: &LlamaFixture<'_>)
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let last_index = i32::try_from(tokens.len() - 1)?;
+    let last_index = i32::try_from(
+        tokens
+            .len()
+            .checked_sub(1)
+            .context("`tokens.len() - 1` must not overflow")?,
+    )?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     let logits = context.get_logits_ith(last_index)?;
 
-    assert_eq!(logits.len(), usize::try_from(fixture.model.n_vocab())?);
+    ensure!(logits.len() == usize::try_from(fixture.model.n_vocab())?);
 
     Ok(())
 }
@@ -58,7 +65,7 @@ fn get_logits_ith_returns_token_not_initialized_for_unknown_index(
 
     let result = context.get_logits_ith(7);
 
-    assert_eq!(result, Err(LogitsError::TokenNotInitialized(7)));
+    ensure!(result == Err(LogitsError::TokenNotInitialized(7)));
 
     Ok(())
 }
@@ -84,10 +91,7 @@ fn reading_a_logits_row_reports_a_row_llama_cpp_does_not_return(
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_GET_LOGITS_ITH_RETURNS_NULL);
 
-    assert_eq!(
-        context.get_logits_ith(-1).err(),
-        Some(LogitsError::NullLogits)
-    );
+    ensure!(context.get_logits_ith(-1).err() == Some(LogitsError::NullLogits));
 
     Ok(())
 }

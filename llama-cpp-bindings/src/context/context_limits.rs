@@ -9,10 +9,10 @@ use crate::token::LlamaToken;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ContextLimits {
-    pub n_batch: u32,
-    pub n_ubatch: u32,
-    pub n_seq_max: u32,
-    pub n_vocab: i32,
+    pub batch: u32,
+    pub micro_batch: u32,
+    pub max_sequences: u32,
+    pub vocabulary_size: i32,
 }
 
 impl ContextLimits {
@@ -28,19 +28,19 @@ impl ContextLimits {
         &self,
         token: LlamaToken,
     ) -> Result<LlamaToken, TokenOutsideVocabulary> {
-        TokenOutsideVocabulary::check(token, self.n_vocab)
+        TokenOutsideVocabulary::check(token, self.vocabulary_size)
     }
 
     /// # Errors
     ///
     /// Returns [`SequenceIdOutOfRange`] when `seq_id` names no sequence of the context.
     pub fn ensure_sequence_id(&self, seq_id: llama_seq_id) -> Result<(), SequenceIdOutOfRange> {
-        if u32::try_from(seq_id).is_ok_and(|sequence| sequence < self.n_seq_max) {
+        if u32::try_from(seq_id).is_ok_and(|sequence| sequence < self.max_sequences) {
             Ok(())
         } else {
             Err(SequenceIdOutOfRange {
                 seq_id,
-                n_seq_max: self.n_seq_max,
+                n_seq_max: self.max_sequences,
             })
         }
     }
@@ -51,10 +51,10 @@ impl ContextLimits {
     pub const fn micro_batch_tokens(&self, batch_tokens: NonZeroU32) -> u32 {
         let batch_tokens = batch_tokens.get();
 
-        if batch_tokens < self.n_ubatch {
+        if batch_tokens < self.micro_batch {
             batch_tokens
         } else {
-            self.n_ubatch
+            self.micro_batch
         }
     }
 }
@@ -69,10 +69,10 @@ mod tests {
     use crate::token::LlamaToken;
 
     const LIMITS: ContextLimits = ContextLimits {
-        n_batch: 512,
-        n_ubatch: 128,
-        n_seq_max: 2,
-        n_vocab: 100,
+        batch: 512,
+        micro_batch: 128,
+        max_sequences: 2,
+        vocabulary_size: 100,
     };
 
     #[test]

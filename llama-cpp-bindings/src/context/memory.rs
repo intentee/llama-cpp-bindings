@@ -169,7 +169,7 @@ impl LlamaContext<'_> {
     /// If either sequence id names no sequence of the context, either position exceeds
     /// [`i32::MAX`], or the context has no memory module.
     pub fn memory_seq_cp(
-        &mut self,
+        &self,
         src: i32,
         dest: i32,
         p0: Option<u32>,
@@ -195,7 +195,7 @@ impl LlamaContext<'_> {
     /// removed. `None` removes from every sequence. A context without a memory module holds no
     /// KV cache, so the removal trivially succeeds.
     pub fn memory_seq_rm(
-        &mut self,
+        &self,
         seq_id: Option<u32>,
         p0: Option<u32>,
         p1: Option<u32>,
@@ -227,7 +227,7 @@ impl LlamaContext<'_> {
         Err(MemorySeqRmError::PartialSequenceNotRemoved { seq_id, p0, p1 })
     }
 
-    pub fn memory_clear(&mut self) {
+    pub fn memory_clear(&self) {
         let Some(mem) = memory_of(self.context) else {
             return;
         };
@@ -237,7 +237,7 @@ impl LlamaContext<'_> {
 
     /// # Errors
     /// If the sequence id names no sequence of the context.
-    pub fn memory_seq_keep(&mut self, seq_id: i32) -> Result<(), SequenceIdOutOfRange> {
+    pub fn memory_seq_keep(&self, seq_id: i32) -> Result<(), SequenceIdOutOfRange> {
         self.limits.ensure_sequence_id(seq_id)?;
 
         if let Some(mem) = memory_of(self.context) {

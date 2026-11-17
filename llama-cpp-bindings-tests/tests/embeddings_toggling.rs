@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -28,12 +30,17 @@ fn add_tokens(
     sequence_id: i32,
     output_on_last_token: bool,
 ) -> Result<()> {
-    let last_index = tokens.len() - 1;
+    let last_index = tokens
+        .len()
+        .checked_sub(1)
+        .context("`tokens.len() - 1` must not overflow")?;
 
     for (index, token) in tokens.iter().enumerate() {
         batch.add(
-            &SampledToken::Content(*token),
-            first_position + i32::try_from(index)?,
+            SampledToken::Content(*token),
+            first_position
+                .checked_add(i32::try_from(index)?)
+                .context("`first_position + i32::try_from(index)?` must not overflow")?,
             &[sequence_id],
             output_on_last_token && index == last_index,
         )?;
@@ -53,7 +60,10 @@ fn decode_tokens(
     add_tokens(&mut batch, tokens, first_position, 0, output_on_last_token)?;
     context.decode(&batch)?;
 
-    Ok(batch.n_tokens() - 1)
+    batch
+        .n_tokens()
+        .checked_sub(1)
+        .context("`batch.n_tokens() - 1` must not overflow")
 }
 
 fn final_hidden_state_context<'fixture>(
@@ -112,9 +122,8 @@ fn final_hidden_states_after_enabling_embeddings_for_a_row_equal_those_of_an_emb
         true,
     )?;
 
-    assert_eq!(
-        toggled_row_hidden_state.as_slice(),
-        embeddings_context.embeddings_ith(row_last_index)?,
+    ensure!(
+        toggled_row_hidden_state.as_slice() == embeddings_context.embeddings_ith(row_last_index)?
     );
 
     Ok(())
@@ -133,13 +142,13 @@ fn final_hidden_states_of_a_row_follow_the_state_decoded_before_it(
 ) -> Result<()> {
     let row = tokenize(fixture, ROW)?;
 
-    assert_ne!(
-        row_hidden_state_after_enabling_embeddings(fixture, &tokenize(fixture, STATE)?, &row)?,
-        row_hidden_state_after_enabling_embeddings(
-            fixture,
-            &tokenize(fixture, OTHER_STATE)?,
-            &row
-        )?,
+    ensure!(
+        row_hidden_state_after_enabling_embeddings(fixture, &tokenize(fixture, STATE)?, &row)?
+            != row_hidden_state_after_enabling_embeddings(
+                fixture,
+                &tokenize(fixture, OTHER_STATE)?,
+                &row
+            )?
     );
 
     Ok(())

@@ -1,6 +1,7 @@
 use std::ffi::CString;
 
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::meta_val_error::MetaValError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -79,7 +80,7 @@ fn meta_count_returns_positive(fixture: &LlamaFixture<'_>) {
 )]
 fn the_first_metadata_entry_has_a_nonempty_key(fixture: &LlamaFixture<'_>) -> Result<()> {
     let key = fixture.model.meta_key_by_index(0)?;
-    assert_ne!(key, "");
+    ensure!(key != "");
     Ok(())
 }
 
@@ -117,7 +118,7 @@ fn the_first_metadata_entry_has_a_nonempty_key(fixture: &LlamaFixture<'_>) -> Re
 )]
 fn the_first_metadata_entry_has_a_nonempty_value(fixture: &LlamaFixture<'_>) -> Result<()> {
     let value = fixture.model.meta_val_str_by_index(0)?;
-    assert_ne!(value, "");
+    ensure!(value != "");
     Ok(())
 }
 
@@ -239,7 +240,7 @@ fn meta_val_str_returns_value_for_known_key(fixture: &LlamaFixture<'_>) -> Resul
     let model = fixture.model;
     let first_key = model.meta_key_by_index(0)?;
     let value = model.meta_val_str(&first_key)?;
-    assert_ne!(value, "");
+    ensure!(value != "");
     Ok(())
 }
 
@@ -280,8 +281,8 @@ fn meta_val_str_reads_a_value_longer_than_its_initial_buffer_whole(
 ) -> Result<()> {
     let chat_template = fixture.model.meta_val_str("tokenizer.chat_template")?;
 
-    assert!(chat_template.len() > INITIAL_META_VALUE_BUFFER_BYTES);
-    assert_eq!(chat_template, fixture.model.chat_template(None)?.to_str()?);
+    ensure!(chat_template.len() > INITIAL_META_VALUE_BUFFER_BYTES);
+    ensure!(chat_template == fixture.model.chat_template(None)?.to_str()?);
 
     Ok(())
 }

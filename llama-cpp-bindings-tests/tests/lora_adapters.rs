@@ -6,7 +6,9 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::llama_lora_adapter_init_error::LlamaLoraAdapterInitError;
@@ -40,12 +42,11 @@ fn set_lora_adapters_applies_a_real_adapter(fixture: &LlamaFixture<'_>) -> Resul
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    assert_eq!(
+    ensure!(
         context.set_lora_adapters(&[LoraAdapterScale {
             adapter: &adapter,
             scale: 1.0,
-        }]),
-        Ok(())
+        }]) == Ok(())
     );
 
     Ok(())
@@ -65,7 +66,7 @@ fn set_lora_adapters_accepts_an_empty_adapter_set(fixture: &LlamaFixture<'_>) ->
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    assert_eq!(context.set_lora_adapters(&[]), Ok(()));
+    ensure!(context.set_lora_adapters(&[]) == Ok(()));
 
     Ok(())
 }
@@ -93,12 +94,11 @@ fn setting_lora_adapters_reports_a_status_llama_cpp_returns(
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SET_ADAPTERS_LORA_FAILS);
 
-    assert_eq!(
+    ensure!(
         context.set_lora_adapters(&[LoraAdapterScale {
             adapter: &adapter,
             scale: 1.0,
-        }]),
-        Err(LlamaLoraAdaptersError::ErrorResult(-1))
+        }]) == Err(LlamaLoraAdaptersError::ErrorResult(-1))
     );
 
     Ok(())
@@ -112,14 +112,20 @@ fn setting_lora_adapters_reports_a_status_llama_cpp_returns(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn lora_adapter_init_with_a_missing_file_reports_it_not_found(fixture: &LlamaFixture<'_>) {
+fn lora_adapter_init_with_a_missing_file_reports_it_not_found(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let result = fixture
         .model
         .lora_adapter_init("/nonexistent/path/lora.gguf");
-    assert_eq!(
-        result.unwrap_err(),
-        LlamaLoraAdapterInitError::FileNotFound(PathBuf::from("/nonexistent/path/lora.gguf"))
+    ensure!(
+        result.err().context("the operation must fail")?
+            == LlamaLoraAdapterInitError::FileNotFound(PathBuf::from(
+                "/nonexistent/path/lora.gguf"
+            ))
     );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -138,7 +144,9 @@ fn lora_adapter_init_with_an_invalid_gguf_reports_it_unloadable(
 
     let result = fixture.model.lora_adapter_init(&dummy_path);
 
-    assert_eq!(result.unwrap_err(), LlamaLoraAdapterInitError::Unloadable);
+    ensure!(
+        result.err().context("the operation must fail")? == LlamaLoraAdapterInitError::Unloadable
+    );
     fs::remove_file(&dummy_path)?;
     Ok(())
 }
@@ -151,14 +159,16 @@ fn lora_adapter_init_with_an_invalid_gguf_reports_it_unloadable(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn lora_adapter_init_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) {
+fn lora_adapter_init_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) -> Result<()> {
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
     let result = fixture.model.lora_adapter_init(non_utf8_path);
 
-    assert_eq!(
-        result.unwrap_err(),
-        LlamaLoraAdapterInitError::PathToStrError(non_utf8_path.to_path_buf())
+    ensure!(
+        result.err().context("the operation must fail")?
+            == LlamaLoraAdapterInitError::PathToStrError(non_utf8_path.to_path_buf())
     );
+
+    Ok(())
 }
 
 #[llama_test(

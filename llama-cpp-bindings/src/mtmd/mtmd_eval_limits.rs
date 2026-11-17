@@ -35,10 +35,10 @@ impl MtmdEvalLimits {
             .and_then(NonZeroU32::new)
             .ok_or(MtmdEvalError::NonPositiveBatchSize { requested: n_batch })?;
 
-        if batch_tokens.get() > self.context.n_batch {
+        if batch_tokens.get() > self.context.batch {
             return Err(MtmdEvalError::BatchSizeExceedsContextLimit {
                 requested: n_batch,
-                context_max: self.context.n_batch,
+                context_max: self.context.batch,
             });
         }
 
@@ -59,10 +59,10 @@ mod tests {
 
     const LIMITS: MtmdEvalLimits = MtmdEvalLimits {
         context: ContextLimits {
-            n_batch: 512,
-            n_ubatch: 128,
-            n_seq_max: 2,
-            n_vocab: 100,
+            batch: 512,
+            micro_batch: 128,
+            max_sequences: 2,
+            vocabulary_size: 100,
         },
     };
 

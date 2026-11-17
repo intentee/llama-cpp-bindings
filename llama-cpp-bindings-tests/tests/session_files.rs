@@ -2,6 +2,7 @@ use std::env;
 use std::fs;
 
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::load_seq_state_error::LoadSeqStateError;
@@ -63,7 +64,7 @@ fn a_loaded_state_file_restores_the_tokens_it_was_saved_with(
     context.state_save_file(&session_path, &tokens)?;
 
     let loaded_tokens = context.state_load_file(&session_path, 512)?;
-    assert_eq!(loaded_tokens, tokens);
+    ensure!(loaded_tokens == tokens);
 
     fs::remove_file(&session_path)?;
 
@@ -117,13 +118,13 @@ fn a_loaded_sequence_state_file_restores_its_tokens_and_bytes(
 
     let session_path = env::temp_dir().join("llama_test_seq_state.bin");
     let bytes_written = context.state_seq_save_file(&session_path, 0, &tokens)?;
-    assert!(bytes_written > 0);
+    ensure!(bytes_written > 0);
 
     let loaded = context.state_seq_load_file(&session_path, 0, 512)?;
 
-    assert_eq!(loaded.tokens, tokens);
-    assert_eq!(
-        loaded.bytes_read, bytes_written,
+    ensure!(loaded.tokens == tokens);
+    ensure!(
+        loaded.bytes_read == bytes_written,
         "loading must consume exactly the bytes the save produced"
     );
 
@@ -169,11 +170,11 @@ fn state_load_file_reports_a_missing_file_as_failed_to_load(
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    assert_eq!(
+    ensure!(
         context
             .state_load_file("/nonexistent/session.bin", 512)
-            .err(),
-        Some(LoadSessionError::FailedToLoad)
+            .err()
+            == Some(LoadSessionError::FailedToLoad)
     );
 
     Ok(())
@@ -216,11 +217,11 @@ fn state_seq_load_file_reports_a_missing_file_as_failed_to_load(
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    assert_eq!(
+    ensure!(
         context
             .state_seq_load_file("/nonexistent/seq_state.bin", 0, 512)
-            .err(),
-        Some(LoadSeqStateError::FailedToLoad)
+            .err()
+            == Some(LoadSeqStateError::FailedToLoad)
     );
 
     Ok(())
@@ -263,9 +264,9 @@ fn state_save_file_to_invalid_directory_returns_failed_to_save(
 ) -> Result<()> {
     let context = fixture.build_context()?;
 
-    assert_eq!(
-        context.state_save_file("/nonexistent_dir/session.bin", &[]),
-        Err(SaveSessionError::FailedToSave)
+    ensure!(
+        context.state_save_file("/nonexistent_dir/session.bin", &[])
+            == Err(SaveSessionError::FailedToSave)
     );
 
     Ok(())
@@ -308,9 +309,9 @@ fn state_seq_save_file_to_invalid_directory_returns_failed_to_save(
 ) -> Result<()> {
     let context = fixture.build_context()?;
 
-    assert_eq!(
-        context.state_seq_save_file("/nonexistent_dir/seq_state.bin", 0, &[]),
-        Err(SaveSeqStateError::FailedToSave)
+    ensure!(
+        context.state_seq_save_file("/nonexistent_dir/seq_state.bin", 0, &[])
+            == Err(SaveSeqStateError::FailedToSave)
     );
 
     Ok(())

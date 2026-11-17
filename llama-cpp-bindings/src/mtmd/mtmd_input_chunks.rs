@@ -176,7 +176,7 @@ impl MtmdInputChunks {
 
         fit_each(&chunks, mtmd_ctx, micro_batch_tokens)?;
 
-        let chunk_count = chunks.len();
+        let last_chunk_index = chunks.len().checked_sub(1);
 
         chunks
             .iter()
@@ -189,7 +189,7 @@ impl MtmdInputChunks {
                     position,
                     seq_id,
                     n_batch,
-                    logits_last && index + 1 == chunk_count,
+                    logits_last && Some(index) == last_chunk_index,
                 )
             })
     }

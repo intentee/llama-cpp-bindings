@@ -12,7 +12,7 @@ impl ExecutionPhase {
     pub fn header_line(&self, index: usize, total: usize) -> String {
         format!(
             "--- phase {phase_number}/{total_phases}: {model_source} (n_gpu_layers={n_gpu_layers}) ({trial_count} tests) ---",
-            phase_number = index + 1,
+            phase_number = index.saturating_add(1),
             total_phases = total,
             model_source = self.key.model_source,
             n_gpu_layers = self.key.model_load_params.n_gpu_layers,

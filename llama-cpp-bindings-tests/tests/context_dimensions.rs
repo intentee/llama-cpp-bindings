@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -51,9 +52,9 @@ fn context_reports_positive_context_and_batch_sizes(fixture: &LlamaFixture<'_>) 
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    assert!(context.n_ctx() > 0);
-    assert!(context.n_batch() > 0);
-    assert!(context.n_ubatch() > 0);
+    ensure!(context.n_ctx() > 0);
+    ensure!(context.n_batch() > 0);
+    ensure!(context.n_ubatch() > 0);
 
     Ok(())
 }
@@ -70,8 +71,8 @@ fn context_reports_positive_context_and_batch_sizes(fixture: &LlamaFixture<'_>) 
 fn n_ctx_seq_splits_the_context_between_sequences(fixture: &LlamaFixture<'_>) -> Result<()> {
     let context = fixture.build_context()?;
 
-    assert_eq!(context.n_ctx(), 2048);
-    assert_eq!(context.n_ctx_seq(), 512);
+    ensure!(context.n_ctx() == 2048);
+    ensure!(context.n_ctx_seq() == 512);
 
     Ok(())
 }

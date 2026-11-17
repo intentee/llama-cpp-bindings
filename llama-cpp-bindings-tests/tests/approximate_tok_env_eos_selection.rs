@@ -4,6 +4,7 @@ use std::process;
 
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokenizerEnv as _;
 
@@ -31,10 +32,7 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
         .token_eos()
         .context("model declares an EOS token")?;
 
-    assert_eq!(
-        fixture.model.approximate_tok_env()?.tok_trie().eos_token(),
-        eos.cast_unsigned()
-    );
+    ensure!(fixture.model.approximate_tok_env()?.tok_trie().eos_token() == eos.cast_unsigned());
 
     Ok(())
 }
@@ -68,12 +66,12 @@ fn approximate_tok_env_of_a_model_without_eot_and_eos_has_no_eos(
 
     fs::remove_file(&model_without_eos_path)?;
 
-    assert_eq!(
+    ensure!(
         model_without_eos
             .approximate_tok_env()?
             .tok_trie()
-            .eos_token(),
-        INVALID_TOKEN
+            .eos_token()
+            == INVALID_TOKEN
     );
 
     Ok(())

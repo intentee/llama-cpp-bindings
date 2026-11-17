@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::error::batch_transfer_error::BatchTransferError;
@@ -23,20 +25,23 @@ fn decoding_a_batch_built_for_other_context_limits_is_refused(
     let mut context = fixture.build_context()?;
     let context_limits = ContextLimits::of(&context);
     let other_limits = ContextLimits {
-        n_batch: context_limits.n_batch * 2,
+        batch: context_limits
+            .batch
+            .checked_mul(2)
+            .context("twice the batch size must fit u32")?,
         ..context_limits
     };
     let mut batch = LlamaBatch::new(other_limits);
-    batch.add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)?;
+    batch.add(SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)?;
 
-    assert_eq!(
-        context.decode(&batch),
-        Err(DecodeError::BatchTransfer(
-            BatchTransferError::LimitsMismatch {
-                batch: other_limits,
-                context: context_limits,
-            }
-        ))
+    ensure!(
+        context.decode(&batch)
+            == Err(DecodeError::BatchTransfer(
+                BatchTransferError::LimitsMismatch {
+                    batch: other_limits,
+                    context: context_limits,
+                }
+            ))
     );
 
     Ok(())

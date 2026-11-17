@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
@@ -27,7 +28,7 @@ use llama_cpp_test_harness_macros::llama_test;
 fn copy_creates_owned_duplicate(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
     let input_text = MtmdInputText {
@@ -39,8 +40,8 @@ fn copy_creates_owned_duplicate(fixture: &LlamaFixture<'_>) -> Result<()> {
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     let copied = first_chunk.copy()?;
 
-    assert!(copied.owned);
-    assert_eq!(copied.n_tokens(), first_chunk.n_tokens());
+    ensure!(copied.owned);
+    ensure!(copied.n_tokens() == first_chunk.n_tokens());
 
     Ok(())
 }

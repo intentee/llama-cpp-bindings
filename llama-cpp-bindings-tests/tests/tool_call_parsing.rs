@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 use serde_json::json;
 
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
@@ -65,9 +66,9 @@ fn negotiate_with_cat_tools() -> Vec<ChatTool> {
 fn assert_parses_to_paris_weather_call(fixture: &LlamaFixture<'_>, answer: &str) -> Result<()> {
     let session =
         user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
-    let parsed = recognized_answer(&session, answer, ChatOutputCompleteness::Finished);
+    let parsed = recognized_answer(&session, answer, ChatOutputCompleteness::Finished)?;
 
-    assert_eq!(parsed.tool_calls, [paris_weather_tool_call()]);
+    ensure!(parsed.tool_calls == [paris_weather_tool_call()]);
 
     Ok(())
 }
@@ -162,19 +163,19 @@ tuna\n\
 </function>\n\
 </tool_call>",
         ChatOutputCompleteness::Finished,
-    );
+    )?;
 
-    assert_eq!(
-        parsed.tool_calls,
-        [ParsedToolCall::new(
-            ParsedToolCallId::NotProvidedByModel,
-            "negotiate_with_cat".to_owned(),
-            ToolCallArguments::ValidJson(json!({
-                "bribe": "tuna",
-                "desperation_level": 8,
-                "topic": "get off the keyboard",
-            })),
-        )]
+    ensure!(
+        parsed.tool_calls
+            == [ParsedToolCall::new(
+                ParsedToolCallId::NotProvidedByModel,
+                "negotiate_with_cat".to_owned(),
+                ToolCallArguments::ValidJson(json!({
+                    "bribe": "tuna",
+                    "desperation_level": 8,
+                    "topic": "get off the keyboard",
+                })),
+            )]
     );
 
     Ok(())
@@ -197,15 +198,15 @@ fn qwen35_parses_a_tool_call_cut_inside_its_arguments_as_a_named_call(
         &session,
         "<tool_call>\n<function=get_weather>\n<parameter=lo",
         ChatOutputCompleteness::Partial,
-    );
+    )?;
 
-    assert_eq!(
+    ensure!(
         parsed
             .tool_calls
             .iter()
             .map(|tool_call| tool_call.name.as_str())
-            .collect::<Vec<&str>>(),
-        ["get_weather"]
+            .collect::<Vec<&str>>()
+            == ["get_weather"]
     );
 
     Ok(())
@@ -239,18 +240,18 @@ fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> 
             QWEN_XML_PARIS_WEATHER_CALL.replace("Paris", "Berlin")
         ),
         ChatOutputCompleteness::Finished,
-    );
+    )?;
 
-    assert_eq!(
-        parsed.tool_calls,
-        [
-            paris_weather_tool_call(),
-            ParsedToolCall::new(
-                ParsedToolCallId::NotProvidedByModel,
-                "get_weather".to_owned(),
-                ToolCallArguments::ValidJson(json!({"location": "Berlin"})),
-            ),
-        ]
+    ensure!(
+        parsed.tool_calls
+            == [
+                paris_weather_tool_call(),
+                ParsedToolCall::new(
+                    ParsedToolCallId::NotProvidedByModel,
+                    "get_weather".to_owned(),
+                    ToolCallArguments::ValidJson(json!({"location": "Berlin"})),
+                ),
+            ]
     );
 
     Ok(())
@@ -281,9 +282,9 @@ fn plain_content_answering_a_tool_request_parses_without_tool_calls(
         &session,
         PLAIN_CONTENT_REFUSAL,
         ChatOutputCompleteness::Finished,
-    );
+    )?;
 
-    assert_eq!(parsed.tool_calls, []);
+    ensure!(parsed.tool_calls == []);
 
     Ok(())
 }
@@ -300,9 +301,9 @@ fn deepseek_r1_8b_plain_content_without_tools_parses_without_tool_calls(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = user_turn_chat_session(fixture.model, "Hello!", &[], false)?;
-    let parsed = recognized_answer(&session, "Hello there.", ChatOutputCompleteness::Finished);
+    let parsed = recognized_answer(&session, "Hello there.", ChatOutputCompleteness::Finished)?;
 
-    assert_eq!(parsed.tool_calls, []);
+    ensure!(parsed.tool_calls == []);
 
     Ok(())
 }
@@ -321,18 +322,18 @@ fn qwen35_reports_a_finished_tool_call_its_parser_stops_short_of_with_the_format
     let session =
         user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
 
-    assert_eq!(
+    ensure!(
         session
             .read(
                 &ChatOutput::from(MALFORMED_QWEN_XML_TOOL_CALL),
                 ChatOutputCompleteness::Finished
             )?
-            .parse(),
-        Ok(&ChatMessageParseOutcome::Unrecognized(RawChatMessage {
-            text: MALFORMED_QWEN_XML_TOOL_CALL.to_owned(),
-            completeness: ChatOutputCompleteness::Finished,
-            expected_format: "peg-native".to_owned(),
-        }))
+            .parse()
+            == Ok(&ChatMessageParseOutcome::Unrecognized(RawChatMessage {
+                text: MALFORMED_QWEN_XML_TOOL_CALL.to_owned(),
+                completeness: ChatOutputCompleteness::Finished,
+                expected_format: "peg-native".to_owned(),
+            }))
     );
 
     Ok(())

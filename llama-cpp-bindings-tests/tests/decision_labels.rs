@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::decision_labels_error::DecisionLabelsError;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
@@ -16,7 +17,7 @@ use llama_cpp_test_harness_macros::llama_test;
 fn a_model_without_decision_labels_metadata_has_no_labels(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    assert_eq!(fixture.model.decision_labels()?, Vec::<String>::new());
+    ensure!(fixture.model.decision_labels()? == Vec::<String>::new());
 
     Ok(())
 }

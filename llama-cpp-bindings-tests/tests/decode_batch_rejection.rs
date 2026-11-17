@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -29,7 +30,7 @@ fn decoding_an_empty_batch_is_refused_as_invalid(fixture: &LlamaFixture<'_>) -> 
     )?;
     let batch = LlamaBatch::new(ContextLimits::of(&context));
 
-    assert_eq!(context.decode(&batch), Err(DecodeError::BatchInvalid));
+    ensure!(context.decode(&batch) == Err(DecodeError::BatchInvalid));
 
     Ok(())
 }
@@ -61,12 +62,12 @@ fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_is_refuse
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 
-    assert_eq!(
-        context.decode(&batch),
-        Err(DecodeError::BatchExceedsMicroBatch {
-            n_tokens,
-            n_ubatch: context.n_ubatch(),
-        })
+    ensure!(
+        context.decode(&batch)
+            == Err(DecodeError::BatchExceedsMicroBatch {
+                n_tokens,
+                n_ubatch: context.n_ubatch(),
+            })
     );
 
     Ok(())
@@ -94,12 +95,12 @@ fn decoding_more_tokens_than_the_micro_batch_on_an_encoder_is_refused(
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 
-    assert_eq!(
-        context.decode(&batch),
-        Err(DecodeError::BatchExceedsMicroBatch {
-            n_tokens,
-            n_ubatch: context.n_ubatch(),
-        })
+    ensure!(
+        context.decode(&batch)
+            == Err(DecodeError::BatchExceedsMicroBatch {
+                n_tokens,
+                n_ubatch: context.n_ubatch(),
+            })
     );
 
     Ok(())
@@ -126,11 +127,11 @@ fn decoding_reports_an_exception_thrown_while_transferring_the_batch(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS,
     );
 
-    assert_eq!(
-        context.decode(&batch),
-        Err(DecodeError::BatchTransfer(BatchTransferError::Reported {
-            message: injected_fault_message(),
-        }))
+    ensure!(
+        context.decode(&batch)
+            == Err(DecodeError::BatchTransfer(BatchTransferError::Reported {
+                message: injected_fault_message()?,
+            }))
     );
 
     Ok(())

@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -41,15 +42,15 @@ fn the_eos_token_ends_generation_in_every_section(fixture: &LlamaFixture<'_>) ->
     let model = fixture.model;
     let eos = model.token_eos().context("model declares an EOS token")?;
 
-    assert_eq!(
+    ensure!(
         [
             SampledToken::Content(eos),
             SampledToken::Reasoning(eos),
             SampledToken::ToolCall(eos),
             SampledToken::Undeterminable(eos),
         ]
-        .map(|sampled_token| model.is_eog_token(&sampled_token)),
-        [true, true, true, true]
+        .map(|sampled_token| model.is_eog_token(&sampled_token))
+            == [true, true, true, true]
     );
     Ok(())
 }

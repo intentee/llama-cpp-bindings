@@ -138,14 +138,14 @@ impl LlamaBatch {
     /// the context does not have, or the token count would overflow.
     pub fn add(
         &mut self,
-        sampled_token: &SampledToken,
+        sampled_token: SampledToken,
         pos: llama_pos,
         seq_ids: &[llama_seq_id],
         logits: bool,
     ) -> Result<(), BatchAddError> {
-        if self.n_tokens.unsigned_abs() >= self.limits.n_batch {
+        if self.n_tokens.unsigned_abs() >= self.limits.batch {
             return Err(BatchAddError::BatchFull {
-                n_batch: self.limits.n_batch,
+                n_batch: self.limits.batch,
             });
         }
 
@@ -220,12 +220,14 @@ impl LlamaBatch {
         seq_id: llama_seq_id,
         logits_all: bool,
     ) -> Result<(), BatchAddError> {
+        let last_token_index = tokens.len().checked_sub(1);
+
         for ((token_index, token), pos) in tokens.iter().enumerate().zip(0..) {
             self.add(
-                &SampledToken::Content(*token),
+                SampledToken::Content(*token),
                 pos,
                 &[seq_id],
-                logits_all || token_index + 1 == tokens.len(),
+                logits_all || Some(token_index) == last_token_index,
             )?;
         }
 
@@ -293,10 +295,10 @@ mod tests {
     use crate::token::LlamaToken;
 
     const LIMITS: ContextLimits = ContextLimits {
-        n_batch: 4,
-        n_ubatch: 4,
-        n_seq_max: 2,
-        n_vocab: 100,
+        batch: 4,
+        micro_batch: 4,
+        max_sequences: 2,
+        vocabulary_size: 100,
     };
 
     fn content(token_id: i32) -> SampledToken {
@@ -308,13 +310,13 @@ mod tests {
         let mut batch = LlamaBatch {
             n_tokens: i32::MAX,
             ..LlamaBatch::new(ContextLimits {
-                n_batch: u32::MAX,
+                batch: u32::MAX,
                 ..LIMITS
             })
         };
 
         assert_eq!(
-            batch.add(&content(1), 0, &[0], false),
+            batch.add(content(1), 0, &[0], false),
             Err(BatchAddError::TokenCountOverflow { n_tokens: i32::MAX })
         );
     }
@@ -323,8 +325,8 @@ mod tests {
     fn added_tokens_are_kept_in_order_with_their_outputs() {
         let mut batch = LlamaBatch::new(LIMITS);
 
-        batch.add(&content(1), 0, &[0], false).unwrap();
-        batch.add(&content(2), 1, &[0, 1], true).unwrap();
+        batch.add(content(1), 0, &[0], false).unwrap();
+        batch.add(content(2), 1, &[0, 1], true).unwrap();
 
         assert_eq!(
             batch.entries,
@@ -377,7 +379,7 @@ mod tests {
     #[test]
     fn a_decision_order_for_a_token_the_batch_does_not_hold_is_refused() {
         let mut batch = LlamaBatch::new(LIMITS);
-        batch.add(&content(1), 0, &[0], false).unwrap();
+        batch.add(content(1), 0, &[0], false).unwrap();
 
         assert_eq!(
             [-1, 1]
@@ -393,7 +395,7 @@ mod tests {
     #[test]
     fn clearing_forgets_every_token_and_output() {
         let mut batch = LlamaBatch::new(LIMITS);
-        batch.add(&content(1), 0, &[0], true).unwrap();
+        batch.add(content(1), 0, &[0], true).unwrap();
 
         batch.clear();
 
@@ -408,7 +410,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            batch.add(&content(5), 4, &[0], false),
+            batch.add(content(5), 4, &[0], false),
             Err(BatchAddError::BatchFull { n_batch: 4 })
         );
     }
@@ -418,7 +420,7 @@ mod tests {
         let mut batch = LlamaBatch::new(LIMITS);
 
         assert_eq!(
-            batch.add(&content(100), 0, &[0], false),
+            batch.add(content(100), 0, &[0], false),
             Err(BatchAddError::TokenOutsideVocabulary(
                 TokenOutsideVocabulary {
                     token: LlamaToken::new(100),
@@ -433,7 +435,7 @@ mod tests {
         let mut batch = LlamaBatch::new(LIMITS);
 
         assert_eq!(
-            batch.add(&content(1), 0, &[], false),
+            batch.add(content(1), 0, &[], false),
             Err(BatchAddError::NoSequenceIds)
         );
     }
@@ -443,7 +445,7 @@ mod tests {
         let mut batch = LlamaBatch::new(LIMITS);
 
         assert_eq!(
-            batch.add(&content(1), 0, &[0, 2], false),
+            batch.add(content(1), 0, &[0, 2], false),
             Err(BatchAddError::SequenceIdOutOfRange(SequenceIdOutOfRange {
                 seq_id: 2,
                 n_seq_max: 2,

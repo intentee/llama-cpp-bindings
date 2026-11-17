@@ -240,7 +240,8 @@ mod tests {
         let cpu_defines = CpuTuning::of(&context, &environment).unwrap().defines;
         let mut configuration = CmakeConfiguration::of(&context, &environment).unwrap();
 
-        configuration.defines.drain(..9 + cpu_defines.len());
+        configuration.defines.drain(..9);
+        configuration.defines.drain(..cpu_defines.len());
 
         configuration
     }

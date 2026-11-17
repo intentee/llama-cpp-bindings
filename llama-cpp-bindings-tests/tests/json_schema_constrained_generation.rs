@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 use serde_json::Value;
 use serde_json::json;
 
@@ -29,7 +31,7 @@ fn json_schema_constrained_answer(fixture: &LlamaFixture<'_>) -> Result<Value> {
     )?;
 
     let session =
-        closed_reasoning_chat_session(model, "What is 2+2? Respond with a JSON object.", &[]);
+        closed_reasoning_chat_session(model, "What is 2+2? Respond with a JSON object.", &[])?;
     let tokens = session.tokenize_prompt(fixture.model)?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&context));
     let mut classifier = SampledTokenClassifier::undeterminable(model);
@@ -57,9 +59,9 @@ fn json_schema_constrained_answer(fixture: &LlamaFixture<'_>) -> Result<Value> {
         initial_position,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
-    assert!(
+    ensure!(
         outcome.eog_seen,
         "the answer must end once the schema is satisfied; outcome={outcome:?}"
     );
@@ -76,10 +78,7 @@ fn json_schema_constrained_answer(fixture: &LlamaFixture<'_>) -> Result<Value> {
     n_ubatch = 128,
 )]
 fn deepseek_r1_8b_answers_the_json_schema_with_four(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(
-        json_schema_constrained_answer(fixture)?,
-        json!({"answer": "4"})
-    );
+    ensure!(json_schema_constrained_answer(fixture)? == json!({"answer": "4"}));
 
     Ok(())
 }
@@ -93,10 +92,7 @@ fn deepseek_r1_8b_answers_the_json_schema_with_four(fixture: &LlamaFixture<'_>) 
     n_ubatch = 128,
 )]
 fn glm47_flash_answers_the_json_schema_with_a_sentence(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(
-        json_schema_constrained_answer(fixture)?,
-        json!({"answer": "The answer is 4."})
-    );
+    ensure!(json_schema_constrained_answer(fixture)? == json!({"answer": "The answer is 4."}));
 
     Ok(())
 }
@@ -110,10 +106,7 @@ fn glm47_flash_answers_the_json_schema_with_a_sentence(fixture: &LlamaFixture<'_
     n_ubatch = 128,
 )]
 fn qwen35_answers_the_json_schema_with_four(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(
-        json_schema_constrained_answer(fixture)?,
-        json!({"answer": "4"})
-    );
+    ensure!(json_schema_constrained_answer(fixture)? == json!({"answer": "4"}));
 
     Ok(())
 }
@@ -127,10 +120,7 @@ fn qwen35_answers_the_json_schema_with_four(fixture: &LlamaFixture<'_>) -> Resul
     n_ubatch = 128,
 )]
 fn qwen36_answers_the_json_schema_with_an_empty_string(fixture: &LlamaFixture<'_>) -> Result<()> {
-    assert_eq!(
-        json_schema_constrained_answer(fixture)?,
-        json!({"answer": ""})
-    );
+    ensure!(json_schema_constrained_answer(fixture)? == json!({"answer": ""}));
 
     Ok(())
 }
@@ -184,11 +174,13 @@ fn an_llguidance_json_schema_constrains_the_answer_to_the_schema(
     let tokens_list = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
 
     let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
-    let last_index = i32::try_from(tokens_list.len())? - 1;
+    let last_index = i32::try_from(tokens_list.len())?
+        .checked_sub(1)
+        .context("`i32::try_from(tokens_list.len())? - 1` must not overflow")?;
 
     for (index, token) in (0_i32..).zip(&tokens_list) {
         batch.add(
-            &SampledToken::Content(*token),
+            SampledToken::Content(*token),
             index,
             &[0],
             index == last_index,
@@ -219,15 +211,14 @@ fn an_llguidance_json_schema_constrains_the_answer_to_the_schema(
         initial_position,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
-    assert!(
+    ensure!(
         outcome.eog_seen,
         "the answer must end once the schema is satisfied; outcome={outcome:?}"
     );
-    assert_eq!(
-        outcome.generated.text().parse::<Value>()?,
-        json!({"city": "Paris", "temperature": 22})
+    ensure!(
+        outcome.generated.text().parse::<Value>()? == json!({"city": "Paris", "temperature": 22})
     );
 
     Ok(())

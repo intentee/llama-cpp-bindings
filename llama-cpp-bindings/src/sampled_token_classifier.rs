@@ -127,7 +127,7 @@ impl<'model> SampledTokenClassifier<'model> {
         let attribution = match &mut self.attribution {
             TokenAttribution::Undeterminable => {
                 let piece = self.model.token_to_piece(
-                    &SampledToken::Content(token),
+                    SampledToken::Content(token),
                     &mut self.decoder,
                     true,
                     None,
@@ -144,7 +144,7 @@ impl<'model> SampledTokenClassifier<'model> {
         };
         let renders_special = attribution.preserved_tokens.contains(&token);
         let piece = self.model.token_to_piece(
-            &SampledToken::Content(token),
+            SampledToken::Content(token),
             &mut self.decoder,
             renders_special,
             None,
@@ -242,7 +242,7 @@ impl<'model> SampledTokenClassifier<'model> {
         seq_ids: &[llama_seq_id],
         logits: bool,
     ) -> Result<(), BatchAddError> {
-        batch.add(&SampledToken::Content(token), position, seq_ids, logits)?;
+        batch.add(SampledToken::Content(token), position, seq_ids, logits)?;
         self.pending_prompt_tokens = self.pending_prompt_tokens.saturating_add(1);
 
         Ok(())
@@ -310,12 +310,13 @@ impl<'model> SampledTokenClassifier<'model> {
                 .micro_batch_tokens(limits.batch_tokens(params.n_batch, params.seq_id)?),
         )?;
         let chunk_count = fitted_chunks.len();
+        let last_chunk_index = chunk_count.checked_sub(1);
         let mut next_position = params.start_position;
 
         for index in 0..chunk_count {
             let fitted_chunk = FittedMtmdInputChunk::at(&fitted_chunks, index)
                 .ok_or(EvalMultimodalChunksError::ChunkOutOfBounds(index))?;
-            let logits_for_this_chunk = params.logits_last && index + 1 == chunk_count;
+            let logits_for_this_chunk = params.logits_last && Some(index) == last_chunk_index;
 
             next_position = fitted_chunk.eval_single(
                 mtmd_ctx,

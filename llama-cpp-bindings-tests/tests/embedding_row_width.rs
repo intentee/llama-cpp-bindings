@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
@@ -18,12 +19,9 @@ const QWEN3_RERANKER_CLASSIFIER_LABELS: usize = 2;
     embeddings = true,
 )]
 fn token_embeddings_are_as_wide_as_the_output_projection(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::None);
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::None)?;
 
-    assert_eq!(
-        context.embeddings_ith(0)?.len(),
-        LFM2_COLBERT_OUTPUT_PROJECTION_WIDTH
-    );
+    ensure!(context.embeddings_ith(0)?.len() == LFM2_COLBERT_OUTPUT_PROJECTION_WIDTH);
 
     Ok(())
 }
@@ -40,12 +38,9 @@ fn token_embeddings_are_as_wide_as_the_output_projection(fixture: &LlamaFixture<
 fn pooled_sequence_embeddings_are_as_wide_as_the_output_projection(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean);
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean)?;
 
-    assert_eq!(
-        context.embeddings_seq_ith(0)?.len(),
-        LFM2_COLBERT_OUTPUT_PROJECTION_WIDTH
-    );
+    ensure!(context.embeddings_seq_ith(0)?.len() == LFM2_COLBERT_OUTPUT_PROJECTION_WIDTH);
 
     Ok(())
 }
@@ -62,12 +57,9 @@ fn pooled_sequence_embeddings_are_as_wide_as_the_output_projection(
 fn rank_pooled_sequence_embeddings_hold_one_score_per_classifier_label(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::Rank);
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::Rank)?;
 
-    assert_eq!(
-        context.embeddings_seq_ith(0)?.len(),
-        QWEN3_RERANKER_CLASSIFIER_LABELS
-    );
+    ensure!(context.embeddings_seq_ith(0)?.len() == QWEN3_RERANKER_CLASSIFIER_LABELS);
 
     Ok(())
 }

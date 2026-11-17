@@ -1,6 +1,7 @@
 use std::ffi::CString;
 
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::grammar_error::GrammarError;
 use llama_cpp_bindings::sampling::LlamaSampler;
@@ -24,12 +25,11 @@ fn a_lazy_grammar_awaiting_its_trigger_pattern_leaves_candidates_unconstrained(
     let patterns = vec!["\\{.*".to_owned()];
     let sampler = LlamaSampler::grammar_lazy(model, "root ::= \"hello\"", "root", &patterns, &[])?;
 
-    assert_eq!(
+    ensure!(
         logits_left_by(
             &sampler,
-            &[single_token(model, "hello"), single_token(model, "yes")]
-        ),
-        [0.0, 0.0]
+            &[single_token(model, "hello")?, single_token(model, "yes")?]
+        )? == [0.0, 0.0]
     );
 
     Ok(())
@@ -89,15 +89,14 @@ fn a_lazy_grammar_awaiting_its_trigger_token_leaves_candidates_unconstrained(
         "root ::= \"hello\"",
         "root",
         &[],
-        &[single_token(model, "{")],
+        &[single_token(model, "{")?],
     )?;
 
-    assert_eq!(
+    ensure!(
         logits_left_by(
             &sampler,
-            &[single_token(model, "hello"), single_token(model, "yes")]
-        ),
-        [0.0, 0.0]
+            &[single_token(model, "hello")?, single_token(model, "yes")?]
+        )? == [0.0, 0.0]
     );
 
     Ok(())

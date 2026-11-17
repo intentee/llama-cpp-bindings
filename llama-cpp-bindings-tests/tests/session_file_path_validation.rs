@@ -4,6 +4,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::load_seq_state_error::LoadSeqStateError;
 use llama_cpp_bindings::context::load_session_error::LoadSessionError;
@@ -49,11 +50,11 @@ fn state_save_file_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) -
 
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.bin"));
 
-    assert_eq!(
-        context.state_save_file(non_utf8_path, &[]).err(),
-        Some(SaveSessionError::PathToStrError(
-            non_utf8_path.to_path_buf()
-        ))
+    ensure!(
+        context.state_save_file(non_utf8_path, &[]).err()
+            == Some(SaveSessionError::PathToStrError(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -96,11 +97,11 @@ fn state_load_file_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_>) -
 
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.bin"));
 
-    assert_eq!(
-        context.state_load_file(non_utf8_path, 512).err(),
-        Some(LoadSessionError::PathToStrError(
-            non_utf8_path.to_path_buf()
-        ))
+    ensure!(
+        context.state_load_file(non_utf8_path, 512).err()
+            == Some(LoadSessionError::PathToStrError(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -143,11 +144,11 @@ fn state_seq_save_file_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_
 
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.bin"));
 
-    assert_eq!(
-        context.state_seq_save_file(non_utf8_path, 0, &[]).err(),
-        Some(SaveSeqStateError::PathToStrError(
-            non_utf8_path.to_path_buf()
-        ))
+    ensure!(
+        context.state_seq_save_file(non_utf8_path, 0, &[]).err()
+            == Some(SaveSeqStateError::PathToStrError(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -190,11 +191,11 @@ fn state_seq_load_file_refuses_a_path_that_is_not_utf8(fixture: &LlamaFixture<'_
 
     let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.bin"));
 
-    assert_eq!(
-        context.state_seq_load_file(non_utf8_path, 0, 512).err(),
-        Some(LoadSeqStateError::PathToStrError(
-            non_utf8_path.to_path_buf()
-        ))
+    ensure!(
+        context.state_seq_load_file(non_utf8_path, 0, 512).err()
+            == Some(LoadSeqStateError::PathToStrError(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -237,11 +238,11 @@ fn state_save_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) ->
 
     let path_with_null = Path::new("/tmp/foo\0bar.bin");
 
-    assert_eq!(
-        context.state_save_file(path_with_null, &[]).err(),
-        CString::new("/tmp/foo\0bar.bin")
-            .err()
-            .map(SaveSessionError::NullError)
+    ensure!(
+        context.state_save_file(path_with_null, &[]).err()
+            == CString::new("/tmp/foo\0bar.bin")
+                .err()
+                .map(SaveSessionError::NullError)
     );
 
     Ok(())
@@ -284,11 +285,11 @@ fn state_load_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) ->
 
     let path_with_null = Path::new("/tmp/foo\0bar.bin");
 
-    assert_eq!(
-        context.state_load_file(path_with_null, 512).err(),
-        CString::new("/tmp/foo\0bar.bin")
-            .err()
-            .map(LoadSessionError::NullError)
+    ensure!(
+        context.state_load_file(path_with_null, 512).err()
+            == CString::new("/tmp/foo\0bar.bin")
+                .err()
+                .map(LoadSessionError::NullError)
     );
 
     Ok(())
@@ -331,11 +332,11 @@ fn state_seq_save_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>
 
     let path_with_null = Path::new("/tmp/foo\0bar.bin");
 
-    assert_eq!(
-        context.state_seq_save_file(path_with_null, 0, &[]).err(),
-        CString::new("/tmp/foo\0bar.bin")
-            .err()
-            .map(SaveSeqStateError::NullError)
+    ensure!(
+        context.state_seq_save_file(path_with_null, 0, &[]).err()
+            == CString::new("/tmp/foo\0bar.bin")
+                .err()
+                .map(SaveSeqStateError::NullError)
     );
 
     Ok(())
@@ -378,11 +379,11 @@ fn state_seq_load_file_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>
 
     let path_with_null = Path::new("/tmp/foo\0bar.bin");
 
-    assert_eq!(
-        context.state_seq_load_file(path_with_null, 0, 512).err(),
-        CString::new("/tmp/foo\0bar.bin")
-            .err()
-            .map(LoadSeqStateError::NullError)
+    ensure!(
+        context.state_seq_load_file(path_with_null, 0, 512).err()
+            == CString::new("/tmp/foo\0bar.bin")
+                .err()
+                .map(LoadSeqStateError::NullError)
     );
 
     Ok(())

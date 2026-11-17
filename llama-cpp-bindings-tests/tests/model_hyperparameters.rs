@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -38,14 +39,14 @@ use llama_cpp_test_harness_macros::llama_test;
 fn model_reports_positive_core_hyperparameters(fixture: &LlamaFixture<'_>) -> Result<()> {
     let model = fixture.model;
 
-    assert!(model.n_vocab() > 0);
-    assert!(model.n_embd() > 0);
-    assert!(model.n_params() > 0);
-    assert!(model.n_ctx_train()? > 0);
-    assert!(model.n_layer()? > 0);
-    assert!(model.n_head()? > 0);
-    assert!(model.n_head_kv()? > 0);
-    assert!(model.size() > 0);
+    ensure!(model.n_vocab() > 0);
+    ensure!(model.n_embd() > 0);
+    ensure!(model.n_params() > 0);
+    ensure!(model.n_ctx_train()? > 0);
+    ensure!(model.n_layer()? > 0);
+    ensure!(model.n_head()? > 0);
+    ensure!(model.n_head_kv()? > 0);
+    ensure!(model.size() > 0);
 
     Ok(())
 }

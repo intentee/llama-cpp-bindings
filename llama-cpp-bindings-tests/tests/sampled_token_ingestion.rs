@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
+use anyhow::ensure;
 
 use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -64,7 +65,7 @@ fn chat_session_classifier_starts_in_the_pending_section(fixture: &LlamaFixture<
     let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
     let classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
 
-    assert_eq!(classifier.current_section(), SampledTokenSection::Pending);
+    ensure!(classifier.current_section() == SampledTokenSection::Pending);
     Ok(())
 }
 
@@ -115,14 +116,14 @@ fn undeterminable_classifier_releases_each_token_with_its_visible_and_raw_piece(
     classifier.ingest(ordinary_token, &mut outcomes)?;
     classifier.finish(&mut outcomes)?;
 
-    assert_eq!(
-        outcomes,
-        [IngestOutcome {
-            sampled_token: SampledToken::Undeterminable(ordinary_token),
-            piece: TokenPiece::Visible("hello".to_owned()),
-        }]
+    ensure!(
+        outcomes
+            == [IngestOutcome {
+                sampled_token: SampledToken::Undeterminable(ordinary_token),
+                piece: TokenPiece::Visible("hello".to_owned()),
+            }]
     );
-    assert_eq!(classifier.usage().undeterminable_tokens, 1);
+    ensure!(classifier.usage().undeterminable == 1);
     Ok(())
 }
 
@@ -148,14 +149,14 @@ fn finishing_a_chat_answer_settles_its_pending_tokens(fixture: &LlamaFixture<'_>
     classifier.ingest(ordinary_token, &mut outcomes)?;
     classifier.finish(&mut outcomes)?;
 
-    assert_eq!(
-        outcomes,
-        [IngestOutcome {
-            sampled_token: SampledToken::Content(ordinary_token),
-            piece: TokenPiece::Visible("hello".to_owned()),
-        }]
+    ensure!(
+        outcomes
+            == [IngestOutcome {
+                sampled_token: SampledToken::Content(ordinary_token),
+                piece: TokenPiece::Visible("hello".to_owned()),
+            }]
     );
-    assert_eq!(classifier.usage().content_tokens, 1);
+    ensure!(classifier.usage().content == 1);
     Ok(())
 }
 
@@ -205,15 +206,14 @@ fn ingest_counts_every_token_through_the_end_of_generation(
 
     classifier.ingest(ordinary_token, &mut outcomes)?;
 
-    assert_eq!(
+    ensure!(
         classifier.ingest(
             model.token_eos().context("model declares an EOS token")?,
             &mut outcomes
-        )?,
-        GenerationProgress::Ended
+        )? == GenerationProgress::Ended
     );
 
-    assert_eq!(classifier.usage().undeterminable_tokens, 2);
+    ensure!(classifier.usage().undeterminable == 2);
     Ok(())
 }
 
@@ -239,24 +239,21 @@ fn ingesting_a_token_outside_the_vocabulary_reports_it_in_every_classifier(
         }),
     ));
 
-    assert_eq!(
-        SampledTokenClassifier::undeterminable(model).ingest(token, &mut outcomes),
-        expected
-    );
-    assert_eq!(
+    ensure!(SampledTokenClassifier::undeterminable(model).ingest(token, &mut outcomes) == expected);
+    ensure!(
         SampledTokenClassifier::for_chat_session(fixture.model, session)?
-            .ingest(token, &mut outcomes),
-        expected
+            .ingest(token, &mut outcomes)
+            == expected
     );
-    assert_eq!(outcomes, []);
+    ensure!(outcomes == []);
 
     Ok(())
 }
 
-fn failed_classification() -> IngestError {
-    IngestError::Classify(ParseChatMessageError::Reported {
-        message: injected_fault_message(),
-    })
+fn failed_classification() -> Result<IngestError> {
+    Ok(IngestError::Classify(ParseChatMessageError::Reported {
+        message: injected_fault_message()?,
+    }))
 }
 
 #[llama_test(
@@ -278,9 +275,11 @@ fn ingesting_a_generated_token_reports_a_classification_llama_cpp_fails(
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
 
-    assert_eq!(
-        classifier.ingest(generated[0], &mut Vec::new()),
-        Err(failed_classification())
+    ensure!(
+        classifier.ingest(
+            *generated.first().context("generated has no element 0")?,
+            &mut Vec::new()
+        ) == Err(failed_classification()?)
     );
 
     Ok(())
@@ -306,10 +305,7 @@ fn ending_the_generation_reports_a_classification_llama_cpp_fails(
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
 
-    assert_eq!(
-        classifier.ingest(end_of_sequence, &mut Vec::new()),
-        Err(failed_classification())
-    );
+    ensure!(classifier.ingest(end_of_sequence, &mut Vec::new()) == Err(failed_classification()?));
 
     Ok(())
 }
@@ -335,16 +331,19 @@ fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>)
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
 
-    assert_eq!(
+    ensure!(
         classifier
             .sample(
                 &mut LlamaSampler::greedy()?,
                 &context,
-                batch.n_tokens() - 1,
+                batch
+                    .n_tokens()
+                    .checked_sub(1)
+                    .context("`batch.n_tokens() - 1` must not overflow")?,
                 &mut Vec::new(),
             )
-            .err(),
-        Some(SampleError::Ingest(failed_classification()))
+            .err()
+            == Some(SampleError::Ingest(failed_classification()?))
     );
 
     Ok(())
@@ -358,13 +357,17 @@ fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>)
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn an_undeterminable_classifier_has_no_reading_of_the_answer(fixture: &LlamaFixture<'_>) {
+fn an_undeterminable_classifier_has_no_reading_of_the_answer(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let model = fixture.model;
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 
-    ingested_generation(&mut classifier, model, "hello");
+    ingested_generation(&mut classifier, model, "hello")?;
 
-    assert!(classifier.latest_reading().is_none());
+    ensure!(classifier.latest_reading().is_none());
+
+    Ok(())
 }
 
 #[llama_test(
@@ -381,16 +384,16 @@ fn a_chat_answer_classifier_parses_the_answer_it_read_last(
     let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
     let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
 
-    ingested_generation(&mut classifier, fixture.model, "Hello there.");
+    ingested_generation(&mut classifier, fixture.model, "Hello there.")?;
 
-    assert_eq!(
+    ensure!(
         classifier
             .latest_reading()
             .context("the classifier must have read the answer")?
-            .parse(),
-        Ok(&ChatMessageParseOutcome::Recognized(
-            ParsedChatMessage::new("Hello there.".to_owned(), String::new(), Vec::new())
-        ))
+            .parse()
+            == Ok(&ChatMessageParseOutcome::Recognized(
+                ParsedChatMessage::new("Hello there.".to_owned(), String::new(), Vec::new())
+            ))
     );
 
     Ok(())
@@ -411,11 +414,11 @@ fn a_chat_answer_classifier_reports_a_failed_reading_of_its_empty_answer(
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
 
-    assert_eq!(
-        SampledTokenClassifier::for_chat_session(fixture.model, session).err(),
-        Some(ParseChatMessageError::Reported {
-            message: injected_fault_message(),
-        })
+    ensure!(
+        SampledTokenClassifier::for_chat_session(fixture.model, session).err()
+            == Some(ParseChatMessageError::Reported {
+                message: injected_fault_message()?,
+            })
     );
 
     Ok(())

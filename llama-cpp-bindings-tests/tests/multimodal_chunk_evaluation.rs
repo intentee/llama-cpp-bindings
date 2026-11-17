@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
+use anyhow::ensure;
 
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::context_limits::ContextLimits;
@@ -86,8 +87,16 @@ const EVALUATED_IMAGE_DIMENSIONS: [ImageDimensions; 10] = [
 fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    let image_data = vec![128u8; (width as usize) * (height as usize) * 3];
+        .context("mmproj_file declared in attribute")?;
+    let image_data =
+        vec![
+            128u8;
+            (width as usize)
+                .checked_mul(height as usize)
+                .context("`(width as usize) * (height as usize)` must not overflow")?
+                .checked_mul(3)
+                .context("`(width as usize) * (height as usize) * 3` must not overflow")?
+        ];
     let bitmap = MtmdBitmap::from_image_data(width, height, &image_data)?;
     let input_text = MtmdInputText {
         text: "Describe: <__media__>".to_string(),
@@ -96,7 +105,11 @@ fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) ->
     };
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
     let n_positions = chunks.total_positions();
-    let required_n_ctx = u32::try_from(n_positions + 256)?;
+    let required_n_ctx = u32::try_from(
+        n_positions
+            .checked_add(256)
+            .context("`n_positions + 256` must not overflow")?,
+    )?;
     if fixture.context_params.n_ctx < required_n_ctx {
         bail!(
             "fixture n_ctx ({}) below required ({}) for {}x{} image",
@@ -114,9 +127,8 @@ fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) ->
     )?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
 
-    assert_eq!(
-        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false)?,
-        n_positions,
+    ensure!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false)? == n_positions,
         "evaluating a {width}x{height} image must advance past every chunk position"
     );
     Ok(())
@@ -165,7 +177,7 @@ fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -173,16 +185,21 @@ fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
     )?;
 
     let chunks = MtmdInputChunks::new()?;
-    let huge_batch = i32::try_from(llama_ctx.n_batch() + 1)?;
+    let huge_batch = i32::try_from(
+        llama_ctx
+            .n_batch()
+            .checked_add(1)
+            .context("`llama_ctx.n_batch() + 1` must not overflow")?,
+    )?;
 
     let result = chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, huge_batch, false);
 
-    assert_eq!(
-        result,
-        Err(MtmdEvalError::BatchSizeExceedsContextLimit {
-            requested: huge_batch,
-            context_max: llama_ctx.n_batch(),
-        })
+    ensure!(
+        result
+            == Err(MtmdEvalError::BatchSizeExceedsContextLimit {
+                requested: huge_batch,
+                context_max: llama_ctx.n_batch(),
+            })
     );
 
     Ok(())
@@ -202,18 +219,18 @@ fn eval_chunks_reports_an_exception_llama_cpp_throws_while_evaluating_a_chunk(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
+        .context("mmproj_file declared in attribute")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
     let mut llama_ctx = fixture.build_context()?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_EVAL_CHUNK_SINGLE_THROWS);
 
-    assert_eq!(
-        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true),
-        Err(MtmdEvalError::Reported {
-            message: injected_fault_message()
-        })
+    ensure!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true)
+            == Err(MtmdEvalError::Reported {
+                message: injected_fault_message()?
+            })
     );
 
     Ok(())
@@ -233,8 +250,8 @@ fn eval_chunks_reports_a_chunk_llama_cpp_does_not_return_before_evaluating_any(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
+        .context("mmproj_file declared in attribute")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
     let mut llama_ctx = fixture.build_context()?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
     let evaluation = {
@@ -245,14 +262,14 @@ fn eval_chunks_reports_a_chunk_llama_cpp_does_not_return_before_evaluating_any(
         chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true)
     };
 
-    assert_eq!(
-        evaluation,
-        Err(MtmdEvalError::FfiContract(FfiContractError {
-            operation: "mtmd_input_chunks_get",
-            detail: "returned a null chunk within the chunk count",
-        }))
+    ensure!(
+        evaluation
+            == Err(MtmdEvalError::FfiContract(FfiContractError {
+                operation: "mtmd_input_chunks_get",
+                detail: "returned a null chunk within the chunk count",
+            }))
     );
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -278,19 +295,19 @@ fn eval_chunks_reports_a_chunk_llama_cpp_does_not_return_before_evaluating_any(
 fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
+        .context("mmproj_file declared in attribute")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    assert_eq!(
-        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true),
-        Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
+    ensure!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true)
+            == Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
     );
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -316,7 +333,7 @@ fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
 fn fitting_no_chunks_leaves_nothing_to_evaluate(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -325,8 +342,8 @@ fn fitting_no_chunks_leaves_nothing_to_evaluate(fixture: &LlamaFixture<'_>) -> R
     let fitted_chunks =
         FittedMtmdInputChunks::fit(MtmdInputChunks::new()?, mtmd_ctx, llama_ctx.n_ubatch())?;
 
-    assert!(fitted_chunks.is_empty());
-    assert!(FittedMtmdInputChunk::at(&fitted_chunks, 0).is_none());
+    ensure!(fitted_chunks.is_empty());
+    ensure!(FittedMtmdInputChunk::at(&fitted_chunks, 0).is_none());
 
     Ok(())
 }
@@ -352,25 +369,25 @@ fn fitting_no_chunks_leaves_nothing_to_evaluate(fixture: &LlamaFixture<'_>) -> R
 fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
     let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>"),
+        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?,
         mtmd_ctx,
         llama_ctx.n_ubatch(),
     )?;
     let first_chunk =
         FittedMtmdInputChunk::at(&fitted_chunks, 0).context("tokenization produced no chunks")?;
 
-    assert_eq!(
-        first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true),
-        Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
+    ensure!(
+        first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, 0, true)
+            == Err(MtmdEvalError::NonPositiveBatchSize { requested: 0 })
     );
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -389,26 +406,30 @@ fn eval_single_rejects_a_batch_larger_than_the_context_batch_before_evaluating(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let mut llama_ctx = fixture.build_context()?;
     let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>"),
+        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?,
         mtmd_ctx,
         llama_ctx.n_ubatch(),
     )?;
     let first_chunk =
         FittedMtmdInputChunk::at(&fitted_chunks, 0).context("tokenization produced no chunks")?;
     let context_max = llama_ctx.n_batch();
-    let oversized_batch = i32::try_from(context_max + 1)?;
+    let oversized_batch = i32::try_from(
+        context_max
+            .checked_add(1)
+            .context("`context_max + 1` must not overflow")?,
+    )?;
 
-    assert_eq!(
-        first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, oversized_batch, true),
-        Err(MtmdEvalError::BatchSizeExceedsContextLimit {
-            requested: oversized_batch,
-            context_max,
-        })
+    ensure!(
+        first_chunk.eval_single(mtmd_ctx, &mut llama_ctx, 0, 0, oversized_batch, true)
+            == Err(MtmdEvalError::BatchSizeExceedsContextLimit {
+                requested: oversized_batch,
+                context_max,
+            })
     );
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -427,21 +448,21 @@ fn eval_chunks_rejects_a_sequence_the_context_does_not_have_instead_of_aborting(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let mut llama_ctx = fixture.build_context()?;
-    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
     let n_seq_max = llama_ctx.n_seq_max();
     let missing_sequence = i32::try_from(n_seq_max)?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
 
-    assert_eq!(
-        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, missing_sequence, n_batch, true),
-        Err(MtmdEvalError::SequenceIdOutOfRange(SequenceIdOutOfRange {
-            seq_id: missing_sequence,
-            n_seq_max,
-        }))
+    ensure!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, missing_sequence, n_batch, true)
+            == Err(MtmdEvalError::SequenceIdOutOfRange(SequenceIdOutOfRange {
+                seq_id: missing_sequence,
+                n_seq_max,
+            }))
     );
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -469,7 +490,7 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -477,15 +498,17 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
     )?;
     let fitted_micro_batch_tokens = llama_ctx.n_ubatch();
     let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>"),
+        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?,
         mtmd_ctx,
         fitted_micro_batch_tokens,
     )?;
     let first_chunk =
         FittedMtmdInputChunk::at(&fitted_chunks, 0).context("tokenization produced no chunks")?;
-    let smaller_micro_batch_tokens = fitted_micro_batch_tokens - 1;
+    let smaller_micro_batch_tokens = fitted_micro_batch_tokens
+        .checked_sub(1)
+        .context("`fitted_micro_batch_tokens - 1` must not overflow")?;
 
-    assert_eq!(
+    ensure!(
         first_chunk.eval_single(
             mtmd_ctx,
             &mut llama_ctx,
@@ -493,13 +516,12 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
             0,
             i32::try_from(smaller_micro_batch_tokens)?,
             true
-        ),
-        Err(MtmdEvalError::EvaluatedMicroBatchSmallerThanFitted {
+        ) == Err(MtmdEvalError::EvaluatedMicroBatchSmallerThanFitted {
             evaluated_micro_batch_tokens: smaller_micro_batch_tokens,
             fitted_micro_batch_tokens,
         })
     );
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -525,8 +547,8 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
 fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
-    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>");
+        .context("mmproj_file declared in attribute")?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -534,7 +556,7 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
     )?;
     let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
 
-    assert!(matches!(
+    ensure!(matches!(
         classifier.eval_multimodal_chunks(
             &chunks,
             mtmd_ctx,
@@ -550,8 +572,8 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
             MtmdEvalError::NonPositiveBatchSize { requested: 0 }
         ))
     ));
-    assert_eq!(classifier.usage().prompt_tokens, 0);
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(classifier.usage().prompt == 0);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -579,7 +601,7 @@ fn eval_chunks_advances_past_every_position_of_a_standard_image(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
 
     let fixtures = fixtures_dir();
     let image_path = fixtures.join("llamas.jpg");
@@ -594,8 +616,12 @@ fn eval_chunks_advances_past_every_position_of_a_standard_image(
     };
     let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
     let n_positions = chunks.total_positions();
-    let required_n_ctx = u32::try_from(n_positions + 256)?;
-    assert!(
+    let required_n_ctx = u32::try_from(
+        n_positions
+            .checked_add(256)
+            .context("`n_positions + 256` must not overflow")?,
+    )?;
+    ensure!(
         fixture.context_params.n_ctx >= required_n_ctx,
         "fixture n_ctx ({}) below required ({}); update the attribute literal",
         fixture.context_params.n_ctx,
@@ -609,10 +635,7 @@ fn eval_chunks_advances_past_every_position_of_a_standard_image(
     )?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
 
-    assert_eq!(
-        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false),
-        Ok(n_positions)
-    );
+    ensure!(chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, false) == Ok(n_positions));
 
     Ok(())
 }
@@ -660,7 +683,7 @@ fn gemma3_decoding_follows_the_causal_attention_the_mtmd_helper_leaves_on_the_co
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
@@ -676,20 +699,25 @@ fn gemma3_decoding_follows_the_causal_attention_the_mtmd_helper_leaves_on_the_co
         AddBos::Never,
         ParseSpecialTokens::Never,
     )?;
-    let last_index = tokens.len() - 1;
+    let last_index = tokens
+        .len()
+        .checked_sub(1)
+        .context("`tokens.len() - 1` must not overflow")?;
     let mut batch = LlamaBatch::new(ContextLimits::of(&llama_ctx));
 
     for (index, token) in tokens.iter().enumerate() {
         batch.add(
-            &SampledToken::Content(*token),
-            next_position + i32::try_from(index)?,
+            SampledToken::Content(*token),
+            next_position
+                .checked_add(i32::try_from(index)?)
+                .context("`next_position + i32::try_from(index)?` must not overflow")?,
             &[0],
             index == last_index,
         )?;
     }
 
-    assert!(batch.n_tokens().unsigned_abs() > llama_ctx.n_ubatch());
-    assert_eq!(llama_ctx.decode(&batch), Ok(()));
+    ensure!(batch.n_tokens().unsigned_abs() > llama_ctx.n_ubatch());
+    ensure!(llama_ctx.decode(&batch) == Ok(()));
 
     Ok(())
 }
@@ -708,9 +736,9 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
-    let image_tokens = ChunkTokenBreakdown::from_chunks(&chunks).image;
+    let image_tokens = ChunkTokenBreakdown::from_chunks(&chunks)?.image;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -720,16 +748,16 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
     let micro_batch_tokens = llama_ctx.n_ubatch();
 
-    assert_eq!(
-        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true),
-        Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
-            NonCausalChunkMicroBatchMismatch {
-                chunk_tokens: usize::try_from(image_tokens)?,
-                micro_batch_tokens,
-            }
-        ))
+    ensure!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, 0, 0, n_batch, true)
+            == Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
+                NonCausalChunkMicroBatchMismatch {
+                    chunk_tokens: usize::try_from(image_tokens)?,
+                    micro_batch_tokens,
+                }
+            ))
     );
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -748,7 +776,7 @@ fn gemma3_fitting_rejects_a_non_causal_image_larger_than_the_micro_batch(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let image_chunk = (0..chunks.len())
         .filter_map(|chunk_index| chunks.get(chunk_index))
@@ -760,14 +788,14 @@ fn gemma3_fitting_rejects_a_non_causal_image_larger_than_the_micro_batch(
         (*fixture.context_params).into_llama_context_params(),
     )?;
 
-    assert_eq!(
-        image_chunk.fit_to_micro_batch(mtmd_ctx, llama_ctx.n_ubatch()),
-        Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
-            NonCausalChunkMicroBatchMismatch {
-                chunk_tokens: image_chunk.n_tokens(),
-                micro_batch_tokens: llama_ctx.n_ubatch(),
-            }
-        ))
+    ensure!(
+        image_chunk.fit_to_micro_batch(mtmd_ctx, llama_ctx.n_ubatch())
+            == Err(MtmdEvalError::NonCausalChunkExceedsMicroBatch(
+                NonCausalChunkMicroBatchMismatch {
+                    chunk_tokens: image_chunk.n_tokens(),
+                    micro_batch_tokens: llama_ctx.n_ubatch(),
+                }
+            ))
     );
 
     Ok(())
@@ -787,7 +815,7 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
@@ -809,7 +837,7 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
         },
     );
 
-    assert!(matches!(
+    ensure!(matches!(
         evaluation,
         Err(EvalMultimodalChunksError::EvalFailed(
             MtmdEvalError::NonCausalChunkExceedsMicroBatch(NonCausalChunkMicroBatchMismatch {
@@ -818,8 +846,8 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
             })
         )) if micro_batch_tokens == llama_ctx.n_ubatch()
     ));
-    assert_eq!(classifier.usage().prompt_tokens, 0);
-    assert_eq!(llama_ctx.memory_seq_pos_max(0)?, -1);
+    ensure!(classifier.usage().prompt == 0);
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
     Ok(())
 }
@@ -838,9 +866,9 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
-    let breakdown = ChunkTokenBreakdown::from_chunks(&chunks);
+    let breakdown = ChunkTokenBreakdown::from_chunks(&chunks)?;
     let mut llama_ctx = LlamaContext::from_model(
         fixture.model,
         fixture.backend,
@@ -849,14 +877,17 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
 
     prime_memory_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
 
-    let primed_positions = llama_ctx.memory_seq_pos_max(0)? + 1;
+    let primed_positions = llama_ctx
+        .memory_seq_pos_max(0)?
+        .checked_add(1)
+        .context("`llama_ctx.memory_seq_pos_max(0)? + 1` must not overflow")?;
     let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
 
-    assert!(
-        u64::from(llama_ctx.n_ctx()) - u64::try_from(primed_positions)? < breakdown.image,
+    ensure!(
+        u64::from(llama_ctx.n_ctx()).checked_sub(u64::try_from(primed_positions)?).context("`u64::from(llama_ctx.n_ctx()) - u64::try_from(primed_positions)?` must not overflow")? < breakdown.image,
         "the primed context must have less room left than the image needs"
     );
-    assert!(matches!(
+    ensure!(matches!(
         classifier.eval_multimodal_chunks(
             &chunks,
             mtmd_ctx,
@@ -872,7 +903,7 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
             MtmdEvalError::EvalFailed { code: 1 }
         ))
     ));
-    assert_eq!(classifier.usage().input_image_tokens, 0);
+    ensure!(classifier.usage().input_image == 0);
 
     Ok(())
 }
@@ -891,17 +922,20 @@ fn eval_chunks_reports_an_image_the_context_has_no_room_left_for(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let mut llama_ctx = fixture.build_context()?;
 
     prime_memory_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
 
-    let primed_positions = llama_ctx.memory_seq_pos_max(0)? + 1;
+    let primed_positions = llama_ctx
+        .memory_seq_pos_max(0)?
+        .checked_add(1)
+        .context("`llama_ctx.memory_seq_pos_max(0)? + 1` must not overflow")?;
 
-    assert_eq!(
-        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, primed_positions, 0, 256, true),
-        Err(MtmdEvalError::EvalFailed { code: 1 })
+    ensure!(
+        chunks.eval_chunks(mtmd_ctx, &mut llama_ctx, primed_positions, 0, 256, true)
+            == Err(MtmdEvalError::EvalFailed { code: 1 })
     );
 
     Ok(())
@@ -919,18 +953,18 @@ fn eval_chunks_reports_an_image_the_context_has_no_room_left_for(
 fn fitting_reports_a_chunk_llama_cpp_does_not_return(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_GET_RETURNS_NULL,
     );
 
-    assert_eq!(
-        chunks.fit_to_micro_batch(mtmd_ctx, 256),
-        Err(MtmdEvalError::FfiContract(FfiContractError {
-            operation: "mtmd_input_chunks_get",
-            detail: "returned a null chunk within the chunk count",
-        }))
+    ensure!(
+        chunks.fit_to_micro_batch(mtmd_ctx, 256)
+            == Err(MtmdEvalError::FfiContract(FfiContractError {
+                operation: "mtmd_input_chunks_get",
+                detail: "returned a null chunk within the chunk count",
+            }))
     );
 
     Ok(())
@@ -950,16 +984,16 @@ fn fitting_reports_a_chunk_type_the_bindings_do_not_recognize(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNK_TYPE_UNKNOWN);
 
-    assert_eq!(
-        chunks.fit_to_micro_batch(mtmd_ctx, 256),
-        Err(MtmdEvalError::UnknownChunkType(MtmdInputChunkTypeError(
-            llama_cpp_bindings_sys::MTMD_INPUT_CHUNK_TYPE_COUNT
-        )))
+    ensure!(
+        chunks.fit_to_micro_batch(mtmd_ctx, 256)
+            == Err(MtmdEvalError::UnknownChunkType(MtmdInputChunkTypeError(
+                llama_cpp_bindings_sys::MTMD_INPUT_CHUNK_TYPE_COUNT
+            )))
     );
 
     Ok(())
@@ -979,7 +1013,7 @@ fn classifier_reports_a_fitted_chunk_llama_cpp_no_longer_returns(
 ) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let mut llama_ctx = fixture.build_context()?;
     let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
@@ -988,7 +1022,7 @@ fn classifier_reports_a_fitted_chunk_llama_cpp_no_longer_returns(
         chunks.len(),
     );
 
-    assert_eq!(
+    ensure!(
         classifier.eval_multimodal_chunks(
             &chunks,
             mtmd_ctx,
@@ -999,8 +1033,7 @@ fn classifier_reports_a_fitted_chunk_llama_cpp_no_longer_returns(
                 n_batch: 256,
                 logits_last: true,
             },
-        ),
-        Err(EvalMultimodalChunksError::ChunkOutOfBounds(0))
+        ) == Err(EvalMultimodalChunksError::ChunkOutOfBounds(0))
     );
 
     Ok(())

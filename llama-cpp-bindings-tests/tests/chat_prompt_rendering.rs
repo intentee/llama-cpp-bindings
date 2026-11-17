@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_bindings::chat_session::ChatSession;
@@ -66,7 +67,7 @@ use llama_cpp_test_harness_macros::llama_test;
 fn chat_session_renders_the_user_message_into_the_prompt(fixture: &LlamaFixture<'_>) -> Result<()> {
     let prompt = user_turn_chat_session(fixture.model, "hello", &[], true)?.prompt()?;
 
-    assert!(
+    ensure!(
         prompt.contains("hello"),
         "the model's built-in chat template must render the user message content through the \
          engine; got: {prompt:?}"
@@ -110,7 +111,7 @@ fn chat_session_renders_long_messages_in_full(fixture: &LlamaFixture<'_>) -> Res
     let long_content = "a".repeat(2000);
     let prompt = user_turn_chat_session(fixture.model, &long_content, &[], true)?.prompt()?;
 
-    assert!(
+    ensure!(
         prompt.contains(&long_content),
         "a long user message must be rendered in full by the engine without truncation"
     );
@@ -130,10 +131,7 @@ fn qwen35_generation_prompt_opens_the_assistant_turn_with_thinking(
 ) -> Result<()> {
     let session = user_turn_chat_session(fixture.model, "hello", &[], true)?;
 
-    assert_eq!(
-        session.generation_prompt()?,
-        "<|im_start|>assistant\n<think>\n"
-    );
+    ensure!(session.generation_prompt()? == "<|im_start|>assistant\n<think>\n");
 
     Ok(())
 }
@@ -162,7 +160,7 @@ fn qwen35_omitted_assistant_turn_renders_only_the_messages(
         },
     )?;
 
-    assert_eq!(session.prompt()?, "<|im_start|>user\nhello<|im_end|>\n");
+    ensure!(session.prompt()? == "<|im_start|>user\nhello<|im_end|>\n");
 
     Ok(())
 }
@@ -206,15 +204,15 @@ fn qwen35_renders_a_tool_call_history_with_its_reasoning_and_tool_response(
         },
     )?;
 
-    assert_eq!(
-        session.prompt()?,
-        concat!(
-            "<|im_start|>user\nWhat is the weather in Paris?<|im_end|>\n",
-            "<|im_start|>assistant\n<think>\nI need the weather tool.\n</think>\n\n",
-            "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n",
-            "</function>\n</tool_call><|im_end|>\n",
-            "<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n",
-        )
+    ensure!(
+        session.prompt()?
+            == concat!(
+                "<|im_start|>user\nWhat is the weather in Paris?<|im_end|>\n",
+                "<|im_start|>assistant\n<think>\nI need the weather tool.\n</think>\n\n",
+                "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n",
+                "</function>\n</tool_call><|im_end|>\n",
+                "<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n",
+            )
     );
 
     Ok(())

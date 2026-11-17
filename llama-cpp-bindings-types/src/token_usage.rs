@@ -10,88 +10,107 @@ use crate::token_usage_error::TokenUsageError;
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TokenUsage {
-    pub prompt_tokens: u64,
-    pub cached_prompt_tokens: u64,
-    pub input_image_tokens: u64,
-    pub input_audio_tokens: u64,
-    pub content_tokens: u64,
-    pub reasoning_tokens: u64,
-    pub tool_call_tokens: u64,
-    pub undeterminable_tokens: u64,
+    #[serde(rename = "prompt_tokens")]
+    pub prompt: u64,
+    #[serde(rename = "cached_prompt_tokens")]
+    pub cached_prompt: u64,
+    #[serde(rename = "input_image_tokens")]
+    pub input_image: u64,
+    #[serde(rename = "input_audio_tokens")]
+    pub input_audio: u64,
+    #[serde(rename = "content_tokens")]
+    pub content: u64,
+    #[serde(rename = "reasoning_tokens")]
+    pub reasoning: u64,
+    #[serde(rename = "tool_call_tokens")]
+    pub tool_call: u64,
+    #[serde(rename = "undeterminable_tokens")]
+    pub undeterminable: u64,
 }
 
 impl TokenUsage {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            prompt_tokens: 0,
-            cached_prompt_tokens: 0,
-            input_image_tokens: 0,
-            input_audio_tokens: 0,
-            content_tokens: 0,
-            reasoning_tokens: 0,
-            tool_call_tokens: 0,
-            undeterminable_tokens: 0,
+            prompt: 0,
+            cached_prompt: 0,
+            input_image: 0,
+            input_audio: 0,
+            content: 0,
+            reasoning: 0,
+            tool_call: 0,
+            undeterminable: 0,
         }
     }
 
     pub const fn record_prompt_tokens(&mut self, count: u64) {
-        self.prompt_tokens = self.prompt_tokens.saturating_add(count);
+        self.prompt = self.prompt.saturating_add(count);
     }
 
     /// # Errors
     /// Returns [`TokenUsageError::CachedExceedsPrompt`] when the running cached
-    /// total would exceed [`Self::prompt_tokens`].
+    /// total would exceed [`Self::prompt`].
     pub const fn record_cached_prompt_tokens(&mut self, count: u64) -> Result<(), TokenUsageError> {
-        let next = self.cached_prompt_tokens.saturating_add(count);
+        let next = self.cached_prompt.saturating_add(count);
 
-        if next > self.prompt_tokens {
+        if next > self.prompt {
             return Err(TokenUsageError::CachedExceedsPrompt {
                 cached_after: next,
-                prompt: self.prompt_tokens,
+                prompt: self.prompt,
             });
         }
 
-        self.cached_prompt_tokens = next;
+        self.cached_prompt = next;
 
         Ok(())
     }
 
     pub const fn record_input_image_tokens(&mut self, count: u64) {
-        self.input_image_tokens = self.input_image_tokens.saturating_add(count);
+        self.input_image = self.input_image.saturating_add(count);
     }
 
     pub const fn record_input_audio_tokens(&mut self, count: u64) {
-        self.input_audio_tokens = self.input_audio_tokens.saturating_add(count);
+        self.input_audio = self.input_audio.saturating_add(count);
     }
 
     pub const fn record_content_token(&mut self) {
-        self.content_tokens = self.content_tokens.saturating_add(1);
+        self.content = self.content.saturating_add(1);
     }
 
     pub const fn record_reasoning_token(&mut self) {
-        self.reasoning_tokens = self.reasoning_tokens.saturating_add(1);
+        self.reasoning = self.reasoning.saturating_add(1);
     }
 
     pub const fn record_tool_call_token(&mut self) {
-        self.tool_call_tokens = self.tool_call_tokens.saturating_add(1);
+        self.tool_call = self.tool_call.saturating_add(1);
     }
 
     pub const fn record_undeterminable_token(&mut self) {
-        self.undeterminable_tokens = self.undeterminable_tokens.saturating_add(1);
+        self.undeterminable = self.undeterminable.saturating_add(1);
+    }
+
+    const fn accumulate(&mut self, other: &Self) {
+        self.prompt = self.prompt.saturating_add(other.prompt);
+        self.cached_prompt = self.cached_prompt.saturating_add(other.cached_prompt);
+        self.input_image = self.input_image.saturating_add(other.input_image);
+        self.input_audio = self.input_audio.saturating_add(other.input_audio);
+        self.content = self.content.saturating_add(other.content);
+        self.reasoning = self.reasoning.saturating_add(other.reasoning);
+        self.tool_call = self.tool_call.saturating_add(other.tool_call);
+        self.undeterminable = self.undeterminable.saturating_add(other.undeterminable);
     }
 
     #[must_use]
     pub const fn completion_tokens(&self) -> u64 {
-        self.content_tokens
-            .saturating_add(self.reasoning_tokens)
-            .saturating_add(self.tool_call_tokens)
-            .saturating_add(self.undeterminable_tokens)
+        self.content
+            .saturating_add(self.reasoning)
+            .saturating_add(self.tool_call)
+            .saturating_add(self.undeterminable)
     }
 
     #[must_use]
     pub const fn total_tokens(&self) -> u64 {
-        self.prompt_tokens.saturating_add(self.completion_tokens())
+        self.prompt.saturating_add(self.completion_tokens())
     }
 }
 
@@ -99,7 +118,7 @@ impl Add for TokenUsage {
     type Output = Self;
 
     fn add(mut self, other: Self) -> Self {
-        self += other;
+        self.accumulate(&other);
         self
     }
 }
@@ -108,47 +127,32 @@ impl Add<&Self> for TokenUsage {
     type Output = Self;
 
     fn add(mut self, other: &Self) -> Self {
-        self += other;
+        self.accumulate(other);
         self
     }
 }
 
 impl AddAssign for TokenUsage {
     fn add_assign(&mut self, other: Self) {
-        *self += &other;
+        self.accumulate(&other);
     }
 }
 
 impl AddAssign<&Self> for TokenUsage {
     fn add_assign(&mut self, other: &Self) {
-        self.prompt_tokens = self.prompt_tokens.saturating_add(other.prompt_tokens);
-        self.cached_prompt_tokens = self
-            .cached_prompt_tokens
-            .saturating_add(other.cached_prompt_tokens);
-        self.input_image_tokens = self
-            .input_image_tokens
-            .saturating_add(other.input_image_tokens);
-        self.input_audio_tokens = self
-            .input_audio_tokens
-            .saturating_add(other.input_audio_tokens);
-        self.content_tokens = self.content_tokens.saturating_add(other.content_tokens);
-        self.reasoning_tokens = self.reasoning_tokens.saturating_add(other.reasoning_tokens);
-        self.tool_call_tokens = self.tool_call_tokens.saturating_add(other.tool_call_tokens);
-        self.undeterminable_tokens = self
-            .undeterminable_tokens
-            .saturating_add(other.undeterminable_tokens);
+        self.accumulate(other);
     }
 }
 
 impl Sum for TokenUsage {
     fn sum<TIter: Iterator<Item = Self>>(iter: TIter) -> Self {
-        iter.fold(Self::new(), |acc, item| acc + item)
+        iter.fold(Self::new(), Add::add)
     }
 }
 
 impl<'usage> Sum<&'usage Self> for TokenUsage {
     fn sum<TIter: Iterator<Item = &'usage Self>>(iter: TIter) -> Self {
-        iter.fold(Self::new(), |acc, item| acc + item)
+        iter.fold(Self::new(), Add::add)
     }
 }
 
@@ -160,50 +164,50 @@ mod tests {
     use super::TokenUsageError;
 
     const LEFT_USAGE: TokenUsage = TokenUsage {
-        prompt_tokens: 20,
-        cached_prompt_tokens: 2,
-        input_image_tokens: 3,
-        input_audio_tokens: 4,
-        content_tokens: 5,
-        reasoning_tokens: 6,
-        tool_call_tokens: 7,
-        undeterminable_tokens: 8,
+        prompt: 20,
+        cached_prompt: 2,
+        input_image: 3,
+        input_audio: 4,
+        content: 5,
+        reasoning: 6,
+        tool_call: 7,
+        undeterminable: 8,
     };
 
     const RIGHT_USAGE: TokenUsage = TokenUsage {
-        prompt_tokens: 200,
-        cached_prompt_tokens: 20,
-        input_image_tokens: 30,
-        input_audio_tokens: 40,
-        content_tokens: 50,
-        reasoning_tokens: 60,
-        tool_call_tokens: 70,
-        undeterminable_tokens: 80,
+        prompt: 200,
+        cached_prompt: 20,
+        input_image: 30,
+        input_audio: 40,
+        content: 50,
+        reasoning: 60,
+        tool_call: 70,
+        undeterminable: 80,
     };
 
     const COMBINED_USAGE: TokenUsage = TokenUsage {
-        prompt_tokens: 220,
-        cached_prompt_tokens: 22,
-        input_image_tokens: 33,
-        input_audio_tokens: 44,
-        content_tokens: 55,
-        reasoning_tokens: 66,
-        tool_call_tokens: 77,
-        undeterminable_tokens: 88,
+        prompt: 220,
+        cached_prompt: 22,
+        input_image: 33,
+        input_audio: 44,
+        content: 55,
+        reasoning: 66,
+        tool_call: 77,
+        undeterminable: 88,
     };
 
     #[test]
     fn new_starts_with_all_counters_at_zero() {
         let usage = TokenUsage::new();
 
-        assert_eq!(usage.prompt_tokens, 0);
-        assert_eq!(usage.cached_prompt_tokens, 0);
-        assert_eq!(usage.input_image_tokens, 0);
-        assert_eq!(usage.input_audio_tokens, 0);
-        assert_eq!(usage.content_tokens, 0);
-        assert_eq!(usage.reasoning_tokens, 0);
-        assert_eq!(usage.tool_call_tokens, 0);
-        assert_eq!(usage.undeterminable_tokens, 0);
+        assert_eq!(usage.prompt, 0);
+        assert_eq!(usage.cached_prompt, 0);
+        assert_eq!(usage.input_image, 0);
+        assert_eq!(usage.input_audio, 0);
+        assert_eq!(usage.content, 0);
+        assert_eq!(usage.reasoning, 0);
+        assert_eq!(usage.tool_call, 0);
+        assert_eq!(usage.undeterminable, 0);
     }
 
     #[test]
@@ -232,7 +236,7 @@ mod tests {
         usage.record_prompt_tokens(3);
         usage.record_prompt_tokens(4);
 
-        assert_eq!(usage.prompt_tokens, 7);
+        assert_eq!(usage.prompt, 7);
     }
 
     #[test]
@@ -246,7 +250,7 @@ mod tests {
             .record_cached_prompt_tokens(4)
             .expect("3+4 cached <= 10 prompt is valid");
 
-        assert_eq!(usage.cached_prompt_tokens, 7);
+        assert_eq!(usage.cached_prompt, 7);
     }
 
     #[test]
@@ -257,7 +261,7 @@ mod tests {
             .record_cached_prompt_tokens(5)
             .expect("5 cached == 5 prompt is valid (boundary)");
 
-        assert_eq!(usage.cached_prompt_tokens, 5);
+        assert_eq!(usage.cached_prompt, 5);
     }
 
     #[test]
@@ -274,7 +278,7 @@ mod tests {
                 prompt: 2,
             })
         );
-        assert_eq!(usage.cached_prompt_tokens, 0);
+        assert_eq!(usage.cached_prompt, 0);
     }
 
     #[test]
@@ -283,7 +287,7 @@ mod tests {
         usage.record_input_image_tokens(5);
         usage.record_input_image_tokens(3);
 
-        assert_eq!(usage.input_image_tokens, 8);
+        assert_eq!(usage.input_image, 8);
     }
 
     #[test]
@@ -292,7 +296,7 @@ mod tests {
         usage.record_input_audio_tokens(2);
         usage.record_input_audio_tokens(9);
 
-        assert_eq!(usage.input_audio_tokens, 11);
+        assert_eq!(usage.input_audio, 11);
     }
 
     #[test]
@@ -300,7 +304,7 @@ mod tests {
         let mut usage = TokenUsage::new();
         usage.record_input_image_tokens(40);
 
-        assert_eq!(usage.prompt_tokens, 0);
+        assert_eq!(usage.prompt, 0);
         assert_eq!(usage.completion_tokens(), 0);
     }
 
@@ -309,7 +313,7 @@ mod tests {
         let mut usage = TokenUsage::new();
         usage.record_input_audio_tokens(40);
 
-        assert_eq!(usage.prompt_tokens, 0);
+        assert_eq!(usage.prompt, 0);
         assert_eq!(usage.completion_tokens(), 0);
     }
 
@@ -318,10 +322,10 @@ mod tests {
         let mut usage = TokenUsage::new();
         usage.record_content_token();
 
-        assert_eq!(usage.content_tokens, 1);
-        assert_eq!(usage.reasoning_tokens, 0);
-        assert_eq!(usage.tool_call_tokens, 0);
-        assert_eq!(usage.undeterminable_tokens, 0);
+        assert_eq!(usage.content, 1);
+        assert_eq!(usage.reasoning, 0);
+        assert_eq!(usage.tool_call, 0);
+        assert_eq!(usage.undeterminable, 0);
     }
 
     #[test]
@@ -329,10 +333,10 @@ mod tests {
         let mut usage = TokenUsage::new();
         usage.record_reasoning_token();
 
-        assert_eq!(usage.content_tokens, 0);
-        assert_eq!(usage.reasoning_tokens, 1);
-        assert_eq!(usage.tool_call_tokens, 0);
-        assert_eq!(usage.undeterminable_tokens, 0);
+        assert_eq!(usage.content, 0);
+        assert_eq!(usage.reasoning, 1);
+        assert_eq!(usage.tool_call, 0);
+        assert_eq!(usage.undeterminable, 0);
     }
 
     #[test]
@@ -340,10 +344,10 @@ mod tests {
         let mut usage = TokenUsage::new();
         usage.record_tool_call_token();
 
-        assert_eq!(usage.content_tokens, 0);
-        assert_eq!(usage.reasoning_tokens, 0);
-        assert_eq!(usage.tool_call_tokens, 1);
-        assert_eq!(usage.undeterminable_tokens, 0);
+        assert_eq!(usage.content, 0);
+        assert_eq!(usage.reasoning, 0);
+        assert_eq!(usage.tool_call, 1);
+        assert_eq!(usage.undeterminable, 0);
     }
 
     #[test]
@@ -351,10 +355,10 @@ mod tests {
         let mut usage = TokenUsage::new();
         usage.record_undeterminable_token();
 
-        assert_eq!(usage.content_tokens, 0);
-        assert_eq!(usage.reasoning_tokens, 0);
-        assert_eq!(usage.tool_call_tokens, 0);
-        assert_eq!(usage.undeterminable_tokens, 1);
+        assert_eq!(usage.content, 0);
+        assert_eq!(usage.reasoning, 0);
+        assert_eq!(usage.tool_call, 0);
+        assert_eq!(usage.undeterminable, 1);
     }
 
     #[test]

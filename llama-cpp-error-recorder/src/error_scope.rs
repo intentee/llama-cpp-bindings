@@ -9,19 +9,21 @@ use crate::recorded_error::RecordedError;
 /// FFI call cannot leak an error into an outer one.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct ErrorScope;
+pub struct ErrorScope {
+    frame_index: usize,
+}
 
 impl ErrorScope {
     #[must_use]
     pub fn enter() -> Self {
-        FrameStack::push_frame();
-
-        Self
+        Self {
+            frame_index: FrameStack::push_frame(),
+        }
     }
 
     #[must_use]
     pub fn take(&self) -> Option<RecordedError> {
-        FrameStack::take_from_top()
+        FrameStack::take_from_frame(self.frame_index)
     }
 }
 

@@ -1,4 +1,6 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 use serde_json::json;
 
 use llama_cpp_bindings::context::LlamaContext;
@@ -28,7 +30,7 @@ fn laya_scores_the_matching_option_highest_at_its_mask_token(
     let model = fixture.model;
     let mask_token = model
         .token_mask()
-        .expect("a laya model marks its options with the mask token");
+        .context("a laya model marks its options with the mask token")?;
     let prompt = model.chat_template(Some("systemone"))?.render(
         &json!({
             "id": "weather",
@@ -60,14 +62,18 @@ fn laya_scores_the_matching_option_highest_at_its_mask_token(
 
     for (token_index, token) in (0..).zip(&tokens) {
         if *token == mask_token {
-            option_scores.push(context.embeddings_ith(token_index)?[CHOICE_SCORE_COLUMN]);
+            option_scores.push(
+                *context
+                    .embeddings_ith(token_index)?
+                    .get(CHOICE_SCORE_COLUMN)
+                    .context("the token's embedding must hold the choice score column")?,
+            );
         }
     }
 
-    assert_eq!(option_scores.len(), 3, "one mask token marks each option");
-    assert_eq!(
-        highest_score_index(&option_scores),
-        Some(2),
+    ensure!(option_scores.len() == 3, "one mask token marks each option");
+    ensure!(
+        highest_score_index(&option_scores) == Some(2),
         "option scores were {option_scores:?}"
     );
 

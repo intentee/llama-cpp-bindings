@@ -2,6 +2,7 @@ use std::num::NonZeroU8;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
 use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
@@ -44,15 +45,17 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 128,
 )]
 fn memory_seq_cp_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = two_sequence_context(fixture)?;
+    let context = two_sequence_context(fixture)?;
 
     let result = context.memory_seq_cp(0, 1, Some(u32::MAX), None);
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqCpError::P0TooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == MemorySeqCpError::P0TooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())
@@ -91,15 +94,17 @@ fn memory_seq_cp_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
     n_ubatch = 128,
 )]
 fn memory_seq_cp_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = two_sequence_context(fixture)?;
+    let context = two_sequence_context(fixture)?;
 
     let result = context.memory_seq_cp(0, 1, Some(0), Some(u32::MAX));
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqCpError::P1TooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == MemorySeqCpError::P1TooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())
@@ -138,15 +143,17 @@ fn memory_seq_cp_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
     n_ubatch = 128,
 )]
 fn memory_seq_rm_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
     let result = context.memory_seq_rm(Some(0), Some(u32::MAX), None);
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqRmError::P0TooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == MemorySeqRmError::P0TooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())
@@ -185,15 +192,17 @@ fn memory_seq_rm_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
     n_ubatch = 128,
 )]
 fn memory_seq_rm_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
     let result = context.memory_seq_rm(Some(0), Some(0), Some(u32::MAX));
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqRmError::P1TooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == MemorySeqRmError::P1TooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())
@@ -236,11 +245,13 @@ fn memory_seq_add_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
 
     let result = context.memory_seq_add(0, Some(u32::MAX), None, 1);
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqAddError::P0TooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == MemorySeqAddError::P0TooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())
@@ -283,11 +294,13 @@ fn memory_seq_add_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
 
     let result = context.memory_seq_add(0, Some(0), Some(u32::MAX), 1);
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqAddError::P1TooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == MemorySeqAddError::P1TooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())
@@ -331,11 +344,13 @@ fn memory_seq_div_rejects_p0_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     let result = context.memory_seq_div(0, Some(u32::MAX), None, divisor);
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqDivError::P0TooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == MemorySeqDivError::P0TooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())
@@ -379,11 +394,13 @@ fn memory_seq_div_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     let result = context.memory_seq_div(0, Some(0), Some(u32::MAX), divisor);
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqDivError::P1TooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == MemorySeqDivError::P1TooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())

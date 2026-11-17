@@ -44,17 +44,17 @@ impl LlamaBackend {
     }
 
     #[must_use]
-    pub fn supports_gpu_offload(&self) -> bool {
+    pub fn supports_gpu_offload() -> bool {
         unsafe { llama_cpp_bindings_sys::llama_supports_gpu_offload() }
     }
 
     #[must_use]
-    pub fn supports_mmap(&self) -> bool {
+    pub fn supports_mmap() -> bool {
         unsafe { llama_cpp_bindings_sys::llama_supports_mmap() }
     }
 
     #[must_use]
-    pub fn supports_mlock(&self) -> bool {
+    pub fn supports_mlock() -> bool {
         unsafe { llama_cpp_bindings_sys::llama_supports_mlock() }
     }
 }
@@ -107,10 +107,13 @@ mod tests {
     #[test]
     #[serial]
     fn the_backend_supports_mmap_and_mlock() {
-        let backend = LlamaBackend::init().unwrap();
+        let _backend = LlamaBackend::init().unwrap();
 
         assert_eq!(
-            [backend.supports_mmap(), backend.supports_mlock()],
+            [
+                LlamaBackend::supports_mmap(),
+                LlamaBackend::supports_mlock()
+            ],
             [true, true]
         );
     }
@@ -118,8 +121,8 @@ mod tests {
     #[test]
     #[serial]
     fn the_backend_offloads_to_a_gpu_exactly_when_one_is_registered() {
-        let backend = LlamaBackend::init().unwrap();
-        let offloads_to_a_gpu = backend.supports_gpu_offload();
+        let _backend = LlamaBackend::init().unwrap();
+        let offloads_to_a_gpu = LlamaBackend::supports_gpu_offload();
 
         assert_eq!(
             offloads_to_a_gpu,

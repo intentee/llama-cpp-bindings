@@ -2,6 +2,7 @@ use std::ffi::CString;
 
 use anyhow::Result;
 use anyhow::bail;
+use anyhow::ensure;
 
 use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::error::decode_error::DecodeError;
@@ -25,11 +26,11 @@ fn priming_memory_surfaces_a_tokenization_error(fixture: &LlamaFixture<'_>) -> R
         bail!("an interior NUL byte must refuse the tokenization");
     };
 
-    assert_eq!(
-        Some(failure.downcast::<StringToTokenError>()?),
-        CString::new("Hello\0world")
-            .err()
-            .map(StringToTokenError::NulError)
+    ensure!(
+        Some(failure.downcast::<StringToTokenError>()?)
+            == CString::new("Hello\0world")
+                .err()
+                .map(StringToTokenError::NulError)
     );
 
     Ok(())
@@ -46,11 +47,11 @@ fn priming_memory_surfaces_a_tokenization_error(fixture: &LlamaFixture<'_>) -> R
 fn priming_memory_surfaces_a_batch_add_error(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    assert_eq!(
+    ensure!(
         prime_memory_with(fixture, &mut context, &"word ".repeat(300))
             .err()
-            .and_then(|error| error.downcast_ref::<BatchAddError>().cloned()),
-        Some(BatchAddError::BatchFull { n_batch: 256 }),
+            .and_then(|error| error.downcast_ref::<BatchAddError>().cloned())
+            == Some(BatchAddError::BatchFull { n_batch: 256 }),
         "more tokens than one decode takes must surface an add-sequence error"
     );
 
@@ -74,10 +75,7 @@ fn priming_memory_surfaces_a_decode_error(fixture: &LlamaFixture<'_>) -> Result<
         bail!("decoding the primed sequence again from its first position must fail");
     };
 
-    assert_eq!(
-        failure.downcast::<DecodeError>()?,
-        DecodeError::BatchInvalid
-    );
+    ensure!(failure.downcast::<DecodeError>()? == DecodeError::BatchInvalid);
 
     Ok(())
 }

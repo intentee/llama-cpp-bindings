@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
@@ -28,7 +29,7 @@ use llama_cpp_test_harness_macros::llama_test;
 fn encode_chunk_encodes_an_image_chunk(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mtmd_ctx = fixture
         .mtmd_context
-        .expect("mmproj_file declared in attribute");
+        .context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
     let input_text = MtmdInputText {
@@ -42,7 +43,7 @@ fn encode_chunk_encodes_an_image_chunk(fixture: &LlamaFixture<'_>) -> Result<()>
         .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
         .context("a prompt with an image must tokenize into an image chunk")?;
 
-    assert_eq!(mtmd_ctx.encode_chunk(&image_chunk), Ok(()));
+    ensure!(mtmd_ctx.encode_chunk(&image_chunk) == Ok(()));
 
     Ok(())
 }

@@ -238,12 +238,6 @@ fn bitmap_init_from_audio_status_to_result(
 }
 
 /// Owns the bitmap and frees it on drop, so it cannot be cloned.
-///
-/// ```compile_fail,E0277
-/// fn require_clone<TValue: Clone>() {}
-///
-/// require_clone::<llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap>();
-/// ```
 #[derive(Debug)]
 pub struct MtmdBitmap {
     pub bitmap: NonNull<llama_cpp_bindings_sys::mtmd_bitmap>,
@@ -267,8 +261,9 @@ impl MtmdBitmap {
             return Err(MtmdBitmapError::ImageDimensionsTooSmall(nx, ny));
         }
 
-        let expected_len = (u64::from(nx) * u64::from(ny))
-            .checked_mul(RGB_BYTES_PER_PIXEL)
+        let expected_len = u64::from(nx)
+            .checked_mul(u64::from(ny))
+            .and_then(|pixels| pixels.checked_mul(RGB_BYTES_PER_PIXEL))
             .and_then(|bytes| usize::try_from(bytes).ok())
             .ok_or(MtmdBitmapError::ImageDimensionsOverflow { nx, ny })?;
 
@@ -414,6 +409,21 @@ mod tests {
 
     use crate::mtmd::mtmd_bitmap::MtmdBitmap;
     use crate::mtmd::mtmd_bitmap_error::MtmdBitmapError;
+
+    trait ResolvesOnlyWithoutClone<TMarker> {
+        fn resolved() -> bool {
+            true
+        }
+    }
+
+    impl<TValue> ResolvesOnlyWithoutClone<()> for TValue {}
+
+    impl<TValue: Clone> ResolvesOnlyWithoutClone<u8> for TValue {}
+
+    #[test]
+    fn a_bitmap_cannot_be_cloned() {
+        assert!(<MtmdBitmap as ResolvesOnlyWithoutClone<_>>::resolved());
+    }
 
     #[test]
     fn image_data_makes_an_image_bitmap_of_its_dimensions() {
