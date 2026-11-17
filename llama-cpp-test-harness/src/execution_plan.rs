@@ -136,7 +136,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(|_fixture| {}),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_BETA_B: LlamaTestRegistration = LlamaTestRegistration {
@@ -153,7 +153,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(|_fixture| {}),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_ALPHA_Z: LlamaTestRegistration = LlamaTestRegistration {
@@ -170,7 +170,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(|_fixture| {}),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_BETA_DIFFERENT_CONTEXT: LlamaTestRegistration = LlamaTestRegistration {
@@ -187,7 +187,7 @@ mod tests {
             },
         },
         context_params: ALTERNATE_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(|_fixture| {}),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
 

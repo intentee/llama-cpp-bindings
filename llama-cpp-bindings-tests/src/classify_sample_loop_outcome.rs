@@ -1,17 +1,10 @@
-use anyhow::Context as _;
-use anyhow::Result;
-
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_chat::chat_output::ChatOutput;
 use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
-fn increment(observed: &mut u64) -> Result<()> {
-    *observed = observed
-        .checked_add(1)
-        .context("the observed token count must fit u64")?;
-
-    Ok(())
+const fn increment(observed: &mut u64) {
+    *observed = observed.saturating_add(1);
 }
 
 #[derive(Debug, Default)]
@@ -27,10 +20,7 @@ pub struct ClassifySampleLoopOutcome {
 }
 
 impl ClassifySampleLoopOutcome {
-    /// # Errors
-    ///
-    /// Fails when the count of tokens observed in `section` does not fit `u64`.
-    pub fn record_end_of_generation(&mut self, section: SampledTokenSection) -> Result<()> {
+    pub const fn record_end_of_generation(&mut self, section: SampledTokenSection) {
         self.eog_seen = true;
 
         let observed = match section {
@@ -40,31 +30,28 @@ impl ClassifySampleLoopOutcome {
             SampledTokenSection::Pending => &mut self.observed_undeterminable,
         };
 
-        increment(observed)
+        increment(observed);
     }
 
-    /// # Errors
-    ///
-    /// Fails when the count of tokens observed in the token's section does not fit `u64`.
     pub fn record_outcome(
         &mut self,
         IngestOutcome {
             sampled_token,
             piece,
         }: &IngestOutcome,
-    ) -> Result<()> {
+    ) {
         self.generated.push(sampled_token.token(), piece.raw());
 
         match sampled_token {
             SampledToken::Content(_) => {
                 self.content_stream.push_str(piece.visible());
 
-                increment(&mut self.observed_content)
+                increment(&mut self.observed_content);
             }
             SampledToken::Reasoning(_) => {
                 self.reasoning_stream.push_str(piece.visible());
 
-                increment(&mut self.observed_reasoning)
+                increment(&mut self.observed_reasoning);
             }
             SampledToken::ToolCall(_) => increment(&mut self.observed_tool_call),
             SampledToken::Undeterminable(_) => increment(&mut self.observed_undeterminable),
@@ -86,12 +73,10 @@ mod tests {
     fn records_a_tool_call_token_without_streaming_it() {
         let mut outcome = ClassifySampleLoopOutcome::default();
 
-        outcome
-            .record_outcome(&IngestOutcome {
-                sampled_token: SampledToken::ToolCall(LlamaToken(42)),
-                piece: TokenPiece::Visible("{".to_owned()),
-            })
-            .unwrap();
+        outcome.record_outcome(&IngestOutcome {
+            sampled_token: SampledToken::ToolCall(LlamaToken(42)),
+            piece: TokenPiece::Visible("{".to_owned()),
+        });
 
         assert_eq!(outcome.observed_tool_call, 1);
         assert_eq!(outcome.generated.text(), "{");
@@ -102,12 +87,10 @@ mod tests {
     fn streams_the_visible_part_of_a_reasoning_token() {
         let mut outcome = ClassifySampleLoopOutcome::default();
 
-        outcome
-            .record_outcome(&IngestOutcome {
-                sampled_token: SampledToken::Reasoning(LlamaToken(7)),
-                piece: TokenPiece::Visible("thinking".to_owned()),
-            })
-            .unwrap();
+        outcome.record_outcome(&IngestOutcome {
+            sampled_token: SampledToken::Reasoning(LlamaToken(7)),
+            piece: TokenPiece::Visible("thinking".to_owned()),
+        });
 
         assert_eq!(outcome.observed_reasoning, 1);
         assert_eq!(outcome.reasoning_stream, "thinking");
@@ -117,12 +100,10 @@ mod tests {
     fn counts_an_undeterminable_token_without_streaming_it() {
         let mut outcome = ClassifySampleLoopOutcome::default();
 
-        outcome
-            .record_outcome(&IngestOutcome {
-                sampled_token: SampledToken::Undeterminable(LlamaToken(9)),
-                piece: TokenPiece::Visible("ignored".to_owned()),
-            })
-            .unwrap();
+        outcome.record_outcome(&IngestOutcome {
+            sampled_token: SampledToken::Undeterminable(LlamaToken(9)),
+            piece: TokenPiece::Visible("ignored".to_owned()),
+        });
 
         assert_eq!(outcome.observed_undeterminable, 1);
         assert_eq!(outcome.content_stream, "");
@@ -140,7 +121,7 @@ mod tests {
         .map(|section| {
             let mut outcome = ClassifySampleLoopOutcome::default();
 
-            outcome.record_end_of_generation(section).unwrap();
+            outcome.record_end_of_generation(section);
 
             [
                 u64::from(outcome.eog_seen),

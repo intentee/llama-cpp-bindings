@@ -27,22 +27,25 @@ pub fn closed_reasoning_chat_session(
     question: &str,
     tools: &[ChatTool],
 ) -> Result<ChatSession> {
-    ChatSession::new(
-        model,
-        model
-            .chat_templates()
-            .context("the model must have chat templates")?,
-        &[user_message(question)],
-        tools,
-        &ChatSessionOptions {
-            assistant_turn: ChatAssistantTurn::ContinueContent(ChatAssistantPrefill {
-                reasoning_content: PREFILLED_REASONING.to_owned(),
-                content: PREFILLED_CONTENT.to_owned(),
-            }),
-            enable_thinking: true,
-            parallel_tool_calls: false,
-            tool_choice: ChatToolChoice::Auto,
-        },
-    )
-    .context("the model's template must serve a prefilled answer")
+    model
+        .chat_templates()
+        .context("the model must have chat templates")
+        .and_then(|chat_templates| {
+            ChatSession::new(
+                model,
+                chat_templates,
+                &[user_message(question)],
+                tools,
+                &ChatSessionOptions {
+                    assistant_turn: ChatAssistantTurn::ContinueContent(ChatAssistantPrefill {
+                        reasoning_content: PREFILLED_REASONING.to_owned(),
+                        content: PREFILLED_CONTENT.to_owned(),
+                    }),
+                    enable_thinking: true,
+                    parallel_tool_calls: false,
+                    tool_choice: ChatToolChoice::Auto,
+                },
+            )
+            .context("the model's template must serve a prefilled answer")
+        })
 }

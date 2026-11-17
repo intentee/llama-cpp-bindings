@@ -19,11 +19,12 @@ pub fn logits_left_by(sampler: &LlamaSampler, candidates: &[LlamaToken]) -> Resu
 
     sampler
         .apply(&mut token_data_array)
-        .context("the sampler must apply to the candidates")?;
-
-    Ok(token_data_array
-        .data
-        .iter()
-        .map(LlamaTokenData::logit)
-        .collect())
+        .context("the sampler must apply to the candidates")
+        .map(|()| {
+            token_data_array
+                .data
+                .iter()
+                .map(LlamaTokenData::logit)
+                .collect()
+        })
 }

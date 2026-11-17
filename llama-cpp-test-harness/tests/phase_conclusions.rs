@@ -5,6 +5,7 @@ use anyhow::bail;
 use libtest_mimic::Arguments;
 
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness::llama_test_fn::LlamaTestFn;
 use llama_cpp_test_harness::run_to_conclusions::run_to_conclusions;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -16,7 +17,11 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-const fn phase_a_passing_trial_that_only_needs_its_model_to_load(_fixture: &LlamaFixture<'_>) {}
+fn phase_a_passing_trial_that_only_needs_its_model_to_load(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    LlamaTestFn::no_op().run(fixture)
+}
 
 #[llama_test(
     model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),

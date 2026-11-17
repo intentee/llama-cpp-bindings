@@ -21,20 +21,29 @@ pub fn ingested_generation(
     model: &LlamaModel,
     generated_text: &str,
 ) -> Result<Vec<IngestOutcome>> {
-    let mut outcomes = Vec::new();
-
-    for token in model
-        .str_to_token(generated_text, AddBos::Never, ParseSpecialTokens::Always)
-        .context("the generated text must tokenize")?
-    {
-        ensure!(classifier.ingest(token, &mut outcomes) == Ok(GenerationProgress::Continues));
-    }
-
     let end_of_sequence = model
         .token_eos()
-        .context("the model must declare an EOS token")?;
+        .context("the model must declare an EOS token");
 
-    ensure!(classifier.ingest(end_of_sequence, &mut outcomes) == Ok(GenerationProgress::Ended));
+    model
+        .str_to_token(generated_text, AddBos::Never, ParseSpecialTokens::Always)
+        .context("the generated text must tokenize")
+        .and_then(|tokens| {
+            let mut outcomes = Vec::new();
 
-    Ok(outcomes)
+            for token in tokens {
+                ensure!(
+                    classifier.ingest(token, &mut outcomes) == Ok(GenerationProgress::Continues)
+                );
+            }
+
+            end_of_sequence.and_then(|end_of_sequence| {
+                ensure!(
+                    classifier.ingest(end_of_sequence, &mut outcomes)
+                        == Ok(GenerationProgress::Ended)
+                );
+
+                Ok(outcomes)
+            })
+        })
 }

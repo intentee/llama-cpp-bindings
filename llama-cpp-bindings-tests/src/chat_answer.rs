@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
+use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_token_usage::token_usage::TokenUsage;
 
@@ -63,25 +64,34 @@ impl ChatAnswer {
     /// does not reason, holds a token of no section, leaks a thinking tag, or streams text the
     /// parser does not extract.
     pub fn assert_reasoning_matches_parse(&self, prompted_reasoning: &str) -> Result<()> {
+        self.parse
+            .clone()
+            .into_recognized()
+            .context(format!(
+                "the session's parser must recognize the generated answer: {:?}",
+                self.parse
+            ))
+            .and_then(|parsed| self.ensure_reasoning_matches(prompted_reasoning, &parsed))
+    }
+
+    fn ensure_reasoning_matches(
+        &self,
+        prompted_reasoning: &str,
+        ParsedChatMessage {
+            reasoning_content,
+            content,
+            ..
+        }: &ParsedChatMessage,
+    ) -> Result<()> {
         let Self {
             outcome,
             usage,
             thinking_tags,
-            parse,
+            ..
         } = self;
-        ensure!(
-            matches!(parse, ChatMessageParseOutcome::Recognized(_)),
-            "the session's parser must recognize the generated answer: {parse:?}"
-        );
-
-        let parsed = parse
-            .clone()
-            .into_recognized()
-            .context("the session's parser must recognize the generated answer")?;
         let observed_completion = outcome
             .observed_content
-            .checked_add(outcome.observed_reasoning)
-            .context("the observed completion token count must fit u64")?;
+            .saturating_add(outcome.observed_reasoning);
 
         ensure!(outcome.observed_reasoning > 0, "{outcome:?}");
         ensure!(outcome.observed_undeterminable == 0, "{outcome:?}");
@@ -91,11 +101,9 @@ impl ChatAnswer {
             usage.completion_tokens() == observed_completion,
             "{usage:?}"
         );
-        ensure!(!parsed.reasoning_content.is_empty(), "{outcome:?}");
-        ensure!(
-            format!("{prompted_reasoning}{}", outcome.reasoning_stream) == parsed.reasoning_content
-        );
-        ensure!(outcome.content_stream == parsed.content);
+        ensure!(!reasoning_content.is_empty(), "{outcome:?}");
+        ensure!(format!("{prompted_reasoning}{}", outcome.reasoning_stream) == *reasoning_content);
+        ensure!(outcome.content_stream == *content);
 
         for tag in thinking_tags {
             ensure!(!outcome.reasoning_stream.contains(tag), "{outcome:?}");

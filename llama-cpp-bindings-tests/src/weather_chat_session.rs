@@ -20,19 +20,22 @@ pub fn weather_chat_session(
     model: &LlamaModel,
     tool_choice: ChatToolChoice,
 ) -> Result<ChatSession> {
-    ChatSession::new(
-        model,
-        model
-            .chat_templates()
-            .context("the model must have chat templates")?,
-        &[user_message("What is the weather in Paris?")],
-        &get_weather_tools(),
-        &ChatSessionOptions {
-            assistant_turn: ChatAssistantTurn::New,
-            enable_thinking: false,
-            parallel_tool_calls: false,
-            tool_choice,
-        },
-    )
-    .context("the model's template must serve the weather request")
+    model
+        .chat_templates()
+        .context("the model must have chat templates")
+        .and_then(|chat_templates| {
+            ChatSession::new(
+                model,
+                chat_templates,
+                &[user_message("What is the weather in Paris?")],
+                &get_weather_tools(),
+                &ChatSessionOptions {
+                    assistant_turn: ChatAssistantTurn::New,
+                    enable_thinking: false,
+                    parallel_tool_calls: false,
+                    tool_choice,
+                },
+            )
+            .context("the model's template must serve the weather request")
+        })
 }

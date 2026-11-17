@@ -18,16 +18,21 @@ pub fn tokenize_prompt_with_synthetic_image(
     &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
     prompt: &str,
 ) -> Result<MtmdInputChunks> {
-    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; SYNTHETIC_IMAGE_BYTES];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)
-        .context("a 64x64 RGB image must make a bitmap")?;
+        .context("a 64x64 RGB image must make a bitmap");
     let input_text = MtmdInputText {
         text: prompt.to_owned(),
         add_special: true,
         parse_special: true,
     };
 
-    MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])
-        .context("the prompt and image must tokenize")
+    mtmd_context
+        .context("mmproj_file declared in attribute")
+        .and_then(|mtmd_ctx| {
+            bitmap.and_then(|bitmap| {
+                MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])
+                    .context("the prompt and image must tokenize")
+            })
+        })
 }

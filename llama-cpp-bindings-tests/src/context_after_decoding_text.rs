@@ -24,23 +24,26 @@ pub fn context_after_decoding_text<'fixture>(
     }: &'fixture LlamaFixture<'_>,
     pooling_type: LlamaPoolingType,
 ) -> Result<LlamaContext<'fixture>> {
-    let mut context = LlamaContext::from_model(
+    LlamaContext::from_model(
         model,
         backend,
         (*context_params)
             .into_llama_context_params()
             .with_pooling_type(pooling_type),
     )
-    .context("the fixture's context must be creatable")?;
-    let tokens = model
-        .str_to_token(TEXT, AddBos::Always, ParseSpecialTokens::Never)
-        .context("the sentence must tokenize")?;
-    let mut batch = LlamaBatch::new(context.limits());
+    .context("the fixture's context must be creatable")
+    .and_then(|mut context| {
+        let mut batch = LlamaBatch::new(context.limits());
 
-    batch
-        .add_sequence(&tokens, 0, false)
-        .context("the sentence must fit one batch")?;
-    context.decode(&batch).context("the sentence must decode")?;
-
-    Ok(context)
+        model
+            .str_to_token(TEXT, AddBos::Always, ParseSpecialTokens::Never)
+            .context("the sentence must tokenize")
+            .and_then(|tokens| {
+                batch
+                    .add_sequence(&tokens, 0, false)
+                    .context("the sentence must fit one batch")
+            })
+            .and_then(|()| context.decode(&batch).context("the sentence must decode"))
+            .map(|()| context)
+    })
 }

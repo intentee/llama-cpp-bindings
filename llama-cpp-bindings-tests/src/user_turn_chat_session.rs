@@ -21,19 +21,22 @@ pub fn user_turn_chat_session(
     tools: &[ChatTool],
     enable_thinking: bool,
 ) -> Result<ChatSession> {
-    ChatSession::new(
-        model,
-        model
-            .chat_templates()
-            .context("the model must have chat templates")?,
-        &[user_message(content)],
-        tools,
-        &ChatSessionOptions {
-            assistant_turn: ChatAssistantTurn::New,
-            enable_thinking,
-            parallel_tool_calls: false,
-            tool_choice: ChatToolChoice::Auto,
-        },
-    )
-    .context("the model's template must serve the user turn")
+    model
+        .chat_templates()
+        .context("the model must have chat templates")
+        .and_then(|chat_templates| {
+            ChatSession::new(
+                model,
+                chat_templates,
+                &[user_message(content)],
+                tools,
+                &ChatSessionOptions {
+                    assistant_turn: ChatAssistantTurn::New,
+                    enable_thinking,
+                    parallel_tool_calls: false,
+                    tool_choice: ChatToolChoice::Auto,
+                },
+            )
+            .context("the model's template must serve the user turn")
+        })
 }

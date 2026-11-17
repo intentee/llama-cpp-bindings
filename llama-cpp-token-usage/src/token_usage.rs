@@ -101,8 +101,34 @@ impl TokenUsage {
     pub const fn total_tokens(&self) -> u64 {
         self.prompt.saturating_add(self.completion_tokens())
     }
+}
 
-    const fn accumulate(
+impl Add for TokenUsage {
+    type Output = Self;
+
+    fn add(mut self, other: Self) -> Self {
+        self.add_assign(other);
+        self
+    }
+}
+
+impl Add<&Self> for TokenUsage {
+    type Output = Self;
+
+    fn add(mut self, other: &Self) -> Self {
+        self.add_assign(other);
+        self
+    }
+}
+
+impl AddAssign for TokenUsage {
+    fn add_assign(&mut self, other: Self) {
+        self.add_assign(&other);
+    }
+}
+
+impl AddAssign<&Self> for TokenUsage {
+    fn add_assign(
         &mut self,
         &Self {
             prompt,
@@ -123,36 +149,6 @@ impl TokenUsage {
         self.reasoning = self.reasoning.saturating_add(reasoning);
         self.tool_call = self.tool_call.saturating_add(tool_call);
         self.undeterminable = self.undeterminable.saturating_add(undeterminable);
-    }
-}
-
-impl Add for TokenUsage {
-    type Output = Self;
-
-    fn add(mut self, other: Self) -> Self {
-        self.accumulate(&other);
-        self
-    }
-}
-
-impl Add<&Self> for TokenUsage {
-    type Output = Self;
-
-    fn add(mut self, other: &Self) -> Self {
-        self.accumulate(other);
-        self
-    }
-}
-
-impl AddAssign for TokenUsage {
-    fn add_assign(&mut self, other: Self) {
-        self.accumulate(&other);
-    }
-}
-
-impl AddAssign<&Self> for TokenUsage {
-    fn add_assign(&mut self, other: &Self) {
-        self.accumulate(other);
     }
 }
 

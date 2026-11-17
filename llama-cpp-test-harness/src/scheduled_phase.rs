@@ -143,7 +143,7 @@ mod tests {
         name: "scheduled_trial",
         key: LOAD_KEY,
         context_params: CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(|_fixture| {}),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
 
@@ -151,7 +151,7 @@ mod tests {
         name: "failing_on_purpose",
         key: LOAD_KEY,
         context_params: CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(|_fixture| {}),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Failure {
             failure: ExpectedFailure::PhaseSetup(PhaseSetupFailureKind::ModelLoad),
             reason: "the model file does not exist on purpose",

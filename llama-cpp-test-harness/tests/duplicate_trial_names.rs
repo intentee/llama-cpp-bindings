@@ -34,7 +34,7 @@ const REGISTRATION: LlamaTestRegistration = LlamaTestRegistration {
         n_threads_batch: None,
         embeddings: false,
     },
-    func: LlamaTestFn::Infallible(|_fixture| {}),
+    func: LlamaTestFn::no_op(),
     expected_outcome: ExpectedOutcome::Success,
 };
 
