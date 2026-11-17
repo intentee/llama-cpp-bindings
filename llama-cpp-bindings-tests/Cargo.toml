@@ -18,6 +18,7 @@ llama-cpp-backend = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
+llama-cpp-chat = { workspace = true }
 llama-cpp-context = { workspace = true }
 llama-cpp-context-memory = { workspace = true }
 llama-cpp-context-state = { workspace = true }

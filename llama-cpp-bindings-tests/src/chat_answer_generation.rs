@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
+use llama_cpp_chat::chat_session::ChatSession;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;

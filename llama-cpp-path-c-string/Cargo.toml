@@ -1,0 +1,16 @@
+[package]
+name = "llama-cpp-path-c-string"
+description = "Converts a filesystem path into the C string llama.cpp takes a path as"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -1168,6 +1168,7 @@ dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-capturing-logger",
  "llama-cpp-log-decoder",
+ "llama-cpp-path-c-string",
  "log",
  "thiserror",
 ]
@@ -1188,18 +1189,13 @@ name = "llama-cpp-bindings"
 version = "0.29.0"
 dependencies = [
  "encoding_rs",
- "llama-cpp-backend",
  "llama-cpp-bindings-sys",
- "llama-cpp-bindings-types",
+ "llama-cpp-chat",
  "llama-cpp-context",
- "llama-cpp-ffi-status",
- "llama-cpp-gbnf",
  "llama-cpp-model",
  "llama-cpp-mtmd",
- "llama-cpp-params",
  "llama-cpp-sampler",
  "llama-cpp-token-usage",
- "serde_json",
  "thiserror",
 ]
 
@@ -1212,6 +1208,7 @@ dependencies = [
  "cmake",
  "enumflags2",
  "find_cuda_helper",
+ "llama-cpp-error-chain",
  "llama-cpp-wrapper-sources",
  "serde",
  "serde_json",
@@ -1223,6 +1220,7 @@ name = "llama-cpp-bindings-sys"
 version = "0.29.0"
 dependencies = [
  "llama-cpp-bindings-build",
+ "llama-cpp-error-chain",
 ]
 
 [[package]]
@@ -1236,6 +1234,7 @@ dependencies = [
  "llama-cpp-bindings",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
+ "llama-cpp-chat",
  "llama-cpp-context",
  "llama-cpp-context-memory",
  "llama-cpp-context-state",
@@ -1272,6 +1271,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "llama-cpp-chat"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-bindings-types",
+ "llama-cpp-ffi-status",
+ "llama-cpp-model",
+ "llama-cpp-sampler",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "llama-cpp-context"
 version = "0.29.0"
 dependencies = [
@@ -1303,8 +1315,13 @@ dependencies = [
  "llama-cpp-context",
  "llama-cpp-ffi-status",
  "llama-cpp-model",
+ "llama-cpp-path-c-string",
  "thiserror",
 ]
+
+[[package]]
+name = "llama-cpp-error-chain"
+version = "0.29.0"
 
 [[package]]
 name = "llama-cpp-error-recorder"
@@ -1344,6 +1361,7 @@ name = "llama-cpp-gguf"
 version = "0.29.0"
 dependencies = [
  "llama-cpp-bindings-sys",
+ "llama-cpp-path-c-string",
  "thiserror",
 ]
 
@@ -1362,6 +1380,7 @@ dependencies = [
  "llama-cpp-ffi-status",
  "llama-cpp-gguf",
  "llama-cpp-params",
+ "llama-cpp-path-c-string",
  "once_cell",
  "thiserror",
  "toktrie",
@@ -1389,6 +1408,13 @@ dependencies = [
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
  "llama-cpp-ffi-status",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-path-c-string"
+version = "0.29.0"
+dependencies = [
  "thiserror",
 ]
 
@@ -1465,6 +1491,7 @@ dependencies = [
 name = "llama-cpp-wrapper-sources"
 version = "0.29.0"
 dependencies = [
+ "llama-cpp-error-chain",
  "serde",
  "serde_json",
  "thiserror",

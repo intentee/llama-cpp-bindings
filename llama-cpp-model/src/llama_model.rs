@@ -21,6 +21,7 @@ use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 use crate::add_bos::AddBos;
 use crate::chat_templates::ChatTemplates;
@@ -610,10 +611,14 @@ impl LlamaModel {
     ) -> Result<LlamaLoraAdapter<'_>, ModelError> {
         let path = path.as_ref();
 
-        let path_str = path
-            .to_str()
-            .ok_or_else(|| ModelError::LoraAdapterPathNotUtf8(path.to_path_buf()))?;
-        let cstr = CString::new(path_str).map_err(ModelError::LoraAdapterPathContainsNulByte)?;
+        let cstr = llama_cpp_path_c_string::path_c_string::path_c_string(path).map_err(
+            |error| match error {
+                PathCStringError::ContainsNulByte(source) => {
+                    ModelError::LoraAdapterPathContainsNulByte(source)
+                }
+                PathCStringError::NotUtf8(path) => ModelError::LoraAdapterPathNotUtf8(path),
+            },
+        )?;
 
         if !path.exists() {
             return Err(ModelError::LoraAdapterFileNotFound(path.to_path_buf()));

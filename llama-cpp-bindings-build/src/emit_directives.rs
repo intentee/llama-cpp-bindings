@@ -26,6 +26,8 @@ mod tests {
     use std::fs::File;
     use std::path::PathBuf;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::emit_directives;
     use crate::cargo_directive::CargoDirective;
 
@@ -63,7 +65,7 @@ mod tests {
         assert_eq!(
             emit_directives(&rebuild_and_debug_directives(), false, &mut read_only)
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "cargo directives could not be written: Bad file descriptor (os error 9)"
                     .to_owned()

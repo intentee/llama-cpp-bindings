@@ -3,12 +3,11 @@ use anyhow::Result;
 use anyhow::ensure;
 use std::str::Utf8Error;
 
-use llama_cpp_bindings::chat_output::ChatOutput;
-use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_chat::chat_output::ChatOutput;
+use llama_cpp_chat::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_ffi_status::ffi_error::FfiError;
@@ -65,7 +64,7 @@ fn every_prompt_reader_refuses_prompt_text_that_is_not_utf8(
             session.prompt_parts().err(),
             session.prompt().err(),
             session.tokenize_prompt(model).err(),
-        ] == [(); 3].map(|()| Some(ChatSessionError::SessionTextNotUtf8(expected_utf8_error)))
+        ] == [(); 3].map(|()| Some(ChatError::SessionTextNotUtf8(expected_utf8_error)))
     );
 
     Ok(())
@@ -92,7 +91,7 @@ fn grammar_triggers_refuse_a_trigger_value_that_is_not_utf8(
         [
             session.grammar_triggers().err(),
             session.grammar_sampler(model).err(),
-        ] == [(); 2].map(|()| Some(ChatSessionError::SessionTextNotUtf8(expected_utf8_error)))
+        ] == [(); 2].map(|()| Some(ChatError::SessionTextNotUtf8(expected_utf8_error)))
     );
 
     Ok(())
@@ -116,7 +115,7 @@ fn grammar_triggers_refuse_a_trigger_type_the_bindings_do_not_recognize(
 
     ensure!(
         session.grammar_triggers().err()
-            == Some(ChatSessionError::Ffi(FfiError::UnknownStatus {
+            == Some(ChatError::Ffi(FfiError::UnknownStatus {
                 operation: "llama_rs_chat_session_grammar_trigger_type",
                 code: i64::from(
                     llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED
@@ -143,8 +142,7 @@ fn the_grammar_sampler_refuses_a_grammar_that_is_not_utf8(
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8);
 
     ensure!(
-        session.grammar_sampler(model).err()
-            == Some(ChatSessionError::SessionTextNotUtf8(not_utf8()?))
+        session.grammar_sampler(model).err() == Some(ChatError::SessionTextNotUtf8(not_utf8()?))
     );
 
     Ok(())
@@ -168,7 +166,7 @@ fn the_grammar_sampler_reports_a_grammar_llama_cpp_cannot_load(
     ensure!(!session.grammar_is_lazy());
     ensure!(
         session.grammar_sampler(model).err()
-            == Some(ChatSessionError::Grammar(SamplerError::GrammarReported {
+            == Some(ChatError::Grammar(SamplerError::GrammarReported {
                 message: injected_fault_message()?,
             }))
     );
@@ -193,7 +191,7 @@ fn the_grammar_sampler_reports_a_generation_prompt_token_the_grammar_cannot_acce
     ensure!(session.generation_prompt_tokens() != []);
     ensure!(
         session.grammar_sampler(model).err()
-            == Some(ChatSessionError::GrammarPrefill(
+            == Some(ChatError::GrammarPrefill(
                 SamplerError::GrammarStateCorrupted {
                     message: injected_fault_message()?,
                 }
@@ -220,7 +218,7 @@ fn the_grammar_sampler_reports_a_trigger_word_llama_cpp_cannot_escape(
     ensure!(session.grammar_is_lazy());
     ensure!(
         session.grammar_sampler(model).err()
-            == Some(ChatSessionError::Grammar(SamplerError::GrammarReported {
+            == Some(ChatError::Grammar(SamplerError::GrammarReported {
                 message: injected_fault_message()?,
             }))
     );
@@ -246,7 +244,7 @@ fn the_grammar_sampler_reports_a_lazy_grammar_llama_cpp_cannot_load(
 
     ensure!(
         session.grammar_sampler(model).err()
-            == Some(ChatSessionError::Grammar(SamplerError::GrammarReported {
+            == Some(ChatError::Grammar(SamplerError::GrammarReported {
                 message: injected_fault_message()?,
             }))
     );
@@ -276,7 +274,7 @@ fn reading_an_answer_reports_a_parse_llama_cpp_fails(
                 ChatOutputCompleteness::Finished,
             )
             .err()
-            == Some(ParseChatMessageError::Reported {
+            == Some(ChatError::ParseReported {
                 message: injected_fault_message()?,
             })
     );
@@ -306,7 +304,7 @@ fn parsing_a_reading_reports_a_mapping_llama_cpp_fails(
 
     ensure!(
         reading.parse().err()
-            == Some(&ParseChatMessageError::Reported {
+            == Some(&ChatError::ParseReported {
                 message: injected_fault_message()?,
             })
     );
@@ -337,7 +335,7 @@ fn reading_an_answer_that_does_not_match_the_format_refuses_a_format_name_that_i
                 ChatOutputCompleteness::Finished,
             )
             .err()
-            == Some(ParseChatMessageError::FormatNameNotUtf8(not_utf8()?))
+            == Some(ChatError::FormatNameNotUtf8(not_utf8()?))
     );
 
     Ok(())

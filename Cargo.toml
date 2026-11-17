@@ -9,9 +9,11 @@ members = [
   "llama-cpp-bindings",
   "llama-cpp-bindings-tests",
   "llama-cpp-capturing-logger",
+  "llama-cpp-chat",
   "llama-cpp-context",
   "llama-cpp-context-memory",
   "llama-cpp-context-state",
+  "llama-cpp-error-chain",
   "llama-cpp-error-recorder",
   "llama-cpp-fault-injection",
   "llama-cpp-ffi-status",
@@ -21,6 +23,7 @@ members = [
   "llama-cpp-model",
   "llama-cpp-mtmd",
   "llama-cpp-params",
+  "llama-cpp-path-c-string",
   "llama-cpp-sampler",
   "llama-cpp-test-harness",
   "llama-cpp-test-harness-macros",
@@ -53,9 +56,11 @@ llama-cpp-bindings-build = { path = "llama-cpp-bindings-build", version = "0.29"
 llama-cpp-bindings-sys = { path = "llama-cpp-bindings-sys", version = "0.29" }
 llama-cpp-bindings-types = { path = "llama-cpp-bindings-types", version = "0.29" }
 llama-cpp-capturing-logger = { path = "llama-cpp-capturing-logger" }
+llama-cpp-chat = { path = "llama-cpp-chat", version = "0.29" }
 llama-cpp-context = { path = "llama-cpp-context", version = "0.29" }
 llama-cpp-context-memory = { path = "llama-cpp-context-memory", version = "0.29" }
 llama-cpp-context-state = { path = "llama-cpp-context-state", version = "0.29" }
+llama-cpp-error-chain = { path = "llama-cpp-error-chain", version = "0.29" }
 llama-cpp-error-recorder = { path = "llama-cpp-error-recorder", version = "0.29" }
 llama-cpp-ffi-status = { path = "llama-cpp-ffi-status", version = "0.29" }
 llama-cpp-gbnf = { path = "llama-cpp-gbnf", version = "0.29" }
@@ -64,6 +69,7 @@ llama-cpp-log-decoder = { path = "llama-cpp-log-decoder", version = "0.29" }
 llama-cpp-model = { path = "llama-cpp-model", version = "0.29" }
 llama-cpp-mtmd = { path = "llama-cpp-mtmd", version = "0.29" }
 llama-cpp-params = { path = "llama-cpp-params", version = "0.29" }
+llama-cpp-path-c-string = { path = "llama-cpp-path-c-string", version = "0.29" }
 llama-cpp-sampler = { path = "llama-cpp-sampler", version = "0.29" }
 llama-cpp-test-harness = { path = "llama-cpp-test-harness", version = "0.29" }
 llama-cpp-test-harness-macros = { path = "llama-cpp-test-harness-macros", version = "0.29" }

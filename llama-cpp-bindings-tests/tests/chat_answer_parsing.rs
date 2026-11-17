@@ -2,15 +2,15 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::chat_output::ChatOutput;
-use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_chat::chat_output::ChatOutput;
+use llama_cpp_chat::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -293,8 +293,7 @@ fn every_parsed_field_refuses_text_that_is_not_utf8(
 
     ensure!(
         parse_errors
-            == fault_points
-                .map(|_fault_point| Some(ParseChatMessageError::ParsedTextNotUtf8(not_utf8)))
+            == fault_points.map(|_fault_point| Some(ChatError::ParsedTextNotUtf8(not_utf8)))
     );
 
     Ok(())

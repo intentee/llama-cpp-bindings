@@ -116,6 +116,8 @@ pub mod tests {
     use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
     use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::BuildContext;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
     use crate::build_environment::BuildEnvironment;
@@ -195,7 +197,7 @@ pub mod tests {
 
             BuildContext::from_environment(&environment, HostOs::Linux)
                 .err()
-                .map(|error| error.to_string())
+                .map(|error| error_chain(&error))
         };
         let required = cargo_variables().map(|EnvironmentVariable { name, .. }| name);
 
@@ -215,7 +217,7 @@ pub mod tests {
                 HostOs::Linux,
             )
             .err()
-            .map(|error| error.to_string()),
+            .map(|error| error_chain(&error)),
             Some(
                 "environment variable BUILD_DEBUG could not be read: environment variable was \
                  not valid unicode: \"\\xFF\""

@@ -7,17 +7,18 @@ use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_path_c_string::path_c_string::path_c_string;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 use crate::context_state_error::ContextStateError;
 use crate::llama_state_seq_flags::LlamaStateSeqFlags;
 use crate::loaded_seq_state::LoadedSeqState;
 
-fn path_c_string(path: &Path) -> Result<CString, ContextStateError> {
-    let path = path
-        .to_str()
-        .ok_or_else(|| ContextStateError::PathNotUtf8(path.to_path_buf()))?;
-
-    Ok(CString::new(path)?)
+fn state_path_c_string(path: &Path) -> Result<CString, ContextStateError> {
+    path_c_string(path).map_err(|error| match error {
+        PathCStringError::ContainsNulByte(source) => ContextStateError::PathContainsNulByte(source),
+        PathCStringError::NotUtf8(path) => ContextStateError::PathNotUtf8(path),
+    })
 }
 
 fn state_data_status_to_result(
@@ -249,7 +250,7 @@ impl ContextState for LlamaContext<'_> {
         path_session: impl AsRef<Path>,
         max_tokens: usize,
     ) -> Result<Vec<LlamaToken>, ContextStateError> {
-        let cstr = path_c_string(path_session.as_ref())?;
+        let cstr = state_path_c_string(path_session.as_ref())?;
         let mut tokens = vec![LlamaToken::new(0); max_tokens];
         let mut n_out = 0;
 
@@ -274,7 +275,7 @@ impl ContextState for LlamaContext<'_> {
         path_session: impl AsRef<Path>,
         tokens: &[LlamaToken],
     ) -> Result<(), ContextStateError> {
-        let cstr = path_c_string(path_session.as_ref())?;
+        let cstr = state_path_c_string(path_session.as_ref())?;
 
         if unsafe {
             llama_cpp_bindings_sys::llama_state_save_file(
@@ -331,7 +332,7 @@ impl ContextState for LlamaContext<'_> {
         dest_seq_id: i32,
         max_tokens: usize,
     ) -> Result<LoadedSeqState, ContextStateError> {
-        let cstr = path_c_string(filepath.as_ref())?;
+        let cstr = state_path_c_string(filepath.as_ref())?;
         let mut tokens = vec![LlamaToken::new(0); max_tokens];
         let mut n_out = 0;
 
@@ -359,7 +360,7 @@ impl ContextState for LlamaContext<'_> {
         seq_id: i32,
         tokens: &[LlamaToken],
     ) -> Result<usize, ContextStateError> {
-        let cstr = path_c_string(filepath.as_ref())?;
+        let cstr = state_path_c_string(filepath.as_ref())?;
 
         let bytes_written = unsafe {
             llama_cpp_bindings_sys::llama_state_seq_save_file(

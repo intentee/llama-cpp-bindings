@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuildError {
-    #[error("environment variable {name} could not be read: {source}")]
+    #[error("environment variable {name} could not be read")]
     Environment {
         name: &'static str,
         #[source]
@@ -28,12 +28,12 @@ pub enum BuildError {
     AndroidNdkUnsupportedHostPlatform,
     #[error("Unsupported Android target architecture: {cargo_cfg_target_arch}")]
     UnsupportedAndroidTarget { cargo_cfg_target_arch: String },
-    #[error("ANDROID_PLATFORM is set but could not be read: {source}")]
+    #[error("ANDROID_PLATFORM is set but could not be read")]
     AndroidPlatformUnreadable {
         #[source]
         source: VarError,
     },
-    #[error("Android NDK Clang directory could not be listed at {path}: {source}")]
+    #[error("Android NDK Clang directory could not be listed at {path}")]
     AndroidNdkClangDirectoryUnreadable {
         path: PathBuf,
         #[source]
@@ -50,7 +50,7 @@ pub enum BuildError {
     },
     #[error("Android NDK Clang built-in include directory was not found at {path}")]
     AndroidNdkClangBuiltinIncludesMissing { path: PathBuf },
-    #[error("bindgen failed: {0}")]
+    #[error("bindgen failed")]
     Bindgen(#[source] bindgen::BindgenError),
     #[error(
         "bindgen never saw field {type_name}::{field_name}, so it can no longer be kept private"
@@ -59,11 +59,11 @@ pub enum BuildError {
         type_name: &'static str,
         field_name: &'static str,
     },
-    #[error("generated bindings could not be written: {0}")]
+    #[error("generated bindings could not be written")]
     BindingsWrite(#[source] io::Error),
-    #[error("native wrapper compilation failed: {0}")]
+    #[error("native wrapper compilation failed")]
     NativeWrapper(#[source] cc::Error),
-    #[error("filesystem operation failed for {path}: {source}")]
+    #[error("filesystem operation failed for {path}")]
     Filesystem {
         path: PathBuf,
         #[source]
@@ -71,9 +71,9 @@ pub enum BuildError {
     },
     #[error("environment path {name} does not name a directory: {path}")]
     EnvironmentDirectory { name: &'static str, path: PathBuf },
-    #[error("cargo directives could not be written: {0}")]
+    #[error("cargo directives could not be written")]
     DirectiveWrite(#[source] io::Error),
-    #[error("the CMake file API reply directory {path} could not be listed: {source}")]
+    #[error("the CMake file API reply directory {path} could not be listed")]
     CmakeFileApiReplyDirectoryUnreadable {
         path: PathBuf,
         #[source]
@@ -81,13 +81,13 @@ pub enum BuildError {
     },
     #[error("CMake wrote no file API reply index into {path}")]
     CmakeFileApiReplyIndexMissing { path: PathBuf },
-    #[error("the CMake file API reply file {path} could not be read: {source}")]
+    #[error("the CMake file API reply file {path} could not be read")]
     CmakeFileApiReplyFileUnreadable {
         path: PathBuf,
         #[source]
         source: io::Error,
     },
-    #[error("the CMake file API reply file {path} is not the reply this crate queried: {source}")]
+    #[error("the CMake file API reply file {path} is not the reply this crate queried")]
     CmakeFileApiReplyFileInvalid {
         path: PathBuf,
         #[source]

@@ -211,6 +211,8 @@ mod tests {
 
     use enumflags2::BitFlags;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::CmakeConfiguration;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
     use crate::build_context::BuildContext;
@@ -500,7 +502,7 @@ mod tests {
                 &cargo_environment(features, &[]).with_non_unicode(name),
             )
             .err()
-            .map(|error| error.to_string())
+            .map(|error| error_chain(&error))
         };
         let not_unicode = |name: &str| {
             Some(format!(
@@ -519,7 +521,7 @@ mod tests {
                     &cargo_environment(BitFlags::from(BuildFeature::SystemGgml), &[])
                 )
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             ],
             [
                 not_unicode("CARGO_ENCODED_RUSTFLAGS"),

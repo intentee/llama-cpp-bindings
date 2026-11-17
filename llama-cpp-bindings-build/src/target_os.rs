@@ -49,6 +49,8 @@ mod tests {
 
     use enumflags2::BitFlags;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::TargetOs;
     use crate::android_ndk::AndroidNdk;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
@@ -71,7 +73,7 @@ mod tests {
             "aarch64",
             HostOs::Linux,
         )
-        .map_err(|error| error.to_string())
+        .map_err(|error| error_chain(&error))
     }
 
     #[test]
@@ -129,9 +131,10 @@ mod tests {
                 "aarch64",
                 HostOs::Linux
             )
-            .map_err(|error| error.to_string()),
+            .map_err(|error| error_chain(&error)),
             Err(
-                "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME."
+                "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME.: \
+                     environment variable not found"
                     .to_owned()
             )
         );

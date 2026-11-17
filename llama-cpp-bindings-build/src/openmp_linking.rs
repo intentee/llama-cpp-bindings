@@ -63,6 +63,8 @@ impl OpenmpLinking {
 mod tests {
     use std::path::PathBuf;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::OpenmpLinking;
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_cache::CmakeCache;
@@ -77,7 +79,7 @@ mod tests {
             target_os: TargetOs::Linux,
         }
         .directives(&CmakeCache { entries })
-        .map_err(|error| error.to_string())
+        .map_err(|error| error_chain(&error))
     }
 
     #[test]

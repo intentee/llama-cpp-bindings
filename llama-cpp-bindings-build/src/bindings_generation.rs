@@ -176,6 +176,8 @@ mod tests {
 
     use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::BindingsGeneration;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
     use crate::build_context::BuildContext;
@@ -211,7 +213,7 @@ mod tests {
         }
         .generate()
         .err()
-        .map(|error| error.to_string())
+        .map(|error| error_chain(&error))
     }
 
     #[test]

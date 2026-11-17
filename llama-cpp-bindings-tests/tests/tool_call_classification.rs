@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
+use anyhow::bail;
 use anyhow::ensure;
 
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
@@ -8,6 +8,7 @@ use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::get_weather_tools::get_weather_tools;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
+use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -49,16 +50,18 @@ fn qwen35_reasoning_closed_by_a_tool_call_is_attributed_to_each_section(
     let answer = format!("{REASONING_BEFORE_THE_CALL}{QWEN_XML_PARIS_WEATHER_CALL}");
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let outcomes = ingested_generation(&mut classifier, model, &answer)?;
-    let parsed = classifier
+    let parsed = match classifier
         .latest_reading()
         .context("the classifier must have read the answer")?
         .parse()
         .cloned()
         .map_err(Clone::clone)?
-        .into_recognized()
-        .map_err(|raw_chat_message| {
-            anyhow!("the answer must be recognized: {raw_chat_message:?}")
-        })?;
+    {
+        ChatMessageParseOutcome::Recognized(message) => message,
+        ChatMessageParseOutcome::Unrecognized(raw_chat_message) => {
+            bail!("the answer must be recognized: {raw_chat_message:?}")
+        }
+    };
 
     ensure!(
         raw_text_where(&outcomes, |token| matches!(

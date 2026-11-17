@@ -3,7 +3,7 @@ use std::string::FromUtf8Error;
 
 use llama_cpp_ffi_status::ffi_error::FfiError;
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GbnfError {
     #[error(transparent)]
     Ffi(#[from] FfiError),

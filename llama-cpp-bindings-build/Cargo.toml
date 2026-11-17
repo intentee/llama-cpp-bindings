@@ -20,6 +20,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+llama-cpp-error-chain = { workspace = true }
+
 [features]
 cuda = []
 cuda-no-vmm = ["cuda"]

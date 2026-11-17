@@ -16,12 +16,27 @@ llama-cpp-backend = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-ffi-status = { workspace = true }
 llama-cpp-params = { workspace = true }
+llama-cpp-path-c-string = { workspace = true }
 once_cell = { workspace = true }
 thiserror = { workspace = true }
 toktrie = { workspace = true }
 
 [dev-dependencies]
 llama-cpp-gguf = { workspace = true }
+
+[features]
+cuda = ["llama-cpp-backend/cuda"]
+cuda-no-vmm = ["llama-cpp-backend/cuda-no-vmm"]
+metal = ["llama-cpp-backend/metal"]
+dynamic-link = ["llama-cpp-backend/dynamic-link"]
+dynamic-backends = ["llama-cpp-backend/dynamic-backends"]
+vulkan = ["llama-cpp-backend/vulkan"]
+openmp = ["llama-cpp-backend/openmp"]
+rocm = ["llama-cpp-backend/rocm"]
+android-shared-stdcxx = ["llama-cpp-backend/android-shared-stdcxx"]
+android-static-stdcxx = ["llama-cpp-backend/android-static-stdcxx"]
+system-ggml = ["llama-cpp-backend/system-ggml"]
+system-ggml-static = ["llama-cpp-backend/system-ggml-static"]
 
 [lints]
 workspace = true

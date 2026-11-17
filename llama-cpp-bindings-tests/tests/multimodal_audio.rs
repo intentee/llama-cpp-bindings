@@ -2,11 +2,6 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::chat_assistant_prefill::ChatAssistantPrefill;
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
@@ -15,6 +10,11 @@ use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsa
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::system_message::system_message;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_chat::chat_assistant_prefill::ChatAssistantPrefill;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;

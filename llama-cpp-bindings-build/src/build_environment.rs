@@ -79,6 +79,8 @@ pub mod tests {
     use enumflags2::BitFlags;
     use find_cuda_helper::find_cuda_lib_dirs;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::BuildEnvironment;
     use crate::build_feature::BuildFeature;
     use crate::enabled_build_features::enabled_build_features;
@@ -170,7 +172,7 @@ pub mod tests {
             environment
                 .required("HOST")
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "environment variable HOST could not be read: environment variable not found"
                     .to_owned()
@@ -186,7 +188,7 @@ pub mod tests {
             environment
                 .optional("TARGET")
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "environment variable TARGET could not be read: environment variable was not \
                  valid unicode: \"\\xFF\""

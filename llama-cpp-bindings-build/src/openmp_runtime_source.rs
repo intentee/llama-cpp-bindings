@@ -87,6 +87,8 @@ mod tests {
 
     use enumflags2::BitFlags;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::OpenmpRuntimeSource;
     use crate::build_context::BuildContext;
     use crate::build_context::tests::cargo_environment;
@@ -121,7 +123,7 @@ mod tests {
         OpenmpRuntimeSource::BundledGgml
             .libraries(&CmakeCache { entries })
             .err()
-            .map(|error| error.to_string())
+            .map(|error| error_chain(&error))
     }
 
     #[test]

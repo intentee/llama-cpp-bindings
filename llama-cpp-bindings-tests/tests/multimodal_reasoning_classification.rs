@@ -2,10 +2,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
@@ -14,6 +10,10 @@ use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_s
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_bindings_tests::system_message::system_message;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;

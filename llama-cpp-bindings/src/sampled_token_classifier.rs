@@ -2,7 +2,11 @@ use std::collections::VecDeque;
 
 use llama_cpp_bindings_sys::llama_pos;
 use llama_cpp_bindings_sys::llama_seq_id;
-use llama_cpp_context::context_error::ContextError;
+use llama_cpp_chat::chat_output::ChatOutput;
+use llama_cpp_chat::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_chat::chat_piece_role::ChatPieceRole;
+use llama_cpp_chat::chat_reading::ChatReading;
+use llama_cpp_chat::chat_session::ChatSession;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_model::LlamaModel;
@@ -17,22 +21,13 @@ use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
 use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_token_usage::token_usage::TokenUsage;
-use llama_cpp_token_usage::token_usage_error::TokenUsageError;
 
-use crate::chat_output::ChatOutput;
-use crate::chat_output_completeness::ChatOutputCompleteness;
-use crate::chat_piece_role::ChatPieceRole;
-use crate::chat_reading::ChatReading;
-use crate::chat_session::ChatSession;
 use crate::chat_session_attribution::ChatSessionAttribution;
 use crate::classified_sample::ClassifiedSample;
-use crate::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
-use crate::error::ingest_error::IngestError;
-use crate::error::llama_cpp_error::LlamaCppError;
-use crate::error::parse_chat_message_error::ParseChatMessageError;
 use crate::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use crate::generation_progress::GenerationProgress;
 use crate::ingest_outcome::IngestOutcome;
+use crate::llama_cpp_error::LlamaCppError;
 use crate::pending_chat_piece::PendingChatPiece;
 use crate::token_attribution::TokenAttribution;
 use crate::token_piece::TokenPiece;
@@ -66,11 +61,11 @@ impl<'model> SampledTokenClassifier<'model> {
     ///
     /// # Errors
     ///
-    /// Returns [`ParseChatMessageError`] when llama.cpp fails while reading the empty answer.
+    /// Returns [`LlamaCppError::Classify`] when llama.cpp fails while reading the empty answer.
     pub fn for_chat_session(
         model: &'model LlamaModel,
         session: ChatSession,
-    ) -> Result<Self, ParseChatMessageError> {
+    ) -> Result<Self, LlamaCppError> {
         let output = ChatOutput::default();
         let latest_reading = session.read(&output, ChatOutputCompleteness::Partial)?;
 
@@ -128,10 +123,10 @@ impl<'model> SampledTokenClassifier<'model> {
     /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
     ///
     /// # Errors
-    /// Returns [`EvalMultimodalChunksError::EvalFailed`] when `params.n_batch` or `params.seq_id`
+    /// Returns [`LlamaCppError::MultimodalChunksEval`] when `params.n_batch` or `params.seq_id`
     /// does not fit the context, a chunk cannot be decoded or reports a type unknown to this
     /// binding (all before any chunk is evaluated), or when evaluating a chunk fails, or
-    /// [`EvalMultimodalChunksError::ChunkOutOfBounds`] when a valid index returns
+    /// [`LlamaCppError::ChunkOutOfBounds`] when a valid index returns
     /// `None` from `chunks.get`.
     pub fn eval_multimodal_chunks(
         &mut self,
@@ -144,7 +139,7 @@ impl<'model> SampledTokenClassifier<'model> {
             n_batch,
             logits_last,
         }: EvalMultimodalChunksParams,
-    ) -> Result<llama_pos, EvalMultimodalChunksError> {
+    ) -> Result<llama_pos, LlamaCppError> {
         let limits = MtmdEvalLimits::of(llama_ctx);
         let fitted_chunks = FittedMtmdInputChunks::fit(
             chunks,
@@ -159,7 +154,7 @@ impl<'model> SampledTokenClassifier<'model> {
 
         for index in 0..chunk_count {
             let fitted_chunk = FittedMtmdInputChunk::at(&fitted_chunks, index)
-                .ok_or(EvalMultimodalChunksError::ChunkOutOfBounds(index))?;
+                .ok_or(LlamaCppError::ChunkOutOfBounds(index))?;
             let logits_for_this_chunk = logits_last && Some(index) == last_chunk_index;
 
             next_position = fitted_chunk.eval_single(
@@ -177,14 +172,14 @@ impl<'model> SampledTokenClassifier<'model> {
     }
 
     /// # Errors
-    /// Forwards [`LlamaBatch::add_sequence`] errors verbatim. Nothing is staged on failure.
+    /// Forwards [`LlamaBatch::add_sequence`] errors as [`LlamaCppError::Context`]. Nothing is staged on failure.
     pub fn feed_prompt_sequence_to_batch(
         &mut self,
         batch: &mut LlamaBatch,
         tokens: &[LlamaToken],
         seq_id: llama_seq_id,
         logits_all: bool,
-    ) -> Result<(), ContextError> {
+    ) -> Result<(), LlamaCppError> {
         batch.add_sequence(tokens, seq_id, logits_all)?;
         self.pending_prompt_tokens = self
             .pending_prompt_tokens
@@ -194,7 +189,7 @@ impl<'model> SampledTokenClassifier<'model> {
     }
 
     /// # Errors
-    /// Forwards [`LlamaBatch::add`] errors verbatim. Nothing is staged on failure.
+    /// Forwards [`LlamaBatch::add`] errors as [`LlamaCppError::Context`]. Nothing is staged on failure.
     pub fn feed_prompt_to_batch(
         &mut self,
         batch: &mut LlamaBatch,
@@ -202,7 +197,7 @@ impl<'model> SampledTokenClassifier<'model> {
         position: llama_pos,
         seq_ids: &[llama_seq_id],
         logits: bool,
-    ) -> Result<(), ContextError> {
+    ) -> Result<(), LlamaCppError> {
         batch.add(SampledToken::Content(token), position, seq_ids, logits)?;
         self.pending_prompt_tokens = self.pending_prompt_tokens.saturating_add(1);
 
@@ -214,8 +209,8 @@ impl<'model> SampledTokenClassifier<'model> {
     ///
     /// # Errors
     ///
-    /// Returns [`IngestError`] when llama.cpp fails while parsing the finished answer.
-    pub fn finish(&mut self, outcomes: &mut Vec<IngestOutcome>) -> Result<(), IngestError> {
+    /// Returns [`LlamaCppError::Classify`] when llama.cpp fails while parsing the finished answer.
+    pub fn finish(&mut self, outcomes: &mut Vec<IngestOutcome>) -> Result<(), LlamaCppError> {
         self.attribute(ChatOutputCompleteness::Finished, outcomes)
     }
 
@@ -225,13 +220,13 @@ impl<'model> SampledTokenClassifier<'model> {
     ///
     /// # Errors
     ///
-    /// Returns [`IngestError`] when the token cannot be detokenized or llama.cpp fails while
-    /// parsing the answer.
+    /// Returns [`LlamaCppError::Detokenize`] when the token cannot be detokenized, or
+    /// [`LlamaCppError::Classify`] when llama.cpp fails while parsing the answer.
     pub fn ingest(
         &mut self,
         token: LlamaToken,
         outcomes: &mut Vec<IngestOutcome>,
-    ) -> Result<GenerationProgress, IngestError> {
+    ) -> Result<GenerationProgress, LlamaCppError> {
         if self.model.is_eog_token(&SampledToken::Content(token)) {
             self.finish(outcomes)?;
             self.record_usage_in(self.section);
@@ -309,10 +304,10 @@ impl<'model> SampledTokenClassifier<'model> {
     }
 
     /// # Errors
-    /// Forwards [`TokenUsageError::CachedExceedsPrompt`] when the running cached total would
-    /// exceed the prompt total.
-    pub const fn record_cached_prompt_tokens(&mut self, count: u64) -> Result<(), TokenUsageError> {
-        self.usage.record_cached_prompt_tokens(count)
+    /// Returns [`LlamaCppError::TokenUsage`] when the running cached total would exceed the
+    /// prompt total.
+    pub fn record_cached_prompt_tokens(&mut self, count: u64) -> Result<(), LlamaCppError> {
+        Ok(self.usage.record_cached_prompt_tokens(count)?)
     }
 
     pub const fn record_input_audio_tokens(&mut self, count: u64) {
@@ -353,7 +348,7 @@ impl<'model> SampledTokenClassifier<'model> {
         &mut self,
         completeness: ChatOutputCompleteness,
         outcomes: &mut Vec<IngestOutcome>,
-    ) -> Result<(), IngestError> {
+    ) -> Result<(), LlamaCppError> {
         let TokenAttribution::ChatSession(attribution) = &mut self.attribution else {
             return Ok(());
         };

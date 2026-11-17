@@ -1,7 +1,7 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
+use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
 use llama_cpp_context::context_error::ContextError;

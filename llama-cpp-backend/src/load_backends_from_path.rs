@@ -1,5 +1,7 @@
-use std::ffi::CString;
 use std::path::Path;
+
+use llama_cpp_path_c_string::path_c_string::path_c_string;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 use crate::backend_error::BackendError;
 
@@ -9,10 +11,12 @@ use crate::backend_error::BackendError;
 /// and [`BackendError::BackendDirectoryPathContainsNullByte`] when the path contains an interior
 /// null byte.
 pub fn load_backends_from_path(path: &Path) -> Result<(), BackendError> {
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| BackendError::BackendDirectoryPathNotUtf8(path.to_path_buf()))?;
-    let path_cstring = CString::new(path_str)?;
+    let path_cstring = path_c_string(path).map_err(|error| match error {
+        PathCStringError::ContainsNulByte(source) => {
+            BackendError::BackendDirectoryPathContainsNullByte(source)
+        }
+        PathCStringError::NotUtf8(path) => BackendError::BackendDirectoryPathNotUtf8(path),
+    })?;
 
     unsafe {
         llama_cpp_bindings_sys::ggml_backend_load_all_from_path(path_cstring.as_ptr());

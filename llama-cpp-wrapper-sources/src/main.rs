@@ -1,11 +1,13 @@
 use std::env;
 use std::path::PathBuf;
+use std::process::ExitCode;
 
+use llama_cpp_error_chain::error_chain::error_chain;
 use llama_cpp_wrapper_sources::compile_commands_file::CompileCommandsFile;
 use llama_cpp_wrapper_sources::wrapper_sources_error::WrapperSourcesError;
 use llama_cpp_wrapper_sources::wrapper_sources_response_file::WrapperSourcesResponseFile;
 
-fn main() -> Result<(), WrapperSourcesError> {
+fn emit() -> Result<(), WrapperSourcesError> {
     let mut arguments = env::args().skip(1);
 
     let sys_dir = arguments
@@ -33,4 +35,15 @@ fn main() -> Result<(), WrapperSourcesError> {
         sys_dir: PathBuf::from(&sys_dir),
     }
     .write()
+}
+
+fn main() -> ExitCode {
+    match emit() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Error: {}", error_chain(&error));
+
+            ExitCode::FAILURE
+        }
+    }
 }

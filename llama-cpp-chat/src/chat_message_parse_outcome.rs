@@ -9,15 +9,12 @@ pub enum ChatMessageParseOutcome {
 }
 
 impl ChatMessageParseOutcome {
-    /// The recognized message, or the raw answer the parser did not recognize.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`RawChatMessage`] when the answer does not match the template's format.
-    pub fn into_recognized(self) -> Result<ParsedChatMessage, RawChatMessage> {
+    /// The recognized message, or `None` for an answer the parser did not recognize.
+    #[must_use]
+    pub fn into_recognized(self) -> Option<ParsedChatMessage> {
         match self {
-            Self::Recognized(message) => Ok(message),
-            Self::Unrecognized(raw) => Err(raw),
+            Self::Recognized(message) => Some(message),
+            Self::Unrecognized(_) => None,
         }
     }
 }
@@ -44,15 +41,15 @@ mod tests {
 
         assert_eq!(
             ChatMessageParseOutcome::Recognized(message.clone()).into_recognized(),
-            Ok(message)
+            Some(message)
         );
     }
 
     #[test]
-    fn an_unrecognized_answer_is_its_raw_message() {
+    fn an_unrecognized_answer_has_no_recognized_message() {
         assert_eq!(
             ChatMessageParseOutcome::Unrecognized(odd_answer()).into_recognized(),
-            Err(odd_answer())
+            None
         );
     }
 }

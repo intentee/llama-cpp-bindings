@@ -69,6 +69,8 @@ impl CmakeFileApi {
 mod tests {
     use std::path::PathBuf;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::CmakeFileApi;
 
     const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/cmake_file_api");
@@ -79,7 +81,7 @@ mod tests {
         }
         .cache()
         .err()
-        .map(|error| error.to_string())
+        .map(|error| error_chain(&error))
     }
 
     #[test]

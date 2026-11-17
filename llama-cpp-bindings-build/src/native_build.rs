@@ -109,6 +109,8 @@ mod tests {
 
     use enumflags2::BitFlags;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::NativeBuild;
     use crate::bindings_generation::BindingsGeneration;
     use crate::build_context::tests::cargo_environment;
@@ -126,14 +128,7 @@ mod tests {
     use crate::target_os::TargetOs;
     use crate::wrapper_compilation::WrapperCompilation;
 
-    #[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu"))]
-    const HOST_TRIPLE: &str = "x86_64-unknown-linux-gnu";
-    #[cfg(all(target_arch = "aarch64", target_os = "linux", target_env = "gnu"))]
-    const HOST_TRIPLE: &str = "aarch64-unknown-linux-gnu";
-    #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
-    const HOST_TRIPLE: &str = "x86_64-apple-darwin";
-    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-    const HOST_TRIPLE: &str = "aarch64-apple-darwin";
+    const HOST_TRIPLE: &str = env!("LLAMA_CPP_BINDINGS_BUILD_TARGET");
 
     const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
 
@@ -219,7 +214,7 @@ mod tests {
             NativeBuild::from_environment(environment)
                 .and_then(|native_build| native_build.run(&mut output))
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             String::from_utf8(output).ok(),
         ]
     }
@@ -293,7 +288,7 @@ mod tests {
             native_build
                 .run(&mut output)
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "native wrapper compilation failed: IOError: File exists (os error 17)".to_owned()
             )
@@ -317,7 +312,7 @@ mod tests {
             native_build
                 .run(&mut output)
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(format!(
                 "filesystem operation failed for {MANIFEST}/backends: Not a directory (os error \
                  20)"
@@ -339,7 +334,7 @@ mod tests {
             native_build
                 .run(&mut output)
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(format!(
                 "ggml needs the OpenMP runtime [{:?}], which Apple's linker cannot link by its \
                  exact file name",

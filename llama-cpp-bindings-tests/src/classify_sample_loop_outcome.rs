@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
+use llama_cpp_chat::chat_output::ChatOutput;
 use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
 

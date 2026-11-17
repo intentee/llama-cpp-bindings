@@ -3,17 +3,16 @@ use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
 
-use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
-use llama_cpp_bindings::error::ingest_error::IngestError;
-use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
-use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
+use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings::token_piece::TokenPiece;
 use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
@@ -230,7 +229,7 @@ fn ingesting_a_token_outside_the_vocabulary_reports_it_in_every_classifier(
     let token = LlamaToken::new(model.n_vocab());
     let session = user_turn_chat_session(model, "hello", &[], false)?;
     let mut outcomes = Vec::new();
-    let expected = Err(IngestError::Detokenize(
+    let expected = Err(LlamaCppError::Detokenize(
         ModelError::TokenOutsideVocabulary {
             token,
             n_vocab: model.n_vocab(),
@@ -247,8 +246,8 @@ fn ingesting_a_token_outside_the_vocabulary_reports_it_in_every_classifier(
     Ok(())
 }
 
-fn failed_classification() -> Result<IngestError> {
-    Ok(IngestError::Classify(ParseChatMessageError::Reported {
+fn failed_classification() -> Result<LlamaCppError> {
+    Ok(LlamaCppError::Classify(ChatError::ParseReported {
         message: injected_fault_message()?,
     }))
 }
@@ -337,7 +336,7 @@ fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>)
                 &mut Vec::new(),
             )
             .err()
-            == Some(LlamaCppError::Ingest(failed_classification()?))
+            == Some(failed_classification()?)
     );
 
     Ok(())
@@ -409,9 +408,9 @@ fn a_chat_answer_classifier_reports_a_failed_reading_of_its_empty_answer(
 
     ensure!(
         SampledTokenClassifier::for_chat_session(model, session).err()
-            == Some(ParseChatMessageError::Reported {
+            == Some(LlamaCppError::Classify(ChatError::ParseReported {
                 message: injected_fault_message()?,
-            })
+            }))
     );
 
     Ok(())

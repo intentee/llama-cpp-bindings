@@ -798,7 +798,6 @@ mod tests {
 
     #[test]
     fn with_devices_sets_devices_when_available() {
-        #[cfg(feature = "dynamic-backends")]
         unsafe {
             llama_cpp_bindings_sys::ggml_backend_load_all();
         }

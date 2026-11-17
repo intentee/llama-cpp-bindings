@@ -3,13 +3,14 @@ use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::ensure;
 
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings_tests::chat_answer_generation::ChatAnswerGeneration;
 use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -32,9 +33,12 @@ fn generated_tool_call_answer(
     }
     .run()?;
 
-    answer.parse.into_recognized().map_err(|raw_chat_message| {
-        anyhow!("the generated answer must be recognized: {raw_chat_message:?}")
-    })
+    match answer.parse {
+        ChatMessageParseOutcome::Recognized(message) => Ok(message),
+        ChatMessageParseOutcome::Unrecognized(raw_chat_message) => Err(anyhow!(
+            "the generated answer must be recognized: {raw_chat_message:?}"
+        )),
+    }
 }
 
 #[llama_test(

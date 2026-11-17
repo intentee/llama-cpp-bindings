@@ -15,8 +15,5 @@ llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-ffi-status = { workspace = true }
 thiserror = { workspace = true }
 
-[features]
-dynamic-backends = ["llama-cpp-backend/dynamic-backends"]
-
 [lints]
 workspace = true

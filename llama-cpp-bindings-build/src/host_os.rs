@@ -41,6 +41,8 @@ impl HostOs {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::HostOs;
 
     #[test]
@@ -65,7 +67,7 @@ mod tests {
             HostOs::Unsupported
                 .android_ndk_tag()
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some("Unsupported host platform for Android NDK".to_owned())
         );
     }

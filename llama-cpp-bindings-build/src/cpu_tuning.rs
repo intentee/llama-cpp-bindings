@@ -164,6 +164,8 @@ impl CpuTuning {
 mod tests {
     use enumflags2::BitFlags;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::CpuTuning;
     use super::target_cpu_of;
 
@@ -370,7 +372,7 @@ mod tests {
                     &cargo_environment(BitFlags::empty(), &[]).with_non_unicode(name),
                 )
                 .err()
-                .map(|error| error.to_string())
+                .map(|error| error_chain(&error))
             }),
             ["CARGO_ENCODED_RUSTFLAGS", "CARGO_CFG_TARGET_FEATURE"].map(|name| Some(format!(
                 "environment variable {name} could not be read: environment variable was not \

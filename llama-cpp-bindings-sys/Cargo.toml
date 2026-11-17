@@ -73,6 +73,7 @@ doctest = false
 [dependencies]
 
 [build-dependencies]
+llama-cpp-error-chain = { workspace = true }
 llama-cpp-bindings-build = { workspace = true, features = [] }
 
 [features]

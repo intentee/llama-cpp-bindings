@@ -6,7 +6,7 @@ use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_model::model_error::ModelError;
 
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SamplerError {
     #[error("the grammar sampler callback failed during accept: {message}")]
     AcceptGrammarCallbackFailed { message: String },

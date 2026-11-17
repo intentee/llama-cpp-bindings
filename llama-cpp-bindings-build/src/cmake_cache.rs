@@ -70,6 +70,8 @@ impl CmakeCache {
 
 #[cfg(test)]
 pub mod tests {
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::CmakeCache;
     use crate::cmake_cache_entry::CmakeCacheEntry;
 
@@ -88,7 +90,7 @@ pub mod tests {
             }
             .switch("GGML_OPENMP_ENABLED")
             .err()
-            .map(|error| error.to_string()),
+            .map(|error| error_chain(&error)),
             Some(
                 "the CMake cache entry GGML_OPENMP_ENABLED is TRUE, neither ON nor OFF".to_owned()
             )

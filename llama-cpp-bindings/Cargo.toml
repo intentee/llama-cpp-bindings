@@ -12,34 +12,29 @@ doctest = false
 
 [dependencies]
 encoding_rs = { workspace = true }
-llama-cpp-backend = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
-llama-cpp-bindings-types = { workspace = true }
+llama-cpp-chat = { workspace = true }
 llama-cpp-context = { workspace = true }
-llama-cpp-ffi-status = { workspace = true }
-llama-cpp-gbnf = { workspace = true }
 llama-cpp-model = { workspace = true }
 llama-cpp-mtmd = { workspace = true }
-llama-cpp-params = { workspace = true }
 llama-cpp-sampler = { workspace = true }
 llama-cpp-token-usage = { workspace = true }
-serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [features]
 default = ["openmp", "android-shared-stdcxx"]
-cuda = ["llama-cpp-backend/cuda"]
-cuda-no-vmm = ["cuda", "llama-cpp-backend/cuda-no-vmm"]
-metal = ["llama-cpp-backend/metal"]
-dynamic-link = ["llama-cpp-backend/dynamic-link"]
-dynamic-backends = ["dynamic-link", "llama-cpp-backend/dynamic-backends"]
-vulkan = ["llama-cpp-backend/vulkan"]
-openmp = ["llama-cpp-backend/openmp"]
-rocm = ["llama-cpp-backend/rocm"]
-android-shared-stdcxx = ["llama-cpp-backend/android-shared-stdcxx"]
-android-static-stdcxx = ["llama-cpp-backend/android-static-stdcxx"]
-system-ggml = ["llama-cpp-backend/system-ggml"]
-system-ggml-static = ["system-ggml", "llama-cpp-backend/system-ggml-static"]
+cuda = ["llama-cpp-model/cuda"]
+cuda-no-vmm = ["cuda", "llama-cpp-model/cuda-no-vmm"]
+metal = ["llama-cpp-model/metal"]
+dynamic-link = ["llama-cpp-model/dynamic-link"]
+dynamic-backends = ["dynamic-link", "llama-cpp-model/dynamic-backends"]
+vulkan = ["llama-cpp-model/vulkan"]
+openmp = ["llama-cpp-model/openmp"]
+rocm = ["llama-cpp-model/rocm"]
+android-shared-stdcxx = ["llama-cpp-model/android-shared-stdcxx"]
+android-static-stdcxx = ["llama-cpp-model/android-static-stdcxx"]
+system-ggml = ["llama-cpp-model/system-ggml"]
+system-ggml-static = ["system-ggml", "llama-cpp-model/system-ggml-static"]
 
 [lints]
 workspace = true

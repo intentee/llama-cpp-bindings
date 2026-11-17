@@ -2,11 +2,11 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
-use llama_cpp_bindings::chat_output::ChatOutput;
-use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
-use llama_cpp_bindings::chat_session::ChatSession;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
+use llama_cpp_chat::chat_output::ChatOutput;
+use llama_cpp_chat::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_chat::chat_session::ChatSession;
 
 /// Parses `answer` with the session's parser.
 ///
@@ -33,6 +33,5 @@ pub fn recognized_answer(
 
     parse_outcome
         .into_recognized()
-        .ok()
         .context("the session's parser must recognize the answer")
 }

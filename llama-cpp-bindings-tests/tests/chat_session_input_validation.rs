@@ -3,13 +3,13 @@ use anyhow::bail;
 use anyhow::ensure;
 use std::ffi::CString;
 
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_model::model_error::ModelError;
 use llama_cpp_mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -69,7 +69,7 @@ fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
 
     ensure!(
         session.tokenize_prompt(model).err()
-            == Some(ChatSessionError::PromptTokenization(
+            == Some(ChatError::PromptTokenization(
                 ModelError::TokenizeTextContainsNulByte(nul_error)
             ))
     );
@@ -103,7 +103,7 @@ fn a_conversation_the_template_raises_on_is_refused_with_the_template_message(
 
     ensure!(
         result.err()
-            == Some(ChatSessionError::TemplateCannotServeRequest {
+            == Some(ChatError::TemplateCannotServeRequest {
                 message:
                     "Unable to generate parser for this template. Automatic parser generation \
                       failed: \n------------\nWhile executing CallExpression at line 19, column \

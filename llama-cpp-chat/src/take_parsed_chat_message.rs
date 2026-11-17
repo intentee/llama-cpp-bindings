@@ -8,18 +8,16 @@ use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
 use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
 use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 
+use crate::chat_error::ChatError;
 use crate::cpp_text_view::cpp_text_view;
-use crate::error::parse_chat_message_error::ParseChatMessageError;
 
-fn parsed_text(
-    read: impl FnOnce(*mut usize) -> *const c_char,
-) -> Result<String, ParseChatMessageError> {
+fn parsed_text(read: impl FnOnce(*mut usize) -> *const c_char) -> Result<String, ChatError> {
     let mut length = 0;
     let text = read(&raw mut length);
 
     unsafe { cpp_text_view(text, length) }
         .map(str::to_owned)
-        .map_err(ParseChatMessageError::ParsedTextNotUtf8)
+        .map_err(ChatError::ParsedTextNotUtf8)
 }
 
 fn tool_call_id_reported_by_llama_cpp(llama_cpp_tool_call_id: String) -> ParsedToolCallId {
@@ -34,7 +32,7 @@ fn tool_call_id_reported_by_llama_cpp(llama_cpp_tool_call_id: String) -> ParsedT
 fn parsed_tool_call(
     handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
     index: usize,
-) -> Result<ParsedToolCall, ParseChatMessageError> {
+) -> Result<ParsedToolCall, ChatError> {
     let id = parsed_text(|out_length| unsafe {
         llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_id(handle, index, out_length)
     })?;
@@ -54,7 +52,7 @@ fn parsed_tool_call(
 
 fn collect_parsed_chat_message(
     handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
-) -> Result<ParsedChatMessage, ParseChatMessageError> {
+) -> Result<ParsedChatMessage, ChatError> {
     let content = parsed_text(|out_length| unsafe {
         llama_cpp_bindings_sys::llama_rs_parsed_chat_content(handle, out_length)
     })?;
@@ -65,7 +63,7 @@ fn collect_parsed_chat_message(
         unsafe { llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_count(handle) };
     let tool_calls = (0..tool_call_count)
         .map(|index| parsed_tool_call(handle, index))
-        .collect::<Result<Vec<ParsedToolCall>, ParseChatMessageError>>()?;
+        .collect::<Result<Vec<ParsedToolCall>, ChatError>>()?;
 
     Ok(ParsedChatMessage::new(
         content,
@@ -78,11 +76,11 @@ fn collect_parsed_chat_message(
 ///
 /// # Errors
 ///
-/// Returns [`ParseChatMessageError`] when an accessor fails or reports text that is not UTF-8,
+/// Returns [`ChatError`] when an accessor fails or reports text that is not UTF-8,
 /// or when releasing the handle fails.
 pub fn take_parsed_chat_message(
     handle: NonNull<llama_cpp_bindings_sys::llama_rs_parsed_chat>,
-) -> Result<ParsedChatMessage, ParseChatMessageError> {
+) -> Result<ParsedChatMessage, ChatError> {
     let message = collect_parsed_chat_message(handle.as_ptr());
 
     unsafe { llama_cpp_bindings_sys::llama_rs_parsed_chat_free(handle.as_ptr()) };

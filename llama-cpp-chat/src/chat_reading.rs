@@ -8,6 +8,7 @@ use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_ffi_status::read_and_free_cpp_string::read_and_free_cpp_string;
 
 use crate::chat_classification::ChatClassification;
+use crate::chat_error::ChatError;
 use crate::chat_message_parse_outcome::ChatMessageParseOutcome;
 use crate::chat_output::ChatOutput;
 use crate::chat_output_completeness::ChatOutputCompleteness;
@@ -15,14 +16,13 @@ use crate::chat_span::ChatSpan;
 use crate::chat_span_kind::ChatSpanKind;
 use crate::chat_spans::ChatSpans;
 use crate::cpp_text_view::cpp_text_view;
-use crate::error::parse_chat_message_error::ParseChatMessageError;
-use crate::parsed_chat::take_parsed_chat_message;
 use crate::raw_chat_message::RawChatMessage;
+use crate::take_parsed_chat_message::take_parsed_chat_message;
 
 fn spans_of(
     reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
     completeness: ChatOutputCompleteness,
-) -> Result<ChatSpans, ParseChatMessageError> {
+) -> Result<ChatSpans, ChatError> {
     let view =
         unsafe { llama_cpp_bindings_sys::llama_rs_chat_reading_spans_view(reading.as_ptr()) };
     let wrapper_spans = NonNull::new(view.spans.cast_mut()).map_or(&[][..], |first_span| unsafe {
@@ -46,12 +46,12 @@ fn spans_of(
         )
         .collect::<Result<Vec<ChatSpan>, FfiError>>()
         .map(|spans| ChatSpans::new(view.parsed_length, &spans, completeness))
-        .map_err(ParseChatMessageError::from)
+        .map_err(ChatError::from)
 }
 
 fn expected_format_of(
     reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
-) -> Result<String, ParseChatMessageError> {
+) -> Result<String, ChatError> {
     let mut length = 0;
     let format_name = unsafe {
         llama_cpp_bindings_sys::llama_rs_chat_reading_format_name(reading.as_ptr(), &raw mut length)
@@ -59,14 +59,14 @@ fn expected_format_of(
 
     unsafe { cpp_text_view(format_name, length) }
         .map(str::to_owned)
-        .map_err(ParseChatMessageError::FormatNameNotUtf8)
+        .map_err(ChatError::FormatNameNotUtf8)
 }
 
 fn classification_of(
     reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
     output: &ChatOutput,
     completeness: ChatOutputCompleteness,
-) -> Result<ChatClassification, ParseChatMessageError> {
+) -> Result<ChatClassification, ChatError> {
     if unsafe { llama_cpp_bindings_sys::llama_rs_chat_reading_matches_format(reading.as_ptr()) } {
         return spans_of(reading, completeness).map(ChatClassification::Spans);
     }
@@ -84,7 +84,7 @@ fn chat_reading_parse_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_chat_reading_parse_status,
     out_handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
     out_error: *mut c_char,
-) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_parsed_chat>, ParseChatMessageError> {
+) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_parsed_chat>, ChatError> {
     const OPERATION: &str = "llama_rs_chat_reading_parse";
 
     match status {
@@ -97,7 +97,7 @@ fn chat_reading_parse_status_to_result(
                 .into()
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(ParseChatMessageError::Reported {
+            Err(ChatError::ParseReported {
                 message: unsafe {
                     read_and_free_cpp_string(
                         out_error,
@@ -108,10 +108,10 @@ fn chat_reading_parse_status_to_result(
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(ParseChatMessageError::NotEnoughMemory)
+            Err(ChatError::ParseNotEnoughMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(ParseChatMessageError::LlamaCppOutOfMemory)
+            Err(ChatError::ParseLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG => {
             Err(FfiError::ContractViolated {
@@ -144,7 +144,7 @@ fn chat_reading_parse_status_to_result(
 
 fn parsed_message_of(
     reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
-) -> Result<ChatMessageParseOutcome, ParseChatMessageError> {
+) -> Result<ChatMessageParseOutcome, ChatError> {
     let mut out_handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat = ptr::null_mut();
     let mut out_error: *mut c_char = ptr::null_mut();
     let status = unsafe {
@@ -168,7 +168,7 @@ fn parsed_message_of(
 pub struct ChatReading {
     reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
     classification: ChatClassification,
-    parse_outcome: OnceCell<Result<ChatMessageParseOutcome, ParseChatMessageError>>,
+    parse_outcome: OnceCell<Result<ChatMessageParseOutcome, ChatError>>,
 }
 
 unsafe impl Send for ChatReading {}
@@ -178,13 +178,13 @@ impl ChatReading {
     ///
     /// # Errors
     ///
-    /// Returns [`ParseChatMessageError`] when a span kind is unknown to this binding or the
+    /// Returns [`ChatError`] when a span kind is unknown to this binding or the
     /// expected format's name is not UTF-8; the reading is released either way.
     pub fn take(
         reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
         output: &ChatOutput,
         completeness: ChatOutputCompleteness,
-    ) -> Result<Self, ParseChatMessageError> {
+    ) -> Result<Self, ChatError> {
         match classification_of(reading, output, completeness) {
             Ok(classification) => Ok(Self {
                 reading,
@@ -209,9 +209,9 @@ impl ChatReading {
     ///
     /// # Errors
     ///
-    /// Returns the [`ParseChatMessageError`] of llama.cpp failing while mapping the parse into a
+    /// Returns the [`ChatError`] of llama.cpp failing while mapping the parse into a
     /// message, or reporting text that is not UTF-8.
-    pub fn parse(&self) -> Result<&ChatMessageParseOutcome, &ParseChatMessageError> {
+    pub fn parse(&self) -> Result<&ChatMessageParseOutcome, &ChatError> {
         self.parse_outcome
             .get_or_init(|| match &self.classification {
                 ChatClassification::Spans(_) => parsed_message_of(self.reading),
@@ -236,7 +236,7 @@ mod tests {
     use llama_cpp_ffi_status::ffi_error::FfiError;
 
     use super::chat_reading_parse_status_to_result;
-    use crate::error::parse_chat_message_error::ParseChatMessageError;
+    use crate::chat_error::ChatError;
 
     #[test]
     fn parsing_a_reading_maps_every_failure_status() {
@@ -244,7 +244,7 @@ mod tests {
             chat_reading_parse_status_to_result(status, ptr::null_mut(), out_error).err()
         };
         let contract = |detail| {
-            Some(ParseChatMessageError::Ffi(FfiError::ContractViolated {
+            Some(ChatError::Ffi(FfiError::ContractViolated {
                 operation: "llama_rs_chat_reading_parse",
                 detail,
             }))
@@ -288,19 +288,19 @@ mod tests {
             ],
             [
                 contract("success status contained a null handle"),
-                Some(ParseChatMessageError::Reported {
+                Some(ChatError::ParseReported {
                     message: "the mapper threw".to_owned()
                 }),
-                Some(ParseChatMessageError::Ffi(FfiError::ContractViolated {
+                Some(ChatError::Ffi(FfiError::ContractViolated {
                     operation: "llama_rs_chat_reading_parse",
                     detail: "reported a thrown C++ exception without an error message",
                 })),
-                Some(ParseChatMessageError::NotEnoughMemory),
-                Some(ParseChatMessageError::LlamaCppOutOfMemory),
+                Some(ChatError::ParseNotEnoughMemory),
+                Some(ChatError::ParseLlamaCppOutOfMemory),
                 contract("was given a null reading argument"),
                 contract("was given a null out_handle argument"),
                 contract("was given a null out_error argument"),
-                Some(ParseChatMessageError::Ffi(FfiError::UnknownStatus {
+                Some(ChatError::Ffi(FfiError::UnknownStatus {
                     operation: "llama_rs_chat_reading_parse",
                     code: 255
                 })),

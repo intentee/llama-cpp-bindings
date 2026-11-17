@@ -8,6 +8,9 @@ use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
+use llama_cpp_path_c_string::path_c_string::path_c_string;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
+
 use crate::gguf_context_error::GgufContextError;
 use crate::gguf_tensor_f32::GgufTensorF32;
 use crate::gguf_type::GgufType;
@@ -28,10 +31,10 @@ impl GgufContext {
     /// Returns [`GgufContextError::NulError`] if the path contains a null byte.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, GgufContextError> {
         let path_ref = path.as_ref();
-        let path_str = path_ref
-            .to_str()
-            .ok_or_else(|| GgufContextError::PathToStrError(path_ref.to_path_buf()))?;
-        let c_path = CString::new(path_str)?;
+        let c_path = path_c_string(path_ref).map_err(|error| match error {
+            PathCStringError::ContainsNulByte(source) => GgufContextError::NulError(source),
+            PathCStringError::NotUtf8(path) => GgufContextError::PathToStrError(path),
+        })?;
 
         let init_params = llama_cpp_bindings_sys::gguf_init_params {
             no_alloc: true,

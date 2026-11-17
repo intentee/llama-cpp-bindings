@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
+use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_token_usage::token_usage::TokenUsage;
 
 use crate::classify_sample_loop_outcome::ClassifySampleLoopOutcome;
@@ -77,7 +77,6 @@ impl ChatAnswer {
         let parsed = parse
             .clone()
             .into_recognized()
-            .ok()
             .context("the session's parser must recognize the generated answer")?;
         let observed_completion = outcome
             .observed_content

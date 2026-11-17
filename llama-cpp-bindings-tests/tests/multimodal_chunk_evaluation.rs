@@ -3,8 +3,8 @@ use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
 
-use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
+use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
@@ -580,7 +580,7 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
                 logits_last: true,
             },
         ),
-        Err(EvalMultimodalChunksError::EvalFailed(
+        Err(LlamaCppError::MultimodalChunksEval(
             MtmdError::NonPositiveBatchSize { requested: 0 }
         ))
     ));
@@ -855,7 +855,7 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
 
     ensure!(matches!(
         evaluation,
-        Err(EvalMultimodalChunksError::EvalFailed(
+        Err(LlamaCppError::MultimodalChunksEval(
             MtmdError::NonCausalChunkExceedsMicroBatch(NonCausalChunkMicroBatchMismatch {
                 micro_batch_tokens,
                 ..
@@ -915,9 +915,9 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
                 logits_last: true,
             },
         ),
-        Err(EvalMultimodalChunksError::EvalFailed(
-            MtmdError::EvalFailed { code: 1 }
-        ))
+        Err(LlamaCppError::MultimodalChunksEval(MtmdError::EvalFailed {
+            code: 1
+        }))
     ));
     ensure!(classifier.usage().input_image == 0);
 
@@ -1049,7 +1049,7 @@ fn classifier_reports_a_fitted_chunk_llama_cpp_no_longer_returns(
                 n_batch: 256,
                 logits_last: true,
             },
-        ) == Err(EvalMultimodalChunksError::ChunkOutOfBounds(0))
+        ) == Err(LlamaCppError::ChunkOutOfBounds(0))
     );
 
     Ok(())

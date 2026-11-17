@@ -76,6 +76,8 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::CompileCommandsFile;
     use crate::constants::WRAPPER_INCLUDE_DIRS;
     use crate::system_include_flags::system_include_flags;
@@ -178,7 +180,7 @@ mod tests {
             database_for("/nonexistent-directory/compile_commands.json")
                 .write()
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "compilation database file /nonexistent-directory/compile_commands.json could \
                  not be created: No such file or directory (os error 2)"
@@ -194,7 +196,7 @@ mod tests {
             database_for("/dev/full")
                 .write()
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "compilation database could not be written to /dev/full: No space left on \
                  device (os error 28)"

@@ -1,6 +1,8 @@
 use std::ffi::CString;
 use std::path::Path;
 
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
+
 use crate::model_error::ModelError;
 
 /// # Errors
@@ -8,11 +10,10 @@ use crate::model_error::ModelError;
 /// Returns [`ModelError::PathNotUtf8`] when `path` is not valid UTF-8, or
 /// [`ModelError::PathContainsNulByte`] when it contains a NUL byte.
 pub fn path_c_string(path: &Path) -> Result<CString, ModelError> {
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| ModelError::PathNotUtf8(path.to_path_buf()))?;
-
-    CString::new(path_str).map_err(ModelError::PathContainsNulByte)
+    llama_cpp_path_c_string::path_c_string::path_c_string(path).map_err(|error| match error {
+        PathCStringError::ContainsNulByte(source) => ModelError::PathContainsNulByte(source),
+        PathCStringError::NotUtf8(path) => ModelError::PathNotUtf8(path),
+    })
 }
 
 #[cfg(test)]

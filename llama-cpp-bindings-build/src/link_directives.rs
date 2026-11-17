@@ -285,6 +285,8 @@ mod tests {
 
     use enumflags2::BitFlags;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::LinkDirectives;
     use crate::build_context::BuildContext;
     use crate::build_context::tests::android_overrides;
@@ -637,7 +639,7 @@ mod tests {
 
             LinkDirectives::of(&BuildContext::of_linux_host(&environment), &environment)
                 .err()
-                .map(|error| error.to_string())
+                .map(|error| error_chain(&error))
         };
 
         assert_eq!(
