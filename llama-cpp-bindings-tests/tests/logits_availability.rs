@@ -40,7 +40,7 @@ fn sampling_after_a_pooled_embeddings_decode_is_refused_instead_of_aborting(
 }
 
 #[llama_test(
-    model_source = HuggingFace("LiquidAI/LFM2-ColBERT-350M-GGUF", "LFM2-ColBERT-350M-Q4_K_M.gguf"),
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,

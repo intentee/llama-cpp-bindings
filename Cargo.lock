@@ -1241,7 +1241,6 @@ dependencies = [
  "llama-cpp-fault-injection",
  "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
- "llama-cpp-gguf",
  "llama-cpp-model",
  "llama-cpp-mtmd",
  "llama-cpp-params",

@@ -6,11 +6,11 @@ use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
-const LFM2_COLBERT_OUTPUT_PROJECTION_WIDTH: usize = 128;
+const LAYA_QUESTION_TYPE_SCORES: usize = 3;
 const QWEN3_RERANKER_CLASSIFIER_LABELS: usize = 2;
 
 #[llama_test(
-    model_source = HuggingFace("LiquidAI/LFM2-ColBERT-350M-GGUF", "LFM2-ColBERT-350M-Q4_K_M.gguf"),
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -21,13 +21,13 @@ const QWEN3_RERANKER_CLASSIFIER_LABELS: usize = 2;
 fn token_embeddings_are_as_wide_as_the_output_projection(fixture: &LlamaFixture<'_>) -> Result<()> {
     let context = context_after_decoding_text(fixture, LlamaPoolingType::None)?;
 
-    ensure!(context.embeddings_ith(0)?.len() == LFM2_COLBERT_OUTPUT_PROJECTION_WIDTH);
+    ensure!(context.embeddings_ith(0)?.len() == LAYA_QUESTION_TYPE_SCORES);
 
     Ok(())
 }
 
 #[llama_test(
-    model_source = HuggingFace("LiquidAI/LFM2-ColBERT-350M-GGUF", "LFM2-ColBERT-350M-Q4_K_M.gguf"),
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -40,7 +40,7 @@ fn pooled_sequence_embeddings_are_as_wide_as_the_output_projection(
 ) -> Result<()> {
     let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean)?;
 
-    ensure!(context.embeddings_seq_ith(0)?.len() == LFM2_COLBERT_OUTPUT_PROJECTION_WIDTH);
+    ensure!(context.embeddings_seq_ith(0)?.len() == LAYA_QUESTION_TYPE_SCORES);
 
     Ok(())
 }

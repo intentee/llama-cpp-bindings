@@ -1,21 +1,23 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::ensure;
-use std::env;
-use std::fs;
-use std::process;
+use std::path::Path;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokenizerEnv as _;
 
-use llama_cpp_gguf::gguf_context::GgufContext;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
+const WORDPIECE_VOCABULARY_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../llama-cpp-gguf/fixtures/ggml-vocab-bert-bge.gguf"
+);
+
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("Xiaojian9992024/t5-small-GGUF", "t5-small.bf16.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -34,7 +36,7 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
 }
 
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("Xiaojian9992024/t5-small-GGUF", "t5-small.bf16.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -42,29 +44,14 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
     n_ubatch = 64,
     embeddings = true,
 )]
-fn approximate_tok_env_of_a_model_without_eot_and_eos_has_no_eos(
-    &LlamaFixture {
-        backend,
-        model_path,
-        ..
-    }: &LlamaFixture<'_>,
+fn approximate_tok_env_of_a_vocabulary_without_eot_and_eos_has_no_eos(
+    &LlamaFixture { backend, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model_without_eos_path = env::temp_dir().join(format!(
-        "llama_cpp_bindings_{}_model_without_eos.gguf",
-        process::id()
-    ));
-    let mut gguf_context = GgufContext::from_file(model_path)?;
-
-    gguf_context.remove_key("tokenizer.ggml.eos_token_id")?;
-    gguf_context.write_to_file(&model_without_eos_path)?;
-
     let model_without_eos = LlamaModel::load_from_file(
         backend,
-        &model_without_eos_path,
-        &LlamaModelParams::default(),
+        Path::new(WORDPIECE_VOCABULARY_PATH),
+        &LlamaModelParams::default().with_vocab_only(true),
     )?;
-
-    fs::remove_file(&model_without_eos_path)?;
 
     ensure!(
         model_without_eos

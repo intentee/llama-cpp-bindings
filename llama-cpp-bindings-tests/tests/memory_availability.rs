@@ -11,7 +11,7 @@ use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -41,7 +41,7 @@ fn a_causal_embedding_context_keeps_memory(fixture: &LlamaFixture<'_>) -> Result
 }
 
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -64,7 +64,7 @@ fn memory_edits_without_a_memory_module_trivially_succeed(
 }
 
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -97,7 +97,7 @@ fn memory_operations_needing_a_memory_module_report_its_absence(
 }
 
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,

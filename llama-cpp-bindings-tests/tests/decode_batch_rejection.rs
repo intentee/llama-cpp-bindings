@@ -84,7 +84,7 @@ fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_is_refuse
 }
 
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
