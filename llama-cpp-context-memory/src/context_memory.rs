@@ -382,15 +382,14 @@ mod tests {
         vocabulary_size: 100,
     };
 
+    const fn keep_out_of_range(seq_id: i32, n_seq_max: u32) -> ContextMemoryError {
+        ContextMemoryError::SeqKeepSequenceIdOutOfRange { seq_id, n_seq_max }
+    }
+
     #[test]
     fn a_sequence_the_context_holds_is_accepted() {
         assert_eq!(
-            ensure_sequence_id(LIMITS, 1, |n_seq_max| {
-                ContextMemoryError::SeqKeepSequenceIdOutOfRange {
-                    seq_id: 1,
-                    n_seq_max,
-                }
-            }),
+            ensure_sequence_id(LIMITS, 1, |n_seq_max| keep_out_of_range(1, n_seq_max)),
             Ok(())
         );
     }
@@ -399,7 +398,7 @@ mod tests {
     fn a_sequence_the_context_lacks_is_refused_with_the_sequence_count() {
         assert_eq!(
             [-1, 2].map(|seq_id| ensure_sequence_id(LIMITS, seq_id, |n_seq_max| {
-                ContextMemoryError::SeqKeepSequenceIdOutOfRange { seq_id, n_seq_max }
+                keep_out_of_range(seq_id, n_seq_max)
             })),
             [-1, 2].map(
                 |seq_id| Err(ContextMemoryError::SeqKeepSequenceIdOutOfRange {
