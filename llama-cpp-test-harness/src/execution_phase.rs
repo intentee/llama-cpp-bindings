@@ -1,9 +1,9 @@
-use llama_cpp_test_model_provisioning::load_key::LoadKey;
+use llama_cpp_test_model_provisioning::model_key::ModelKey;
 
 use crate::llama_test_registration::LlamaTestRegistration;
 
 pub struct ExecutionPhase {
-    pub key: LoadKey,
+    pub key: ModelKey,
     pub registrations: Vec<&'static LlamaTestRegistration>,
 }
 
@@ -29,16 +29,15 @@ impl ExecutionPhase {
 mod tests {
     use llama_cpp_params::llama_load_mode::LlamaLoadMode;
     use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
-    use llama_cpp_test_model_provisioning::load_key::LoadKey;
+    use llama_cpp_test_model_provisioning::model_key::ModelKey;
     use llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams;
 
     use super::ExecutionPhase;
 
     fn phase_with_source(source: GgufSource) -> ExecutionPhase {
         ExecutionPhase {
-            key: LoadKey {
+            key: ModelKey {
                 model_source: source,
-                mmproj_source: None,
                 model_load_params: ModelLoadParams {
                     n_gpu_layers: 7,
                     load_mode: LlamaLoadMode::Mmap,

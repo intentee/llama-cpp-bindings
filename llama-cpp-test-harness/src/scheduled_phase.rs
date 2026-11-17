@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use libtest_mimic::Arguments;
@@ -5,48 +7,31 @@ use libtest_mimic::Conclusion;
 use libtest_mimic::Trial;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
+use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
 use llama_cpp_test_model_provisioning::phase_setup::PhaseSetup;
+use llama_cpp_test_model_provisioning::phase_setup_error::PhaseSetupError;
+use llama_cpp_test_model_provisioning::projector_setup::ProjectorSetup;
 
 use crate::execution_phase::ExecutionPhase;
-use crate::llama_fixture::LlamaFixture;
 use crate::llama_test_registration::LlamaTestRegistration;
-use crate::trial_outcome::TrialOutcome;
+use crate::trial_setup::TrialSetup;
 
-fn trial_outcome<'setup>(
-    LlamaTestRegistration {
-        func,
-        context_params,
-        ..
-    }: &'static LlamaTestRegistration,
-    setup: &'setup PhaseSetup,
-) -> TrialOutcome<'setup> {
-    match setup.load_phase_state() {
-        Ok(state) => match func.run(&LlamaFixture {
-            model: &state.model,
-            backend: &state.backend,
-            context_params,
-            mtmd_context: state.mtmd_context.as_ref(),
-            model_path: &state.model_path,
-        }) {
-            Ok(()) => TrialOutcome::Succeeded,
-            Err(test_failure) => TrialOutcome::TestFailed(test_failure),
-        },
-        Err(setup_failure) => TrialOutcome::PhaseSetupFailed(setup_failure),
-    }
-}
-
-fn trial(registration: &'static LlamaTestRegistration, setup: &Arc<PhaseSetup>) -> Trial {
-    let setup = Arc::clone(setup);
+fn trial(registration: &'static LlamaTestRegistration, trial_setup: TrialSetup) -> Trial {
     let expected_outcome = registration.expected_outcome;
 
     expected_outcome.label(Trial::test(registration.name, move || {
-        expected_outcome.judge(trial_outcome(registration, &setup))
+        expected_outcome.judge(trial_setup.trial_outcome(registration))
     }))
+}
+
+fn selects(arguments: &Arguments, trial: &Trial) -> bool {
+    !arguments.list && !arguments.is_filtered_out(trial) && !arguments.is_ignored(trial)
 }
 
 pub struct ScheduledPhase<'plan> {
     pub phase: &'plan ExecutionPhase,
     pub setup: Arc<PhaseSetup>,
+    pub projector_setups: BTreeMap<GgufSource, Arc<ProjectorSetup>>,
     pub trials: Vec<Trial>,
 }
 
@@ -54,23 +39,48 @@ impl<'plan> ScheduledPhase<'plan> {
     #[must_use]
     pub fn new(phase: &'plan ExecutionPhase, backend: &Arc<LlamaBackend>) -> Self {
         let setup = Arc::new(PhaseSetup::new(phase.key, Arc::clone(backend)));
+        let mut projector_setups = BTreeMap::new();
         let trials = phase
             .registrations
             .iter()
-            .map(|registration| trial(registration, &setup))
+            .map(|registration| {
+                let trial_setup = registration.key.mmproj_source.map_or_else(
+                    || TrialSetup::ModelOnly(Arc::clone(&setup)),
+                    |mmproj_source| {
+                        TrialSetup::WithProjector(Arc::clone(
+                            projector_setups.entry(mmproj_source).or_insert_with(|| {
+                                Arc::new(ProjectorSetup::new(mmproj_source, Arc::clone(&setup)))
+                            }),
+                        ))
+                    },
+                );
+
+                trial(registration, trial_setup)
+            })
             .collect();
 
         Self {
             phase,
             setup,
+            projector_setups,
             trials,
         }
     }
 
+    #[must_use]
+    pub fn download_failures(&self, arguments: &Arguments) -> Vec<&PhaseSetupError> {
+        if !self.selects_any_trial(arguments) {
+            return Vec::new();
+        }
+
+        match self.setup.download_model_file() {
+            Ok(_) => self.mmproj_download_failures(arguments),
+            Err(download_failure) => vec![download_failure],
+        }
+    }
+
     pub fn download_model_files(&self, arguments: &Arguments) {
-        if self.selects_any_trial(arguments)
-            && let Err(download_failure) = self.setup.download_model_files()
-        {
+        for download_failure in self.download_failures(arguments) {
             eprintln!("model files download failed: {download_failure:#}");
         }
     }
@@ -88,22 +98,42 @@ impl<'plan> ScheduledPhase<'plan> {
     }
 
     #[must_use]
+    pub fn selected_mmproj_sources(&self, arguments: &Arguments) -> BTreeSet<GgufSource> {
+        self.phase
+            .registrations
+            .iter()
+            .zip(&self.trials)
+            .filter(|(_, trial)| selects(arguments, trial))
+            .filter_map(|(registration, _)| registration.key.mmproj_source)
+            .collect()
+    }
+
+    #[must_use]
     pub fn selects_any_trial(&self, arguments: &Arguments) -> bool {
-        !arguments.list
-            && self
-                .trials
-                .iter()
-                .any(|trial| !arguments.is_filtered_out(trial) && !arguments.is_ignored(trial))
+        self.trials.iter().any(|trial| selects(arguments, trial))
+    }
+
+    fn mmproj_download_failures(&self, arguments: &Arguments) -> Vec<&PhaseSetupError> {
+        let selected_mmproj_sources = self.selected_mmproj_sources(arguments);
+
+        self.projector_setups
+            .iter()
+            .filter(|(mmproj_source, _)| selected_mmproj_sources.contains(mmproj_source))
+            .filter_map(|(_, projector_setup)| projector_setup.download_mmproj_file().err())
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::iter;
     use std::sync::Arc;
+    use std::sync::LazyLock;
     use std::sync::PoisonError;
 
     use libtest_mimic::Arguments;
+    use libtest_mimic::Conclusion;
 
     use llama_cpp_backend::llama_backend::LlamaBackend;
     use llama_cpp_params::llama_load_mode::LlamaLoadMode;
@@ -121,13 +151,36 @@ mod tests {
     use crate::llama_test_fn::LlamaTestFn;
     use crate::llama_test_registration::LlamaTestRegistration;
 
+    const MODEL_LOAD_PARAMS: ModelLoadParams = ModelLoadParams {
+        n_gpu_layers: 0,
+        load_mode: LlamaLoadMode::Mmap,
+    };
+
+    const NON_GGUF_MODEL: GgufSource =
+        GgufSource::LocalPath(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
+
+    const MISSING_MODEL: GgufSource = GgufSource::HuggingFace {
+        repo: "intentee-test-harness/does-not-exist",
+        file: "no-such-file.gguf",
+    };
+
+    const LOCAL_MMPROJ: GgufSource =
+        GgufSource::LocalPath("/nonexistent/llama-cpp-test-harness/mmproj.gguf");
+
+    const MISSING_MMPROJ: GgufSource = GgufSource::HuggingFace {
+        repo: "intentee-test-harness/does-not-exist",
+        file: "no-such-mmproj.gguf",
+    };
+
+    const SKIPPED_MMPROJ: GgufSource = GgufSource::HuggingFace {
+        repo: "intentee-test-harness/does-not-exist",
+        file: "no-such-skipped-mmproj.gguf",
+    };
+
     const LOAD_KEY: LoadKey = LoadKey {
-        model_source: GgufSource::LocalPath("/nonexistent/llama-cpp-test-harness/model.gguf"),
+        model_source: NON_GGUF_MODEL,
         mmproj_source: None,
-        model_load_params: ModelLoadParams {
-            n_gpu_layers: 0,
-            load_mode: LlamaLoadMode::Mmap,
-        },
+        model_load_params: MODEL_LOAD_PARAMS,
     };
 
     const CONTEXT_PARAMS: ContextParams = ContextParams {
@@ -138,6 +191,28 @@ mod tests {
         n_threads_batch: None,
         embeddings: false,
     };
+
+    fn registration_expecting(
+        name: &'static str,
+        model_source: GgufSource,
+        mmproj_source: Option<GgufSource>,
+        expected_kind: PhaseSetupFailureKind,
+    ) -> LlamaTestRegistration {
+        LlamaTestRegistration {
+            name,
+            key: LoadKey {
+                model_source,
+                mmproj_source,
+                model_load_params: MODEL_LOAD_PARAMS,
+            },
+            context_params: CONTEXT_PARAMS,
+            func: LlamaTestFn::no_op(),
+            expected_outcome: ExpectedOutcome::Failure {
+                failure: ExpectedFailure::PhaseSetup(expected_kind),
+                reason: "the setup fails on purpose",
+            },
+        }
+    }
 
     static REGISTRATION: LlamaTestRegistration = LlamaTestRegistration {
         name: "scheduled_trial",
@@ -158,7 +233,81 @@ mod tests {
         },
     };
 
-    fn with_scheduled_phase<TResult, TUse: FnOnce(&ScheduledPhase<'_>) -> TResult>(
+    static WITHOUT_MMPROJ_ON_A_NON_GGUF_MODEL: LazyLock<LlamaTestRegistration> =
+        LazyLock::new(|| {
+            registration_expecting(
+                "without_mmproj_on_a_non_gguf_model",
+                NON_GGUF_MODEL,
+                None,
+                PhaseSetupFailureKind::ModelLoad,
+            )
+        });
+
+    static LOCAL_MMPROJ_ON_A_NON_GGUF_MODEL: LazyLock<LlamaTestRegistration> =
+        LazyLock::new(|| {
+            registration_expecting(
+                "local_mmproj_on_a_non_gguf_model",
+                NON_GGUF_MODEL,
+                Some(LOCAL_MMPROJ),
+                PhaseSetupFailureKind::ModelLoad,
+            )
+        });
+
+    static SECOND_LOCAL_MMPROJ_ON_A_NON_GGUF_MODEL: LazyLock<LlamaTestRegistration> =
+        LazyLock::new(|| {
+            registration_expecting(
+                "second_local_mmproj_on_a_non_gguf_model",
+                NON_GGUF_MODEL,
+                Some(LOCAL_MMPROJ),
+                PhaseSetupFailureKind::ModelLoad,
+            )
+        });
+
+    static MISSING_MMPROJ_ON_A_NON_GGUF_MODEL: LazyLock<LlamaTestRegistration> =
+        LazyLock::new(|| {
+            registration_expecting(
+                "missing_mmproj_on_a_non_gguf_model",
+                NON_GGUF_MODEL,
+                Some(MISSING_MMPROJ),
+                PhaseSetupFailureKind::MmprojDownload,
+            )
+        });
+
+    static SKIPPED_MMPROJ_ON_A_NON_GGUF_MODEL: LazyLock<LlamaTestRegistration> =
+        LazyLock::new(|| {
+            registration_expecting(
+                "skipped_mmproj_on_a_non_gguf_model",
+                NON_GGUF_MODEL,
+                Some(SKIPPED_MMPROJ),
+                PhaseSetupFailureKind::MmprojDownload,
+            )
+        });
+
+    static WITHOUT_MMPROJ_ON_A_MISSING_MODEL: LazyLock<LlamaTestRegistration> =
+        LazyLock::new(|| {
+            registration_expecting(
+                "without_mmproj_on_a_missing_model",
+                MISSING_MODEL,
+                None,
+                PhaseSetupFailureKind::ModelDownload,
+            )
+        });
+
+    static LOCAL_MMPROJ_ON_A_MISSING_MODEL: LazyLock<LlamaTestRegistration> = LazyLock::new(|| {
+        registration_expecting(
+            "local_mmproj_on_a_missing_model",
+            MISSING_MODEL,
+            Some(LOCAL_MMPROJ),
+            PhaseSetupFailureKind::ModelDownload,
+        )
+    });
+
+    fn arguments_with(harness_arguments: &[&str]) -> Arguments {
+        Arguments::from_iter(iter::once("harness").chain(harness_arguments.iter().copied()))
+    }
+
+    fn with_scheduled_phase<TResult, TUse: FnOnce(ScheduledPhase<'_>) -> TResult>(
+        model_source: GgufSource,
         registrations: Vec<&'static LlamaTestRegistration>,
         use_scheduled_phase: TUse,
     ) -> TResult {
@@ -167,19 +316,37 @@ mod tests {
             .unwrap_or_else(PoisonError::into_inner);
         let backend = Arc::new(LlamaBackend::init().expect("backend init must succeed"));
         let phase = ExecutionPhase {
-            key: LOAD_KEY,
+            key: LoadKey {
+                model_source,
+                mmproj_source: None,
+                model_load_params: MODEL_LOAD_PARAMS,
+            }
+            .model_key(),
             registrations,
         };
 
-        use_scheduled_phase(&ScheduledPhase::new(&phase, &backend))
+        use_scheduled_phase(ScheduledPhase::new(&phase, &backend))
     }
 
     fn selects_any_trial_with(harness_arguments: &[&str]) -> bool {
-        let arguments =
-            Arguments::from_iter(iter::once("harness").chain(harness_arguments.iter().copied()));
+        let arguments = arguments_with(harness_arguments);
 
-        with_scheduled_phase(vec![&REGISTRATION], |scheduled_phase| {
+        with_scheduled_phase(NON_GGUF_MODEL, vec![&REGISTRATION], |scheduled_phase| {
             scheduled_phase.selects_any_trial(&arguments)
+        })
+    }
+
+    fn conclusion_of_downloading_then_running(
+        model_source: GgufSource,
+        registrations: Vec<&'static LlamaTestRegistration>,
+        harness_arguments: &[&str],
+    ) -> Conclusion {
+        let arguments = arguments_with(harness_arguments);
+
+        with_scheduled_phase(model_source, registrations, |scheduled_phase| {
+            scheduled_phase.download_model_files(&arguments);
+
+            scheduled_phase.run(0, 1, &arguments)
         })
     }
 
@@ -187,6 +354,7 @@ mod tests {
     fn only_a_trial_declared_to_fail_is_labelled_with_the_failure_it_expects_and_why() {
         assert_eq!(
             with_scheduled_phase(
+                NON_GGUF_MODEL,
                 vec![&REGISTRATION, &FAILING_ON_PURPOSE_REGISTRATION],
                 |scheduled_phase| {
                     scheduled_phase
@@ -216,5 +384,104 @@ mod tests {
     #[test]
     fn selects_no_trial_when_listing() {
         assert!(!selects_any_trial_with(&["--list"]));
+    }
+
+    #[test]
+    fn a_phase_whose_trials_are_all_filtered_out_attempts_no_download() {
+        let arguments = arguments_with(&["--exact", "another_trial"]);
+
+        assert_eq!(
+            with_scheduled_phase(
+                MISSING_MODEL,
+                vec![&WITHOUT_MMPROJ_ON_A_MISSING_MODEL],
+                |scheduled_phase| scheduled_phase.download_failures(&arguments).len()
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn selects_only_the_mmproj_sources_of_trials_that_are_not_filtered_out() {
+        let arguments = arguments_with(&["--skip", "skipped_mmproj"]);
+
+        assert_eq!(
+            with_scheduled_phase(
+                NON_GGUF_MODEL,
+                vec![
+                    &WITHOUT_MMPROJ_ON_A_NON_GGUF_MODEL,
+                    &LOCAL_MMPROJ_ON_A_NON_GGUF_MODEL,
+                    &SKIPPED_MMPROJ_ON_A_NON_GGUF_MODEL,
+                ],
+                |scheduled_phase| scheduled_phase.selected_mmproj_sources(&arguments)
+            ),
+            BTreeSet::from([LOCAL_MMPROJ])
+        );
+    }
+
+    #[test]
+    fn trials_sharing_an_mmproj_source_share_one_projector_setup() {
+        assert_eq!(
+            with_scheduled_phase(
+                NON_GGUF_MODEL,
+                vec![
+                    &WITHOUT_MMPROJ_ON_A_NON_GGUF_MODEL,
+                    &LOCAL_MMPROJ_ON_A_NON_GGUF_MODEL,
+                    &SECOND_LOCAL_MMPROJ_ON_A_NON_GGUF_MODEL,
+                    &MISSING_MMPROJ_ON_A_NON_GGUF_MODEL,
+                ],
+                |scheduled_phase| {
+                    scheduled_phase
+                        .projector_setups
+                        .keys()
+                        .copied()
+                        .collect::<Vec<GgufSource>>()
+                }
+            ),
+            [MISSING_MMPROJ, LOCAL_MMPROJ]
+        );
+    }
+
+    #[test]
+    fn a_model_that_cannot_be_downloaded_fails_every_trial_of_its_phase() {
+        assert_eq!(
+            conclusion_of_downloading_then_running(
+                MISSING_MODEL,
+                vec![
+                    &WITHOUT_MMPROJ_ON_A_MISSING_MODEL,
+                    &LOCAL_MMPROJ_ON_A_MISSING_MODEL,
+                ],
+                &["--test-threads=1"],
+            ),
+            Conclusion {
+                num_filtered_out: 0,
+                num_passed: 2,
+                num_failed: 0,
+                num_ignored: 0,
+                num_measured: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn each_trial_fails_with_the_setup_failure_of_the_part_it_depends_on() {
+        assert_eq!(
+            conclusion_of_downloading_then_running(
+                NON_GGUF_MODEL,
+                vec![
+                    &WITHOUT_MMPROJ_ON_A_NON_GGUF_MODEL,
+                    &LOCAL_MMPROJ_ON_A_NON_GGUF_MODEL,
+                    &MISSING_MMPROJ_ON_A_NON_GGUF_MODEL,
+                    &SKIPPED_MMPROJ_ON_A_NON_GGUF_MODEL,
+                ],
+                &["--test-threads=1", "--skip", "skipped_mmproj"],
+            ),
+            Conclusion {
+                num_filtered_out: 1,
+                num_passed: 3,
+                num_failed: 0,
+                num_ignored: 0,
+                num_measured: 0,
+            }
+        );
     }
 }

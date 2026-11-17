@@ -17,9 +17,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn phase_a_passing_trial_that_only_needs_its_model_to_load(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
+fn a_trial_passes_once_its_model_has_loaded(fixture: &LlamaFixture<'_>) -> Result<()> {
     LlamaTestFn::no_op().run(fixture)
 }
 
@@ -31,7 +29,9 @@ fn phase_a_passing_trial_that_only_needs_its_model_to_load(
     n_batch = 128,
     n_ubatch = 64
 )]
-fn phase_a_second_passing_trial(&LlamaFixture { context_params, .. }: &LlamaFixture<'_>) {
+fn a_trial_receives_its_declared_context_size(
+    &LlamaFixture { context_params, .. }: &LlamaFixture<'_>,
+) {
     assert_eq!(context_params.n_ctx, 512);
 }
 
@@ -44,7 +44,7 @@ fn phase_a_second_passing_trial(&LlamaFixture { context_params, .. }: &LlamaFixt
     n_ubatch = 64,
     expected_failure = TestFailure("the body bails to exercise reporting a failing test"),
 )]
-fn phase_a_intentionally_failing_trial(_fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_trial_expected_to_fail_passes_when_its_body_fails(_fixture: &LlamaFixture<'_>) -> Result<()> {
     bail!("intentional failure to exercise the trial-failure dispatch path");
 }
 
@@ -56,7 +56,9 @@ fn phase_a_intentionally_failing_trial(_fixture: &LlamaFixture<'_>) -> Result<()
     n_batch = 128,
     n_ubatch = 64
 )]
-fn phase_b_first_passing_trial(&LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>) {
+fn an_embedding_model_trial_without_an_mmproj_sees_no_projector(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) {
     assert!(mtmd_context.is_none());
 }
 
@@ -68,7 +70,9 @@ fn phase_b_first_passing_trial(&LlamaFixture { mtmd_context, .. }: &LlamaFixture
     n_batch = 128,
     n_ubatch = 64
 )]
-fn phase_b_second_passing_trial(&LlamaFixture { context_params, .. }: &LlamaFixture<'_>) {
+fn a_trial_receives_its_declared_micro_batch_size(
+    &LlamaFixture { context_params, .. }: &LlamaFixture<'_>,
+) {
     assert_eq!(context_params.n_ubatch, 64);
 }
 
@@ -130,7 +134,7 @@ fn phase_b_second_passing_trial(&LlamaFixture { context_params, .. }: &LlamaFixt
         "Cargo.toml is not a GGUF model, so llama.cpp cannot load it"
     ),
 )]
-fn phase_a_trial_also_scheduled_into_every_setup_failure_phase(
+fn a_trial_sees_its_model_file_unless_its_setup_is_expected_to_fail(
     &LlamaFixture { model_path, .. }: &LlamaFixture<'_>,
 ) {
     assert!(model_path.exists());
@@ -145,7 +149,7 @@ fn phase_a_trial_also_scheduled_into_every_setup_failure_phase(
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf")
 )]
-fn phase_d_passing_trial_with_a_loaded_mmproj(
+fn a_trial_declaring_an_mmproj_sees_its_projector(
     &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) {
     assert!(
@@ -154,7 +158,24 @@ fn phase_d_passing_trial_with_a_loaded_mmproj(
     );
 }
 
-const EXPECTED_PHASES: usize = 7;
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64
+)]
+fn trial_without_an_mmproj_sees_no_projector_after_its_model_loaded_one(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) {
+    assert!(
+        mtmd_context.is_none(),
+        "no mmproj_source declared, but fixture.mtmd_context is Some",
+    );
+}
+
+const EXPECTED_PHASES: usize = 4;
 
 fn main() -> ExitCode {
     let conclusions = match run_to_conclusions(Arguments::from_args()) {

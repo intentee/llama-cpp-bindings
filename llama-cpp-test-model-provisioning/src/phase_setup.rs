@@ -3,48 +3,48 @@ use std::sync::OnceLock;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
 
-use crate::load_key::LoadKey;
-use crate::phase_model_files::PhaseModelFiles;
+use crate::model_file::ModelFile;
+use crate::model_key::ModelKey;
 use crate::phase_setup_error::PhaseSetupError;
 use crate::phase_state::PhaseState;
 
 pub struct PhaseSetup {
-    key: LoadKey,
+    key: ModelKey,
     backend: Arc<LlamaBackend>,
-    model_files: OnceLock<Result<PhaseModelFiles, PhaseSetupError>>,
+    model_file: OnceLock<Result<ModelFile, PhaseSetupError>>,
     phase_state: OnceLock<Result<PhaseState, PhaseSetupError>>,
 }
 
 impl PhaseSetup {
     #[must_use]
-    pub const fn new(key: LoadKey, backend: Arc<LlamaBackend>) -> Self {
+    pub const fn new(key: ModelKey, backend: Arc<LlamaBackend>) -> Self {
         Self {
             key,
             backend,
-            model_files: OnceLock::new(),
+            model_file: OnceLock::new(),
             phase_state: OnceLock::new(),
         }
     }
 
     /// # Errors
     ///
-    /// Returns the failure of downloading the model or the mmproj file. The outcome is cached, so
-    /// the files are downloaded at most once per phase.
-    pub fn download_model_files(&self) -> Result<&PhaseModelFiles, &PhaseSetupError> {
-        self.model_files
-            .get_or_init(|| self.key.download_model_files())
+    /// Returns the failure of downloading the model file. The outcome is cached, so the file is
+    /// downloaded at most once per phase.
+    pub fn download_model_file(&self) -> Result<&ModelFile, &PhaseSetupError> {
+        self.model_file
+            .get_or_init(|| self.key.download_model_file())
             .as_ref()
     }
 
     /// # Errors
     ///
-    /// Returns the cached download failure, or the failure of loading the downloaded files into
+    /// Returns the cached download failure, or the failure of loading the downloaded model into
     /// llama.cpp. The outcome is cached, so the model is loaded at most once per phase.
     pub fn load_phase_state(&self) -> Result<&PhaseState, &PhaseSetupError> {
-        let model_files = self.download_model_files()?;
+        let model_file = self.download_model_file()?;
 
         self.phase_state
-            .get_or_init(|| model_files.load_phase_state(&self.backend, self.key.model_load_params))
+            .get_or_init(|| model_file.load_phase_state(&self.backend, self.key.model_load_params))
             .as_ref()
     }
 }
@@ -61,15 +61,14 @@ mod tests {
     use super::PhaseSetup;
     use crate::backend_init_gate::BACKEND_INIT_GATE;
     use crate::gguf_source::GgufSource;
-    use crate::load_key::LoadKey;
+    use crate::model_key::ModelKey;
     use crate::model_load_params::ModelLoadParams;
 
     const NON_GGUF_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
 
-    fn key_for_model(model_source: GgufSource) -> LoadKey {
-        LoadKey {
+    fn key_for_model(model_source: GgufSource) -> ModelKey {
+        ModelKey {
             model_source,
-            mmproj_source: None,
             model_load_params: ModelLoadParams {
                 n_gpu_layers: 0,
                 load_mode: LlamaLoadMode::Mmap,
@@ -92,7 +91,7 @@ mod tests {
         );
 
         let download_failure = setup
-            .download_model_files()
+            .download_model_file()
             .expect_err("a model from a repository that does not exist must fail to download");
         let setup_failure = setup
             .load_phase_state()

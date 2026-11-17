@@ -13,3 +13,4 @@ pub mod run;
 pub mod run_to_conclusions;
 pub mod scheduled_phase;
 pub mod trial_outcome;
+pub mod trial_setup;

@@ -58,7 +58,7 @@ impl ExecutionPlan {
         let mut by_key: BTreeMap<_, Vec<&'static LlamaTestRegistration>> = BTreeMap::new();
         for registration in registrations {
             by_key
-                .entry(registration.key)
+                .entry(registration.key.model_key())
                 .or_default()
                 .push(*registration);
         }
@@ -191,6 +191,44 @@ mod tests {
         expected_outcome: ExpectedOutcome::Success,
     };
 
+    static REG_BETA_WITH_MMPROJ: LlamaTestRegistration = LlamaTestRegistration {
+        name: "delta",
+        key: LoadKey {
+            model_source: GgufSource::HuggingFace {
+                repo: "beta",
+                file: "f",
+            },
+            mmproj_source: Some(GgufSource::HuggingFace {
+                repo: "beta",
+                file: "mmproj",
+            }),
+            model_load_params: ModelLoadParams {
+                n_gpu_layers: 0,
+                load_mode: LlamaLoadMode::Mmap,
+            },
+        },
+        context_params: TRIVIAL_CONTEXT_PARAMS,
+        func: LlamaTestFn::no_op(),
+        expected_outcome: ExpectedOutcome::Success,
+    };
+    static REG_BETA_ON_ANOTHER_DEVICE: LlamaTestRegistration = LlamaTestRegistration {
+        name: "echo",
+        key: LoadKey {
+            model_source: GgufSource::HuggingFace {
+                repo: "beta",
+                file: "f",
+            },
+            mmproj_source: None,
+            model_load_params: ModelLoadParams {
+                n_gpu_layers: -1,
+                load_mode: LlamaLoadMode::Mmap,
+            },
+        },
+        context_params: TRIVIAL_CONTEXT_PARAMS,
+        func: LlamaTestFn::no_op(),
+        expected_outcome: ExpectedOutcome::Success,
+    };
+
     #[test]
     fn registrations_sharing_a_trial_name_are_refused() {
         assert_eq!(
@@ -220,6 +258,23 @@ mod tests {
 
         assert_eq!(plan.phases.len(), 1);
         assert_eq!(plan.phases.first().unwrap().registrations.len(), 2);
+    }
+
+    #[test]
+    fn registrations_differing_only_in_their_mmproj_share_the_phase_of_their_model() {
+        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_WITH_MMPROJ, &REG_BETA_A])
+            .expect("registrations with distinct names form a plan");
+
+        assert_eq!(plan.phases.len(), 1);
+        assert_eq!(plan.phases.first().unwrap().registrations.len(), 2);
+    }
+
+    #[test]
+    fn registrations_loading_one_model_with_different_load_params_form_separate_phases() {
+        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_ON_ANOTHER_DEVICE, &REG_BETA_A])
+            .expect("registrations with distinct names form a plan");
+
+        assert_eq!(plan.phases.len(), 2);
     }
 
     #[test]

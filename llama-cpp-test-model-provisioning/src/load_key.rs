@@ -1,7 +1,6 @@
 use crate::gguf_source::GgufSource;
+use crate::model_key::ModelKey;
 use crate::model_load_params::ModelLoadParams;
-use crate::phase_model_files::PhaseModelFiles;
-use crate::phase_setup_error::PhaseSetupError;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct LoadKey {
@@ -11,48 +10,28 @@ pub struct LoadKey {
 }
 
 impl LoadKey {
-    /// # Errors
-    ///
-    /// Returns [`PhaseSetupError::ModelDownload`] or [`PhaseSetupError::MmprojDownload`] when the
-    /// model or the mmproj file cannot be downloaded.
-    pub fn download_model_files(&self) -> Result<PhaseModelFiles, PhaseSetupError> {
+    #[must_use]
+    pub const fn model_key(&self) -> ModelKey {
         let Self {
             model_source,
-            mmproj_source,
+            model_load_params,
             ..
         } = *self;
 
-        Ok(PhaseModelFiles {
-            model_path: model_source.resolve_path().map_err(|cause| {
-                PhaseSetupError::ModelDownload {
-                    model_source,
-                    cause,
-                }
-            })?,
-            mmproj_path: mmproj_source
-                .map(|mmproj_source| {
-                    mmproj_source
-                        .resolve_path()
-                        .map_err(|cause| PhaseSetupError::MmprojDownload {
-                            mmproj_source,
-                            cause,
-                        })
-                })
-                .transpose()?,
-        })
+        ModelKey {
+            model_source,
+            model_load_params,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use llama_cpp_params::llama_load_mode::LlamaLoadMode;
 
     use super::LoadKey;
     use crate::gguf_source::GgufSource;
     use crate::model_load_params::ModelLoadParams;
-    use crate::phase_setup_failure_kind::PhaseSetupFailureKind;
 
     fn baseline() -> LoadKey {
         LoadKey {
@@ -112,52 +91,13 @@ mod tests {
     }
 
     #[test]
-    fn download_model_files_resolves_local_sources_to_their_paths() {
-        let mut key = baseline();
-        key.model_source = GgufSource::LocalPath("/abs/model.gguf");
-        key.mmproj_source = Some(GgufSource::LocalPath("/abs/mmproj.gguf"));
-
-        let model_files = key
-            .download_model_files()
-            .expect("local sources resolve without downloading anything");
-
-        assert_eq!(model_files.model_path, PathBuf::from("/abs/model.gguf"));
-        assert_eq!(
-            model_files.mmproj_path,
-            Some(PathBuf::from("/abs/mmproj.gguf"))
-        );
-    }
-
-    #[test]
-    fn a_model_that_cannot_be_downloaded_fails_as_a_model_download() {
-        let mut key = baseline();
-        key.model_source = GgufSource::HuggingFace {
-            repo: "intentee-test-harness/does-not-exist",
-            file: "no-such-file.gguf",
-        };
-
-        assert_eq!(
-            key.download_model_files()
-                .err()
-                .map(|setup_failure| setup_failure.kind()),
-            Some(PhaseSetupFailureKind::ModelDownload)
-        );
-    }
-
-    #[test]
-    fn an_mmproj_that_cannot_be_downloaded_fails_as_an_mmproj_download() {
-        let mut key = baseline();
-        key.model_source = GgufSource::LocalPath("/abs/model.gguf");
-        key.mmproj_source = Some(GgufSource::HuggingFace {
-            repo: "intentee-test-harness/does-not-exist",
-            file: "no-such-mmproj.gguf",
+    fn keys_differing_only_in_their_mmproj_source_share_a_model_key() {
+        let mut other = baseline();
+        other.mmproj_source = Some(GgufSource::HuggingFace {
+            repo: "repo",
+            file: "mmproj-F16.gguf",
         });
 
-        assert_eq!(
-            key.download_model_files()
-                .err()
-                .map(|setup_failure| setup_failure.kind()),
-            Some(PhaseSetupFailureKind::MmprojDownload)
-        );
+        assert_eq!(baseline().model_key(), other.model_key());
     }
 }
