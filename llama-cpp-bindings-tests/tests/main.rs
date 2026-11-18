@@ -1,5 +1,5 @@
 mod approximate_tok_env_eos_selection;
-mod audio_transcription;
+mod audio_prompt_evaluation;
 mod backend_device_listing;
 mod bos_token_insertion;
 mod byte_pair_encoding_vocabulary_detection;

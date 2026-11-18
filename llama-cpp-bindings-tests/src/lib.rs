@@ -5,7 +5,6 @@ pub mod classify_sample_loop;
 pub mod classify_sample_loop_outcome;
 pub mod closed_reasoning_chat_session;
 pub mod context_after_decoding_text;
-pub mod evaluate_audio_prompt;
 pub mod evaluated_multimodal_usage;
 pub mod fixtures_dir;
 pub mod get_weather_tools;

@@ -213,6 +213,24 @@ mod tests {
     }
 
     #[test]
+    fn an_escaped_pattern_that_is_not_utf8_is_reported_with_its_bytes() {
+        let escaped = unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"\xff".as_ptr()) };
+
+        assert_eq!(
+            regex_escape_status_to_result(
+                llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_OK,
+                escaped,
+                ptr::null_mut()
+            ),
+            Err(SamplerError::WrapperString(WrapperStringError::NotUtf8 {
+                operation: "llama_rs_regex_escape",
+                source: c"\xff".to_str().unwrap_err(),
+                bytes: vec![0xFF],
+            }))
+        );
+    }
+
+    #[test]
     fn an_escape_failure_without_a_message_is_reported_as_a_missing_exception_message() {
         assert_eq!(
             regex_escape_status_to_result(
