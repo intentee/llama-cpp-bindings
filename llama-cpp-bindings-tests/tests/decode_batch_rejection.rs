@@ -1,13 +1,17 @@
+use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
 use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::context_limits::ContextLimits;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_params::llama_attention_type::LlamaAttentionType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
@@ -142,6 +146,42 @@ fn decoding_reports_an_exception_thrown_while_transferring_the_batch(
             == Err(ContextError::DecodeBatchTransfer(Box::new(
                 ContextError::BatchTransferReported {
                     message: injected_fault_message()?,
+                }
+            )))
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn decoding_a_batch_built_for_other_context_limits_is_refused(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+    let context_limits = context.limits();
+    let other_limits = ContextLimits {
+        batch: context_limits
+            .batch
+            .checked_mul(2)
+            .context("twice the batch size must fit u32")?,
+        ..context_limits
+    };
+    let mut batch = LlamaBatch::new(other_limits);
+    batch.add(SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)?;
+
+    ensure!(
+        context.decode(&batch)
+            == Err(ContextError::DecodeBatchTransfer(Box::new(
+                ContextError::BatchLimitsMismatch {
+                    batch: other_limits,
+                    context: context_limits,
                 }
             )))
     );

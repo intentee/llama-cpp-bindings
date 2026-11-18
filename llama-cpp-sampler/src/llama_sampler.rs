@@ -1477,7 +1477,8 @@ mod tests {
     }
 
     #[test]
-    fn check_sampler_accept_status_exception_without_a_message_is_a_contract_error() {
+    fn check_sampler_accept_status_exception_without_a_message_is_reported_as_a_missing_exception_message()
+     {
         assert_eq!(
             check_sampler_accept_status(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1520,7 +1521,8 @@ mod tests {
     }
 
     #[test]
-    fn sampler_sample_status_exception_without_a_message_is_a_contract_error() {
+    fn sampler_sample_status_exception_without_a_message_is_reported_as_a_missing_exception_message()
+     {
         let result = sampler_sample_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             -1,
@@ -1743,7 +1745,7 @@ mod tests {
     }
 
     #[test]
-    fn sampler_init_status_to_result_reports_an_exception_without_a_message_as_a_contract_violation()
+    fn sampler_init_status_to_result_reports_an_exception_without_a_message_as_a_missing_exception_message()
      {
         assert_eq!(
             sampler_init_status_to_result(
@@ -1895,7 +1897,7 @@ mod tests {
     }
 
     #[test]
-    fn sampler_chain_add_status_to_result_reports_an_exception_without_a_message_as_a_contract_violation()
+    fn sampler_chain_add_status_to_result_reports_an_exception_without_a_message_as_a_missing_exception_message()
      {
         assert_eq!(
             sampler_chain_add_status_to_result(
@@ -1937,6 +1939,26 @@ mod tests {
         );
 
         assert_eq!(result.unwrap_err(), SamplerError::GrammarMalformed);
+    }
+
+    #[test]
+    fn an_llguidance_sampler_that_cannot_be_initialized_is_a_grammar_initialization_failure() {
+        let llguidance_failure = {
+            let _fault =
+                ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_THROWS);
+
+            letter_a_sampler().err()
+        };
+
+        assert_eq!(
+            llguidance_failure,
+            Some(SamplerError::GrammarSamplerInitialization(Box::new(
+                SamplerError::InitReported {
+                    sampler: "llguidance",
+                    message: injected_fault_message().unwrap(),
+                }
+            )))
+        );
     }
 
     #[test]
@@ -1985,7 +2007,8 @@ mod tests {
     }
 
     #[test]
-    fn sampler_init_grammar_status_exception_without_a_message_is_a_contract_error() {
+    fn sampler_init_grammar_status_exception_without_a_message_is_reported_as_a_missing_exception_message()
+     {
         let result = sampler_init_grammar_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
             ptr::null_mut(),
@@ -2106,7 +2129,8 @@ mod tests {
     }
 
     #[test]
-    fn sampler_init_grammar_lazy_patterns_status_exception_without_a_message_is_a_contract_error() {
+    fn sampler_init_grammar_lazy_patterns_status_exception_without_a_message_is_reported_as_a_missing_exception_message()
+     {
         let result = sampler_init_grammar_lazy_patterns_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_THREW_CXX_EXCEPTION,
             ptr::null_mut(),
@@ -2122,7 +2146,7 @@ mod tests {
     }
 
     #[test]
-    fn an_invalid_trigger_pattern_without_a_message_is_a_contract_error() {
+    fn an_invalid_trigger_pattern_without_a_message_is_reported_as_a_missing_exception_message() {
         assert_eq!(
             sampler_init_grammar_lazy_patterns_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_INVALID_TRIGGER_PATTERN,
@@ -2269,7 +2293,8 @@ mod tests {
     }
 
     #[test]
-    fn sampler_apply_status_cxx_exception_without_a_message_is_a_contract_error() {
+    fn sampler_apply_status_cxx_exception_without_a_message_is_reported_as_a_missing_exception_message()
+     {
         assert_eq!(
             sampler_apply_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,

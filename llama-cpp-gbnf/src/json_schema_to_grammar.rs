@@ -166,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_schema_status_without_a_message_is_a_contract_error() {
+    fn invalid_schema_status_without_a_message_is_reported_as_a_missing_exception_message() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA,
@@ -186,7 +186,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_json_status_without_a_message_is_a_contract_error() {
+    fn invalid_json_status_without_a_message_is_reported_as_a_missing_exception_message() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON,
@@ -206,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn llama_cpp_exception_status_without_a_message_is_a_contract_error() {
+    fn llama_cpp_exception_status_without_a_message_is_reported_as_a_missing_exception_message() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,

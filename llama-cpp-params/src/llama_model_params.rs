@@ -957,7 +957,7 @@ mod tests {
     }
 
     #[test]
-    fn fit_params_status_reports_an_exception_without_a_message_as_a_contract_violation() {
+    fn fit_params_status_reports_an_exception_without_a_message_as_a_missing_exception_message() {
         let result = fit_params_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,

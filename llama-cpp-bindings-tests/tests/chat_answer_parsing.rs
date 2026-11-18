@@ -3,6 +3,7 @@ use anyhow::Result;
 use anyhow::ensure;
 
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
+use llama_cpp_bindings_tests::not_utf8::not_utf8;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
@@ -268,10 +269,7 @@ fn every_parsed_field_refuses_text_that_is_not_utf8(
     let answer = ChatOutput::from(
         "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n</function>\n</tool_call>",
     );
-    let not_utf8 = String::from_utf8(vec![0xff])
-        .err()
-        .context("a lone 0xff byte is not UTF-8")?
-        .utf8_error();
+    let expected_utf8_error = not_utf8();
     let fault_points = [
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_CONTENT_NOT_UTF8,
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_REASONING_CONTENT_NOT_UTF8,
@@ -293,7 +291,8 @@ fn every_parsed_field_refuses_text_that_is_not_utf8(
 
     ensure!(
         parse_errors
-            == fault_points.map(|_fault_point| Some(ChatError::ParsedTextNotUtf8(not_utf8)))
+            == fault_points
+                .map(|_fault_point| expected_utf8_error.map(ChatError::ParsedTextNotUtf8))
     );
 
     Ok(())

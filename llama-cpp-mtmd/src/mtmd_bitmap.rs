@@ -530,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn data_returns_expected_bytes_for_image() {
+    fn a_bitmap_hands_back_the_pixel_data_it_was_built_from() {
         let pixel_data: Vec<u8> = vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 128, 128, 128];
         let bitmap = MtmdBitmap::from_image_data(2, 2, &pixel_data).unwrap();
         let returned_data = bitmap.data();
@@ -609,7 +609,8 @@ mod tests {
     }
 
     #[test]
-    fn from_file_status_llama_cpp_threw_cxx_exception_without_a_message_is_a_contract_error() {
+    fn from_file_status_llama_cpp_threw_cxx_exception_without_a_message_is_reported_as_a_missing_exception_message()
+     {
         let result = unsafe {
             from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -811,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn exception_status_without_a_message_is_a_contract_error() {
+    fn exception_status_without_a_message_is_reported_as_a_missing_exception_message() {
         let result = unsafe {
             from_buf_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_LLAMA_CPP_THREW_CXX_EXCEPTION,

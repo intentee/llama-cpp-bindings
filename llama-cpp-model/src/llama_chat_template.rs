@@ -322,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn each_status_that_carries_a_message_without_one_is_a_contract_violation() {
+    fn each_status_that_carries_a_message_without_one_is_reported_as_a_missing_exception_message() {
         for status in [
             llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_INVALID_JSON,
             llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_INVALID_TEMPLATE,

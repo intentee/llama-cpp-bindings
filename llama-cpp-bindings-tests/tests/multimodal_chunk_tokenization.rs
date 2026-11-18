@@ -41,7 +41,7 @@ fn first_image_chunk(chunks: &MtmdInputChunks) -> Result<MtmdInputChunk> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_first_chunk_of_a_text_led_prompt_is_a_text_chunk(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello world <__media__>")?;
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     ensure!(first_chunk.chunk_type()? == MtmdInputChunkType::Text);
@@ -66,7 +66,9 @@ fn text_chunk_has_text_type(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn text_chunk_returns_text_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn the_first_chunk_of_a_text_led_prompt_carries_text_tokens(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Hello world <__media__>")?;
     let first_chunk = chunks.get(0).context("missing first chunk")?;
     let tokens = first_chunk

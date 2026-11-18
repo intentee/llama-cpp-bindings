@@ -20,7 +20,7 @@ use llama_cpp_test_harness_macros::llama_test;
 fn every_prompt_reader_refuses_prompt_text_that_is_not_utf8(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let expected_utf8_error = not_utf8()?;
+    let expected_utf8_error = not_utf8();
     let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_PROMPT_PART_TEXT_NOT_UTF8,
@@ -31,7 +31,7 @@ fn every_prompt_reader_refuses_prompt_text_that_is_not_utf8(
             session.prompt_parts().err(),
             session.prompt().err(),
             session.tokenize_prompt(model).err(),
-        ] == [(); 3].map(|()| Some(ChatError::SessionTextNotUtf8(expected_utf8_error)))
+        ] == [(); 3].map(|()| expected_utf8_error.map(ChatError::SessionTextNotUtf8))
     );
 
     Ok(())

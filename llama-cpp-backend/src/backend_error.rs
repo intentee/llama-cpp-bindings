@@ -1,15 +1,13 @@
-use std::ffi::NulError;
-use std::path::PathBuf;
 use std::str::Utf8Error;
+
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum BackendError {
     #[error("BackendAlreadyInitialized")]
     AlreadyInitialized,
-    #[error("backend directory path is not valid UTF-8: {0}")]
-    BackendDirectoryPathNotUtf8(PathBuf),
-    #[error("backend directory path contains a null byte")]
-    BackendDirectoryPathContainsNullByte(#[source] NulError),
+    #[error("the backend directory path cannot be handed to ggml")]
+    BackendDirectoryPathInvalid(#[source] PathCStringError),
     #[error("the device name cannot be read: ggml reported no text")]
     DeviceNameMissing,
     #[error("the device name cannot be read: ggml reported text that is not valid UTF-8")]

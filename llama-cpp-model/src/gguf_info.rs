@@ -4,7 +4,6 @@ use std::ptr;
 
 use llama_cpp_bindings_sys::llama_rs_gguf_info;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
-use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::decision_type::DecisionType;
@@ -79,12 +78,7 @@ impl GgufInfo {
     /// Returns [`ModelError`] when `path` is not UTF-8 or contains a NUL byte, the wrapper
     /// fails, or it reports a decision type it does not define.
     pub fn read(path: &Path) -> Result<Self, ModelError> {
-        let path_c_string = path_c_string(path).map_err(|error| match error {
-            PathCStringError::ContainsNulByte(source) => {
-                ModelError::GgufInfoPathContainsNulByte(source)
-            }
-            PathCStringError::NotUtf8(path) => ModelError::GgufInfoPathNotUtf8(path),
-        })?;
+        let path_c_string = path_c_string(path).map_err(ModelError::GgufInfoPathInvalid)?;
         let mut out_info = llama_rs_gguf_info {
             decision_type: llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_UNKNOWN,
             n_ctx_train: 0,
@@ -116,6 +110,7 @@ mod tests {
 
     use llama_cpp_bindings_sys::llama_rs_gguf_info;
     use llama_cpp_gguf::gguf_context::GgufContext;
+    use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
     use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::GgufInfo;
@@ -177,8 +172,8 @@ mod tests {
 
         assert_eq!(
             GgufInfo::read(Path::new(path)),
-            Err(ModelError::GgufInfoPathContainsNulByte(
-                CString::new(path).unwrap_err()
+            Err(ModelError::GgufInfoPathInvalid(
+                PathCStringError::ContainsNulByte(CString::new(path).unwrap_err())
             ))
         );
     }
@@ -189,7 +184,9 @@ mod tests {
 
         assert_eq!(
             GgufInfo::read(path),
-            Err(ModelError::GgufInfoPathNotUtf8(path.to_path_buf()))
+            Err(ModelError::GgufInfoPathInvalid(PathCStringError::NotUtf8(
+                path.to_path_buf()
+            )))
         );
     }
 
@@ -280,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn reading_gguf_info_reports_an_exception_without_a_message_as_a_contract_violation() {
+    fn reading_gguf_info_reports_an_exception_without_a_message_as_a_missing_exception_message() {
         assert_eq!(
             unsafe {
                 read_gguf_info_status_to_result(

@@ -43,9 +43,12 @@ mod tests {
 
     #[test]
     fn try_from_invalid_reports_the_value() {
+        let result = LlamaSplitMode::try_from(99);
+
+        assert_eq!(result, Err(ParamsError::UnknownSplitMode { value: 99 }));
         assert_eq!(
-            LlamaSplitMode::try_from(99),
-            Err(ParamsError::UnknownSplitMode { value: 99 })
+            result.as_ref().err().map(ToString::to_string),
+            Some("unknown split mode value: 99".to_owned())
         );
     }
 

@@ -98,7 +98,7 @@ fn reading_an_answer_that_does_not_match_the_format_refuses_a_format_name_that_i
                 ChatOutputCompleteness::Finished,
             )
             .err()
-            == Some(ChatError::FormatNameNotUtf8(not_utf8()?))
+            == not_utf8().map(ChatError::FormatNameNotUtf8)
     );
 
     Ok(())

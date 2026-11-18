@@ -1,30 +1,17 @@
-use std::ffi::CString;
-use std::ffi::NulError;
 use std::ffi::c_char;
 use std::path::Path;
-use std::path::PathBuf;
 use std::ptr;
+
+use enumflags2::BitFlags;
 
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
-use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::context_state_error::ContextStateError;
-use crate::llama_state_seq_flags::LlamaStateSeqFlags;
+use crate::llama_state_seq_flag::LlamaStateSeqFlag;
 use crate::loaded_seq_state::LoadedSeqState;
-
-fn state_path_c_string(
-    path: &Path,
-    contains_nul_byte: fn(NulError) -> ContextStateError,
-    not_utf8: fn(PathBuf) -> ContextStateError,
-) -> Result<CString, ContextStateError> {
-    path_c_string(path).map_err(|error| match error {
-        PathCStringError::ContainsNulByte(source) => contains_nul_byte(source),
-        PathCStringError::NotUtf8(path) => not_utf8(path),
-    })
-}
 
 fn state_data_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_state_data_status,
@@ -163,11 +150,11 @@ pub trait ContextState {
         &self,
         dest: &mut [u8],
         seq_id: i32,
-        flags: LlamaStateSeqFlags,
+        flags: BitFlags<LlamaStateSeqFlag>,
     ) -> Result<usize, ContextStateError>;
 
     #[must_use]
-    fn state_seq_get_size_ext(&self, seq_id: i32, flags: LlamaStateSeqFlags) -> usize;
+    fn state_seq_get_size_ext(&self, seq_id: i32, flags: BitFlags<LlamaStateSeqFlag>) -> usize;
 
     /// # Errors
     ///
@@ -203,7 +190,7 @@ pub trait ContextState {
         &mut self,
         src: &[u8],
         dest_seq_id: i32,
-        flags: LlamaStateSeqFlags,
+        flags: BitFlags<LlamaStateSeqFlag>,
     ) -> Result<usize, ContextStateError>;
 
     /// # Safety
@@ -244,11 +231,8 @@ impl ContextState for LlamaContext<'_> {
         path_session: impl AsRef<Path>,
         max_tokens: usize,
     ) -> Result<Vec<LlamaToken>, ContextStateError> {
-        let cstr = state_path_c_string(
-            path_session.as_ref(),
-            ContextStateError::LoadSessionPathContainsNulByte,
-            ContextStateError::LoadSessionPathNotUtf8,
-        )?;
+        let cstr = path_c_string(path_session.as_ref())
+            .map_err(ContextStateError::LoadSessionPathInvalid)?;
         let mut tokens = vec![LlamaToken::new(0); max_tokens];
         let mut n_out = 0;
 
@@ -273,11 +257,8 @@ impl ContextState for LlamaContext<'_> {
         path_session: impl AsRef<Path>,
         tokens: &[LlamaToken],
     ) -> Result<(), ContextStateError> {
-        let cstr = state_path_c_string(
-            path_session.as_ref(),
-            ContextStateError::SaveSessionPathContainsNulByte,
-            ContextStateError::SaveSessionPathNotUtf8,
-        )?;
+        let cstr = path_c_string(path_session.as_ref())
+            .map_err(ContextStateError::SaveSessionPathInvalid)?;
 
         if unsafe {
             llama_cpp_bindings_sys::llama_state_save_file(
@@ -299,7 +280,7 @@ impl ContextState for LlamaContext<'_> {
         &self,
         dest: &mut [u8],
         seq_id: i32,
-        flags: LlamaStateSeqFlags,
+        flags: BitFlags<LlamaStateSeqFlag>,
     ) -> Result<usize, ContextStateError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut c_char = ptr::null_mut();
@@ -318,7 +299,7 @@ impl ContextState for LlamaContext<'_> {
         state_data_status_to_result(status, byte_count, out_error, "llama_rs_state_seq_get_data")
     }
 
-    fn state_seq_get_size_ext(&self, seq_id: i32, flags: LlamaStateSeqFlags) -> usize {
+    fn state_seq_get_size_ext(&self, seq_id: i32, flags: BitFlags<LlamaStateSeqFlag>) -> usize {
         unsafe {
             llama_cpp_bindings_sys::llama_state_seq_get_size_ext(
                 self.context.as_ptr(),
@@ -334,11 +315,8 @@ impl ContextState for LlamaContext<'_> {
         dest_seq_id: i32,
         max_tokens: usize,
     ) -> Result<LoadedSeqState, ContextStateError> {
-        let cstr = state_path_c_string(
-            filepath.as_ref(),
-            ContextStateError::LoadSeqStatePathContainsNulByte,
-            ContextStateError::LoadSeqStatePathNotUtf8,
-        )?;
+        let cstr =
+            path_c_string(filepath.as_ref()).map_err(ContextStateError::LoadSeqStatePathInvalid)?;
         let mut tokens = vec![LlamaToken::new(0); max_tokens];
         let mut n_out = 0;
 
@@ -366,11 +344,8 @@ impl ContextState for LlamaContext<'_> {
         seq_id: i32,
         tokens: &[LlamaToken],
     ) -> Result<usize, ContextStateError> {
-        let cstr = state_path_c_string(
-            filepath.as_ref(),
-            ContextStateError::SaveSeqStatePathContainsNulByte,
-            ContextStateError::SaveSeqStatePathNotUtf8,
-        )?;
+        let cstr =
+            path_c_string(filepath.as_ref()).map_err(ContextStateError::SaveSeqStatePathInvalid)?;
 
         let bytes_written = unsafe {
             llama_cpp_bindings_sys::llama_state_seq_save_file(
@@ -395,7 +370,7 @@ impl ContextState for LlamaContext<'_> {
         &mut self,
         src: &[u8],
         dest_seq_id: i32,
-        flags: LlamaStateSeqFlags,
+        flags: BitFlags<LlamaStateSeqFlag>,
     ) -> Result<usize, ContextStateError> {
         let mut byte_count = 0usize;
         let mut out_error: *mut c_char = ptr::null_mut();
@@ -582,7 +557,8 @@ mod tests {
     }
 
     #[test]
-    fn state_data_status_to_result_maps_an_exception_without_a_message_to_a_contract_violation() {
+    fn state_data_status_to_result_maps_an_exception_without_a_message_to_a_missing_exception_message()
+     {
         assert_eq!(
             state_data_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION,

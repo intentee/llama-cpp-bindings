@@ -239,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn a_preparation_exception_without_a_message_is_a_contract_violation() {
+    fn a_preparation_exception_without_a_message_is_reported_as_a_missing_exception_message() {
         assert_eq!(
             init_error(
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,

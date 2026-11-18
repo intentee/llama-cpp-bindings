@@ -20,7 +20,6 @@ use toktrie::TokTrie;
 use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
-use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::add_bos::AddBos;
@@ -422,7 +421,7 @@ where
     }
 
     if buffer.get(returned_len) != Some(&0) {
-        return Err(ModelError::MetaNegativeReturn(-1));
+        return Err(ModelError::MetaValueNotNulTerminated { returned_len });
     }
 
     buffer.truncate(returned_len);
@@ -461,12 +460,7 @@ impl LlamaModel {
         LlamaModelParams { params, .. }: &LlamaModelParams,
     ) -> Result<Self, ModelError> {
         let path = path.as_ref();
-        let cstr = path_c_string(path).map_err(|error| match error {
-            PathCStringError::ContainsNulByte(source) => {
-                ModelError::LoadPathContainsNulByte(source)
-            }
-            PathCStringError::NotUtf8(path) => ModelError::LoadPathNotUtf8(path),
-        })?;
+        let cstr = path_c_string(path).map_err(ModelError::LoadPathInvalid)?;
 
         if !path.exists() {
             return Err(ModelError::ModelFileNotFound(path.to_path_buf()));
@@ -589,12 +583,7 @@ impl LlamaModel {
     ) -> Result<LlamaLoraAdapter<'_>, ModelError> {
         let path = path.as_ref();
 
-        let cstr = path_c_string(path).map_err(|error| match error {
-            PathCStringError::ContainsNulByte(source) => {
-                ModelError::LoraAdapterPathContainsNulByte(source)
-            }
-            PathCStringError::NotUtf8(path) => ModelError::LoraAdapterPathNotUtf8(path),
-        })?;
+        let cstr = path_c_string(path).map_err(ModelError::LoraAdapterPathInvalid)?;
 
         if !path.exists() {
             return Err(ModelError::LoraAdapterFileNotFound(path.to_path_buf()));
@@ -777,9 +766,12 @@ impl LlamaModel {
     /// attributes this library does not know.
     pub fn token_attr(&self, token: LlamaToken) -> Result<LlamaTokenAttrs, ModelError> {
         let n_vocab = self.n_vocab();
-        let LlamaToken(id) = self
-            .vocabulary_token(token)
-            .ok_or(ModelError::TokenAttributesTokenOutsideVocabulary { token, n_vocab })?;
+
+        if !token.is_within_vocabulary(n_vocab) {
+            return Err(ModelError::TokenAttributesTokenOutsideVocabulary { token, n_vocab });
+        }
+
+        let LlamaToken(id) = token;
         let token_attr =
             unsafe { llama_cpp_bindings_sys::llama_vocab_get_attr(self.vocab_ptr(), id) };
 
@@ -817,9 +809,12 @@ impl LlamaModel {
     /// this model's vocabulary.
     pub fn token_text_bytes(&self, token: LlamaToken) -> Result<Vec<u8>, ModelError> {
         let n_vocab = self.n_vocab();
-        let LlamaToken(id) = self
-            .vocabulary_token(token)
-            .ok_or(ModelError::TokenTextTokenOutsideVocabulary { token, n_vocab })?;
+
+        if !token.is_within_vocabulary(n_vocab) {
+            return Err(ModelError::TokenTextTokenOutsideVocabulary { token, n_vocab });
+        }
+
+        let LlamaToken(id) = token;
         let text = unsafe { llama_cpp_bindings_sys::llama_vocab_get_text(self.vocab_ptr(), id) };
 
         Ok(unsafe { CStr::from_ptr(text) }.to_bytes().to_vec())
@@ -856,9 +851,11 @@ impl LlamaModel {
         lstrip: Option<NonZeroU16>,
     ) -> Result<Vec<u8>, ModelError> {
         let n_vocab = self.n_vocab();
-        let token = self
-            .vocabulary_token(token)
-            .ok_or(ModelError::PieceTokenOutsideVocabulary { token, n_vocab })?;
+
+        if !token.is_within_vocabulary(n_vocab) {
+            return Err(ModelError::PieceTokenOutsideVocabulary { token, n_vocab });
+        }
+
         let buffer_len = c_int::try_from(buffer_size).map_err(ModelError::PieceIntConversion)?;
         let mut buffer: Vec<u8> = vec![0u8; buffer_size];
         match self.write_piece(token, &mut buffer, buffer_len, special, lstrip) {
@@ -911,9 +908,11 @@ impl LlamaModel {
         read: impl FnOnce(&[u8]) -> TOutput,
     ) -> Result<TOutput, ModelError> {
         let n_vocab = self.n_vocab();
-        let token = self
-            .vocabulary_token(token)
-            .ok_or(ModelError::PieceTokenOutsideVocabulary { token, n_vocab })?;
+
+        if !token.is_within_vocabulary(n_vocab) {
+            return Err(ModelError::PieceTokenOutsideVocabulary { token, n_vocab });
+        }
+
         let mut probe = [0_u8; PIECE_PROBE_SIZE];
 
         match self.write_piece(token, &mut probe, PIECE_PROBE_LEN, special, lstrip) {
@@ -922,10 +921,6 @@ impl LlamaModel {
                 .token_to_piece_bytes(token, negated_size.unsigned_abs() as usize, special, lstrip)
                 .map(|piece| read(&piece)),
         }
-    }
-
-    fn vocabulary_token(&self, token: LlamaToken) -> Option<LlamaToken> {
-        token.is_within_vocabulary(self.n_vocab()).then_some(token)
     }
 
     fn write_piece(
@@ -1053,12 +1048,12 @@ mod tests {
     }
 
     #[test]
-    fn checked_tokenizer_length_in_range_returns_value() {
+    fn a_tokenizer_length_that_fits_a_c_int_is_kept() {
         assert_eq!(checked_tokenizer_length(8), Ok(8));
     }
 
     #[test]
-    fn checked_token_count_non_negative_returns_value() {
+    fn a_non_negative_token_count_converts_to_usize() {
         assert_eq!(checked_token_count(5), Ok(5));
     }
 
@@ -1145,7 +1140,7 @@ mod tests {
     }
 
     #[test]
-    fn a_value_without_a_nul_terminator_is_reported_as_a_negative_return() {
+    fn a_value_without_a_nul_terminator_is_reported_as_unterminated_at_its_length() {
         let result = extract_meta_string(
             |buf_ptr, buf_len| {
                 let buffer = unsafe { slice::from_raw_parts_mut(buf_ptr.cast::<u8>(), buf_len) };
@@ -1155,7 +1150,10 @@ mod tests {
             4,
         );
 
-        assert_eq!(result.unwrap_err(), ModelError::MetaNegativeReturn(-1));
+        assert_eq!(
+            result.unwrap_err(),
+            ModelError::MetaValueNotNulTerminated { returned_len: 2 }
+        );
     }
 
     #[test]
@@ -1305,7 +1303,8 @@ mod tests {
     }
 
     #[test]
-    fn load_model_from_file_cxx_exception_without_a_message_is_a_contract_error() {
+    fn load_model_from_file_cxx_exception_without_a_message_is_reported_as_a_missing_exception_message()
+     {
         let result = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1518,7 +1517,8 @@ mod tests {
     }
 
     #[test]
-    fn reading_the_decision_type_reports_an_exception_without_a_message_as_a_contract_violation() {
+    fn reading_the_decision_type_reports_an_exception_without_a_message_as_a_missing_exception_message()
+     {
         assert_eq!(
             unsafe {
                 model_decision_type_status_to_result(
@@ -1572,7 +1572,7 @@ mod tests {
     }
 
     #[test]
-    fn tokenize_ok_returns_count() {
+    fn a_successful_tokenize_status_yields_the_token_count() {
         let result = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_OK,
@@ -1618,7 +1618,7 @@ mod tests {
     }
 
     #[test]
-    fn tokenize_cxx_exception_without_a_message_is_a_contract_error() {
+    fn tokenize_cxx_exception_without_a_message_is_reported_as_a_missing_exception_message() {
         let result = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,

@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::model_error::ModelError;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -74,7 +75,9 @@ fn load_model_refuses_a_path_that_is_not_utf8(&LlamaFixture { backend, .. }: &Ll
 
     assert_eq!(
         result.err(),
-        Some(ModelError::LoadPathNotUtf8(non_utf8_path.to_path_buf()))
+        Some(ModelError::LoadPathInvalid(PathCStringError::NotUtf8(
+            non_utf8_path.to_path_buf()
+        )))
     );
 }
 
@@ -96,6 +99,7 @@ fn load_model_refuses_a_path_with_a_nul_byte(&LlamaFixture { backend, .. }: &Lla
         .err(),
         CString::new("/models/model\0.gguf")
             .err()
-            .map(ModelError::LoadPathContainsNulByte)
+            .map(PathCStringError::ContainsNulByte)
+            .map(ModelError::LoadPathInvalid)
     );
 }

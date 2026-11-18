@@ -1,6 +1,4 @@
-use std::ffi::NulError;
-use std::path::PathBuf;
-
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -14,22 +12,14 @@ pub enum ContextStateError {
         operation: &'static str,
         argument: &'static str,
     },
-    #[error("null byte in string")]
-    LoadSeqStatePathContainsNulByte(#[source] NulError),
-    #[error("failed to convert path {0} to str")]
-    LoadSeqStatePathNotUtf8(PathBuf),
-    #[error("null byte in string")]
-    LoadSessionPathContainsNulByte(#[source] NulError),
-    #[error("failed to convert path {0} to str")]
-    LoadSessionPathNotUtf8(PathBuf),
-    #[error("null byte in string")]
-    SaveSeqStatePathContainsNulByte(#[source] NulError),
-    #[error("failed to convert path {0} to str")]
-    SaveSeqStatePathNotUtf8(PathBuf),
-    #[error("null byte in string")]
-    SaveSessionPathContainsNulByte(#[source] NulError),
-    #[error("failed to convert path {0} to str")]
-    SaveSessionPathNotUtf8(PathBuf),
+    #[error("the sequence state file path to load cannot be handed to llama.cpp")]
+    LoadSeqStatePathInvalid(#[source] PathCStringError),
+    #[error("the session file path to load cannot be handed to llama.cpp")]
+    LoadSessionPathInvalid(#[source] PathCStringError),
+    #[error("the sequence state file path to save cannot be handed to llama.cpp")]
+    SaveSeqStatePathInvalid(#[source] PathCStringError),
+    #[error("the session file path to save cannot be handed to llama.cpp")]
+    SaveSessionPathInvalid(#[source] PathCStringError),
     #[error("Failed to load sequence state file")]
     SeqStateFileNotLoaded,
     #[error("Failed to save sequence state file")]

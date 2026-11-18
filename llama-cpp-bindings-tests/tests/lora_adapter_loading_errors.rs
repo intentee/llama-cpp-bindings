@@ -10,6 +10,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use llama_cpp_model::model_error::ModelError;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -70,7 +71,9 @@ fn lora_adapter_init_refuses_a_path_that_is_not_utf8(
 
     ensure!(
         result.err().context("the operation must fail")?
-            == ModelError::LoraAdapterPathNotUtf8(non_utf8_path.to_path_buf())
+            == ModelError::LoraAdapterPathInvalid(PathCStringError::NotUtf8(
+                non_utf8_path.to_path_buf()
+            ))
     );
 
     Ok(())
@@ -91,6 +94,7 @@ fn lora_adapter_init_refuses_a_path_with_a_nul_byte(
         model.lora_adapter_init("/adapters/adapter\0.gguf").err(),
         CString::new("/adapters/adapter\0.gguf")
             .err()
-            .map(ModelError::LoraAdapterPathContainsNulByte)
+            .map(PathCStringError::ContainsNulByte)
+            .map(ModelError::LoraAdapterPathInvalid)
     );
 }

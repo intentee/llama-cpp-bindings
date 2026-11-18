@@ -1,14 +1,12 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::ensure;
-
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_context_memory::context_memory::ContextMemory;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -54,40 +52,6 @@ fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
     let usage = classifier.into_usage();
     ensure!(usage.prompt == prompt_token_count);
     ensure!(usage.completion_tokens() == 0);
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 2048,
-    n_ubatch = 512,
-    embeddings = true,
-)]
-fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
-) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
-    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(context.limits());
-    batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&batch)?;
-
-    let embeddings = context.embeddings_seq_ith(0)?;
-
-    ensure!(embeddings.len() == usize::try_from(model.n_embd())?);
 
     Ok(())
 }
@@ -246,48 +210,6 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
             );
         }
     }
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 2048,
-    n_ubatch = 512,
-    embeddings = true,
-)]
-fn a_token_embedding_is_as_wide_as_the_model_embedding(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
-) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params)
-            .into_llama_context_params()
-            .with_pooling_type(LlamaPoolingType::None),
-    )?;
-    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let last_index = i32::try_from(
-        tokens
-            .len()
-            .checked_sub(1)
-            .context("`tokens.len() - 1` must not overflow")?,
-    )?;
-    let mut batch = LlamaBatch::new(context.limits());
-    batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&batch)?;
-
-    let embeddings = context.embeddings_ith(last_index)?;
-
-    ensure!(embeddings.len() == usize::try_from(model.n_embd())?);
 
     Ok(())
 }

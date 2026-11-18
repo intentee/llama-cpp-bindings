@@ -34,7 +34,7 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn a_transformer_model_is_not_recurrent(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+fn no_default_model_is_recurrent(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert!(!model.is_recurrent());
 }
 
@@ -54,9 +54,7 @@ fn a_transformer_model_is_not_recurrent(&LlamaFixture { model, .. }: &LlamaFixtu
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn is_hybrid_returns_false_for_non_hybrid_default_models(
-    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
-) {
+fn pure_transformer_default_models_are_not_hybrid(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert!(
         !model.is_hybrid(),
         "DeepSeek-R1-Distill-Llama-8B and GLM-4.7-Flash are pure transformers, not hybrid; got is_hybrid=true"
@@ -79,7 +77,7 @@ fn is_hybrid_returns_false_for_non_hybrid_default_models(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn is_hybrid_returns_true_for_qwen_default_models(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
+fn qwen_default_models_are_hybrid(&LlamaFixture { model, .. }: &LlamaFixture<'_>) {
     assert!(
         model.is_hybrid(),
         "Qwen 3.5 and Qwen 3.6 default GGUFs are reported as hybrid by llama.cpp; got is_hybrid=false"

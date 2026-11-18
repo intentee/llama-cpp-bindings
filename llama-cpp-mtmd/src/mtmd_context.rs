@@ -222,7 +222,8 @@ mod tests {
     }
 
     #[test]
-    fn init_from_file_status_reports_an_exception_without_a_message_as_a_contract_violation() {
+    fn init_from_file_status_reports_an_exception_without_a_message_as_a_missing_exception_message()
+    {
         let result = map_init_from_file_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             ptr::null_mut(),

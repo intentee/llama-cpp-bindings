@@ -395,7 +395,7 @@ mod tests {
     }
 
     #[test]
-    fn a_thrown_exception_without_a_message_is_a_contract_violation() {
+    fn a_thrown_exception_without_a_message_is_reported_as_a_missing_exception_message() {
         assert_eq!(
             get_memory_usage_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,

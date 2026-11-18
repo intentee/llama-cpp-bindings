@@ -20,7 +20,7 @@ use llama_cpp_test_model_provisioning::download_model::download_model;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn set_lora_adapters_applies_a_real_adapter(
+fn set_lora_adapters_accepts_a_downloaded_adapter_at_full_scale(
     &LlamaFixture {
         model,
         backend,

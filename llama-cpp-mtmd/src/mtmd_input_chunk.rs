@@ -567,7 +567,8 @@ mod tests {
     }
 
     #[test]
-    fn eval_chunk_single_status_reports_an_exception_without_a_message_as_a_contract_violation() {
+    fn eval_chunk_single_status_reports_an_exception_without_a_message_as_a_missing_exception_message()
+     {
         let result = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,
@@ -713,7 +714,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_chunk_status_reports_an_exception_without_a_message_as_a_contract_violation() {
+    fn encode_chunk_status_reports_an_exception_without_a_message_as_a_missing_exception_message() {
         let result = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
             0,

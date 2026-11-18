@@ -1229,6 +1229,7 @@ version = "0.29.0"
 dependencies = [
  "anyhow",
  "encoding_rs",
+ "enumflags2",
  "inventory",
  "llama-cpp-backend",
  "llama-cpp-bindings",
@@ -1243,6 +1244,7 @@ dependencies = [
  "llama-cpp-model",
  "llama-cpp-mtmd",
  "llama-cpp-params",
+ "llama-cpp-path-c-string",
  "llama-cpp-sampler",
  "llama-cpp-test-harness",
  "llama-cpp-test-harness-macros",
@@ -1309,6 +1311,7 @@ dependencies = [
 name = "llama-cpp-context-state"
 version = "0.29.0"
 dependencies = [
+ "enumflags2",
  "llama-cpp-bindings-sys",
  "llama-cpp-context",
  "llama-cpp-model",
@@ -1350,6 +1353,7 @@ name = "llama-cpp-gguf"
 version = "0.29.0"
 dependencies = [
  "llama-cpp-bindings-sys",
+ "llama-cpp-error-chain",
  "llama-cpp-path-c-string",
  "thiserror",
 ]

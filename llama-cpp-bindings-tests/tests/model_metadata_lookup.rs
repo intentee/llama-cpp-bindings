@@ -243,7 +243,7 @@ fn meta_val_str_by_index_out_of_range_reports_the_negative_llama_cpp_return(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn meta_val_str_returns_value_for_known_key(
+fn meta_val_str_of_the_first_metadata_key_is_nonempty(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let first_key = model.meta_key_by_index(0)?;

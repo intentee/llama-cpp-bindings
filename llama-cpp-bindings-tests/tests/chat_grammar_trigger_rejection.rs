@@ -20,7 +20,7 @@ use llama_cpp_test_harness_macros::llama_test;
 fn grammar_triggers_refuse_a_trigger_value_that_is_not_utf8(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let expected_utf8_error = not_utf8()?;
+    let expected_utf8_error = not_utf8();
     let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_VALUE_NOT_UTF8,
@@ -30,7 +30,7 @@ fn grammar_triggers_refuse_a_trigger_value_that_is_not_utf8(
         [
             session.grammar_triggers().err(),
             session.grammar_sampler(model).err(),
-        ] == [(); 2].map(|()| Some(ChatError::SessionTextNotUtf8(expected_utf8_error)))
+        ] == [(); 2].map(|()| expected_utf8_error.map(ChatError::SessionTextNotUtf8))
     );
 
     Ok(())

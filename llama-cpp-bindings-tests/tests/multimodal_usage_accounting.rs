@@ -1,13 +1,16 @@
-use anyhow::Context as _;
+use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
+use anyhow::ensure;
 
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
+use llama_cpp_bindings_tests::evaluate_audio_prompt::evaluate_audio_prompt;
 use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsage;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
@@ -327,6 +330,55 @@ fn image_chunk_records_input_image_tokens_only(
             usage.input_audio
         );
     }
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace(
+        "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
+        "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+    ),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 4096,
+    n_batch = 512,
+    n_ubatch = 512,
+    mmproj_source = HuggingFace(
+        "ggml-org/ultravox-v0_5-llama-3_2-1b-GGUF",
+        "mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf"
+    ),
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 4096,
+    n_batch = 512,
+    n_ubatch = 512,
+    mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
+)]
+fn audio_input_records_each_chunk_type_in_its_own_usage_counter(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let EvaluatedMultimodalUsage {
+        usage,
+        chunk_breakdown,
+    } = evaluate_audio_prompt(
+        fixture,
+        "quick_brown_fox.wav",
+        ChatAssistantTurn::New,
+        |classifier, _context, chunk_breakdown, _n_past| {
+            Ok(EvaluatedMultimodalUsage {
+                usage: *classifier.usage(),
+                chunk_breakdown,
+            })
+        },
+    )?;
+
+    ensure!(usage.input_audio == chunk_breakdown.audio);
+    ensure!(usage.input_image == chunk_breakdown.image);
+    ensure!(usage.prompt == chunk_breakdown.text);
 
     Ok(())
 }

@@ -34,7 +34,7 @@ mod tests {
     use crate::invalid_arguments_json::InvalidArgumentsJson;
 
     #[test]
-    fn from_string_object_returns_valid() {
+    fn a_json_object_parses_into_valid_json_arguments() {
         let result = ToolCallArguments::from_string(r#"{"location":"Paris"}"#.to_owned());
 
         assert_eq!(
@@ -44,14 +44,14 @@ mod tests {
     }
 
     #[test]
-    fn from_string_array_returns_valid() {
+    fn a_json_array_parses_into_valid_json_arguments() {
         let result = ToolCallArguments::from_string("[1,2,3]".to_owned());
 
         assert_eq!(result, ToolCallArguments::ValidJson(json!([1, 2, 3])));
     }
 
     #[test]
-    fn from_string_scalar_returns_valid() {
+    fn a_json_scalar_parses_into_valid_json_arguments() {
         let result = ToolCallArguments::from_string("42".to_owned());
 
         assert_eq!(result, ToolCallArguments::ValidJson(json!(42)));

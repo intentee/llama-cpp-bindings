@@ -1,10 +1,11 @@
 use anyhow::Result;
 use anyhow::ensure;
+use enumflags2::BitFlags;
 
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context_state::context_state::ContextState;
 use llama_cpp_context_state::context_state_error::ContextStateError;
-use llama_cpp_context_state::llama_state_seq_flags::LlamaStateSeqFlags;
+use llama_cpp_context_state::llama_state_seq_flag::LlamaStateSeqFlag;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -188,7 +189,7 @@ fn state_seq_set_data_ext_consumes_exactly_the_bytes_state_seq_get_data_ext_wrot
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let flags = LlamaStateSeqFlags::empty();
+    let flags = BitFlags::<LlamaStateSeqFlag>::empty();
     let size = context.state_seq_get_size_ext(0, flags);
     let mut buffer = vec![0u8; size];
     let bytes_written = unsafe { context.state_seq_get_data_ext(&mut buffer, 0, flags) }?;

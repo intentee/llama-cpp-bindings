@@ -173,7 +173,7 @@ fn tokenize_question_about_llamas(
     n_ubatch = 32,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn eval_chunks_returns_batch_size_exceeds_context_limit_for_huge_batch(
+fn eval_chunks_refuses_a_batch_larger_than_the_context_batch(
     &LlamaFixture {
         model,
         backend,

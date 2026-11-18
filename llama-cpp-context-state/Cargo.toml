@@ -10,6 +10,7 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
+enumflags2 = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-context = { workspace = true }
 llama-cpp-model = { workspace = true }

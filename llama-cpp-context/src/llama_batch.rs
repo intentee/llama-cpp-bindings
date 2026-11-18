@@ -294,9 +294,9 @@ impl LlamaBatch {
         decision_order: DecisionOrder,
     ) -> Result<(), ContextError> {
         let n_tokens = self.n_tokens;
-        let entry = (token_index >= 0)
-            .then(|| self.entries.get_mut(token_index.unsigned_abs() as usize))
-            .flatten()
+        let entry = usize::try_from(token_index)
+            .ok()
+            .and_then(|index| self.entries.get_mut(index))
             .ok_or(ContextError::TokenIndexOutsideBatch {
                 token_index,
                 n_tokens,
@@ -704,7 +704,8 @@ mod tests {
     }
 
     #[test]
-    fn adding_a_batch_entry_reports_an_exception_without_a_message_as_a_contract_violation() {
+    fn adding_a_batch_entry_reports_an_exception_without_a_message_as_a_missing_exception_message()
+    {
         assert_eq!(
             batch_ext_assign_entries_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION,

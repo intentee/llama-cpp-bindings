@@ -137,6 +137,61 @@ fn batch_ext_init_status_to_result(
     }
 }
 
+fn process_failure_of_status(
+    status: llama_cpp_bindings_sys::llama_rs_process_status,
+    out_error: *mut c_char,
+) -> ContextError {
+    const OPERATION: &str = "llama_rs_process";
+
+    match status {
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE => {
+            ContextError::WrapperNonzeroReturnStatusContainedZero {
+                operation: OPERATION,
+            }
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_ERROR_STRING_ALLOCATION_FAILED => {
+            ContextError::ProcessNotEnoughMemory
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_OUT_OF_MEMORY => {
+            ContextError::ProcessLlamaCppOutOfMemory
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            unsafe { read_and_free_exception_message(OPERATION, out_error) }
+                .map_or_else(ContextError::WrapperString, |message| {
+                    ContextError::ProcessReported { message }
+                })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_CTX_ARG => {
+            ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "ctx",
+            }
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_BATCH_ARG => {
+            ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "batch",
+            }
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG => {
+            ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_llama_cpp_return_code",
+            }
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG => {
+            ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            }
+        }
+        other => ContextError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        },
+    }
+}
+
 fn process_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_process_status,
     out_llama_cpp_return_code: i32,
@@ -144,61 +199,19 @@ fn process_status_to_result(
     return_code_error: fn(NonZeroI32) -> ContextError,
     process_failure: fn(Box<ContextError>) -> ContextError,
 ) -> Result<(), ContextError> {
-    const OPERATION: &str = "llama_rs_process";
-
-    match status {
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE => {
-            let code = NonZeroI32::new(out_llama_cpp_return_code).ok_or(
-                ContextError::WrapperNonzeroReturnStatusContainedZero {
-                    operation: OPERATION,
-                },
-            )?;
-
-            Err(return_code_error(code))
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_ERROR_STRING_ALLOCATION_FAILED => Err(
-            process_failure(Box::new(ContextError::ProcessNotEnoughMemory)),
-        ),
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_OUT_OF_MEMORY => Err(process_failure(
-            Box::new(ContextError::ProcessLlamaCppOutOfMemory),
-        )),
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
-
-            Err(process_failure(Box::new(ContextError::ProcessReported {
-                message,
-            })))
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_CTX_ARG => {
-            Err(ContextError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "ctx",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_BATCH_ARG => {
-            Err(ContextError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "batch",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG => {
-            Err(ContextError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_llama_cpp_return_code",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG => {
-            Err(ContextError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_error",
-            })
-        }
-        other => Err(ContextError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
+    if status == llama_cpp_bindings_sys::LLAMA_RS_PROCESS_OK {
+        return Ok(());
     }
+
+    if status == llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE
+        && let Some(code) = NonZeroI32::new(out_llama_cpp_return_code)
+    {
+        return Err(return_code_error(code));
+    }
+
+    Err(process_failure(Box::new(process_failure_of_status(
+        status, out_error,
+    ))))
 }
 
 fn memory_of(
@@ -748,6 +761,10 @@ mod tests {
 
     const OPERATION: &str = "llama_rs_process";
 
+    fn decode_process_failure(failure: ContextError) -> ContextError {
+        ContextError::DecodeProcess(Box::new(failure))
+    }
+
     fn refused_null_argument(argument: &'static str) -> ContextError {
         ContextError::WrapperRefusedNullArgument {
             operation: OPERATION,
@@ -826,7 +843,7 @@ mod tests {
     }
 
     #[test]
-    fn new_context_cxx_exception_without_a_message_is_a_contract_error() {
+    fn new_context_cxx_exception_without_a_message_is_reported_as_a_missing_exception_message() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION,
             ptr::null_mut(),
@@ -996,7 +1013,8 @@ mod tests {
     }
 
     #[test]
-    fn initializing_a_batch_reports_an_exception_without_a_message_as_a_contract_violation() {
+    fn initializing_a_batch_reports_an_exception_without_a_message_as_a_missing_exception_message()
+    {
         assert_eq!(
             batch_ext_init_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -1048,28 +1066,30 @@ mod tests {
             )),
             [
                 Ok(()),
-                Err(ContextError::WrapperNonzeroReturnStatusContainedZero {
-                    operation: OPERATION
-                }),
-                Err(ContextError::DecodeProcess(Box::new(
-                    ContextError::ProcessNotEnoughMemory
-                ))),
-                Err(ContextError::DecodeProcess(Box::new(
-                    ContextError::ProcessLlamaCppOutOfMemory
-                ))),
-                Err(ContextError::WrapperString(
-                    WrapperStringError::ExceptionMessageMissing {
+                Err(decode_process_failure(
+                    ContextError::WrapperNonzeroReturnStatusContainedZero {
                         operation: OPERATION
                     }
                 )),
-                Err(refused_null_argument("ctx")),
-                Err(refused_null_argument("batch")),
-                Err(refused_null_argument("out_llama_cpp_return_code")),
-                Err(refused_null_argument("out_error")),
-                Err(ContextError::UnknownWrapperStatus {
+                Err(decode_process_failure(ContextError::ProcessNotEnoughMemory)),
+                Err(decode_process_failure(
+                    ContextError::ProcessLlamaCppOutOfMemory
+                )),
+                Err(decode_process_failure(ContextError::WrapperString(
+                    WrapperStringError::ExceptionMessageMissing {
+                        operation: OPERATION
+                    }
+                ))),
+                Err(decode_process_failure(refused_null_argument("ctx"))),
+                Err(decode_process_failure(refused_null_argument("batch"))),
+                Err(decode_process_failure(refused_null_argument(
+                    "out_llama_cpp_return_code"
+                ))),
+                Err(decode_process_failure(refused_null_argument("out_error"))),
+                Err(decode_process_failure(ContextError::UnknownWrapperStatus {
                     operation: OPERATION,
                     code: 255
-                }),
+                })),
             ]
         );
     }

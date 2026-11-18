@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 use crate::llama_token::LlamaToken;
@@ -44,34 +45,32 @@ pub enum ModelError {
     GgufInfoLlamaCppOutOfMemory,
     #[error("not enough memory")]
     GgufInfoNotEnoughMemory,
-    #[error("null byte in string")]
-    GgufInfoPathContainsNulByte(#[source] NulError),
-    #[error("failed to convert path {0} to str")]
-    GgufInfoPathNotUtf8(PathBuf),
+    #[error("the GGUF file path cannot be handed to llama.cpp")]
+    GgufInfoPathInvalid(#[source] PathCStringError),
     #[error("{message}")]
     GgufInfoReported { message: String },
     #[error("the llama.cpp library ran out of memory")]
     LoadLlamaCppOutOfMemory,
     #[error("not enough memory")]
     LoadNotEnoughMemory,
-    #[error("null byte in string")]
-    LoadPathContainsNulByte(#[source] NulError),
-    #[error("failed to convert path {0} to str")]
-    LoadPathNotUtf8(PathBuf),
+    #[error("the model path cannot be handed to llama.cpp")]
+    LoadPathInvalid(#[source] PathCStringError),
     #[error("{message}")]
     LoadReported { message: String },
     #[error("adapter file not found: {0}")]
     LoraAdapterFileNotFound(PathBuf),
-    #[error("null byte in string")]
-    LoraAdapterPathContainsNulByte(#[source] NulError),
-    #[error("failed to convert path {0} to str")]
-    LoraAdapterPathNotUtf8(PathBuf),
+    #[error("the LoRA adapter path cannot be handed to llama.cpp")]
+    LoraAdapterPathInvalid(#[source] PathCStringError),
     #[error("adapter could not be loaded")]
     LoraAdapterUnloadable,
     #[error("null byte in string")]
     MetaKeyContainsNulByte(#[source] NulError),
     #[error("Negative return value. Likely due to a missing index or key. Got return value: {0}")]
     MetaNegativeReturn(i32),
+    #[error(
+        "llama.cpp reported a metadata value of {returned_len} bytes without a NUL byte after it"
+    )]
+    MetaValueNotNulTerminated { returned_len: usize },
     #[error("FromUtf8Error")]
     MetaValueNotUtf8(#[source] FromUtf8Error),
     #[error("model file not found: {0}")]

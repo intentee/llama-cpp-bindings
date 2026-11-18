@@ -48,7 +48,7 @@ const PIECE_PROBE_BYTES: usize = 32;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn token_to_piece_bytes_returns_the_bytes_of_the_token_piece(
+fn token_to_piece_bytes_of_the_hello_token_is_hello(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let tokens = model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;

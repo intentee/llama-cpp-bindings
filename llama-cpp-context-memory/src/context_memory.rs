@@ -4,23 +4,10 @@ use std::num::NonZeroU8;
 use std::num::TryFromIntError;
 use std::ptr;
 
-use llama_cpp_context::context_limits::ContextLimits;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::context_memory_error::ContextMemoryError;
-
-fn ensure_sequence_id(
-    limits: ContextLimits,
-    seq_id: i32,
-    out_of_range: impl FnOnce(u32) -> ContextMemoryError,
-) -> Result<(), ContextMemoryError> {
-    if limits.holds_sequence(seq_id) {
-        Ok(())
-    } else {
-        Err(out_of_range(limits.max_sequences))
-    }
-}
 
 fn open_ended_position(position: Option<u32>) -> Result<i32, TryFromIntError> {
     position.map_or(Ok(-1), i32::try_from)
@@ -222,9 +209,14 @@ impl ContextMemory for LlamaContext<'_> {
         p1: Option<u32>,
         delta: i32,
     ) -> Result<(), ContextMemoryError> {
-        ensure_sequence_id(self.limits(), seq_id, |n_seq_max| {
-            ContextMemoryError::SeqAddSequenceIdOutOfRange { seq_id, n_seq_max }
-        })?;
+        let limits = self.limits();
+
+        if !limits.holds_sequence(seq_id) {
+            return Err(ContextMemoryError::SeqAddSequenceIdOutOfRange {
+                seq_id,
+                n_seq_max: limits.max_sequences,
+            });
+        }
         let p0 =
             open_ended_position(p0).map_err(ContextMemoryError::SeqAddStartPositionTooLarge)?;
         let p1 = open_ended_position(p1).map_err(ContextMemoryError::SeqAddEndPositionTooLarge)?;
@@ -259,18 +251,22 @@ impl ContextMemory for LlamaContext<'_> {
         p0: Option<u32>,
         p1: Option<u32>,
     ) -> Result<(), ContextMemoryError> {
-        ensure_sequence_id(self.limits(), src, |n_seq_max| {
-            ContextMemoryError::SeqCpSequenceIdOutOfRange {
+        let limits = self.limits();
+
+        if !limits.holds_sequence(src) {
+            return Err(ContextMemoryError::SeqCpSequenceIdOutOfRange {
                 seq_id: src,
-                n_seq_max,
-            }
-        })?;
-        ensure_sequence_id(self.limits(), dest, |n_seq_max| {
-            ContextMemoryError::SeqCpSequenceIdOutOfRange {
+                n_seq_max: limits.max_sequences,
+            });
+        }
+
+        if !limits.holds_sequence(dest) {
+            return Err(ContextMemoryError::SeqCpSequenceIdOutOfRange {
                 seq_id: dest,
-                n_seq_max,
-            }
-        })?;
+                n_seq_max: limits.max_sequences,
+            });
+        }
+
         let p0 = open_ended_position(p0).map_err(ContextMemoryError::SeqCpStartPositionTooLarge)?;
         let p1 = open_ended_position(p1).map_err(ContextMemoryError::SeqCpEndPositionTooLarge)?;
         let mem = self
@@ -288,9 +284,14 @@ impl ContextMemory for LlamaContext<'_> {
         p1: Option<u32>,
         divisor: NonZeroU8,
     ) -> Result<(), ContextMemoryError> {
-        ensure_sequence_id(self.limits(), seq_id, |n_seq_max| {
-            ContextMemoryError::SeqDivSequenceIdOutOfRange { seq_id, n_seq_max }
-        })?;
+        let limits = self.limits();
+
+        if !limits.holds_sequence(seq_id) {
+            return Err(ContextMemoryError::SeqDivSequenceIdOutOfRange {
+                seq_id,
+                n_seq_max: limits.max_sequences,
+            });
+        }
         let p0 =
             open_ended_position(p0).map_err(ContextMemoryError::SeqDivStartPositionTooLarge)?;
         let p1 = open_ended_position(p1).map_err(ContextMemoryError::SeqDivEndPositionTooLarge)?;
@@ -320,9 +321,14 @@ impl ContextMemory for LlamaContext<'_> {
     }
 
     fn memory_seq_keep(&self, seq_id: i32) -> Result<(), ContextMemoryError> {
-        ensure_sequence_id(self.limits(), seq_id, |n_seq_max| {
-            ContextMemoryError::SeqKeepSequenceIdOutOfRange { seq_id, n_seq_max }
-        })?;
+        let limits = self.limits();
+
+        if !limits.holds_sequence(seq_id) {
+            return Err(ContextMemoryError::SeqKeepSequenceIdOutOfRange {
+                seq_id,
+                n_seq_max: limits.max_sequences,
+            });
+        }
 
         if let Some(mem) = self.memory() {
             unsafe { llama_cpp_bindings_sys::llama_memory_seq_keep(mem, seq_id) };
@@ -332,9 +338,14 @@ impl ContextMemory for LlamaContext<'_> {
     }
 
     fn memory_seq_pos_max(&self, seq_id: i32) -> Result<i32, ContextMemoryError> {
-        ensure_sequence_id(self.limits(), seq_id, |n_seq_max| {
-            ContextMemoryError::SeqPosMaxSequenceIdOutOfRange { seq_id, n_seq_max }
-        })?;
+        let limits = self.limits();
+
+        if !limits.holds_sequence(seq_id) {
+            return Err(ContextMemoryError::SeqPosMaxSequenceIdOutOfRange {
+                seq_id,
+                n_seq_max: limits.max_sequences,
+            });
+        }
 
         let mut position = -1;
         let mut out_error: *mut c_char = ptr::null_mut();
@@ -361,13 +372,15 @@ impl ContextMemory for LlamaContext<'_> {
             .transpose()
             .map_err(ContextMemoryError::SeqRmSequenceIdTooLarge)?;
 
-        if let Some(sequence) = seq_id {
-            ensure_sequence_id(self.limits(), sequence, |n_seq_max| {
-                ContextMemoryError::SeqRmSequenceIdOutOfRange {
-                    seq_id: sequence,
-                    n_seq_max,
-                }
-            })?;
+        let limits = self.limits();
+
+        if let Some(sequence) = seq_id
+            && !limits.holds_sequence(sequence)
+        {
+            return Err(ContextMemoryError::SeqRmSequenceIdOutOfRange {
+                seq_id: sequence,
+                n_seq_max: limits.max_sequences,
+            });
         }
 
         let seq_id = seq_id.unwrap_or(-1);
@@ -389,44 +402,13 @@ impl ContextMemory for LlamaContext<'_> {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_context::context_limits::ContextLimits;
     use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
-    use super::ensure_sequence_id;
     use super::memory_seq_add_status_to_result;
     use super::memory_seq_div_status_to_result;
     use super::memory_seq_pos_max_status_to_result;
     use super::open_ended_position;
     use crate::context_memory_error::ContextMemoryError;
-
-    const LIMITS: ContextLimits = ContextLimits {
-        batch: 512,
-        micro_batch: 128,
-        max_sequences: 2,
-        vocabulary_size: 100,
-    };
-
-    fn keep_out_of_range(seq_id: i32) -> impl FnOnce(u32) -> ContextMemoryError {
-        move |n_seq_max| ContextMemoryError::SeqKeepSequenceIdOutOfRange { seq_id, n_seq_max }
-    }
-
-    #[test]
-    fn a_sequence_the_context_holds_is_accepted() {
-        assert_eq!(ensure_sequence_id(LIMITS, 1, keep_out_of_range(1)), Ok(()));
-    }
-
-    #[test]
-    fn a_sequence_the_context_lacks_is_refused_with_the_sequence_count() {
-        assert_eq!(
-            [-1, 2].map(|seq_id| ensure_sequence_id(LIMITS, seq_id, keep_out_of_range(seq_id))),
-            [-1, 2].map(
-                |seq_id| Err(ContextMemoryError::SeqKeepSequenceIdOutOfRange {
-                    seq_id,
-                    n_seq_max: 2,
-                })
-            )
-        );
-    }
 
     #[test]
     fn an_absent_position_reads_as_the_open_end_llama_cpp_marks_with_minus_one() {
@@ -475,7 +457,8 @@ mod tests {
     }
 
     #[test]
-    fn add_llama_cpp_exception_status_without_a_message_is_a_contract_violation() {
+    fn add_llama_cpp_exception_status_without_a_message_is_reported_as_a_missing_exception_message()
+    {
         assert_eq!(
             memory_seq_add_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -579,7 +562,8 @@ mod tests {
     }
 
     #[test]
-    fn div_llama_cpp_exception_status_without_a_message_is_a_contract_violation() {
+    fn div_llama_cpp_exception_status_without_a_message_is_reported_as_a_missing_exception_message()
+    {
         assert_eq!(
             memory_seq_div_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -650,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn seq_pos_max_ok_status_returns_position() {
+    fn a_successful_seq_pos_max_status_yields_the_position() {
         assert_eq!(
             memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK,
@@ -731,7 +715,8 @@ mod tests {
     }
 
     #[test]
-    fn seq_pos_max_llama_cpp_exception_status_without_a_message_is_a_contract_violation() {
+    fn seq_pos_max_llama_cpp_exception_status_without_a_message_is_reported_as_a_missing_exception_message()
+     {
         assert_eq!(
             memory_seq_pos_max_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,

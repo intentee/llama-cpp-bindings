@@ -1,22 +1,15 @@
 use std::path::Path;
 
 use llama_cpp_path_c_string::path_c_string::path_c_string;
-use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 use crate::backend_error::BackendError;
 
 /// # Errors
 ///
-/// Returns [`BackendError::BackendDirectoryPathNotUtf8`] when `path` cannot be converted to UTF-8
-/// and [`BackendError::BackendDirectoryPathContainsNullByte`] when the path contains an interior
-/// null byte.
+/// Returns [`BackendError::BackendDirectoryPathInvalid`] when `path` is not valid UTF-8 or
+/// contains an interior null byte.
 pub fn load_backends_from_path(path: &Path) -> Result<(), BackendError> {
-    let path_cstring = path_c_string(path).map_err(|error| match error {
-        PathCStringError::ContainsNulByte(source) => {
-            BackendError::BackendDirectoryPathContainsNullByte(source)
-        }
-        PathCStringError::NotUtf8(path) => BackendError::BackendDirectoryPathNotUtf8(path),
-    })?;
+    let path_cstring = path_c_string(path).map_err(BackendError::BackendDirectoryPathInvalid)?;
 
     unsafe {
         llama_cpp_bindings_sys::ggml_backend_load_all_from_path(path_cstring.as_ptr());
@@ -34,6 +27,8 @@ mod tests {
 
     use std::env;
 
+    use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
+
     use super::load_backends_from_path;
     use crate::backend_error::BackendError;
 
@@ -43,8 +38,8 @@ mod tests {
 
         assert_eq!(
             load_backends_from_path(&path),
-            Err(BackendError::BackendDirectoryPathContainsNullByte(
-                CString::new("/tmp/foo\0bar").unwrap_err()
+            Err(BackendError::BackendDirectoryPathInvalid(
+                PathCStringError::ContainsNulByte(CString::new("/tmp/foo\0bar").unwrap_err())
             ))
         );
     }
@@ -55,7 +50,9 @@ mod tests {
 
         assert_eq!(
             load_backends_from_path(&path),
-            Err(BackendError::BackendDirectoryPathNotUtf8(path.clone()))
+            Err(BackendError::BackendDirectoryPathInvalid(
+                PathCStringError::NotUtf8(path.clone())
+            ))
         );
     }
 

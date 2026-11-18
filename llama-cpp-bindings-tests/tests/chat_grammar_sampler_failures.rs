@@ -26,9 +26,7 @@ fn the_grammar_sampler_refuses_a_grammar_that_is_not_utf8(
     let _fault =
         ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8);
 
-    ensure!(
-        session.grammar_sampler(model).err() == Some(ChatError::SessionTextNotUtf8(not_utf8()?))
-    );
+    ensure!(session.grammar_sampler(model).err() == not_utf8().map(ChatError::SessionTextNotUtf8));
 
     Ok(())
 }

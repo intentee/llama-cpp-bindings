@@ -9,7 +9,6 @@ use std::ptr::NonNull;
 use std::slice;
 
 use llama_cpp_path_c_string::path_c_string::path_c_string;
-use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 use crate::gguf_context_error::GgufContextError;
 use crate::gguf_tensor_f32::GgufTensorF32;
@@ -27,14 +26,11 @@ impl GgufContext {
     /// # Errors
     ///
     /// Returns [`GgufContextError::InitFailed`] if the file cannot be opened or parsed.
-    /// Returns [`GgufContextError::PathToStrError`] if the path is not valid UTF-8.
-    /// Returns [`GgufContextError::NulError`] if the path contains a null byte.
+    /// Returns [`GgufContextError::LoadPathInvalid`] if the path is not valid UTF-8 or contains a
+    /// null byte.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, GgufContextError> {
         let path_ref = path.as_ref();
-        let c_path = path_c_string(path_ref).map_err(|error| match error {
-            PathCStringError::ContainsNulByte(source) => GgufContextError::NulError(source),
-            PathCStringError::NotUtf8(path) => GgufContextError::PathToStrError(path),
-        })?;
+        let c_path = path_c_string(path_ref).map_err(GgufContextError::LoadPathInvalid)?;
 
         let init_params = llama_cpp_bindings_sys::gguf_init_params {
             no_alloc: true,
@@ -55,9 +51,9 @@ impl GgufContext {
     /// # Errors
     ///
     /// Returns [`GgufContextError::KeyNotFound`] if the key does not exist.
-    /// Returns [`GgufContextError::NulError`] if the key contains a null byte.
+    /// Returns [`GgufContextError::KeyContainsNulByte`] if the key contains a null byte.
     pub fn find_key(&self, key: &str) -> Result<i64, GgufContextError> {
-        let c_key = CString::new(key)?;
+        let c_key = CString::new(key).map_err(GgufContextError::KeyContainsNulByte)?;
         let index =
             unsafe { llama_cpp_bindings_sys::gguf_find_key(self.context.as_ptr(), c_key.as_ptr()) };
 
@@ -73,7 +69,7 @@ impl GgufContext {
     /// # Errors
     ///
     /// Returns [`GgufContextError::KeyIdOutOfRange`] if the file holds no key with this id.
-    /// Returns [`GgufContextError::Utf8Error`] if the key name is not valid UTF-8.
+    /// Returns [`GgufContextError::KeyNameNotUtf8`] if the key name is not valid UTF-8.
     pub fn key_at(&self, key_id: i64) -> Result<&str, GgufContextError> {
         self.require_key_id_in_range(key_id)?;
 
@@ -84,7 +80,9 @@ impl GgufContext {
             ))
         };
 
-        Ok(c_str.to_str()?)
+        c_str
+            .to_str()
+            .map_err(|source| GgufContextError::KeyNameNotUtf8 { key_id, source })
     }
 
     /// # Errors
@@ -115,9 +113,9 @@ impl GgufContext {
     /// Returns [`GgufContextError::TensorNotFound`] if the file holds no tensor with this name.
     /// Returns [`GgufContextError::TensorIsNotF32`] if the tensor is stored in another type.
     /// Returns [`GgufContextError::TensorReadFailed`] if the tensor data cannot be read.
-    /// Returns [`GgufContextError::NulError`] if the name contains a null byte.
+    /// Returns [`GgufContextError::TensorNameContainsNulByte`] if the name contains a null byte.
     pub fn read_tensor_f32(&self, name: &str) -> Result<GgufTensorF32, GgufContextError> {
-        let c_name = CString::new(name)?;
+        let c_name = CString::new(name).map_err(GgufContextError::TensorNameContainsNulByte)?;
         let tensor_id = unsafe {
             llama_cpp_bindings_sys::gguf_find_tensor(self.context.as_ptr(), c_name.as_ptr())
         };
@@ -148,7 +146,7 @@ impl GgufContext {
     /// # Errors
     ///
     /// Returns [`GgufContextError::KeyNotFound`] if the key does not exist.
-    /// Returns [`GgufContextError::NulError`] if the key contains a null byte.
+    /// Returns [`GgufContextError::KeyContainsNulByte`] if the key contains a null byte.
     pub fn remove_key(&mut self, key: &str) -> Result<(), GgufContextError> {
         let key_id = self.find_key(key)?;
         let stored_key =
@@ -240,7 +238,7 @@ impl GgufContext {
     ///
     /// Returns [`GgufContextError::KeyIdOutOfRange`] or [`GgufContextError::ValueTypeMismatch`]
     /// if the key does not hold a [`GgufType::String`] value.
-    /// Returns [`GgufContextError::Utf8Error`] if the string value is not valid UTF-8.
+    /// Returns [`GgufContextError::StringValueNotUtf8`] if the string value is not valid UTF-8.
     pub fn val_str(&self, key_id: i64) -> Result<&str, GgufContextError> {
         self.require_value_type(key_id, GgufType::String)?;
 
@@ -251,7 +249,9 @@ impl GgufContext {
             ))
         };
 
-        Ok(c_str.to_str()?)
+        c_str
+            .to_str()
+            .map_err(|source| GgufContextError::StringValueNotUtf8 { key_id, source })
     }
 
     /// # Errors
@@ -405,22 +405,19 @@ impl Drop for GgufContext {
 #[cfg(test)]
 mod tests {
     use std::env;
-    use std::ffi::CString;
     use std::ffi::OsStr;
     use std::fs;
     use std::fs::File;
-    use std::io;
     use std::io::Write as _;
-    use std::mem::Discriminant;
-    use std::mem::discriminant;
     use std::os::unix::ffi::OsStrExt;
     use std::path::Path;
     use std::path::PathBuf;
     use std::process;
     use std::str;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::GgufContext;
-    use crate::gguf_context_error::GgufContextError;
     use crate::gguf_type::GgufType;
 
     const GGUF_ALIGNMENT: usize = 32;
@@ -430,56 +427,6 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures")
             .join("ggml-vocab-bert-bge.gguf")
-    }
-
-    fn init_failed_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::InitFailed(PathBuf::new()))
-    }
-
-    fn key_not_found_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::KeyNotFound { key: String::new() })
-    }
-
-    fn nul_error_disc() -> Discriminant<GgufContextError> {
-        let nul_err = CString::new(b"a\0b".to_vec()).unwrap_err();
-        discriminant(&GgufContextError::NulError(nul_err))
-    }
-
-    fn path_to_str_error_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::PathToStrError(PathBuf::new()))
-    }
-
-    fn key_id_out_of_range_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::KeyIdOutOfRange { key_id: 0, n_kv: 0 })
-    }
-
-    fn value_type_mismatch_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::ValueTypeMismatch {
-            key_id: 0,
-            expected: GgufType::Uint32,
-            actual: GgufType::Uint32,
-        })
-    }
-
-    fn tensor_not_found_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::TensorNotFound {
-            name: String::new(),
-        })
-    }
-
-    fn tensor_is_not_f32_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::TensorIsNotF32 {
-            name: String::new(),
-            ggml_type: 0,
-        })
-    }
-
-    fn array_element_type_mismatch_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::ArrayElementTypeMismatch {
-            key_id: 0,
-            expected: GgufType::Int32,
-            actual_raw_type: 0,
-        })
     }
 
     fn i32_array_bytes(values: &[i32]) -> Vec<u8> {
@@ -494,48 +441,12 @@ mod tests {
         encoded
     }
 
-    fn source_file_read_failed_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::SourceFileReadFailed {
-            path: PathBuf::new(),
-            source: io::Error::other("discriminant"),
-        })
-    }
-
-    fn source_file_truncated_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::SourceFileTruncated {
-            path: PathBuf::new(),
-            data_offset: 0,
-            file_size: 0,
-        })
-    }
-
-    fn destination_file_write_failed_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::DestinationFileWriteFailed {
-            path: PathBuf::new(),
-            source: io::Error::other("discriminant"),
-        })
-    }
-
     fn rewritten_gguf_path(test_name: &str) -> PathBuf {
         env::temp_dir().join(format!(
             "llama_cpp_bindings_rewritten_{}_{}.gguf",
             process::id(),
             test_name,
         ))
-    }
-
-    fn tensor_read_failed_disc() -> Discriminant<GgufContextError> {
-        discriminant(&GgufContextError::TensorReadFailed {
-            name: String::new(),
-            path: PathBuf::new(),
-            source: io::Error::other("discriminant"),
-        })
-    }
-
-    fn utf8_error_disc() -> Discriminant<GgufContextError> {
-        let invalid_utf8_bytes: Vec<u8> = vec![0xFF];
-        let utf8_err = str::from_utf8(&invalid_utf8_bytes).unwrap_err();
-        discriminant(&GgufContextError::Utf8Error(utf8_err))
     }
 
     fn f32_bytes(values: &[f32]) -> Vec<u8> {
@@ -660,7 +571,10 @@ mod tests {
     fn from_file_nonexistent_returns_init_failed() {
         let err = GgufContext::from_file("/nonexistent/file.gguf").unwrap_err();
 
-        assert_eq!(discriminant(&err), init_failed_disc());
+        assert_eq!(
+            error_chain(&err),
+            "Failed to initialize GGUF context from file: /nonexistent/file.gguf"
+        );
     }
 
     #[test]
@@ -675,11 +589,14 @@ mod tests {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.find_key("nonexistent.key").unwrap_err();
 
-        assert_eq!(discriminant(&err), key_not_found_disc());
+        assert_eq!(
+            error_chain(&err),
+            "Key not found in GGUF context: nonexistent.key"
+        );
     }
 
     #[test]
-    fn key_at_returns_expected_name() {
+    fn key_at_reads_the_name_of_the_key_find_key_located() {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let index = context.find_key("general.architecture").unwrap();
         let key_name = context.key_at(index).unwrap();
@@ -692,7 +609,10 @@ mod tests {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.key_at(context.n_kv()).unwrap_err();
 
-        assert_eq!(discriminant(&err), key_id_out_of_range_disc());
+        assert_eq!(
+            error_chain(&err),
+            "GGUF key id 20 is outside of the 20 keys the file holds"
+        );
     }
 
     #[test]
@@ -700,11 +620,14 @@ mod tests {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.val_u32(-1).unwrap_err();
 
-        assert_eq!(discriminant(&err), key_id_out_of_range_disc());
+        assert_eq!(
+            error_chain(&err),
+            "GGUF key id -1 is outside of the 20 keys the file holds"
+        );
     }
 
     #[test]
-    fn kv_type_returns_expected_type_for_string_key() {
+    fn kv_type_reports_a_string_key_as_string() {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let index = context.find_key("general.architecture").unwrap();
 
@@ -725,14 +648,20 @@ mod tests {
         let non_utf8_path = Path::new(OsStr::from_bytes(b"/tmp/\xff\xfe.gguf"));
         let err = GgufContext::from_file(non_utf8_path).unwrap_err();
 
-        assert_eq!(discriminant(&err), path_to_str_error_disc());
+        assert_eq!(
+            error_chain(&err),
+            "the GGUF file path cannot be handed to ggml: the path /tmp/\u{FFFD}\u{FFFD}.gguf is not valid UTF-8"
+        );
     }
 
     #[test]
     fn opening_a_path_with_a_nul_byte_is_refused() {
         let err = GgufContext::from_file("/tmp/foo\0bar.gguf").unwrap_err();
 
-        assert_eq!(discriminant(&err), nul_error_disc());
+        assert_eq!(
+            error_chain(&err),
+            "the GGUF file path cannot be handed to ggml: the path contains a NUL byte: nul byte found in provided data at position: 8"
+        );
     }
 
     #[test]
@@ -740,7 +669,10 @@ mod tests {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.find_key("foo\0bar").unwrap_err();
 
-        assert_eq!(discriminant(&err), nul_error_disc());
+        assert_eq!(
+            error_chain(&err),
+            "the GGUF key to look up contains a NUL byte: nul byte found in provided data at position: 3"
+        );
     }
 
     #[test]
@@ -795,9 +727,12 @@ mod tests {
             context.val_str(bool_index).unwrap_err(),
         ];
 
-        for mismatch in mismatches {
-            assert_eq!(discriminant(&mismatch), value_type_mismatch_disc());
-        }
+        assert_eq!(
+            mismatches.map(|mismatch| error_chain(&mismatch)),
+            ["Uint32", "Int32", "Uint64", "Float32", "String"].map(|expected| format!(
+                "GGUF key id {bool_index} holds a Bool value, not {expected}"
+            ))
+        );
     }
 
     #[test]
@@ -810,7 +745,12 @@ mod tests {
         let value_index = context.find_key("synthetic.str_value").unwrap();
         let err = context.val_str(value_index).unwrap_err();
 
-        assert_eq!(discriminant(&err), utf8_error_disc());
+        assert_eq!(
+            error_chain(&err),
+            format!(
+                "GGUF key id {value_index} holds a string value that is not valid UTF-8: invalid utf-8 sequence of 1 bytes from index 0"
+            )
+        );
     }
 
     #[test]
@@ -822,7 +762,10 @@ mod tests {
 
         let err = context.key_at(0).unwrap_err();
 
-        assert_eq!(discriminant(&err), utf8_error_disc());
+        assert_eq!(
+            error_chain(&err),
+            "GGUF key id 0 has a name that is not valid UTF-8: invalid utf-8 sequence of 1 bytes from index 0"
+        );
     }
 
     #[test]
@@ -849,7 +792,10 @@ mod tests {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.read_tensor_f32("synthetic.missing").unwrap_err();
 
-        assert_eq!(discriminant(&err), tensor_not_found_disc());
+        assert_eq!(
+            error_chain(&err),
+            "Tensor not found in GGUF context: synthetic.missing"
+        );
     }
 
     #[test]
@@ -860,7 +806,10 @@ mod tests {
         let context = GgufContext::from_file(&fixture.path).unwrap();
         let err = context.read_tensor_f32("synthetic.half").unwrap_err();
 
-        assert_eq!(discriminant(&err), tensor_is_not_f32_disc());
+        assert_eq!(
+            error_chain(&err),
+            "GGUF tensor synthetic.half holds ggml type 1, not F32"
+        );
     }
 
     #[test]
@@ -879,7 +828,13 @@ mod tests {
 
         let err = context.read_tensor_f32("synthetic.weight").unwrap_err();
 
-        assert_eq!(discriminant(&err), tensor_read_failed_disc());
+        assert_eq!(
+            error_chain(&err),
+            format!(
+                "Failed to read GGUF tensor synthetic.weight from {}: failed to fill whole buffer",
+                fixture.path.display()
+            )
+        );
     }
 
     #[test]
@@ -900,9 +855,14 @@ mod tests {
 
         fs::write(&fixture.path, b"").unwrap();
 
+        let err = result.unwrap_err();
+
         assert_eq!(
-            discriminant(&result.unwrap_err()),
-            tensor_read_failed_disc()
+            error_chain(&err),
+            format!(
+                "Failed to read GGUF tensor synthetic.weight from {}: No such file or directory (os error 2)",
+                fixture.path.display()
+            )
         );
     }
 
@@ -911,7 +871,10 @@ mod tests {
         let context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.read_tensor_f32("foo\0bar").unwrap_err();
 
-        assert_eq!(discriminant(&err), nul_error_disc());
+        assert_eq!(
+            error_chain(&err),
+            "the GGUF tensor name to look up contains a NUL byte: nul byte found in provided data at position: 3"
+        );
     }
 
     #[test]
@@ -935,7 +898,10 @@ mod tests {
         let index = context.find_key("general.architecture").unwrap();
         let err = context.val_arr_i32(index).unwrap_err();
 
-        assert_eq!(discriminant(&err), value_type_mismatch_disc());
+        assert_eq!(
+            error_chain(&err),
+            format!("GGUF key id {index} holds a String value, not Array")
+        );
     }
 
     #[test]
@@ -952,7 +918,10 @@ mod tests {
         let array_index = context.find_key("synthetic.u8_array").unwrap();
         let err = context.val_arr_i32(array_index).unwrap_err();
 
-        assert_eq!(discriminant(&err), array_element_type_mismatch_disc());
+        assert_eq!(
+            error_chain(&err),
+            format!("GGUF key id {array_index} holds an array of type 0, not Int32")
+        );
     }
 
     #[test]
@@ -960,7 +929,10 @@ mod tests {
         let mut context = GgufContext::from_file(vocabulary_fixture_path()).unwrap();
         let err = context.remove_key("nonexistent.key").unwrap_err();
 
-        assert_eq!(discriminant(&err), key_not_found_disc());
+        assert_eq!(
+            error_chain(&err),
+            "Key not found in GGUF context: nonexistent.key"
+        );
     }
 
     #[test]
@@ -991,7 +963,10 @@ mod tests {
 
         assert_eq!(rewritten.n_kv(), 1);
         assert_eq!(rewritten.val_str(kept_index).unwrap(), "kept value");
-        assert_eq!(discriminant(&removed_err), key_not_found_disc());
+        assert_eq!(
+            error_chain(&removed_err),
+            "Key not found in GGUF context: synthetic.removed"
+        );
         assert_eq!(tensor.shape, [3, 2, 1, 1]);
         assert_eq!(tensor.values, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
@@ -1041,9 +1016,14 @@ mod tests {
 
         fs::write(&fixture.path, b"").unwrap();
 
+        let err = result.unwrap_err();
+
         assert_eq!(
-            discriminant(&result.unwrap_err()),
-            source_file_read_failed_disc()
+            error_chain(&err),
+            format!(
+                "Failed to read the GGUF file {} this context was loaded from: No such file or directory (os error 2)",
+                fixture.path.display()
+            )
         );
     }
 
@@ -1067,7 +1047,14 @@ mod tests {
             ))
             .unwrap_err();
 
-        assert_eq!(discriminant(&err), source_file_truncated_disc());
+        assert_eq!(
+            error_chain(&err),
+            format!(
+                "GGUF file {} holds 0 bytes, but its tensor data begins at byte {}",
+                fixture.path.display(),
+                unsafe { llama_cpp_bindings_sys::gguf_get_data_offset(context.context.as_ptr()) }
+            )
+        );
     }
 
     #[test]
@@ -1077,6 +1064,9 @@ mod tests {
             .write_to_file("/nonexistent/directory/rewritten.gguf")
             .unwrap_err();
 
-        assert_eq!(discriminant(&err), destination_file_write_failed_disc());
+        assert_eq!(
+            error_chain(&err),
+            "Failed to write the rewritten GGUF file to /nonexistent/directory/rewritten.gguf: No such file or directory (os error 2)"
+        );
     }
 }

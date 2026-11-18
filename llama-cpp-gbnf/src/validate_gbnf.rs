@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn exception_status_without_message_is_a_contract_error() {
+    fn exception_status_without_message_is_reported_as_a_missing_exception_message() {
         assert_eq!(
             validation_status_to_result(
                 LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION,
