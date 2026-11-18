@@ -3,7 +3,7 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::llama_chat_template::LlamaChatTemplate;
 use crate::model_error::ModelError;
@@ -13,14 +13,13 @@ fn chat_templates_init_status_to_result(
     out_templates: llama_cpp_bindings_sys::llama_rs_chat_templates_handle,
     out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_chat_templates>, ModelError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_chat_templates_init");
+    const OPERATION: &str = "llama_rs_chat_templates_init";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_OK => NonNull::new(out_templates)
-            .ok_or_else(|| {
-                OPERATION
-                    .contract_violated("success status contained a null templates handle")
-                    .into()
+            .ok_or(ModelError::WrapperSucceededWithoutOutput {
+                operation: OPERATION,
+                output: "templates handle",
             }),
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_MODEL_HAS_NO_CHAT_TEMPLATE => {
             Err(ModelError::ModelHasNoChatTemplate)
@@ -32,26 +31,37 @@ fn chat_templates_init_status_to_result(
             Err(ModelError::ChatTemplatesLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ModelError::ChatTemplatesReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_MODEL_ARG => Err(OPERATION
-            .contract_violated("was given a null model argument")
-            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_MODEL_ARG => {
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "model",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_TEMPLATE_OVERRIDE_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null template_override argument")
-                .into())
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "template_override",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_TEMPLATES_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null out_templates argument")
-                .into())
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_templates",
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_ERROR_ARG => Err(OPERATION
-            .contract_violated("was given a null out_error argument")
-            .into()),
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_NULL_OUT_ERROR_ARG => {
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
+        }
+        other => Err(ModelError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -144,7 +154,7 @@ mod tests {
     use std::ffi::c_char;
     use std::ptr;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::chat_templates_init_status_to_result;
     use crate::model_error::ModelError;
@@ -156,18 +166,11 @@ mod tests {
         chat_templates_init_status_to_result(status, ptr::null_mut(), out_error).err()
     }
 
-    const fn contract(detail: &'static str) -> ModelError {
-        ModelError::Ffi(FfiError::ContractViolated {
+    const fn refused_null_argument(argument: &'static str) -> ModelError {
+        ModelError::WrapperRefusedNullArgument {
             operation: "llama_rs_chat_templates_init",
-            detail,
-        })
-    }
-
-    fn missing_message(detail: &'static str) -> ModelError {
-        ModelError::Ffi(FfiError::ContractViolated {
-            operation: "llama_rs_chat_templates_init",
-            detail,
-        })
+            argument,
+        }
     }
 
     #[test]
@@ -213,21 +216,24 @@ mod tests {
                 init_error(255, ptr::null_mut()),
             ],
             [
-                Some(contract("success status contained a null templates handle")),
+                Some(ModelError::WrapperSucceededWithoutOutput {
+                    operation: "llama_rs_chat_templates_init",
+                    output: "templates handle",
+                }),
                 Some(ModelError::ModelHasNoChatTemplate),
                 Some(ModelError::ChatTemplatesNotEnoughMemory),
                 Some(ModelError::ChatTemplatesLlamaCppOutOfMemory),
                 Some(ModelError::ChatTemplatesReported {
                     message: "the template threw".to_owned()
                 }),
-                Some(contract("was given a null model argument")),
-                Some(contract("was given a null template_override argument")),
-                Some(contract("was given a null out_templates argument")),
-                Some(contract("was given a null out_error argument")),
-                Some(ModelError::Ffi(FfiError::UnknownStatus {
+                Some(refused_null_argument("model")),
+                Some(refused_null_argument("template_override")),
+                Some(refused_null_argument("out_templates")),
+                Some(refused_null_argument("out_error")),
+                Some(ModelError::UnknownWrapperStatus {
                     operation: "llama_rs_chat_templates_init",
                     code: 255,
-                })),
+                }),
             ]
         );
     }
@@ -239,8 +245,10 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut()
             ),
-            Some(missing_message(
-                "reported a thrown C++ exception without an error message"
+            Some(ModelError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_chat_templates_init"
+                }
             ))
         );
     }

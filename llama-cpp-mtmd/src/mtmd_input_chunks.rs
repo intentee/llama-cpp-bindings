@@ -4,7 +4,7 @@ use std::ptr;
 use std::ptr::NonNull;
 
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::mtmd_bitmap::MtmdBitmap;
 use crate::mtmd_context::MtmdContext;
@@ -21,20 +21,19 @@ fn input_chunks_init_status_to_result(
     out_chunks: *mut llama_cpp_bindings_sys::mtmd_input_chunks,
     out_error: *mut c_char,
 ) -> Result<MtmdInputChunks, MtmdError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_input_chunks_init");
+    const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => NonNull::new(out_chunks)
             .map(|chunks| MtmdInputChunks { chunks })
-            .ok_or_else(|| {
-                OPERATION
-                    .contract_violated("success status contained null chunks")
-                    .into()
+            .ok_or(MtmdError::WrapperSucceededWithoutChunks {
+                operation: OPERATION,
             }),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null out_chunks argument")
-                .into())
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_chunks",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::InputChunksNotEnoughMemory)
@@ -43,11 +42,14 @@ fn input_chunks_init_status_to_result(
             Err(MtmdError::InputChunksLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
 
             Err(MtmdError::InputChunksReported { message })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(MtmdError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -56,7 +58,7 @@ fn map_tokenize_status(
     undocumented_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_tokenize");
+    const OPERATION: &str = "llama_rs_mtmd_tokenize";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_OK => Ok(()),
@@ -78,21 +80,36 @@ fn map_tokenize_status(
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(MtmdError::TokenizeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO => {
-            Err(OPERATION.contract_violated("nonzero bitmap count was observed with a null bitmap array")
-            .into())
+            Err(MtmdError::WrapperRefusedNullBitmapArray {
+                operation: OPERATION,
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG => Err(OPERATION.contract_violated("was given a null ctx argument")
-        .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG => Err(OPERATION.contract_violated("was given a null output argument")
-        .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG => Err(OPERATION.contract_violated("was given a null text argument")
-        .into()),
-        other => Err(OPERATION.unknown_status(i64::from(other))
-        .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "ctx",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "output",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "text",
+            })
+        }
+        other => Err(MtmdError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -101,13 +118,14 @@ fn map_tokenize_from_parts_status(
     undocumented_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_tokenize_from_parts");
+    const OPERATION: &str = "llama_rs_mtmd_tokenize_from_parts";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART => {
-            Err(OPERATION.contract_violated("llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts")
-            .into())
+            Err(MtmdError::WrapperReportedMalformedPartList {
+                operation: OPERATION,
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE => {
             Err(MtmdError::MediaPreprocessingOrTokenizationFailed)
@@ -125,28 +143,36 @@ fn map_tokenize_from_parts_status(
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             let message = unsafe {
-                OPERATION.read_and_free_exception_message(out_error)
+                read_and_free_exception_message(OPERATION, out_error)
             }?;
             Err(MtmdError::TokenizeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG => {
-            Err(OPERATION.contract_violated("was given a null ctx argument")
-            .into())
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "ctx",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG => {
-            Err(OPERATION.contract_violated("was given a null output argument")
-            .into())
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "output",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO => {
-            Err(OPERATION.contract_violated("nonzero part count was observed with a null part array")
-            .into())
+            Err(MtmdError::WrapperRefusedNullPartArray {
+                operation: OPERATION,
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT => {
-            Err(OPERATION.contract_violated("was given a null element in the parts argument")
-            .into())
+            Err(MtmdError::WrapperRefusedNullPartsElement {
+                operation: OPERATION,
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other))
-        .into()),
+        other => Err(MtmdError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -323,7 +349,7 @@ impl MtmdInputChunks {
     /// Returns [`MtmdError::NonCausalChunkExceedsMicroBatch`] for the first chunk decoded
     /// non-causally that has more tokens than `micro_batch_tokens`,
     /// [`MtmdError::EvalUnknownChunkType`] when a chunk type is unknown, or
-    /// [`MtmdError::Ffi`] when a chunk within the chunk count is null.
+    /// [`MtmdError::WrapperReturnedNullChunkWithinCount`] when a chunk within the chunk count is null.
     pub fn fit_to_micro_batch(
         &self,
         mtmd_ctx: &MtmdContext,
@@ -371,11 +397,10 @@ impl MtmdInputChunks {
     fn chunks_within_count(&self) -> Result<Vec<MtmdInputChunk>, MtmdError> {
         (0..self.len())
             .map(|index| {
-                self.get(index).ok_or_else(|| {
-                    WrapperOperation::new("mtmd_input_chunks_get")
-                        .contract_violated("returned a null chunk within the chunk count")
-                        .into()
-                })
+                self.get(index)
+                    .ok_or(MtmdError::WrapperReturnedNullChunkWithinCount {
+                        operation: "mtmd_input_chunks_get",
+                    })
             })
             .collect()
     }
@@ -391,9 +416,9 @@ impl Drop for MtmdInputChunks {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
-    use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
+    use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::input_chunks_init_status_to_result;
     use super::map_tokenize_from_parts_status;
@@ -403,14 +428,6 @@ mod tests {
     use crate::mtmd_error::MtmdError;
 
     const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
-
-    fn contract_violation(detail: &'static str) -> MtmdError {
-        FfiError::ContractViolated {
-            operation: OPERATION,
-            detail,
-        }
-        .into()
-    }
 
     #[test]
     fn new_creates_empty_chunks() {
@@ -444,17 +461,24 @@ mod tests {
                 input_chunks_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
             }),
             [
-                Some(contract_violation("success status contained null chunks")),
-                Some(contract_violation("was given a null out_chunks argument")),
+                Some(MtmdError::WrapperSucceededWithoutChunks {
+                    operation: OPERATION
+                }),
+                Some(MtmdError::WrapperRefusedNullArgument {
+                    operation: OPERATION,
+                    argument: "out_chunks"
+                }),
                 Some(MtmdError::InputChunksNotEnoughMemory),
                 Some(MtmdError::InputChunksLlamaCppOutOfMemory),
-                Some(contract_violation(
-                    "reported a thrown C++ exception without an error message"
+                Some(MtmdError::WrapperString(
+                    WrapperStringError::ExceptionMessageMissing {
+                        operation: OPERATION
+                    }
                 )),
-                Some(MtmdError::Ffi(FfiError::UnknownStatus {
+                Some(MtmdError::UnknownWrapperStatus {
                     operation: OPERATION,
-                    code: 255,
-                })),
+                    code: 255
+                }),
             ]
         );
     }
@@ -540,8 +564,10 @@ mod tests {
     #[test]
     fn tokenize_from_parts_status_maps_a_thrown_exception_with_its_message() {
         let expected_message = unsafe {
-            WrapperOperation::new("llama_rs_mtmd_tokenize_from_parts")
-                .read_and_free_exception_message(wrapper_allocated_error_message_pointer())
+            read_and_free_exception_message(
+                "llama_rs_mtmd_tokenize_from_parts",
+                wrapper_allocated_error_message_pointer(),
+            )
         };
 
         assert_eq!(
@@ -558,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_reports_a_malformed_part_list_as_a_contract_violation() {
+    fn map_tokenize_from_parts_status_reports_a_malformed_part_list() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART,
@@ -567,17 +593,15 @@ mod tests {
             )
             .err(),
             Some(
-                FfiError::ContractViolated {
+                MtmdError::WrapperReportedMalformedPartList {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
-                    detail: "llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts",
                 }
-                .into()
             )
         );
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_reports_a_null_part_element_as_a_contract_violation() {
+    fn map_tokenize_from_parts_status_reports_a_refused_null_part_element() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT,
@@ -585,13 +609,9 @@ mod tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_tokenize_from_parts",
-                    detail: "was given a null element in the parts argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullPartsElement {
+                operation: "llama_rs_mtmd_tokenize_from_parts"
+            })
         );
     }
 
@@ -606,17 +626,13 @@ mod tests {
             )
             .err(),
             Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_tokenize_from_parts",
-                    detail: "reported a thrown C++ exception without an error message",
-                }
-                .into()
+                MtmdError::WrapperString(WrapperStringError::ExceptionMessageMissing { operation: "llama_rs_mtmd_tokenize_from_parts" })
             )
         );
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_reports_a_null_ctx_arg_as_a_contract_violation() {
+    fn map_tokenize_from_parts_status_reports_a_null_ctx_arg_as_a_refused_null_argument() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG,
@@ -624,18 +640,15 @@ mod tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_tokenize_from_parts",
-                    detail: "was given a null ctx argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_tokenize_from_parts",
+                argument: "ctx"
+            })
         );
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_reports_a_null_output_arg_as_a_contract_violation() {
+    fn map_tokenize_from_parts_status_reports_a_null_output_arg_as_a_refused_null_argument() {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG,
@@ -643,19 +656,16 @@ mod tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_tokenize_from_parts",
-                    detail: "was given a null output argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_tokenize_from_parts",
+                argument: "output"
+            })
         );
     }
 
     #[test]
-    fn map_tokenize_from_parts_status_reports_a_null_parts_arg_with_a_nonzero_part_count_as_a_contract_violation()
-     {
+    fn map_tokenize_from_parts_status_reports_a_refused_null_part_array_with_a_nonzero_part_count()
+    {
         assert_eq!(
             map_tokenize_from_parts_status(
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO,
@@ -664,11 +674,9 @@ mod tests {
             )
             .err(),
             Some(
-                FfiError::ContractViolated {
+                MtmdError::WrapperRefusedNullPartArray {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
-                    detail: "nonzero part count was observed with a null part array",
                 }
-                .into()
             )
         );
     }
@@ -677,10 +685,10 @@ mod tests {
     fn map_tokenize_from_parts_status_preserves_an_unknown_status() {
         assert_eq!(
             map_tokenize_from_parts_status(255, 0, ptr::null_mut()).err(),
-            Some(MtmdError::Ffi(FfiError::UnknownStatus {
+            Some(MtmdError::UnknownWrapperStatus {
                 operation: "llama_rs_mtmd_tokenize_from_parts",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
@@ -752,16 +760,16 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_tokenize",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(MtmdError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_mtmd_tokenize"
+                }
+            ))
         );
     }
 
     #[test]
-    fn tokenize_null_bitmaps_status_is_contract_error() {
+    fn tokenize_null_bitmaps_status_is_a_refused_null_bitmap_array() {
         let result = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO,
             0,
@@ -770,10 +778,9 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(MtmdError::Ffi(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_tokenize",
-                detail: "nonzero bitmap count was observed with a null bitmap array",
-            }))
+            Err(MtmdError::WrapperRefusedNullBitmapArray {
+                operation: "llama_rs_mtmd_tokenize"
+            })
         );
     }
 
@@ -783,15 +790,15 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(MtmdError::Ffi(FfiError::UnknownStatus {
+            Err(MtmdError::UnknownWrapperStatus {
                 operation: "llama_rs_mtmd_tokenize",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
     #[test]
-    fn map_tokenize_status_reports_a_null_ctx_arg_as_a_contract_violation() {
+    fn map_tokenize_status_reports_a_null_ctx_arg_as_a_refused_null_argument() {
         let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG,
             0,
@@ -799,18 +806,15 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_tokenize",
-                    detail: "was given a null ctx argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_tokenize",
+                argument: "ctx"
+            })
         );
     }
 
     #[test]
-    fn map_tokenize_status_reports_a_null_output_arg_as_a_contract_violation() {
+    fn map_tokenize_status_reports_a_null_output_arg_as_a_refused_null_argument() {
         let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG,
             0,
@@ -818,18 +822,15 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_tokenize",
-                    detail: "was given a null output argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_tokenize",
+                argument: "output"
+            })
         );
     }
 
     #[test]
-    fn map_tokenize_status_reports_a_null_text_arg_as_a_contract_violation() {
+    fn map_tokenize_status_reports_a_null_text_arg_as_a_refused_null_argument() {
         let outcome = map_tokenize_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG,
             0,
@@ -837,13 +838,10 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_tokenize",
-                    detail: "was given a null text argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_tokenize",
+                argument: "text"
+            })
         );
     }
 

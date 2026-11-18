@@ -1,12 +1,19 @@
 use std::ffi::NulError;
 use std::path::PathBuf;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ContextStateError {
     #[error(transparent)]
-    Ffi(#[from] FfiError),
+    WrapperString(#[from] WrapperStringError),
+    #[error("{operation} returned unknown FFI status {code}")]
+    UnknownWrapperStatus { operation: &'static str, code: i64 },
+    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
+    WrapperRefusedNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
     #[error("null byte in string")]
     LoadSeqStatePathContainsNulByte(#[source] NulError),
     #[error("failed to convert path {0} to str")]

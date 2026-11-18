@@ -1,8 +1,9 @@
 use std::ffi::c_char;
 use std::ptr;
 
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+use llama_cpp_wrapper_string::read_and_free_wrapper_string::read_and_free_wrapper_string;
 
 use crate::chat_grammar_trigger::ChatGrammarTrigger;
 use crate::sampler_error::SamplerError;
@@ -23,15 +24,20 @@ fn regex_escape_status_to_result(
     out_string: *mut c_char,
     out_error: *mut c_char,
 ) -> Result<String, SamplerError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_regex_escape");
+    const OPERATION: &str = "llama_rs_regex_escape";
 
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_OK => Ok(unsafe {
-            OPERATION.read_and_free_cpp_string(out_string, "success status contained a null string")
-        }?),
+        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_OK => {
+            unsafe { read_and_free_wrapper_string(OPERATION, out_string) }?.ok_or(
+                SamplerError::WrapperSucceededWithoutOutput {
+                    operation: OPERATION,
+                    output: "string",
+                },
+            )
+        }
         llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(SamplerError::GrammarReported {
-                message: unsafe { OPERATION.read_and_free_exception_message(out_error) }?,
+                message: unsafe { read_and_free_exception_message(OPERATION, out_error) }?,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_ERROR_STRING_ALLOCATION_FAILED => {
@@ -40,16 +46,28 @@ fn regex_escape_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(SamplerError::GrammarLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_TEXT_ARG => Err(OPERATION
-            .contract_violated("was given a null text argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_OUT_STRING_ARG => Err(OPERATION
-            .contract_violated("was given a null out_string argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_OUT_ERROR_ARG => Err(OPERATION
-            .contract_violated("was given a null out_error argument")
-            .into()),
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_TEXT_ARG => {
+            Err(SamplerError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "text",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_OUT_STRING_ARG => {
+            Err(SamplerError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_string",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_REGEX_ESCAPE_NULL_OUT_ERROR_ARG => {
+            Err(SamplerError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
+        }
+        other => Err(SamplerError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -105,8 +123,8 @@ mod tests {
 
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
     use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
-    use llama_cpp_ffi_status::ffi_error::FfiError;
     use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::LazyGrammarTriggers;
     use super::anchored_pattern;
@@ -119,11 +137,11 @@ mod tests {
         let escape = |status, out_string, out_error| {
             regex_escape_status_to_result(status, out_string, out_error)
         };
-        let contract = |detail| {
-            Err(SamplerError::Ffi(FfiError::ContractViolated {
+        let refused_null_argument = |argument| {
+            Err(SamplerError::WrapperRefusedNullArgument {
                 operation: "llama_rs_regex_escape",
-                detail,
-            }))
+                argument,
+            })
         };
 
         assert_eq!(
@@ -174,22 +192,22 @@ mod tests {
             ],
             [
                 Ok("\\[TOOL\\]".to_owned()),
-                Err(SamplerError::Ffi(FfiError::ContractViolated {
+                Err(SamplerError::WrapperSucceededWithoutOutput {
                     operation: "llama_rs_regex_escape",
-                    detail: "success status contained a null string",
-                })),
+                    output: "string",
+                }),
                 Err(SamplerError::GrammarReported {
                     message: "the escape threw".to_owned()
                 }),
                 Err(SamplerError::GrammarNotEnoughMemory),
                 Err(SamplerError::GrammarLlamaCppOutOfMemory),
-                contract("was given a null text argument"),
-                contract("was given a null out_string argument"),
-                contract("was given a null out_error argument"),
-                Err(SamplerError::Ffi(FfiError::UnknownStatus {
+                refused_null_argument("text"),
+                refused_null_argument("out_string"),
+                refused_null_argument("out_error"),
+                Err(SamplerError::UnknownWrapperStatus {
                     operation: "llama_rs_regex_escape",
                     code: 255
-                })),
+                }),
             ]
         );
     }
@@ -202,10 +220,11 @@ mod tests {
                 ptr::null_mut(),
                 ptr::null_mut()
             ),
-            Err(SamplerError::Ffi(FfiError::ContractViolated {
-                operation: "llama_rs_regex_escape",
-                detail: "reported a thrown C++ exception without an error message"
-            }))
+            Err(SamplerError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_regex_escape"
+                }
+            ))
         );
     }
 

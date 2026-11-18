@@ -17,7 +17,6 @@ use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_context_memory::context_memory::ContextMemory;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
-use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_model::sampled_token::SampledToken;
@@ -270,10 +269,9 @@ fn eval_chunks_reports_a_chunk_llama_cpp_does_not_return_before_evaluating_any(
 
     ensure!(
         evaluation
-            == Err(MtmdError::Ffi(FfiError::ContractViolated {
-                operation: "mtmd_input_chunks_get",
-                detail: "returned a null chunk within the chunk count",
-            }))
+            == Err(MtmdError::WrapperReturnedNullChunkWithinCount {
+                operation: "mtmd_input_chunks_get"
+            })
     );
     ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
 
@@ -977,10 +975,9 @@ fn fitting_reports_a_chunk_llama_cpp_does_not_return(fixture: &LlamaFixture<'_>)
 
     ensure!(
         chunks.fit_to_micro_batch(mtmd_ctx, 256)
-            == Err(MtmdError::Ffi(FfiError::ContractViolated {
-                operation: "mtmd_input_chunks_get",
-                detail: "returned a null chunk within the chunk count",
-            }))
+            == Err(MtmdError::WrapperReturnedNullChunkWithinCount {
+                operation: "mtmd_input_chunks_get"
+            })
     );
 
     Ok(())

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 use crate::llama_token::LlamaToken;
 
@@ -40,8 +40,6 @@ pub enum ModelError {
         "an override template must not be empty, because llama.cpp reads an empty override as no override"
     )]
     EmptyTemplateOverride,
-    #[error(transparent)]
-    Ffi(#[from] FfiError),
     #[error("the llama.cpp library ran out of memory")]
     GgufInfoLlamaCppOutOfMemory,
     #[error("not enough memory")]
@@ -136,4 +134,20 @@ pub enum ModelError {
     UnknownTokenAttributes(c_uint),
     #[error("Unknown Value {0}")]
     UnknownVocabType(llama_cpp_bindings_sys::llama_vocab_type),
+    #[error("{operation} returned unknown FFI status {code}")]
+    UnknownWrapperStatus { operation: &'static str, code: i64 },
+    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
+    WrapperRefusedNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
+    #[error(transparent)]
+    WrapperString(#[from] WrapperStringError),
+    #[error(
+        "{operation} returned an invalid FFI response: success status contained a null {output}"
+    )]
+    WrapperSucceededWithoutOutput {
+        operation: &'static str,
+        output: &'static str,
+    },
 }

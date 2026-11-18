@@ -1,12 +1,31 @@
 use std::ffi::NulError;
 use std::string::FromUtf8Error;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GbnfError {
     #[error(transparent)]
-    Ffi(#[from] FfiError),
+    WrapperString(#[from] WrapperStringError),
+    #[error("{operation} returned unknown FFI status {code}")]
+    UnknownWrapperStatus { operation: &'static str, code: i64 },
+    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
+    WrapperRefusedNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
+    #[error("{operation} returned an invalid FFI response: {pointer} pointer was null")]
+    WrapperRefusedNullPointer {
+        operation: &'static str,
+        pointer: &'static str,
+    },
+    #[error(
+        "{operation} returned an invalid FFI response: success status contained a null {output}"
+    )]
+    WrapperSucceededWithoutOutput {
+        operation: &'static str,
+        output: &'static str,
+    },
     #[error("grammar string contains an interior NUL byte")]
     GrammarContainsNul(#[source] NulError),
     #[error("grammar root name contains an interior NUL byte")]

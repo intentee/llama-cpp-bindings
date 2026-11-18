@@ -4,13 +4,13 @@ use std::num::NonZeroU32;
 use std::ptr;
 
 use llama_cpp_backend::backend_device_index::backend_device_index;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::mtmd_context_params::MtmdContextParams;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_image_token_limit::MtmdImageTokenLimit;
 
-const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_get_memory_usage");
+const OPERATION: &str = "llama_rs_mtmd_get_memory_usage";
 
 fn get_memory_usage_status_to_result(
     status: llama_cpp_bindings_sys::llama_rs_mtmd_get_memory_usage_status,
@@ -19,28 +19,39 @@ fn get_memory_usage_status_to_result(
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_MMPROJ_PATH_ARG => {
-            Err(contract_violation("was given a null mmproj_path argument"))
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "mmproj_path",
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_ARG => Err(
-            contract_violation("was given a null out_device_memory argument"),
-        ),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_device_memory",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_COUNT_ARG => {
-            Err(contract_violation(
-                "was given a null out_device_memory_count argument",
-            ))
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_device_memory_count",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_IMAGE_MAX_TOKENS_ARG => {
-            Err(contract_violation(
-                "was given a null out_image_max_tokens argument",
-            ))
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_image_max_tokens",
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_USE_NON_CAUSAL_ARG => Err(
-            contract_violation("was given a null out_use_non_causal argument"),
-        ),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_USE_NON_CAUSAL_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_use_non_causal",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED => {
-            Err(contract_violation(
-                "measured memory on more devices than the backend registers",
-            ))
+            Err(MtmdError::WrapperMeasuredMoreDevicesThanRegistered {
+                operation: OPERATION,
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::MemoryUsageNotEnoughMemory)
@@ -49,16 +60,15 @@ fn get_memory_usage_status_to_result(
             Err(MtmdError::MemoryUsageLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
 
             Err(MtmdError::MemoryUsageReported { message })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(MtmdError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
-}
-
-const fn contract_violation(detail: &'static str) -> MtmdError {
-    MtmdError::Ffi(OPERATION.contract_violated(detail))
 }
 
 /// The worst-case memory a multimodal projector takes on each backend device, with the image
@@ -167,7 +177,7 @@ mod tests {
 
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
     use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::get_memory_usage_status_to_result;
     use crate::mtmd_context_params::MtmdContextParams;
@@ -203,12 +213,11 @@ mod tests {
         }
     }
 
-    fn contract_violation(detail: &'static str) -> MtmdError {
-        FfiError::ContractViolated {
+    fn refused_null_argument(argument: &'static str) -> MtmdError {
+        MtmdError::WrapperRefusedNullArgument {
             operation: "llama_rs_mtmd_get_memory_usage",
-            detail,
+            argument,
         }
-        .into()
     }
 
     #[test]
@@ -322,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn wrapper_contract_statuses_are_contract_violations() {
+    fn each_refused_null_argument_and_more_measured_devices_than_registered_is_reported() {
         let statuses = [
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_MMPROJ_PATH_ARG,
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_ARG,
@@ -335,22 +344,14 @@ mod tests {
         assert_eq!(
             statuses.map(|status| get_memory_usage_status_to_result(status, ptr::null_mut())),
             [
-                Err(contract_violation("was given a null mmproj_path argument")),
-                Err(contract_violation(
-                    "was given a null out_device_memory argument"
-                )),
-                Err(contract_violation(
-                    "was given a null out_device_memory_count argument"
-                )),
-                Err(contract_violation(
-                    "was given a null out_image_max_tokens argument"
-                )),
-                Err(contract_violation(
-                    "was given a null out_use_non_causal argument"
-                )),
-                Err(contract_violation(
-                    "measured memory on more devices than the backend registers"
-                )),
+                Err(refused_null_argument("mmproj_path")),
+                Err(refused_null_argument("out_device_memory")),
+                Err(refused_null_argument("out_device_memory_count")),
+                Err(refused_null_argument("out_image_max_tokens")),
+                Err(refused_null_argument("out_use_non_causal")),
+                Err(MtmdError::WrapperMeasuredMoreDevicesThanRegistered {
+                    operation: "llama_rs_mtmd_get_memory_usage"
+                }),
             ]
         );
     }
@@ -400,9 +401,7 @@ mod tests {
                 llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
             ),
-            Err(contract_violation(
-                "reported a thrown C++ exception without an error message"
-            ))
+            Err(MtmdError::WrapperString(WrapperStringError::ExceptionMessageMissing { operation: "llama_rs_mtmd_get_memory_usage" }))
         );
     }
 
@@ -410,10 +409,10 @@ mod tests {
     fn an_unknown_status_is_preserved() {
         assert_eq!(
             get_memory_usage_status_to_result(255, ptr::null_mut()),
-            Err(MtmdError::Ffi(FfiError::UnknownStatus {
+            Err(MtmdError::UnknownWrapperStatus {
                 operation: "llama_rs_mtmd_get_memory_usage",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 }

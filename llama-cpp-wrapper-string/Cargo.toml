@@ -1,6 +1,6 @@
 [package]
-name = "llama-cpp-ffi-status"
-description = "Shared status and contract errors for the llama.cpp C++ wrapper FFI boundary"
+name = "llama-cpp-wrapper-string"
+description = "Reads and frees the strings the llama.cpp C++ wrapper allocated"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

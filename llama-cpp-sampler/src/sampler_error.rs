@@ -2,9 +2,9 @@ use std::ffi::NulError;
 use std::num::TryFromIntError;
 
 use llama_cpp_context::context_error::ContextError;
-use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_model::model_error::ModelError;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SamplerError {
@@ -44,8 +44,6 @@ pub enum SamplerError {
     },
     #[error("the sampler excluded every candidate, leaving no token to select")]
     EveryCandidateExcluded,
-    #[error(transparent)]
-    Ffi(#[from] FfiError),
     #[error("the grammar string contains an interior NUL byte")]
     GrammarContainsNul(#[source] NulError),
     #[error("the grammar parser failed a step without stopping: {message}")]
@@ -122,4 +120,20 @@ pub enum SamplerError {
     TooManyDistinctDrySequenceBreakers { distinct: usize, max: usize },
     #[error("a lazy-grammar trigger pattern contains an interior NUL byte")]
     TriggerPatternContainsNul(#[source] NulError),
+    #[error("{operation} returned unknown FFI status {code}")]
+    UnknownWrapperStatus { operation: &'static str, code: i64 },
+    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
+    WrapperRefusedNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
+    #[error(transparent)]
+    WrapperString(#[from] WrapperStringError),
+    #[error(
+        "{operation} returned an invalid FFI response: success status contained a null {output}"
+    )]
+    WrapperSucceededWithoutOutput {
+        operation: &'static str,
+        output: &'static str,
+    },
 }

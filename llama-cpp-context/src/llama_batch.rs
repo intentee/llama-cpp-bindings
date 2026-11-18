@@ -3,9 +3,9 @@ use std::ptr;
 use std::ptr::NonNull;
 
 use llama_cpp_bindings_sys::{llama_pos, llama_rs_batch_entry, llama_seq_id};
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::context_error::ContextError;
 use crate::context_limits::ContextLimits;
@@ -16,11 +16,7 @@ fn batch_ext_assign_entries_status_to_result(
     out_llama_cpp_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), ContextError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_batch_ext_assign_entries");
-
-    let refused_validated_entry = |detail: &'static str| -> Result<(), ContextError> {
-        Err(OPERATION.contract_violated(detail).into())
-    };
+    const OPERATION: &str = "llama_rs_batch_ext_assign_entries";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OK => Ok(()),
@@ -31,58 +27,92 @@ fn batch_ext_assign_entries_status_to_result(
             Err(ContextError::BatchTransferLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ContextError::BatchTransferReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_BATCH_FULL => {
-            refused_validated_entry(
-                "refused an entry of a batch validated against its limits as full",
-            )
+            Err(ContextError::WrapperRefusedValidatedEntryAsFull {
+                operation: OPERATION,
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_INVALID_TOKEN => {
-            refused_validated_entry("refused a token validated against the vocabulary")
+            Err(ContextError::WrapperRefusedValidatedToken {
+                operation: OPERATION,
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_INVALID_SEQUENCE_ID => {
-            refused_validated_entry("refused a sequence id validated against the context")
+            Err(ContextError::WrapperRefusedValidatedSequenceId {
+                operation: OPERATION,
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_RETURNED_UNKNOWN_CODE => {
-            Err(WrapperOperation::new("llama_batch_ext_add_token")
-                .unknown_status(i64::from(out_llama_cpp_return_code))
-                .into())
+            Err(ContextError::UnknownWrapperStatus {
+                operation: "llama_batch_ext_add_token",
+                code: i64::from(out_llama_cpp_return_code),
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_POSITION_REJECTED => {
-            refused_validated_entry("refused the position of an entry it had just added")
+            Err(ContextError::WrapperRefusedFieldOfAddedEntry {
+                operation: OPERATION,
+                field: "position",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED => {
-            refused_validated_entry("refused the output flag of an entry it had just added")
+            Err(ContextError::WrapperRefusedFieldOfAddedEntry {
+                operation: OPERATION,
+                field: "output flag",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_DECISION_ORDER_REJECTED => {
-            refused_validated_entry("refused the decision order of an entry it had just added")
+            Err(ContextError::WrapperRefusedFieldOfAddedEntry {
+                operation: OPERATION,
+                field: "decision order",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_EMPTY_SEQ_IDS => {
-            refused_validated_entry("was given an entry without sequence ids")
+            Err(ContextError::WrapperGivenEntryWithoutSequenceIds {
+                operation: OPERATION,
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_SEQ_IDS_OUT_OF_RANGE => {
-            refused_validated_entry(
-                "was given an entry whose sequence ids lie outside the sequence id buffer",
-            )
+            Err(ContextError::WrapperGivenSequenceIdsOutsideBuffer {
+                operation: OPERATION,
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_ENTRIES_ARG => {
-            refused_validated_entry("was given a null entries argument")
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "entries",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_BATCH_ARG => {
-            refused_validated_entry("was given a null batch argument")
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "batch",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_SEQ_IDS_ARG => {
-            refused_validated_entry("was given a null seq_ids argument")
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "seq_ids",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG => {
-            refused_validated_entry("was given a null out_llama_cpp_return_code argument")
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_llama_cpp_return_code",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_ERROR_ARG => {
-            refused_validated_entry("was given a null out_error argument")
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(ContextError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -283,9 +313,9 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_bindings_sys::llama_rs_batch_entry;
-    use llama_cpp_ffi_status::ffi_error::FfiError;
     use llama_cpp_model::llama_token::LlamaToken;
     use llama_cpp_model::sampled_token::SampledToken;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::LlamaBatch;
     use super::batch_ext_assign_entries_status_to_result;
@@ -529,68 +559,98 @@ mod tests {
     }
 
     #[test]
-    fn assigning_batch_entries_reports_each_refused_or_malformed_entry_and_null_argument_as_a_contract_violation()
-     {
-        for (status, detail) in [
+    fn assigning_batch_entries_reports_each_entry_and_null_argument_the_wrapper_refused() {
+        for (status, expected_error) in [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_BATCH_FULL,
-                "refused an entry of a batch validated against its limits as full",
+                ContextError::WrapperRefusedValidatedEntryAsFull {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_INVALID_TOKEN,
-                "refused a token validated against the vocabulary",
+                ContextError::WrapperRefusedValidatedToken {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_INVALID_SEQUENCE_ID,
-                "refused a sequence id validated against the context",
+                ContextError::WrapperRefusedValidatedSequenceId {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_POSITION_REJECTED,
-                "refused the position of an entry it had just added",
+                ContextError::WrapperRefusedFieldOfAddedEntry {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                    field: "position",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED,
-                "refused the output flag of an entry it had just added",
+                ContextError::WrapperRefusedFieldOfAddedEntry {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                    field: "output flag",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_DECISION_ORDER_REJECTED,
-                "refused the decision order of an entry it had just added",
+                ContextError::WrapperRefusedFieldOfAddedEntry {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                    field: "decision order",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_EMPTY_SEQ_IDS,
-                "was given an entry without sequence ids",
+                ContextError::WrapperGivenEntryWithoutSequenceIds {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_SEQ_IDS_OUT_OF_RANGE,
-                "was given an entry whose sequence ids lie outside the sequence id buffer",
+                ContextError::WrapperGivenSequenceIdsOutsideBuffer {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_ENTRIES_ARG,
-                "was given a null entries argument",
+                ContextError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                    argument: "entries",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_BATCH_ARG,
-                "was given a null batch argument",
+                ContextError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                    argument: "batch",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_SEQ_IDS_ARG,
-                "was given a null seq_ids argument",
+                ContextError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                    argument: "seq_ids",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG,
-                "was given a null out_llama_cpp_return_code argument",
+                ContextError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                    argument: "out_llama_cpp_return_code",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_NULL_OUT_ERROR_ARG,
-                "was given a null out_error argument",
+                ContextError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                    argument: "out_error",
+                },
             ),
         ] {
             assert_eq!(
                 batch_ext_assign_entries_status_to_result(status, 0, ptr::null_mut()),
-                Err(ContextError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_batch_ext_assign_entries",
-                    detail,
-                }))
+                Err(expected_error)
             );
         }
     }
@@ -603,10 +663,10 @@ mod tests {
                 -7,
                 ptr::null_mut(),
             ),
-            Err(ContextError::Ffi(FfiError::UnknownStatus {
+            Err(ContextError::UnknownWrapperStatus {
                 operation: "llama_batch_ext_add_token",
                 code: -7,
-            }))
+            })
         );
     }
 
@@ -651,10 +711,7 @@ mod tests {
                 0,
                 ptr::null_mut(),
             ),
-            Err(ContextError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_batch_ext_assign_entries",
-                    detail: "reported a thrown C++ exception without an error message",
-                }))
+            Err(ContextError::WrapperString(WrapperStringError::ExceptionMessageMissing { operation: "llama_rs_batch_ext_assign_entries" }))
         );
     }
 
@@ -662,10 +719,10 @@ mod tests {
     fn adding_a_batch_entry_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_assign_entries_status_to_result(255, 0, ptr::null_mut()),
-            Err(ContextError::Ffi(FfiError::UnknownStatus {
+            Err(ContextError::UnknownWrapperStatus {
                 operation: "llama_rs_batch_ext_assign_entries",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 }

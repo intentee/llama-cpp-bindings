@@ -7,7 +7,7 @@ use std::ptr::null;
 
 use llama_cpp_backend::backend_device_index::backend_device_index;
 use llama_cpp_backend::max_devices::max_devices;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::constants::EMPTY_KV_OVERRIDE;
 use crate::fit_extra_model::FitExtraModel;
@@ -25,7 +25,7 @@ fn fit_params_status_to_result(
     out_unrecognized_status_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), ParamsError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_fit_params");
+    const OPERATION: &str = "llama_rs_fit_params";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
@@ -47,36 +47,61 @@ fn fit_params_status_to_result(
             Err(ParamsError::FitLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ParamsError::FitReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => Err(OPERATION
-            .contract_violated("was given a null path_model argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => Err(OPERATION
-            .contract_violated("was given a null mparams argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => Err(OPERATION
-            .contract_violated("was given a null cparams argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null out_unrecognized_status_code argument")
-                .into())
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
+            Err(ParamsError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "path_model",
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => Err(OPERATION
-            .contract_violated("was given a null out_error argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG => Err(OPERATION
-            .contract_violated("was given an extra model with a null path_model argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG => Err(OPERATION
-            .contract_violated("was given an extra model with a null mparams argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG => Err(OPERATION
-            .contract_violated("was given an extra model with a null cparams argument")
-            .into()),
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
+            Err(ParamsError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "mparams",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
+            Err(ParamsError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "cparams",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
+            Err(ParamsError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_unrecognized_status_code",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
+            Err(ParamsError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG => {
+            Err(ParamsError::WrapperRefusedExtraModelNullArgument {
+                operation: OPERATION,
+                argument: "path_model",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG => {
+            Err(ParamsError::WrapperRefusedExtraModelNullArgument {
+                operation: OPERATION,
+                argument: "mparams",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG => {
+            Err(ParamsError::WrapperRefusedExtraModelNullArgument {
+                operation: OPERATION,
+                argument: "cparams",
+            })
+        }
+        other => Err(ParamsError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -428,7 +453,7 @@ mod tests {
 
     use llama_cpp_backend::llama_backend::LlamaBackend;
     use llama_cpp_backend::max_devices::max_devices;
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::LlamaModelParams;
     use super::fit_params_status_to_result;
@@ -441,18 +466,24 @@ mod tests {
     use crate::param_override_value::ParamOverrideValue;
     use crate::params_error::ParamsError;
 
-    fn contract_error_reported_for(
+    fn error_reported_for(
         status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
     ) -> Option<ParamsError> {
         fit_params_status_to_result(status, 0, ptr::null_mut()).err()
     }
 
-    fn contract_error_with(detail: &'static str) -> ParamsError {
-        FfiError::ContractViolated {
+    fn refused_extra_model_null_argument(argument: &'static str) -> ParamsError {
+        ParamsError::WrapperRefusedExtraModelNullArgument {
             operation: "llama_rs_fit_params",
-            detail,
+            argument,
         }
-        .into()
+    }
+
+    fn refused_null_argument(argument: &'static str) -> ParamsError {
+        ParamsError::WrapperRefusedNullArgument {
+            operation: "llama_rs_fit_params",
+            argument,
+        }
     }
 
     #[test]
@@ -935,11 +966,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_fit_params",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(ParamsError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_fit_params"
+                }
+            ))
         );
     }
 
@@ -949,10 +980,10 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(ParamsError::Ffi(FfiError::UnknownStatus {
+            Err(ParamsError::UnknownWrapperStatus {
                 operation: "llama_rs_fit_params",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
@@ -968,91 +999,74 @@ mod tests {
     }
 
     #[test]
-    fn fit_params_status_to_result_reports_a_null_path_model_arg_as_a_contract_violation() {
+    fn fit_params_status_to_result_reports_a_null_path_model_arg_as_a_refused_null_argument() {
         assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG
-            ),
-            Some(contract_error_with("was given a null path_model argument"))
+            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG),
+            Some(refused_null_argument("path_model"))
         );
     }
 
     #[test]
-    fn fit_params_status_to_result_reports_a_null_mparams_arg_as_a_contract_violation() {
+    fn fit_params_status_to_result_reports_a_null_mparams_arg_as_a_refused_null_argument() {
         assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG
-            ),
-            Some(contract_error_with("was given a null mparams argument"))
+            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG),
+            Some(refused_null_argument("mparams"))
         );
     }
 
     #[test]
-    fn fit_params_status_to_result_reports_a_null_cparams_arg_as_a_contract_violation() {
+    fn fit_params_status_to_result_reports_a_null_cparams_arg_as_a_refused_null_argument() {
         assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG
-            ),
-            Some(contract_error_with("was given a null cparams argument"))
+            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG),
+            Some(refused_null_argument("cparams"))
         );
     }
 
     #[test]
-    fn fit_params_status_to_result_reports_a_null_out_unrecognized_status_code_arg_as_a_contract_violation()
+    fn fit_params_status_to_result_reports_a_null_out_unrecognized_status_code_arg_as_a_refused_null_argument()
      {
         assert_eq!(
-            contract_error_reported_for(
+            error_reported_for(
                 llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG
             ),
-            Some(contract_error_with(
-                "was given a null out_unrecognized_status_code argument"
-            ))
+            Some(refused_null_argument("out_unrecognized_status_code"))
         );
     }
 
     #[test]
-    fn fit_params_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation() {
+    fn fit_params_status_to_result_reports_a_null_out_error_arg_as_a_refused_null_argument() {
         assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG
-            ),
-            Some(contract_error_with("was given a null out_error argument"))
+            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG),
+            Some(refused_null_argument("out_error"))
         );
     }
 
     #[test]
-    fn fit_params_status_to_result_reports_a_null_extra_path_model_arg_as_a_contract_violation() {
+    fn fit_params_status_to_result_reports_a_null_extra_path_model_arg_as_a_refused_extra_model_null_argument()
+     {
         assert_eq!(
-            contract_error_reported_for(
+            error_reported_for(
                 llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG
             ),
-            Some(contract_error_with(
-                "was given an extra model with a null path_model argument"
-            ))
+            Some(refused_extra_model_null_argument("path_model"))
         );
     }
 
     #[test]
-    fn fit_params_status_to_result_reports_a_null_extra_mparams_arg_as_a_contract_violation() {
+    fn fit_params_status_to_result_reports_a_null_extra_mparams_arg_as_a_refused_extra_model_null_argument()
+     {
         assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG
-            ),
-            Some(contract_error_with(
-                "was given an extra model with a null mparams argument"
-            ))
+            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG),
+            Some(refused_extra_model_null_argument("mparams"))
         );
     }
 
     #[test]
-    fn fit_params_status_to_result_reports_a_null_extra_cparams_arg_as_a_contract_violation() {
+    fn fit_params_status_to_result_reports_a_null_extra_cparams_arg_as_a_refused_extra_model_null_argument()
+     {
         assert_eq!(
-            contract_error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG
-            ),
-            Some(contract_error_with(
-                "was given an extra model with a null cparams argument"
-            ))
+            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG),
+            Some(refused_extra_model_null_argument("cparams"))
         );
     }
 

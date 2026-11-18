@@ -6,8 +6,9 @@ use std::fmt::Formatter;
 use std::ptr;
 use std::str::Utf8Error;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+use llama_cpp_wrapper_string::read_and_free_wrapper_string::read_and_free_wrapper_string;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 use crate::model_error::ModelError;
 
@@ -21,22 +22,20 @@ unsafe fn render_template_status_to_result(
     out_rendered: *mut c_char,
     out_error: *mut c_char,
 ) -> Result<String, ModelError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_render_template");
+    const OPERATION: &str = "llama_rs_render_template";
 
-    let reported_message = || -> Result<String, FfiError> {
-        unsafe { OPERATION.read_and_free_exception_message(out_error) }
+    let reported_message = || -> Result<String, WrapperStringError> {
+        unsafe { read_and_free_exception_message(OPERATION, out_error) }
     };
-    let contract_violation = |detail: &'static str| -> Result<String, ModelError> {
-        Err(OPERATION.contract_violated(detail).into())
-    };
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_OK => Ok(unsafe {
-            OPERATION.read_and_free_cpp_string(
-                out_rendered,
-                "success status contained a null rendered string",
+        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_OK => {
+            unsafe { read_and_free_wrapper_string(OPERATION, out_rendered) }?.ok_or(
+                ModelError::WrapperSucceededWithoutOutput {
+                    operation: OPERATION,
+                    output: "rendered string",
+                },
             )
-        }?),
+        }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ModelError::RenderNotEnoughMemory)
         }
@@ -67,18 +66,33 @@ unsafe fn render_template_status_to_result(
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_TEMPLATE_SOURCE_ARG => {
-            contract_violation("was given a null template_source argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "template_source",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_GLOBALS_JSON_ARG => {
-            contract_violation("was given a null globals_json argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "globals_json",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_RENDERED_ARG => {
-            contract_violation("was given a null out_rendered argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_rendered",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_ERROR_ARG => {
-            contract_violation("was given a null out_error argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(ModelError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -144,7 +158,7 @@ mod tests {
     use std::ffi::c_char;
     use std::ptr;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::render_template_status_to_result;
     use crate::llama_chat_template::LlamaChatTemplate;
@@ -282,7 +296,7 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(ModelError::Ffi(FfiError::TextNotUtf8 {
+            Err(ModelError::WrapperString(WrapperStringError::NotUtf8 {
                 operation: "llama_rs_render_template",
                 source: String::from_utf8(vec![0xFF]).unwrap_err().utf8_error(),
                 bytes: vec![0xFF],
@@ -291,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn a_success_without_a_rendered_text_is_a_contract_violation() {
+    fn a_success_without_a_rendered_text_is_a_success_without_output() {
         assert_eq!(
             unsafe {
                 render_template_status_to_result(
@@ -300,10 +314,10 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(ModelError::Ffi(FfiError::ContractViolated {
+            Err(ModelError::WrapperSucceededWithoutOutput {
                 operation: "llama_rs_render_template",
-                detail: "success status contained a null rendered string",
-            }))
+                output: "rendered string",
+            })
         );
     }
 
@@ -319,10 +333,11 @@ mod tests {
                 unsafe {
                     render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
                 },
-                Err(ModelError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_render_template",
-                    detail: "reported a thrown C++ exception without an error message",
-                }))
+                Err(ModelError::WrapperString(
+                    WrapperStringError::ExceptionMessageMissing {
+                        operation: "llama_rs_render_template"
+                    }
+                ))
             );
         }
     }
@@ -364,33 +379,42 @@ mod tests {
     }
 
     #[test]
-    fn rendering_reports_each_null_argument_as_a_contract_violation() {
-        for (status, detail) in [
+    fn rendering_reports_each_null_argument_as_a_refused_null_argument() {
+        for (status, expected_error) in [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_TEMPLATE_SOURCE_ARG,
-                "was given a null template_source argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_render_template",
+                    argument: "template_source",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_GLOBALS_JSON_ARG,
-                "was given a null globals_json argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_render_template",
+                    argument: "globals_json",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_RENDERED_ARG,
-                "was given a null out_rendered argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_render_template",
+                    argument: "out_rendered",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_ERROR_ARG,
-                "was given a null out_error argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_render_template",
+                    argument: "out_error",
+                },
             ),
         ] {
             assert_eq!(
                 unsafe {
                     render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
                 },
-                Err(ModelError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_render_template",
-                    detail,
-                }))
+                Err(expected_error)
             );
         }
     }
@@ -399,10 +423,10 @@ mod tests {
     fn rendering_preserves_an_unknown_status() {
         assert_eq!(
             unsafe { render_template_status_to_result(255, ptr::null_mut(), ptr::null_mut()) },
-            Err(ModelError::Ffi(FfiError::UnknownStatus {
+            Err(ModelError::UnknownWrapperStatus {
                 operation: "llama_rs_render_template",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 }

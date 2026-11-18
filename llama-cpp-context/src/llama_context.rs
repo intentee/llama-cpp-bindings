@@ -12,7 +12,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::llama_token_data::LlamaTokenData;
@@ -20,6 +19,7 @@ use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use llama_cpp_model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_params::llama_context_params::LlamaContextParams;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::context_error::ContextError;
 use crate::context_limits::ContextLimits;
@@ -41,15 +41,15 @@ fn new_context_with_model_status_to_result(
     out_ctx: *mut llama_cpp_bindings_sys::llama_context,
     out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_context>, ContextError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_new_context_with_model");
+    const OPERATION: &str = "llama_rs_new_context_with_model";
 
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK => NonNull::new(out_ctx)
-            .ok_or_else(|| {
-                OPERATION
-                    .contract_violated("success status contained a null context")
-                    .into()
-            }),
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK => {
+            NonNull::new(out_ctx).ok_or(ContextError::WrapperSucceededWithoutOutput {
+                operation: OPERATION,
+                output: "context",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_RETURNED_NULL => {
             Err(ContextError::ContextUnconstructible)
         }
@@ -60,21 +60,31 @@ fn new_context_with_model_status_to_result(
             Err(ContextError::CreateLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ContextError::CreateReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG => Err(OPERATION
-            .contract_violated("was given a null model argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG => Err(OPERATION
-            .contract_violated("was given a null out_ctx argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null out_error argument")
-                .into())
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG => {
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "model",
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG => {
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_ctx",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG => {
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
+        }
+        other => Err(ContextError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -83,14 +93,13 @@ fn batch_ext_init_status_to_result(
     out_batch: *mut llama_cpp_bindings_sys::llama_batch_ext,
     out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_batch_ext>, ContextError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_batch_ext_init");
+    const OPERATION: &str = "llama_rs_batch_ext_init";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_OK => {
-            NonNull::new(out_batch).ok_or_else(|| {
-                OPERATION
-                    .contract_violated("success status contained a null batch")
-                    .into()
+            NonNull::new(out_batch).ok_or(ContextError::WrapperSucceededWithoutOutput {
+                operation: OPERATION,
+                output: "batch",
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_ERROR_STRING_ALLOCATION_FAILED => {
@@ -100,19 +109,31 @@ fn batch_ext_init_status_to_result(
             Err(ContextError::CreateLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ContextError::CreateReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => Err(OPERATION
-            .contract_violated("was given a null ctx argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_BATCH_ARG => Err(OPERATION
-            .contract_violated("was given a null out_batch argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_ERROR_ARG => Err(OPERATION
-            .contract_violated("was given a null out_error argument")
-            .into()),
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG => {
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "ctx",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_BATCH_ARG => {
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_batch",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_ERROR_ARG => {
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
+        }
+        other => Err(ContextError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -123,17 +144,16 @@ fn process_status_to_result(
     return_code_error: fn(NonZeroI32) -> ContextError,
     process_failure: fn(Box<ContextError>) -> ContextError,
 ) -> Result<(), ContextError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_process");
-
-    let contract_violation =
-        |detail: &'static str| ContextError::from(OPERATION.contract_violated(detail));
+    const OPERATION: &str = "llama_rs_process";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_OK => Ok(()),
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE => {
-            let code = NonZeroI32::new(out_llama_cpp_return_code).ok_or_else(|| {
-                contract_violation("nonzero llama.cpp return status contained zero")
-            })?;
+            let code = NonZeroI32::new(out_llama_cpp_return_code).ok_or(
+                ContextError::WrapperNonzeroReturnStatusContainedZero {
+                    operation: OPERATION,
+                },
+            )?;
 
             Err(return_code_error(code))
         }
@@ -144,25 +164,40 @@ fn process_status_to_result(
             Box::new(ContextError::ProcessLlamaCppOutOfMemory),
         )),
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
 
             Err(process_failure(Box::new(ContextError::ProcessReported {
                 message,
             })))
         }
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_CTX_ARG => {
-            Err(contract_violation("was given a null ctx argument"))
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "ctx",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_BATCH_ARG => {
-            Err(contract_violation("was given a null batch argument"))
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "batch",
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG => Err(
-            contract_violation("was given a null out_llama_cpp_return_code argument"),
-        ),
+        llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG => {
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_llama_cpp_return_code",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG => {
-            Err(contract_violation("was given a null out_error argument"))
+            Err(ContextError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(ContextError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -702,7 +737,7 @@ mod tests {
     use std::ptr;
     use std::ptr::NonNull;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::batch_ext_init_status_to_result;
     use super::check_lora_adapters_result;
@@ -713,12 +748,11 @@ mod tests {
 
     const OPERATION: &str = "llama_rs_process";
 
-    fn contract_violation(detail: &'static str) -> ContextError {
-        FfiError::ContractViolated {
+    fn refused_null_argument(argument: &'static str) -> ContextError {
+        ContextError::WrapperRefusedNullArgument {
             operation: OPERATION,
-            detail,
+            argument,
         }
-        .into()
     }
 
     #[test]
@@ -734,7 +768,7 @@ mod tests {
     }
 
     #[test]
-    fn new_context_success_with_null_context_is_contract_error() {
+    fn new_context_success_with_null_context_is_a_success_without_output() {
         let result = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK,
             ptr::null_mut(),
@@ -743,10 +777,10 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(ContextError::Ffi(FfiError::ContractViolated {
+            Err(ContextError::WrapperSucceededWithoutOutput {
                 operation: "llama_rs_new_context_with_model",
-                detail: "success status contained a null context",
-            }))
+                output: "context"
+            })
         );
     }
 
@@ -801,11 +835,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_new_context_with_model",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(ContextError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_new_context_with_model"
+                }
+            ))
         );
     }
 
@@ -815,15 +849,16 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(ContextError::Ffi(FfiError::UnknownStatus {
+            Err(ContextError::UnknownWrapperStatus {
                 operation: "llama_rs_new_context_with_model",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
     #[test]
-    fn new_context_with_model_status_to_result_reports_a_null_model_arg_as_a_contract_violation() {
+    fn new_context_with_model_status_to_result_reports_a_null_model_arg_as_a_refused_null_argument()
+    {
         let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG,
             ptr::null_mut(),
@@ -831,19 +866,16 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_new_context_with_model",
-                    detail: "was given a null model argument",
-                }
-                .into()
-            )
+            Some(ContextError::WrapperRefusedNullArgument {
+                operation: "llama_rs_new_context_with_model",
+                argument: "model"
+            })
         );
     }
 
     #[test]
-    fn new_context_with_model_status_to_result_reports_a_null_out_ctx_arg_as_a_contract_violation()
-    {
+    fn new_context_with_model_status_to_result_reports_a_null_out_ctx_arg_as_a_refused_null_argument()
+     {
         let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG,
             ptr::null_mut(),
@@ -851,18 +883,15 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_new_context_with_model",
-                    detail: "was given a null out_ctx argument",
-                }
-                .into()
-            )
+            Some(ContextError::WrapperRefusedNullArgument {
+                operation: "llama_rs_new_context_with_model",
+                argument: "out_ctx"
+            })
         );
     }
 
     #[test]
-    fn new_context_with_model_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
+    fn new_context_with_model_status_to_result_reports_a_null_out_error_arg_as_a_refused_null_argument()
      {
         let outcome = new_context_with_model_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG,
@@ -871,13 +900,10 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_new_context_with_model",
-                    detail: "was given a null out_error argument",
-                }
-                .into()
-            )
+            Some(ContextError::WrapperRefusedNullArgument {
+                operation: "llama_rs_new_context_with_model",
+                argument: "out_error"
+            })
         );
     }
 
@@ -892,31 +918,40 @@ mod tests {
     }
 
     #[test]
-    fn initializing_a_batch_reports_each_null_pointer_as_a_contract_violation() {
-        for (status, detail) in [
+    fn initializing_a_batch_reports_each_refused_null_argument_and_a_success_without_a_batch() {
+        for (status, expected_error) in [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_OK,
-                "success status contained a null batch",
+                ContextError::WrapperSucceededWithoutOutput {
+                    operation: "llama_rs_batch_ext_init",
+                    output: "batch",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_CTX_ARG,
-                "was given a null ctx argument",
+                ContextError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_batch_ext_init",
+                    argument: "ctx",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_BATCH_ARG,
-                "was given a null out_batch argument",
+                ContextError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_batch_ext_init",
+                    argument: "out_batch",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_BATCH_EXT_INIT_NULL_OUT_ERROR_ARG,
-                "was given a null out_error argument",
+                ContextError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_batch_ext_init",
+                    argument: "out_error",
+                },
             ),
         ] {
             assert_eq!(
                 batch_ext_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err(),
-                Some(ContextError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_batch_ext_init",
-                    detail,
-                }))
+                Some(expected_error)
             );
         }
     }
@@ -969,10 +1004,11 @@ mod tests {
                 ptr::null_mut(),
             )
             .err(),
-            Some(ContextError::Ffi(FfiError::ContractViolated {
-                operation: "llama_rs_batch_ext_init",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Some(ContextError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_batch_ext_init"
+                }
+            ))
         );
     }
 
@@ -980,10 +1016,10 @@ mod tests {
     fn initializing_a_batch_preserves_an_unknown_status() {
         assert_eq!(
             batch_ext_init_status_to_result(255, ptr::null_mut(), ptr::null_mut()).err(),
-            Some(ContextError::Ffi(FfiError::UnknownStatus {
+            Some(ContextError::UnknownWrapperStatus {
                 operation: "llama_rs_batch_ext_init",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
@@ -1012,28 +1048,28 @@ mod tests {
             )),
             [
                 Ok(()),
-                Err(contract_violation(
-                    "nonzero llama.cpp return status contained zero"
-                )),
+                Err(ContextError::WrapperNonzeroReturnStatusContainedZero {
+                    operation: OPERATION
+                }),
                 Err(ContextError::DecodeProcess(Box::new(
                     ContextError::ProcessNotEnoughMemory
                 ))),
                 Err(ContextError::DecodeProcess(Box::new(
                     ContextError::ProcessLlamaCppOutOfMemory
                 ))),
-                Err(contract_violation(
-                    "reported a thrown C++ exception without an error message"
+                Err(ContextError::WrapperString(
+                    WrapperStringError::ExceptionMessageMissing {
+                        operation: OPERATION
+                    }
                 )),
-                Err(contract_violation("was given a null ctx argument")),
-                Err(contract_violation("was given a null batch argument")),
-                Err(contract_violation(
-                    "was given a null out_llama_cpp_return_code argument"
-                )),
-                Err(contract_violation("was given a null out_error argument")),
-                Err(ContextError::Ffi(FfiError::UnknownStatus {
+                Err(refused_null_argument("ctx")),
+                Err(refused_null_argument("batch")),
+                Err(refused_null_argument("out_llama_cpp_return_code")),
+                Err(refused_null_argument("out_error")),
+                Err(ContextError::UnknownWrapperStatus {
                     operation: OPERATION,
-                    code: 255,
-                })),
+                    code: 255
+                }),
             ]
         );
     }

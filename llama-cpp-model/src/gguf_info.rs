@@ -3,9 +3,9 @@ use std::path::Path;
 use std::ptr;
 
 use llama_cpp_bindings_sys::llama_rs_gguf_info;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::decision_type::DecisionType;
 use crate::model_error::ModelError;
@@ -23,11 +23,7 @@ unsafe fn read_gguf_info_status_to_result(
     }: llama_rs_gguf_info,
     out_error: *mut c_char,
 ) -> Result<GgufInfo, ModelError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_read_gguf_info");
-
-    let contract_violation = |detail: &'static str| -> Result<GgufInfo, ModelError> {
-        Err(OPERATION.contract_violated(detail).into())
-    };
+    const OPERATION: &str = "llama_rs_read_gguf_info";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_OK => Ok(GgufInfo {
@@ -42,19 +38,31 @@ unsafe fn read_gguf_info_status_to_result(
             Err(ModelError::GgufInfoLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ModelError::GgufInfoReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_PATH_ARG => {
-            contract_violation("was given a null path argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "path",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_INFO_ARG => {
-            contract_violation("was given a null out_info argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_info",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_ERROR_ARG => {
-            contract_violation("was given a null out_error argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(ModelError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -107,8 +115,8 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_bindings_sys::llama_rs_gguf_info;
-    use llama_cpp_ffi_status::ffi_error::FfiError;
     use llama_cpp_gguf::gguf_context::GgufContext;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::GgufInfo;
     use super::read_gguf_info_status_to_result;
@@ -202,29 +210,35 @@ mod tests {
     }
 
     #[test]
-    fn reading_gguf_info_reports_each_null_argument_as_a_contract_violation() {
-        for (status, detail) in [
+    fn reading_gguf_info_reports_each_null_argument_as_a_refused_null_argument() {
+        for (status, expected_error) in [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_PATH_ARG,
-                "was given a null path argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_read_gguf_info",
+                    argument: "path",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_INFO_ARG,
-                "was given a null out_info argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_read_gguf_info",
+                    argument: "out_info",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_ERROR_ARG,
-                "was given a null out_error argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_read_gguf_info",
+                    argument: "out_error",
+                },
             ),
         ] {
             assert_eq!(
                 unsafe {
                     read_gguf_info_status_to_result(status, NOT_A_DECISION_MODEL, ptr::null_mut())
                 },
-                Err(ModelError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_read_gguf_info",
-                    detail,
-                }))
+                Err(expected_error)
             );
         }
     }
@@ -275,10 +289,11 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(ModelError::Ffi(FfiError::ContractViolated {
-                operation: "llama_rs_read_gguf_info",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(ModelError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_read_gguf_info"
+                }
+            ))
         );
     }
 
@@ -286,10 +301,10 @@ mod tests {
     fn reading_gguf_info_preserves_an_unknown_status() {
         assert_eq!(
             unsafe { read_gguf_info_status_to_result(255, NOT_A_DECISION_MODEL, ptr::null_mut()) },
-            Err(ModelError::Ffi(FfiError::UnknownStatus {
+            Err(ModelError::UnknownWrapperStatus {
                 operation: "llama_rs_read_gguf_info",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 }

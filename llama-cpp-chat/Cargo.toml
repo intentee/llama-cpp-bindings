@@ -12,9 +12,9 @@ doctest = false
 [dependencies]
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
-llama-cpp-ffi-status = { workspace = true }
 llama-cpp-model = { workspace = true }
 llama-cpp-sampler = { workspace = true }
+llama-cpp-wrapper-string = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 

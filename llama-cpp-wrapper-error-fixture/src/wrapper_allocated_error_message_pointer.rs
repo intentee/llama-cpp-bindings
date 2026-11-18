@@ -4,7 +4,7 @@ use std::ptr::null_mut;
 /// Hands back a message string the C++ wrappers allocated themselves.
 ///
 /// Tests use it to drive the paths that take ownership of such a pointer. The caller
-/// owns the allocation and must release it through `read_and_free_cpp_string`.
+/// owns the allocation and must release it through `read_and_free_wrapper_string`.
 ///
 /// # Panics
 ///

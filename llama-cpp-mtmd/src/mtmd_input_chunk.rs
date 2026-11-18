@@ -5,8 +5,8 @@ use std::slice;
 use std::str::Utf8Error;
 
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
@@ -58,22 +58,27 @@ fn input_chunk_copy_status_to_result(
     out_chunk: *mut llama_cpp_bindings_sys::mtmd_input_chunk,
     out_error: *mut c_char,
 ) -> Result<MtmdInputChunk, MtmdError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_input_chunk_copy");
+    const OPERATION: &str = "llama_rs_mtmd_input_chunk_copy";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK => NonNull::new(out_chunk)
             .map(|chunk| MtmdInputChunk { chunk, owned: true })
-            .ok_or_else(|| {
-                OPERATION
-                    .contract_violated("success status contained a null chunk")
-                    .into()
+            .ok_or(MtmdError::WrapperSucceededWithoutOutput {
+                operation: OPERATION,
+                output: "chunk",
             }),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG => Err(OPERATION
-            .contract_violated("was given a null chunk argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG => Err(OPERATION
-            .contract_violated("was given a null out_chunk argument")
-            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "chunk",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_chunk",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::ChunkCopyNotEnoughMemory)
         }
@@ -81,11 +86,14 @@ fn input_chunk_copy_status_to_result(
             Err(MtmdError::ChunkCopyLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
 
             Err(MtmdError::ChunkCopyReported { message })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(MtmdError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -94,7 +102,7 @@ fn map_encode_chunk_status(
     llama_cpp_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_encode_chunk");
+    const OPERATION: &str = "llama_rs_mtmd_encode_chunk";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_OK => Ok(()),
@@ -110,16 +118,25 @@ fn map_encode_chunk_status(
             Err(MtmdError::EncodeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(MtmdError::EncodeReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG => Err(OPERATION
-            .contract_violated("was given a null ctx argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG => Err(OPERATION
-            .contract_violated("was given a null chunk argument")
-            .into()),
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "ctx",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "chunk",
+            })
+        }
+        other => Err(MtmdError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -129,7 +146,7 @@ fn eval_chunk_single_status_to_result(
     out_llama_cpp_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_mtmd_eval_chunk_single");
+    const OPERATION: &str = "llama_rs_mtmd_eval_chunk_single";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK => Ok(final_position),
@@ -145,26 +162,37 @@ fn eval_chunk_single_status_to_result(
             Err(MtmdError::EvalLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(MtmdError::EvalReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG => Err(OPERATION
-            .contract_violated("was given a null mtmd_ctx argument")
-            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "mtmd_ctx",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null llama_ctx argument")
-                .into())
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "llama_ctx",
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG => Err(OPERATION
-            .contract_violated("was given a null chunk argument")
-            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG => {
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "chunk",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null out_new_n_past argument")
-                .into())
+            Err(MtmdError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_new_n_past",
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(MtmdError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -358,10 +386,10 @@ impl Drop for MtmdInputChunk {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
-    use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
     use llama_cpp_model::llama_token::LlamaToken;
     use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
+    use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::eval_chunk_single_status_to_result;
     use super::input_chunk_copy_status_to_result;
@@ -373,12 +401,11 @@ mod tests {
 
     const OPERATION: &str = "llama_rs_mtmd_input_chunk_copy";
 
-    fn contract_violation(detail: &'static str) -> MtmdError {
-        FfiError::ContractViolated {
+    fn refused_null_argument(argument: &'static str) -> MtmdError {
+        MtmdError::WrapperRefusedNullArgument {
             operation: OPERATION,
-            detail,
+            argument,
         }
-        .into()
     }
 
     #[test]
@@ -441,18 +468,23 @@ mod tests {
                 input_chunk_copy_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
             }),
             [
-                Some(contract_violation("success status contained a null chunk")),
-                Some(contract_violation("was given a null chunk argument")),
-                Some(contract_violation("was given a null out_chunk argument")),
+                Some(MtmdError::WrapperSucceededWithoutOutput {
+                    operation: OPERATION,
+                    output: "chunk"
+                }),
+                Some(refused_null_argument("chunk")),
+                Some(refused_null_argument("out_chunk")),
                 Some(MtmdError::ChunkCopyNotEnoughMemory),
                 Some(MtmdError::ChunkCopyLlamaCppOutOfMemory),
-                Some(contract_violation(
-                    "reported a thrown C++ exception without an error message"
+                Some(MtmdError::WrapperString(
+                    WrapperStringError::ExceptionMessageMissing {
+                        operation: OPERATION
+                    }
                 )),
-                Some(MtmdError::Ffi(FfiError::UnknownStatus {
+                Some(MtmdError::UnknownWrapperStatus {
                     operation: OPERATION,
-                    code: 255,
-                })),
+                    code: 255
+                }),
             ]
         );
     }
@@ -478,8 +510,10 @@ mod tests {
     #[test]
     fn eval_chunk_single_status_cxx_exception_surfaces_the_reported_message() {
         let expected_message = unsafe {
-            WrapperOperation::new("llama_rs_mtmd_eval_chunk_single")
-                .read_and_free_exception_message(wrapper_allocated_error_message_pointer())
+            read_and_free_exception_message(
+                "llama_rs_mtmd_eval_chunk_single",
+                wrapper_allocated_error_message_pointer(),
+            )
         };
         let result = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -543,11 +577,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_eval_chunk_single",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(MtmdError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_mtmd_eval_chunk_single"
+                }
+            ))
         );
     }
 
@@ -557,15 +591,15 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(MtmdError::Ffi(FfiError::UnknownStatus {
+            Err(MtmdError::UnknownWrapperStatus {
                 operation: "llama_rs_mtmd_eval_chunk_single",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_reports_a_null_mtmd_ctx_arg_as_a_contract_violation() {
+    fn eval_chunk_single_status_to_result_reports_a_null_mtmd_ctx_arg_as_a_refused_null_argument() {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG,
             0,
@@ -574,18 +608,16 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_eval_chunk_single",
-                    detail: "was given a null mtmd_ctx argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                argument: "mtmd_ctx"
+            })
         );
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_reports_a_null_llama_ctx_arg_as_a_contract_violation() {
+    fn eval_chunk_single_status_to_result_reports_a_null_llama_ctx_arg_as_a_refused_null_argument()
+    {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG,
             0,
@@ -594,18 +626,15 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_eval_chunk_single",
-                    detail: "was given a null llama_ctx argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                argument: "llama_ctx"
+            })
         );
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_reports_a_null_chunk_arg_as_a_contract_violation() {
+    fn eval_chunk_single_status_to_result_reports_a_null_chunk_arg_as_a_refused_null_argument() {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG,
             0,
@@ -614,18 +643,15 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_eval_chunk_single",
-                    detail: "was given a null chunk argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                argument: "chunk"
+            })
         );
     }
 
     #[test]
-    fn eval_chunk_single_status_to_result_reports_a_null_out_new_n_past_arg_as_a_contract_violation()
+    fn eval_chunk_single_status_to_result_reports_a_null_out_new_n_past_arg_as_a_refused_null_argument()
      {
         let outcome = eval_chunk_single_status_to_result(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG,
@@ -635,13 +661,10 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_eval_chunk_single",
-                    detail: "was given a null out_new_n_past argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_eval_chunk_single",
+                argument: "out_new_n_past"
+            })
         );
     }
 
@@ -699,11 +722,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_mtmd_encode_chunk",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(MtmdError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_mtmd_encode_chunk"
+                }
+            ))
         );
     }
 
@@ -713,15 +736,15 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(MtmdError::Ffi(FfiError::UnknownStatus {
+            Err(MtmdError::UnknownWrapperStatus {
                 operation: "llama_rs_mtmd_encode_chunk",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
     #[test]
-    fn map_encode_chunk_status_reports_a_null_ctx_arg_as_a_contract_violation() {
+    fn map_encode_chunk_status_reports_a_null_ctx_arg_as_a_refused_null_argument() {
         let outcome = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG,
             0,
@@ -729,18 +752,15 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_encode_chunk",
-                    detail: "was given a null ctx argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_encode_chunk",
+                argument: "ctx"
+            })
         );
     }
 
     #[test]
-    fn map_encode_chunk_status_reports_a_null_chunk_arg_as_a_contract_violation() {
+    fn map_encode_chunk_status_reports_a_null_chunk_arg_as_a_refused_null_argument() {
         let outcome = map_encode_chunk_status(
             llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG,
             0,
@@ -748,13 +768,10 @@ mod tests {
         );
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_mtmd_encode_chunk",
-                    detail: "was given a null chunk argument",
-                }
-                .into()
-            )
+            Some(MtmdError::WrapperRefusedNullArgument {
+                operation: "llama_rs_mtmd_encode_chunk",
+                argument: "chunk"
+            })
         );
     }
 

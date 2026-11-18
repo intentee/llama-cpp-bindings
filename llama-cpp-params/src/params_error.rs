@@ -1,11 +1,9 @@
-use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ParamsError {
     #[error("Backend device {0} not found")]
     BackendDeviceNotFound(usize),
-    #[error(transparent)]
-    Ffi(#[from] FfiError),
     #[error("parameter fitting aborted")]
     FitAborted,
     #[error("the llama.cpp library ran out of memory")]
@@ -47,4 +45,20 @@ pub enum ParamsError {
     UnknownSplitMode {
         value: llama_cpp_bindings_sys::llama_split_mode,
     },
+    #[error("{operation} returned unknown FFI status {code}")]
+    UnknownWrapperStatus { operation: &'static str, code: i64 },
+    #[error(
+        "{operation} returned an invalid FFI response: was given an extra model with a null {argument} argument"
+    )]
+    WrapperRefusedExtraModelNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
+    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
+    WrapperRefusedNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
+    #[error(transparent)]
+    WrapperString(#[from] WrapperStringError),
 }

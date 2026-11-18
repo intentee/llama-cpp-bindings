@@ -10,7 +10,7 @@ use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
 use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
 use llama_cpp_bindings_sys::llama_rs_validate_gbnf;
 use llama_cpp_bindings_sys::llama_vocab;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::gbnf_error::GbnfError;
 
@@ -19,7 +19,7 @@ fn validation_status_to_result(
     root: &str,
     out_error: *mut c_char,
 ) -> Result<(), GbnfError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_validate_gbnf");
+    const OPERATION: &str = "llama_rs_validate_gbnf";
 
     match status {
         LLAMA_RS_GBNF_VALIDATION_OK => Ok(()),
@@ -29,15 +29,24 @@ fn validation_status_to_result(
             root: root.to_owned(),
         }),
         LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR => Err(GbnfError::UnsupportedGrammar),
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG => Err(OPERATION
-            .contract_violated("grammar pointer was null")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG => {
-            Err(OPERATION.contract_violated("root pointer was null").into())
+        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG => {
+            Err(GbnfError::WrapperRefusedNullPointer {
+                operation: OPERATION,
+                pointer: "grammar",
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG => Err(OPERATION
-            .contract_violated("output error pointer was null")
-            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG => {
+            Err(GbnfError::WrapperRefusedNullPointer {
+                operation: OPERATION,
+                pointer: "root",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG => {
+            Err(GbnfError::WrapperRefusedNullPointer {
+                operation: OPERATION,
+                pointer: "output error",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GbnfError::ValidationNotEnoughMemory)
         }
@@ -45,11 +54,14 @@ fn validation_status_to_result(
             Err(GbnfError::ValidationLlamaCppOutOfMemory)
         }
         LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
 
             Err(GbnfError::ValidationReported { message })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(GbnfError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -85,7 +97,7 @@ mod tests {
     use std::ptr;
 
     use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::validate_gbnf;
     use super::validation_status_to_result;
@@ -177,10 +189,11 @@ mod tests {
                 "root",
                 ptr::null_mut(),
             ),
-            Err(GbnfError::Ffi(FfiError::ContractViolated {
-                operation: "llama_rs_validate_gbnf",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(GbnfError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_validate_gbnf"
+                }
+            ))
         );
     }
 
@@ -204,47 +217,47 @@ mod tests {
     }
 
     #[test]
-    fn null_grammar_status_is_contract_error() {
+    fn null_grammar_status_is_a_refused_null_pointer() {
         assert_eq!(
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG,
                 "root",
                 ptr::null_mut(),
             ),
-            Err(GbnfError::Ffi(FfiError::ContractViolated {
+            Err(GbnfError::WrapperRefusedNullPointer {
                 operation: "llama_rs_validate_gbnf",
-                detail: "grammar pointer was null",
-            }))
+                pointer: "grammar"
+            })
         );
     }
 
     #[test]
-    fn null_root_status_is_contract_error() {
+    fn null_root_status_is_a_refused_null_pointer() {
         assert_eq!(
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG,
                 "root",
                 ptr::null_mut(),
             ),
-            Err(GbnfError::Ffi(FfiError::ContractViolated {
+            Err(GbnfError::WrapperRefusedNullPointer {
                 operation: "llama_rs_validate_gbnf",
-                detail: "root pointer was null",
-            }))
+                pointer: "root"
+            })
         );
     }
 
     #[test]
-    fn null_output_error_status_is_contract_error() {
+    fn null_output_error_status_is_a_refused_null_pointer() {
         assert_eq!(
             validation_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG,
                 "root",
                 ptr::null_mut(),
             ),
-            Err(GbnfError::Ffi(FfiError::ContractViolated {
+            Err(GbnfError::WrapperRefusedNullPointer {
                 operation: "llama_rs_validate_gbnf",
-                detail: "output error pointer was null",
-            }))
+                pointer: "output error"
+            })
         );
     }
 
@@ -276,10 +289,10 @@ mod tests {
     fn unknown_status_is_preserved() {
         assert_eq!(
             validation_status_to_result(255, "root", ptr::null_mut(),),
-            Err(GbnfError::Ffi(FfiError::UnknownStatus {
+            Err(GbnfError::UnknownWrapperStatus {
                 operation: "llama_rs_validate_gbnf",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 }

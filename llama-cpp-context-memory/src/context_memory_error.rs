@@ -1,13 +1,11 @@
 use std::ffi::c_int;
 use std::num::TryFromIntError;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_model::model_error::ModelError;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ContextMemoryError {
-    #[error(transparent)]
-    Ffi(#[from] FfiError),
     #[error("provided end position is too large for an i32")]
     SeqAddEndPositionTooLarge(#[source] TryFromIntError),
     #[error("model rope type is incompatible with sequence position arithmetic")]
@@ -74,4 +72,18 @@ pub enum ContextMemoryError {
     SeqRmSequenceIdTooLarge(#[source] TryFromIntError),
     #[error("provided start position is too large for an i32")]
     SeqRmStartPositionTooLarge(#[source] TryFromIntError),
+    #[error("{operation} returned unknown FFI status {code}")]
+    UnknownWrapperStatus { operation: &'static str, code: i64 },
+    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
+    WrapperRefusedNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
+    #[error("{operation} returned an invalid FFI response: {pointer} pointer was null")]
+    WrapperRefusedNullPointer {
+        operation: &'static str,
+        pointer: &'static str,
+    },
+    #[error(transparent)]
+    WrapperString(#[from] WrapperStringError),
 }

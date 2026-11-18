@@ -4,7 +4,7 @@ use std::num::TryFromIntError;
 use std::path::PathBuf;
 use std::str::Utf8Error;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 use crate::mtmd_image_token_limit::MtmdImageTokenLimit;
 use crate::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
@@ -58,8 +58,6 @@ pub enum MtmdError {
         evaluated_micro_batch_tokens: u32,
         fitted_micro_batch_tokens: u32,
     },
-    #[error(transparent)]
-    Ffi(#[from] FfiError),
     #[error("bitmap file is unreadable: {path:?}")]
     FileUnreadable { path: PathBuf },
     #[error("Image dimensions {nx}x{ny} overflow the addressable RGB buffer size")]
@@ -138,4 +136,46 @@ pub enum MtmdError {
     TokenizeUnknownStatus { code: i32 },
     #[error("Unknown MTMD input chunk type: {0}")]
     UnknownInputChunkType(llama_cpp_bindings_sys::mtmd_input_chunk_type),
+    #[error("{operation} returned unknown FFI status {code}")]
+    UnknownWrapperStatus { operation: &'static str, code: i64 },
+    #[error(
+        "{operation} returned an invalid FFI response: measured memory on more devices than the backend registers"
+    )]
+    WrapperMeasuredMoreDevicesThanRegistered { operation: &'static str },
+    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
+    WrapperRefusedNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
+    #[error(
+        "{operation} returned an invalid FFI response: nonzero bitmap count was observed with a null bitmap array"
+    )]
+    WrapperRefusedNullBitmapArray { operation: &'static str },
+    #[error(
+        "{operation} returned an invalid FFI response: nonzero part count was observed with a null part array"
+    )]
+    WrapperRefusedNullPartArray { operation: &'static str },
+    #[error(
+        "{operation} returned an invalid FFI response: was given a null element in the parts argument"
+    )]
+    WrapperRefusedNullPartsElement { operation: &'static str },
+    #[error(
+        "{operation} returned an invalid FFI response: llama.cpp reported a malformed part list: a part holding both or neither of text and bitmap, a text part with a null text pointer, or bitmaps that do not line up with their parts"
+    )]
+    WrapperReportedMalformedPartList { operation: &'static str },
+    #[error(
+        "{operation} returned an invalid FFI response: returned a null chunk within the chunk count"
+    )]
+    WrapperReturnedNullChunkWithinCount { operation: &'static str },
+    #[error(transparent)]
+    WrapperString(#[from] WrapperStringError),
+    #[error("{operation} returned an invalid FFI response: success status contained null chunks")]
+    WrapperSucceededWithoutChunks { operation: &'static str },
+    #[error(
+        "{operation} returned an invalid FFI response: success status contained a null {output}"
+    )]
+    WrapperSucceededWithoutOutput {
+        operation: &'static str,
+        output: &'static str,
+    },
 }

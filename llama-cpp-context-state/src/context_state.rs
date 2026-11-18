@@ -6,10 +6,10 @@ use std::path::PathBuf;
 use std::ptr;
 
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::context_state_error::ContextStateError;
 use crate::llama_state_seq_flags::LlamaStateSeqFlags;
@@ -32,24 +32,32 @@ fn state_data_status_to_result(
     out_error: *mut c_char,
     operation: &'static str,
 ) -> Result<usize, ContextStateError> {
-    let wrapper_operation = WrapperOperation::new(operation);
-
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_OK => Ok(byte_count),
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => Err(wrapper_operation
-            .contract_violated("was given a null ctx argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG => Err(wrapper_operation
-            .contract_violated("was given a null buffer argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_BYTE_COUNT_ARG => {
-            Err(wrapper_operation
-                .contract_violated("was given a null out_byte_count argument")
-                .into())
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG => {
+            Err(ContextStateError::WrapperRefusedNullArgument {
+                operation,
+                argument: "ctx",
+            })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG => Err(wrapper_operation
-            .contract_violated("was given a null out_error argument")
-            .into()),
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG => {
+            Err(ContextStateError::WrapperRefusedNullArgument {
+                operation,
+                argument: "buffer",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_BYTE_COUNT_ARG => {
+            Err(ContextStateError::WrapperRefusedNullArgument {
+                operation,
+                argument: "out_byte_count",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG => {
+            Err(ContextStateError::WrapperRefusedNullArgument {
+                operation,
+                argument: "out_error",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ContextStateError::StateDataNotEnoughMemory)
         }
@@ -57,11 +65,14 @@ fn state_data_status_to_result(
             Err(ContextStateError::StateDataLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { wrapper_operation.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(operation, out_error) }?;
 
             Err(ContextStateError::StateDataReported { message })
         }
-        other => Err(wrapper_operation.unknown_status(i64::from(other)).into()),
+        other => Err(ContextStateError::UnknownWrapperStatus {
+            operation,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -436,8 +447,8 @@ impl ContextState for LlamaContext<'_> {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
     use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::process_seq_load_result;
     use super::process_session_load_result;
@@ -500,32 +511,41 @@ mod tests {
     }
 
     #[test]
-    fn state_data_status_to_result_maps_each_null_argument_to_a_contract_violation_of_the_operation()
+    fn state_data_status_to_result_maps_each_null_argument_to_a_refused_null_argument_of_the_operation()
      {
-        for (status, detail) in [
+        for (status, expected_error) in [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_CTX_ARG,
-                "was given a null ctx argument",
+                ContextStateError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_state_get_data",
+                    argument: "ctx",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_BUFFER_ARG,
-                "was given a null buffer argument",
+                ContextStateError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_state_get_data",
+                    argument: "buffer",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_BYTE_COUNT_ARG,
-                "was given a null out_byte_count argument",
+                ContextStateError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_state_get_data",
+                    argument: "out_byte_count",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_STATE_DATA_NULL_OUT_ERROR_ARG,
-                "was given a null out_error argument",
+                ContextStateError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_state_get_data",
+                    argument: "out_error",
+                },
             ),
         ] {
             assert_eq!(
                 state_data_status_to_result(status, 0, ptr::null_mut(), "llama_rs_state_get_data"),
-                Err(ContextStateError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_state_get_data",
-                    detail,
-                }))
+                Err(expected_error)
             );
         }
     }
@@ -570,10 +590,11 @@ mod tests {
                 ptr::null_mut(),
                 "llama_rs_state_get_data",
             ),
-            Err(ContextStateError::Ffi(FfiError::ContractViolated {
-                operation: "llama_rs_state_get_data",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(ContextStateError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_state_get_data"
+                }
+            ))
         );
     }
 
@@ -581,10 +602,10 @@ mod tests {
     fn state_data_status_to_result_preserves_an_unknown_status() {
         assert_eq!(
             state_data_status_to_result(255, 0, ptr::null_mut(), "llama_rs_state_get_data"),
-            Err(ContextStateError::Ffi(FfiError::UnknownStatus {
+            Err(ContextStateError::UnknownWrapperStatus {
                 operation: "llama_rs_state_get_data",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 

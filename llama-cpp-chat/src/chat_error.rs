@@ -1,13 +1,11 @@
 use std::str::Utf8Error;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_model::model_error::ModelError;
 use llama_cpp_sampler::sampler_error::SamplerError;
+use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ChatError {
-    #[error(transparent)]
-    Ffi(#[from] FfiError),
     #[error("the name of the chat format llama.cpp expected is not valid UTF-8")]
     FormatNameNotUtf8(#[source] Utf8Error),
     #[error("the request's grammar sampler could not be built")]
@@ -34,4 +32,24 @@ pub enum ChatError {
     SessionTextNotUtf8(#[source] Utf8Error),
     #[error("the chat template cannot serve the request: {message}")]
     TemplateCannotServeRequest { message: String },
+    #[error("{operation} returned unknown FFI status {code}")]
+    UnknownWrapperStatus { operation: &'static str, code: i64 },
+    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
+    WrapperRefusedNullArgument {
+        operation: &'static str,
+        argument: &'static str,
+    },
+    #[error(
+        "{operation} returned an invalid FFI response: reported a failure without an error message"
+    )]
+    WrapperReportedFailureWithoutMessage { operation: &'static str },
+    #[error(transparent)]
+    WrapperString(#[from] WrapperStringError),
+    #[error(
+        "{operation} returned an invalid FFI response: success status contained a null {output}"
+    )]
+    WrapperSucceededWithoutOutput {
+        operation: &'static str,
+        output: &'static str,
+    },
 }

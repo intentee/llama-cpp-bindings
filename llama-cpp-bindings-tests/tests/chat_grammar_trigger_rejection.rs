@@ -6,7 +6,6 @@ use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_chat::chat_error::ChatError;
 use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
-use llama_cpp_ffi_status::ffi_error::FfiError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -55,12 +54,12 @@ fn grammar_triggers_refuse_a_trigger_type_the_bindings_do_not_recognize(
 
     ensure!(
         session.grammar_triggers().err()
-            == Some(ChatError::Ffi(FfiError::UnknownStatus {
+            == Some(ChatError::UnknownWrapperStatus {
                 operation: "llama_rs_chat_session_grammar_trigger_type",
                 code: i64::from(
                     llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED
-                ),
-            }))
+                )
+            })
     );
 
     Ok(())

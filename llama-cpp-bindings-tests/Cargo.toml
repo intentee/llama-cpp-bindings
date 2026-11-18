@@ -23,7 +23,6 @@ llama-cpp-context = { workspace = true }
 llama-cpp-context-memory = { workspace = true }
 llama-cpp-context-state = { workspace = true }
 llama-cpp-fault-injection = { workspace = true }
-llama-cpp-ffi-status = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
 llama-cpp-model = { workspace = true }
 llama-cpp-mtmd = { workspace = true }

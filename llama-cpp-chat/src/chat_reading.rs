@@ -4,8 +4,7 @@ use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
-use llama_cpp_ffi_status::ffi_error::FfiError;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::chat_classification::ChatClassification;
 use crate::chat_error::ChatError;
@@ -44,9 +43,8 @@ fn spans_of(
                 })
             },
         )
-        .collect::<Result<Vec<ChatSpan>, FfiError>>()
+        .collect::<Result<Vec<ChatSpan>, ChatError>>()
         .map(|spans| ChatSpans::new(view.parsed_length, &spans, completeness))
-        .map_err(ChatError::from)
 }
 
 fn expected_format_of(
@@ -85,18 +83,18 @@ fn chat_reading_parse_status_to_result(
     out_handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
     out_error: *mut c_char,
 ) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_parsed_chat>, ChatError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_chat_reading_parse");
+    const OPERATION: &str = "llama_rs_chat_reading_parse";
 
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_OK => NonNull::new(out_handle)
-            .ok_or_else(|| {
-                OPERATION
-                    .contract_violated("success status contained a null handle")
-                    .into()
-            }),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_OK => {
+            NonNull::new(out_handle).ok_or(ChatError::WrapperSucceededWithoutOutput {
+                operation: OPERATION,
+                output: "handle",
+            })
+        }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(ChatError::ParseReported {
-                message: unsafe { OPERATION.read_and_free_exception_message(out_error) }?,
+                message: unsafe { read_and_free_exception_message(OPERATION, out_error) }?,
             })
         }
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED => {
@@ -105,16 +103,28 @@ fn chat_reading_parse_status_to_result(
         llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ChatError::ParseLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG => Err(OPERATION
-            .contract_violated("was given a null reading argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG => Err(OPERATION
-            .contract_violated("was given a null out_handle argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG => Err(OPERATION
-            .contract_violated("was given a null out_error argument")
-            .into()),
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG => {
+            Err(ChatError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "reading",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG => {
+            Err(ChatError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_handle",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG => {
+            Err(ChatError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
+        }
+        other => Err(ChatError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -209,7 +219,7 @@ impl Drop for ChatReading {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::chat_reading_parse_status_to_result;
     use crate::chat_error::ChatError;
@@ -219,11 +229,11 @@ mod tests {
         let parse = |status, out_error| {
             chat_reading_parse_status_to_result(status, ptr::null_mut(), out_error).err()
         };
-        let contract = |detail| {
-            Some(ChatError::Ffi(FfiError::ContractViolated {
+        let refused_null_argument = |argument| {
+            Some(ChatError::WrapperRefusedNullArgument {
                 operation: "llama_rs_chat_reading_parse",
-                detail,
-            }))
+                argument,
+            })
         };
 
         assert_eq!(
@@ -263,23 +273,23 @@ mod tests {
                 parse(255, ptr::null_mut()),
             ],
             [
-                contract("success status contained a null handle"),
+                Some(ChatError::WrapperSucceededWithoutOutput {
+                    operation: "llama_rs_chat_reading_parse",
+                    output: "handle",
+                }),
                 Some(ChatError::ParseReported {
                     message: "the mapper threw".to_owned()
                 }),
-                Some(ChatError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_chat_reading_parse",
-                    detail: "reported a thrown C++ exception without an error message",
-                })),
+                Some(ChatError::WrapperString(WrapperStringError::ExceptionMessageMissing { operation: "llama_rs_chat_reading_parse" })),
                 Some(ChatError::ParseNotEnoughMemory),
                 Some(ChatError::ParseLlamaCppOutOfMemory),
-                contract("was given a null reading argument"),
-                contract("was given a null out_handle argument"),
-                contract("was given a null out_error argument"),
-                Some(ChatError::Ffi(FfiError::UnknownStatus {
+                refused_null_argument("reading"),
+                refused_null_argument("out_handle"),
+                refused_null_argument("out_error"),
+                Some(ChatError::UnknownWrapperStatus {
                     operation: "llama_rs_chat_reading_parse",
-                    code: 255
-                })),
+                    code: 255,
+                }),
             ]
         );
     }

@@ -86,7 +86,7 @@ coverage: node_modules
 		--gated llama-cpp-error-chain=100 \
 		--gated llama-cpp-error-recorder=100 \
 		--gated llama-cpp-fault-injection=100 \
-		--gated llama-cpp-ffi-status=100 \
+		--gated llama-cpp-wrapper-string=100 \
 		--gated llama-cpp-gbnf=100 \
 		--gated llama-cpp-gguf=100 \
 		--gated llama-cpp-log-decoder=100 \
@@ -150,7 +150,7 @@ test.unit: clippy
 	cargo test -p llama-cpp-backend -p llama-cpp-backend-tests -p llama-cpp-bindings \
 		-p llama-cpp-bindings-build -p llama-cpp-bindings-types -p llama-cpp-capturing-logger \
 		-p llama-cpp-chat -p llama-cpp-context -p llama-cpp-context-memory -p llama-cpp-context-state \
-		-p llama-cpp-error-chain -p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf -p llama-cpp-gguf \
+		-p llama-cpp-error-chain -p llama-cpp-error-recorder -p llama-cpp-wrapper-string -p llama-cpp-gbnf -p llama-cpp-gguf \
 		-p llama-cpp-log-decoder -p llama-cpp-model -p llama-cpp-mtmd -p llama-cpp-params \
 		-p llama-cpp-path-c-string -p llama-cpp-sampler -p llama-cpp-token-usage \
 		-p llama-cpp-wrapper-sources \

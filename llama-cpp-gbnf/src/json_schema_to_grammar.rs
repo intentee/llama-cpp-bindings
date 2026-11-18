@@ -1,7 +1,7 @@
 use std::ffi::{CStr, CString, c_char};
 use std::ptr;
 
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::gbnf_error::GbnfError;
 
@@ -16,14 +16,15 @@ unsafe fn json_schema_to_grammar_status_to_result(
     out: *mut c_char,
     error_ptr: *mut c_char,
 ) -> Result<String, GbnfError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_json_schema_to_grammar");
+    const OPERATION: &str = "llama_rs_json_schema_to_grammar";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK => {
             if out.is_null() {
-                return Err(OPERATION
-                    .contract_violated("success status contained a null grammar string")
-                    .into());
+                return Err(GbnfError::WrapperSucceededWithoutOutput {
+                    operation: OPERATION,
+                    output: "grammar string",
+                });
             }
             let grammar_bytes = unsafe { CStr::from_ptr(out) }.to_bytes().to_vec();
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out) };
@@ -36,33 +37,39 @@ unsafe fn json_schema_to_grammar_status_to_result(
             Err(GbnfError::SchemaConversionLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, error_ptr) }?;
             Err(GbnfError::InvalidSchema { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, error_ptr) }?;
             Err(GbnfError::InvalidJson { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(error_ptr) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, error_ptr) }?;
             Err(GbnfError::SchemaConversionReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null schema_json argument")
-                .into())
+            Err(GbnfError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "schema_json",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null out_grammar argument")
-                .into())
+            Err(GbnfError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_grammar",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG => {
-            Err(OPERATION
-                .contract_violated("was given a null out_error argument")
-                .into())
+            Err(GbnfError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(GbnfError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -93,7 +100,7 @@ mod tests {
 
     use std::ptr;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use crate::gbnf_error::GbnfError;
 
@@ -170,11 +177,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_json_schema_to_grammar",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(GbnfError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_json_schema_to_grammar"
+                }
+            ))
         );
     }
 
@@ -190,11 +197,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_json_schema_to_grammar",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(GbnfError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_json_schema_to_grammar"
+                }
+            ))
         );
     }
 
@@ -210,11 +217,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_json_schema_to_grammar",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(GbnfError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_json_schema_to_grammar"
+                }
+            ))
         );
     }
 
@@ -297,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn ok_status_with_null_grammar_is_contract_error() {
+    fn ok_status_with_null_grammar_is_a_success_without_output() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
@@ -308,10 +315,10 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(GbnfError::Ffi(FfiError::ContractViolated {
+            Err(GbnfError::WrapperSucceededWithoutOutput {
                 operation: "llama_rs_json_schema_to_grammar",
-                detail: "success status contained a null grammar string",
-            }))
+                output: "grammar string"
+            })
         );
     }
 
@@ -323,15 +330,15 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(GbnfError::Ffi(FfiError::UnknownStatus {
+            Err(GbnfError::UnknownWrapperStatus {
                 operation: "llama_rs_json_schema_to_grammar",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
     #[test]
-    fn json_schema_to_grammar_status_to_result_reports_a_null_schema_json_arg_as_a_contract_violation()
+    fn json_schema_to_grammar_status_to_result_reports_a_null_schema_json_arg_as_a_refused_null_argument()
      {
         let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
@@ -342,18 +349,15 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_json_schema_to_grammar",
-                    detail: "was given a null schema_json argument",
-                }
-                .into()
-            )
+            Some(GbnfError::WrapperRefusedNullArgument {
+                operation: "llama_rs_json_schema_to_grammar",
+                argument: "schema_json"
+            })
         );
     }
 
     #[test]
-    fn json_schema_to_grammar_status_to_result_reports_a_null_out_grammar_arg_as_a_contract_violation()
+    fn json_schema_to_grammar_status_to_result_reports_a_null_out_grammar_arg_as_a_refused_null_argument()
      {
         let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
@@ -364,18 +368,15 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_json_schema_to_grammar",
-                    detail: "was given a null out_grammar argument",
-                }
-                .into()
-            )
+            Some(GbnfError::WrapperRefusedNullArgument {
+                operation: "llama_rs_json_schema_to_grammar",
+                argument: "out_grammar"
+            })
         );
     }
 
     #[test]
-    fn json_schema_to_grammar_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
+    fn json_schema_to_grammar_status_to_result_reports_a_null_out_error_arg_as_a_refused_null_argument()
      {
         let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
@@ -386,13 +387,10 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_json_schema_to_grammar",
-                    detail: "was given a null out_error argument",
-                }
-                .into()
-            )
+            Some(GbnfError::WrapperRefusedNullArgument {
+                operation: "llama_rs_json_schema_to_grammar",
+                argument: "out_error"
+            })
         );
     }
 

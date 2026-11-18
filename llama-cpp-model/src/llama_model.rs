@@ -18,10 +18,10 @@ use toktrie::TokRxInfo;
 use toktrie::TokTrie;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
-use llama_cpp_ffi_status::wrapper_operation::WrapperOperation;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
+use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::add_bos::AddBos;
 use crate::chat_templates::ChatTemplates;
@@ -95,15 +95,15 @@ unsafe fn load_model_from_file_status_to_result(
     out_error: *mut c_char,
     path: &Path,
 ) -> Result<LlamaModel, ModelError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_load_model_from_file");
+    const OPERATION: &str = "llama_rs_load_model_from_file";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_OK => {
-            let model = NonNull::new(out_model).ok_or_else(|| {
-                ModelError::from(
-                    OPERATION.contract_violated("success status contained a null model"),
-                )
-            })?;
+            let model =
+                NonNull::new(out_model).ok_or(ModelError::WrapperSucceededWithoutOutput {
+                    operation: OPERATION,
+                    output: "model",
+                })?;
             let vocab = unsafe { llama_cpp_bindings_sys::llama_model_get_vocab(model.as_ptr()) };
 
             Ok(LlamaModel {
@@ -128,19 +128,31 @@ unsafe fn load_model_from_file_status_to_result(
             Err(ModelError::LoadLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ModelError::LoadReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG => Err(OPERATION
-            .contract_violated("was given a null path argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG => Err(OPERATION
-            .contract_violated("was given a null out_model argument")
-            .into()),
-        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG => Err(OPERATION
-            .contract_violated("was given a null out_error argument")
-            .into()),
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG => {
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "path",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG => {
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_model",
+            })
+        }
+        llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG => {
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
+        }
+        other => Err(ModelError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -153,11 +165,7 @@ unsafe fn model_decision_type_status_to_result(
     out_decision_type: llama_cpp_bindings_sys::llama_rs_decision_type,
     out_error: *mut c_char,
 ) -> Result<DecisionType, ModelError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_model_decision_type");
-
-    let contract_violation = |detail: &'static str| -> Result<DecisionType, ModelError> {
-        Err(OPERATION.contract_violated(detail).into())
-    };
+    const OPERATION: &str = "llama_rs_model_decision_type";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_OK => {
@@ -170,19 +178,31 @@ unsafe fn model_decision_type_status_to_result(
             Err(ModelError::DecisionTypeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ModelError::DecisionTypeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_MODEL_ARG => {
-            contract_violation("was given a null model argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "model",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_DECISION_TYPE_ARG => {
-            contract_violation("was given a null out_decision_type argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_decision_type",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_ERROR_ARG => {
-            contract_violation("was given a null out_error argument")
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
         }
-        other => Err(OPERATION.unknown_status(i64::from(other)).into()),
+        other => Err(ModelError::UnknownWrapperStatus {
+            operation: OPERATION,
+            code: i64::from(other),
+        }),
     }
 }
 
@@ -263,7 +283,7 @@ unsafe fn tokenize_status_to_result(
     out_count: c_int,
     out_error: *mut c_char,
 ) -> Result<c_int, ModelError> {
-    const OPERATION: WrapperOperation = WrapperOperation::new("llama_rs_tokenize");
+    const OPERATION: &str = "llama_rs_tokenize";
 
     match status {
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_OK => Ok(out_count),
@@ -274,36 +294,43 @@ unsafe fn tokenize_status_to_result(
             Err(ModelError::TokenizeLlamaCppOutOfMemory)
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { OPERATION.read_and_free_exception_message(out_error) }?;
+            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
             Err(ModelError::TokenizeReported { message })
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(OPERATION
-                .contract_violated("was given a null vocab argument")
-                .into())
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "vocab",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_TEXT_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(OPERATION
-                .contract_violated("was given a null text argument")
-                .into())
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "text",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_RETURNED_COUNT_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(OPERATION
-                .contract_violated("was given a null out_returned_count argument")
-                .into())
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_returned_count",
+            })
         }
         llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_ERROR_ARG => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(OPERATION
-                .contract_violated("was given a null out_error argument")
-                .into())
+            Err(ModelError::WrapperRefusedNullArgument {
+                operation: OPERATION,
+                argument: "out_error",
+            })
         }
         other => {
             unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out_error) };
-            Err(OPERATION.unknown_status(i64::from(other)).into())
+            Err(ModelError::UnknownWrapperStatus {
+                operation: OPERATION,
+                code: i64::from(other),
+            })
         }
     }
 }
@@ -978,7 +1005,7 @@ mod tests {
     use std::slice;
     use std::str;
 
-    use llama_cpp_ffi_status::ffi_error::FfiError;
+    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::checked_token_count;
     use super::checked_tokenizer_length;
@@ -1204,7 +1231,7 @@ mod tests {
     }
 
     #[test]
-    fn load_model_success_with_null_model_is_contract_error() {
+    fn load_model_success_with_null_model_is_a_success_without_output() {
         let result = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_OK,
@@ -1216,10 +1243,10 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            ModelError::Ffi(FfiError::ContractViolated {
+            ModelError::WrapperSucceededWithoutOutput {
                 operation: "llama_rs_load_model_from_file",
-                detail: "success status contained a null model",
-            })
+                output: "model"
+            }
         );
     }
 
@@ -1290,11 +1317,9 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            FfiError::ContractViolated {
-                operation: "llama_rs_load_model_from_file",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into()
+            ModelError::WrapperString(WrapperStringError::ExceptionMessageMissing {
+                operation: "llama_rs_load_model_from_file"
+            })
         );
     }
 
@@ -1311,15 +1336,15 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err(),
-            ModelError::Ffi(FfiError::UnknownStatus {
+            ModelError::UnknownWrapperStatus {
                 operation: "llama_rs_load_model_from_file",
-                code: 255,
-            })
+                code: 255
+            }
         );
     }
 
     #[test]
-    fn load_model_from_file_status_to_result_reports_a_null_path_arg_as_a_contract_violation() {
+    fn load_model_from_file_status_to_result_reports_a_null_path_arg_as_a_refused_null_argument() {
         let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG,
@@ -1330,19 +1355,16 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_load_model_from_file",
-                    detail: "was given a null path argument",
-                }
-                .into()
-            )
+            Some(ModelError::WrapperRefusedNullArgument {
+                operation: "llama_rs_load_model_from_file",
+                argument: "path"
+            })
         );
     }
 
     #[test]
-    fn load_model_from_file_status_to_result_reports_a_null_out_model_arg_as_a_contract_violation()
-    {
+    fn load_model_from_file_status_to_result_reports_a_null_out_model_arg_as_a_refused_null_argument()
+     {
         let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG,
@@ -1353,19 +1375,16 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_load_model_from_file",
-                    detail: "was given a null out_model argument",
-                }
-                .into()
-            )
+            Some(ModelError::WrapperRefusedNullArgument {
+                operation: "llama_rs_load_model_from_file",
+                argument: "out_model"
+            })
         );
     }
 
     #[test]
-    fn load_model_from_file_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation()
-    {
+    fn load_model_from_file_status_to_result_reports_a_null_out_error_arg_as_a_refused_null_argument()
+     {
         let outcome = unsafe {
             load_model_from_file_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG,
@@ -1376,13 +1395,10 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_load_model_from_file",
-                    detail: "was given a null out_error argument",
-                }
-                .into()
-            )
+            Some(ModelError::WrapperRefusedNullArgument {
+                operation: "llama_rs_load_model_from_file",
+                argument: "out_error"
+            })
         );
     }
 
@@ -1428,19 +1444,28 @@ mod tests {
     }
 
     #[test]
-    fn reading_the_decision_type_reports_each_null_argument_as_a_contract_violation() {
-        for (status, detail) in [
+    fn reading_the_decision_type_reports_each_null_argument_as_a_refused_null_argument() {
+        for (status, expected_error) in [
             (
                 llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_MODEL_ARG,
-                "was given a null model argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_model_decision_type",
+                    argument: "model",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_DECISION_TYPE_ARG,
-                "was given a null out_decision_type argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_model_decision_type",
+                    argument: "out_decision_type",
+                },
             ),
             (
                 llama_cpp_bindings_sys::LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_ERROR_ARG,
-                "was given a null out_error argument",
+                ModelError::WrapperRefusedNullArgument {
+                    operation: "llama_rs_model_decision_type",
+                    argument: "out_error",
+                },
             ),
         ] {
             assert_eq!(
@@ -1451,10 +1476,7 @@ mod tests {
                         ptr::null_mut(),
                     )
                 },
-                Err(ModelError::Ffi(FfiError::ContractViolated {
-                    operation: "llama_rs_model_decision_type",
-                    detail,
-                }))
+                Err(expected_error)
             );
         }
     }
@@ -1505,10 +1527,11 @@ mod tests {
                     ptr::null_mut(),
                 )
             },
-            Err(ModelError::Ffi(FfiError::ContractViolated {
-                operation: "llama_rs_model_decision_type",
-                detail: "reported a thrown C++ exception without an error message",
-            }))
+            Err(ModelError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_model_decision_type"
+                }
+            ))
         );
     }
 
@@ -1518,10 +1541,10 @@ mod tests {
             unsafe {
                 model_decision_type_status_to_result(255, NOT_A_DECISION_MODEL, ptr::null_mut())
             },
-            Err(ModelError::Ffi(FfiError::UnknownStatus {
+            Err(ModelError::UnknownWrapperStatus {
                 operation: "llama_rs_model_decision_type",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
@@ -1606,11 +1629,11 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(FfiError::ContractViolated {
-                operation: "llama_rs_tokenize",
-                detail: "reported a thrown C++ exception without an error message",
-            }
-            .into())
+            Err(ModelError::WrapperString(
+                WrapperStringError::ExceptionMessageMissing {
+                    operation: "llama_rs_tokenize"
+                }
+            ))
         );
     }
 
@@ -1620,15 +1643,15 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(ModelError::Ffi(FfiError::UnknownStatus {
+            Err(ModelError::UnknownWrapperStatus {
                 operation: "llama_rs_tokenize",
-                code: 255,
-            }))
+                code: 255
+            })
         );
     }
 
     #[test]
-    fn tokenize_status_to_result_reports_a_null_vocab_arg_as_a_contract_violation() {
+    fn tokenize_status_to_result_reports_a_null_vocab_arg_as_a_refused_null_argument() {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG,
@@ -1638,18 +1661,15 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_tokenize",
-                    detail: "was given a null vocab argument",
-                }
-                .into()
-            )
+            Some(ModelError::WrapperRefusedNullArgument {
+                operation: "llama_rs_tokenize",
+                argument: "vocab"
+            })
         );
     }
 
     #[test]
-    fn tokenize_status_to_result_reports_a_null_text_arg_as_a_contract_violation() {
+    fn tokenize_status_to_result_reports_a_null_text_arg_as_a_refused_null_argument() {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_TEXT_ARG,
@@ -1659,18 +1679,16 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_tokenize",
-                    detail: "was given a null text argument",
-                }
-                .into()
-            )
+            Some(ModelError::WrapperRefusedNullArgument {
+                operation: "llama_rs_tokenize",
+                argument: "text"
+            })
         );
     }
 
     #[test]
-    fn tokenize_status_to_result_reports_a_null_out_returned_count_arg_as_a_contract_violation() {
+    fn tokenize_status_to_result_reports_a_null_out_returned_count_arg_as_a_refused_null_argument()
+    {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_RETURNED_COUNT_ARG,
@@ -1680,18 +1698,15 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_tokenize",
-                    detail: "was given a null out_returned_count argument",
-                }
-                .into()
-            )
+            Some(ModelError::WrapperRefusedNullArgument {
+                operation: "llama_rs_tokenize",
+                argument: "out_returned_count"
+            })
         );
     }
 
     #[test]
-    fn tokenize_status_to_result_reports_a_null_out_error_arg_as_a_contract_violation() {
+    fn tokenize_status_to_result_reports_a_null_out_error_arg_as_a_refused_null_argument() {
         let outcome = unsafe {
             tokenize_status_to_result(
                 llama_cpp_bindings_sys::LLAMA_RS_TOKENIZE_NULL_OUT_ERROR_ARG,
@@ -1701,13 +1716,10 @@ mod tests {
         };
         assert_eq!(
             outcome.err(),
-            Some(
-                FfiError::ContractViolated {
-                    operation: "llama_rs_tokenize",
-                    detail: "was given a null out_error argument",
-                }
-                .into()
-            )
+            Some(ModelError::WrapperRefusedNullArgument {
+                operation: "llama_rs_tokenize",
+                argument: "out_error"
+            })
         );
     }
 
