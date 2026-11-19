@@ -30,20 +30,26 @@ mod tests {
     use crate::context_memory_error::ContextMemoryError;
 
     #[test]
-    fn an_exception_message_that_is_not_utf8_is_reported_with_its_bytes() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
+    fn reported_error_carries_the_message_or_reports_that_it_is_not_utf8() {
+        let reported = |message| ContextMemoryError::SeqAddReported { message };
 
         assert_eq!(
-            unsafe {
-                reported_error("llama_rs_memory_seq_add", out_error, |message| {
-                    ContextMemoryError::SeqAddReported { message }
-                })
-            },
-            ContextMemoryError::ExceptionMessageNotUtf8 {
-                operation: "llama_rs_memory_seq_add",
-                source: String::from_utf8(vec![0xFF]).unwrap_err(),
-            }
+            [c"llama.cpp threw", c"\xff"].map(|message| unsafe {
+                reported_error(
+                    "llama_rs_memory_seq_add",
+                    llama_cpp_bindings_sys::bindings::llama_rs_string_dup(message.as_ptr()),
+                    reported,
+                )
+            }),
+            [
+                ContextMemoryError::SeqAddReported {
+                    message: "llama.cpp threw".to_owned(),
+                },
+                ContextMemoryError::ExceptionMessageNotUtf8 {
+                    operation: "llama_rs_memory_seq_add",
+                    source: String::from_utf8(vec![0xFF]).unwrap_err(),
+                },
+            ]
         );
     }
 }

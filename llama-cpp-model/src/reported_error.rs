@@ -30,20 +30,26 @@ mod tests {
     use crate::model_error::ModelError;
 
     #[test]
-    fn an_exception_message_that_is_not_utf8_is_reported_with_its_bytes() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
+    fn reported_error_carries_the_message_or_reports_that_it_is_not_utf8() {
+        let reported = |message| ModelError::TokenizeReported { message };
 
         assert_eq!(
-            unsafe {
-                reported_error("llama_rs_tokenize", out_error, |message| {
-                    ModelError::TokenizeReported { message }
-                })
-            },
-            ModelError::ExceptionMessageNotUtf8 {
-                operation: "llama_rs_tokenize",
-                source: String::from_utf8(vec![0xFF]).unwrap_err(),
-            }
+            [c"llama.cpp threw", c"\xff"].map(|message| unsafe {
+                reported_error(
+                    "llama_rs_tokenize",
+                    llama_cpp_bindings_sys::bindings::llama_rs_string_dup(message.as_ptr()),
+                    reported,
+                )
+            }),
+            [
+                ModelError::TokenizeReported {
+                    message: "llama.cpp threw".to_owned(),
+                },
+                ModelError::ExceptionMessageNotUtf8 {
+                    operation: "llama_rs_tokenize",
+                    source: String::from_utf8(vec![0xFF]).unwrap_err(),
+                },
+            ]
         );
     }
 }
