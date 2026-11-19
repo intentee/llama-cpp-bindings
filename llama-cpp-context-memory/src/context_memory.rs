@@ -4,127 +4,101 @@ use std::num::NonZeroU8;
 use std::num::TryFromIntError;
 use std::ptr;
 
+use llama_cpp_bindings_sys::bindings::{
+    llama_rs_memory_seq_add_status, llama_rs_memory_seq_div_status,
+    llama_rs_memory_seq_pos_max_status,
+};
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::context_memory_error::ContextMemoryError;
+use crate::read_exception_message::read_exception_message;
 
 fn open_ended_position(position: Option<u32>) -> Result<i32, TryFromIntError> {
     position.map_or(Ok(-1), i32::try_from)
 }
 
-fn memory_seq_add_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_memory_seq_add_status,
+/// # Safety
+///
+/// On the `LLAMA_CPP_THREW_CXX_EXCEPTION` status `out_error` must be the non-null message the C++
+/// side allocated; it is freed here.
+unsafe fn memory_seq_add_status_to_result(
+    status: llama_rs_memory_seq_add_status,
     out_error: *mut c_char,
 ) -> Result<(), ContextMemoryError> {
     const OPERATION: &str = "llama_rs_memory_seq_add";
 
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM => {
+        llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_OK => Ok(()),
+        llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM => {
             Err(ContextMemoryError::SeqAddMemoryHandleUnavailable)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ContextMemoryError::SeqAddNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ContextMemoryError::SeqAddLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe { read_exception_message(OPERATION, out_error) }?;
             Err(ContextMemoryError::SeqAddReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG => {
-            Err(ContextMemoryError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "ctx",
-            })
-        }
-        other => Err(ContextMemoryError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
-fn memory_seq_div_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_memory_seq_div_status,
+/// # Safety
+///
+/// On the `LLAMA_CPP_THREW_CXX_EXCEPTION` status `out_error` must be the non-null message the C++
+/// side allocated; it is freed here.
+unsafe fn memory_seq_div_status_to_result(
+    status: llama_rs_memory_seq_div_status,
     out_error: *mut c_char,
 ) -> Result<(), ContextMemoryError> {
     const OPERATION: &str = "llama_rs_memory_seq_div";
 
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM => {
+        llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_OK => Ok(()),
+        llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM => {
             Err(ContextMemoryError::SeqDivMemoryHandleUnavailable)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ContextMemoryError::SeqDivNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ContextMemoryError::SeqDivLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe { read_exception_message(OPERATION, out_error) }?;
             Err(ContextMemoryError::SeqDivReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG => {
-            Err(ContextMemoryError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "ctx",
-            })
-        }
-        other => Err(ContextMemoryError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
-fn memory_seq_pos_max_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_memory_seq_pos_max_status,
+/// # Safety
+///
+/// On the `LLAMA_CPP_THREW_CXX_EXCEPTION` status `out_error` must be the non-null message the C++
+/// side allocated; it is freed here.
+unsafe fn memory_seq_pos_max_status_to_result(
+    status: llama_rs_memory_seq_pos_max_status,
     position: i32,
     out_error: *mut c_char,
 ) -> Result<i32, ContextMemoryError> {
     const OPERATION: &str = "llama_rs_memory_seq_pos_max";
 
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK => Ok(position),
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG => {
-            Err(ContextMemoryError::WrapperRefusedNullPointer {
-                operation: OPERATION,
-                pointer: "context",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG => {
-            Err(ContextMemoryError::WrapperRefusedNullPointer {
-                operation: OPERATION,
-                pointer: "output position",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG => {
-            Err(ContextMemoryError::WrapperRefusedNullPointer {
-                operation: OPERATION,
-                pointer: "output error",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM => {
+        llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK => Ok(position),
+        llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM => {
             Err(ContextMemoryError::SeqPosMaxMemoryHandleUnavailable)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ContextMemoryError::SeqPosMaxNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ContextMemoryError::SeqPosMaxLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe { read_exception_message(OPERATION, out_error) }?;
             Err(ContextMemoryError::SeqPosMaxReported { message })
         }
-        other => Err(ContextMemoryError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
@@ -199,7 +173,7 @@ impl ContextMemory for LlamaContext<'_> {
             return;
         };
         let clear_data_buffers = true;
-        unsafe { llama_cpp_bindings_sys::llama_memory_clear(mem, clear_data_buffers) };
+        unsafe { llama_cpp_bindings_sys::bindings::llama_memory_clear(mem, clear_data_buffers) };
     }
 
     fn memory_seq_add(
@@ -232,7 +206,7 @@ impl ContextMemory for LlamaContext<'_> {
 
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_memory_seq_add(
+            llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_add(
                 self.context.as_ptr().cast_const(),
                 seq_id,
                 p0,
@@ -241,7 +215,7 @@ impl ContextMemory for LlamaContext<'_> {
                 &raw mut out_error,
             )
         };
-        memory_seq_add_status_to_result(status, out_error)
+        unsafe { memory_seq_add_status_to_result(status, out_error) }
     }
 
     fn memory_seq_cp(
@@ -272,7 +246,7 @@ impl ContextMemory for LlamaContext<'_> {
         let mem = self
             .memory()
             .ok_or(ContextMemoryError::SeqCpMemoryHandleUnavailable)?;
-        unsafe { llama_cpp_bindings_sys::llama_memory_seq_cp(mem, src, dest, p0, p1) };
+        unsafe { llama_cpp_bindings_sys::bindings::llama_memory_seq_cp(mem, src, dest, p0, p1) };
 
         Ok(())
     }
@@ -308,7 +282,7 @@ impl ContextMemory for LlamaContext<'_> {
         let divisor = c_int::from(divisor.get());
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_memory_seq_div(
+            llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_div(
                 self.context.as_ptr().cast_const(),
                 seq_id,
                 p0,
@@ -317,7 +291,7 @@ impl ContextMemory for LlamaContext<'_> {
                 &raw mut out_error,
             )
         };
-        memory_seq_div_status_to_result(status, out_error)
+        unsafe { memory_seq_div_status_to_result(status, out_error) }
     }
 
     fn memory_seq_keep(&self, seq_id: i32) -> Result<(), ContextMemoryError> {
@@ -331,7 +305,7 @@ impl ContextMemory for LlamaContext<'_> {
         }
 
         if let Some(mem) = self.memory() {
-            unsafe { llama_cpp_bindings_sys::llama_memory_seq_keep(mem, seq_id) };
+            unsafe { llama_cpp_bindings_sys::bindings::llama_memory_seq_keep(mem, seq_id) };
         }
 
         Ok(())
@@ -350,7 +324,7 @@ impl ContextMemory for LlamaContext<'_> {
         let mut position = -1;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_memory_seq_pos_max(
+            llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_pos_max(
                 self.context.as_ptr().cast_const(),
                 seq_id,
                 &raw mut position,
@@ -358,7 +332,7 @@ impl ContextMemory for LlamaContext<'_> {
             )
         };
 
-        memory_seq_pos_max_status_to_result(status, position, out_error)
+        unsafe { memory_seq_pos_max_status_to_result(status, position, out_error) }
     }
 
     fn memory_seq_rm(
@@ -390,7 +364,7 @@ impl ContextMemory for LlamaContext<'_> {
             return Ok(());
         };
 
-        if unsafe { llama_cpp_bindings_sys::llama_memory_seq_rm(mem, seq_id, p0, p1) } {
+        if unsafe { llama_cpp_bindings_sys::bindings::llama_memory_seq_rm(mem, seq_id, p0, p1) } {
             return Ok(());
         }
 
@@ -402,7 +376,10 @@ impl ContextMemory for LlamaContext<'_> {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
+    use llama_cpp_bindings_sys::bindings::{
+        llama_rs_memory_seq_add_status, llama_rs_memory_seq_div_status,
+        llama_rs_memory_seq_pos_max_status,
+    };
 
     use super::memory_seq_add_status_to_result;
     use super::memory_seq_div_status_to_result;
@@ -426,10 +403,12 @@ mod tests {
     #[test]
     fn a_successful_position_shift_status_is_ok() {
         assert_eq!(
-            memory_seq_add_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_OK,
-                ptr::null_mut(),
-            ),
+            unsafe {
+                memory_seq_add_status_to_result(
+                    llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_OK,
+                    ptr::null_mut(),
+                )
+            },
             Ok(())
         );
     }
@@ -437,10 +416,12 @@ mod tests {
     #[test]
     fn add_null_mem_status_maps_to_memory_handle_unavailable() {
         assert_eq!(
-            memory_seq_add_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM,
-                ptr::null_mut(),
-            ),
+            unsafe {
+                memory_seq_add_status_to_result(
+                    llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM,
+                    ptr::null_mut(),
+                )
+            },
             Err(ContextMemoryError::SeqAddMemoryHandleUnavailable)
         );
     }
@@ -448,40 +429,29 @@ mod tests {
     #[test]
     fn add_allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
-            memory_seq_add_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED,
+            unsafe {
+                memory_seq_add_status_to_result(
+                llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(ContextMemoryError::SeqAddNotEnoughMemory)
         );
     }
 
     #[test]
-    fn add_llama_cpp_exception_status_without_a_message_is_reported_as_a_missing_exception_message()
-    {
-        assert_eq!(
-            memory_seq_add_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                ptr::null_mut(),
-            ),
-            Err(ContextMemoryError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_memory_seq_add"
-                }
-            ))
-        );
-    }
-
-    #[test]
     fn add_llama_cpp_exception_status_reports_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"shift threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"shift threw".as_ptr())
+        };
 
         assert_eq!(
-            memory_seq_add_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            unsafe {
+                memory_seq_add_status_to_result(
+                llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 out_error,
-            ),
+            )
+            },
             Err(ContextMemoryError::SeqAddReported {
                 message: "shift threw".to_owned()
             })
@@ -489,39 +459,13 @@ mod tests {
     }
 
     #[test]
-    fn add_unknown_status_is_preserved() {
-        let result = memory_seq_add_status_to_result(255, ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(ContextMemoryError::UnknownWrapperStatus {
-                operation: "llama_rs_memory_seq_add",
-                code: 255
-            })
-        );
-    }
-
-    #[test]
-    fn memory_seq_add_status_to_result_reports_a_null_ctx_arg_as_a_refused_null_argument() {
-        let outcome = memory_seq_add_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(ContextMemoryError::WrapperRefusedNullArgument {
-                operation: "llama_rs_memory_seq_add",
-                argument: "ctx"
-            })
-        );
-    }
-
-    #[test]
     fn memory_seq_add_status_to_result_reports_llama_cpp_running_out_of_memory() {
-        let outcome = memory_seq_add_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
-            ptr::null_mut(),
-        );
+        let outcome = unsafe {
+            memory_seq_add_status_to_result(
+                llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
+                ptr::null_mut(),
+            )
+        };
         assert_eq!(
             outcome.err(),
             Some(ContextMemoryError::SeqAddLlamaCppOutOfMemory)
@@ -531,10 +475,12 @@ mod tests {
     #[test]
     fn a_successful_position_division_status_is_ok() {
         assert_eq!(
-            memory_seq_div_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_OK,
-                ptr::null_mut(),
-            ),
+            unsafe {
+                memory_seq_div_status_to_result(
+                    llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_OK,
+                    ptr::null_mut(),
+                )
+            },
             Ok(())
         );
     }
@@ -542,10 +488,12 @@ mod tests {
     #[test]
     fn div_null_mem_status_maps_to_memory_handle_unavailable() {
         assert_eq!(
-            memory_seq_div_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM,
-                ptr::null_mut(),
-            ),
+            unsafe {
+                memory_seq_div_status_to_result(
+                    llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM,
+                    ptr::null_mut(),
+                )
+            },
             Err(ContextMemoryError::SeqDivMemoryHandleUnavailable)
         );
     }
@@ -553,40 +501,29 @@ mod tests {
     #[test]
     fn div_allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
-            memory_seq_div_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED,
+            unsafe {
+                memory_seq_div_status_to_result(
+                llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(ContextMemoryError::SeqDivNotEnoughMemory)
         );
     }
 
     #[test]
-    fn div_llama_cpp_exception_status_without_a_message_is_reported_as_a_missing_exception_message()
-    {
-        assert_eq!(
-            memory_seq_div_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                ptr::null_mut(),
-            ),
-            Err(ContextMemoryError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_memory_seq_div"
-                }
-            ))
-        );
-    }
-
-    #[test]
     fn div_llama_cpp_exception_status_reports_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"division threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"division threw".as_ptr())
+        };
 
         assert_eq!(
-            memory_seq_div_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            unsafe {
+                memory_seq_div_status_to_result(
+                llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 out_error,
-            ),
+            )
+            },
             Err(ContextMemoryError::SeqDivReported {
                 message: "division threw".to_owned()
             })
@@ -594,39 +531,13 @@ mod tests {
     }
 
     #[test]
-    fn div_unknown_status_is_preserved() {
-        let result = memory_seq_div_status_to_result(255, ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(ContextMemoryError::UnknownWrapperStatus {
-                operation: "llama_rs_memory_seq_div",
-                code: 255
-            })
-        );
-    }
-
-    #[test]
-    fn memory_seq_div_status_to_result_reports_a_null_ctx_arg_as_a_refused_null_argument() {
-        let outcome = memory_seq_div_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(ContextMemoryError::WrapperRefusedNullArgument {
-                operation: "llama_rs_memory_seq_div",
-                argument: "ctx"
-            })
-        );
-    }
-
-    #[test]
     fn memory_seq_div_status_to_result_reports_llama_cpp_running_out_of_memory() {
-        let outcome = memory_seq_div_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
-            ptr::null_mut(),
-        );
+        let outcome = unsafe {
+            memory_seq_div_status_to_result(
+                llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
+                ptr::null_mut(),
+            )
+        };
         assert_eq!(
             outcome.err(),
             Some(ContextMemoryError::SeqDivLlamaCppOutOfMemory)
@@ -636,68 +547,27 @@ mod tests {
     #[test]
     fn a_successful_seq_pos_max_status_yields_the_position() {
         assert_eq!(
-            memory_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK,
-                17,
-                ptr::null_mut(),
-            ),
+            unsafe {
+                memory_seq_pos_max_status_to_result(
+                    llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK,
+                    17,
+                    ptr::null_mut(),
+                )
+            },
             Ok(17)
-        );
-    }
-
-    #[test]
-    fn seq_pos_max_null_context_status_is_a_refused_null_pointer() {
-        assert_eq!(
-            memory_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG,
-                -1,
-                ptr::null_mut(),
-            ),
-            Err(ContextMemoryError::WrapperRefusedNullPointer {
-                operation: "llama_rs_memory_seq_pos_max",
-                pointer: "context"
-            })
-        );
-    }
-
-    #[test]
-    fn seq_pos_max_null_output_position_status_is_a_refused_null_pointer() {
-        assert_eq!(
-            memory_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG,
-                -1,
-                ptr::null_mut(),
-            ),
-            Err(ContextMemoryError::WrapperRefusedNullPointer {
-                operation: "llama_rs_memory_seq_pos_max",
-                pointer: "output position"
-            })
-        );
-    }
-
-    #[test]
-    fn seq_pos_max_null_output_error_status_is_a_refused_null_pointer() {
-        assert_eq!(
-            memory_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG,
-                -1,
-                ptr::null_mut(),
-            ),
-            Err(ContextMemoryError::WrapperRefusedNullPointer {
-                operation: "llama_rs_memory_seq_pos_max",
-                pointer: "output error"
-            })
         );
     }
 
     #[test]
     fn seq_pos_max_null_memory_status_maps_to_memory_handle_unavailable() {
         assert_eq!(
-            memory_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM,
-                -1,
-                ptr::null_mut(),
-            ),
+            unsafe {
+                memory_seq_pos_max_status_to_result(
+                    llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM,
+                    -1,
+                    ptr::null_mut(),
+                )
+            },
             Err(ContextMemoryError::SeqPosMaxMemoryHandleUnavailable)
         );
     }
@@ -705,44 +575,31 @@ mod tests {
     #[test]
     fn seq_pos_max_allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
-            memory_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED,
+            unsafe {
+                memory_seq_pos_max_status_to_result(
+                llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED,
                 -1,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(ContextMemoryError::SeqPosMaxNotEnoughMemory)
-        );
-    }
-
-    #[test]
-    fn seq_pos_max_llama_cpp_exception_status_without_a_message_is_reported_as_a_missing_exception_message()
-     {
-        assert_eq!(
-            memory_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                -1,
-                ptr::null_mut(),
-            ),
-            Err(ContextMemoryError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_memory_seq_pos_max"
-                }
-            ))
         );
     }
 
     #[test]
     fn seq_pos_max_llama_cpp_exception_status_reports_its_message() {
         let out_error = unsafe {
-            llama_cpp_bindings_sys::llama_rs_string_dup(c"position lookup threw".as_ptr())
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"position lookup threw".as_ptr())
         };
 
         assert_eq!(
-            memory_seq_pos_max_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            unsafe {
+                memory_seq_pos_max_status_to_result(
+                llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 -1,
                 out_error,
-            ),
+            )
+            },
             Err(ContextMemoryError::SeqPosMaxReported {
                 message: "position lookup threw".to_owned()
             })
@@ -750,23 +607,14 @@ mod tests {
     }
 
     #[test]
-    fn seq_pos_max_unknown_status_is_preserved() {
-        assert_eq!(
-            memory_seq_pos_max_status_to_result(255, -1, ptr::null_mut(),),
-            Err(ContextMemoryError::UnknownWrapperStatus {
-                operation: "llama_rs_memory_seq_pos_max",
-                code: 255
-            })
-        );
-    }
-
-    #[test]
     fn memory_seq_pos_max_status_to_result_reports_llama_cpp_running_out_of_memory() {
-        let outcome = memory_seq_pos_max_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
+        let outcome = unsafe {
+            memory_seq_pos_max_status_to_result(
+            llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
             0,
             ptr::null_mut(),
-        );
+        )
+        };
         assert_eq!(
             outcome.err(),
             Some(ContextMemoryError::SeqPosMaxLlamaCppOutOfMemory)

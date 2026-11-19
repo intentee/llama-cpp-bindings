@@ -95,8 +95,9 @@ fn setting_lora_adapters_reports_a_status_llama_cpp_returns(
     )?;
     let adapter = fixture.model.lora_adapter_init(&adapter_path)?;
     let context = fixture.build_context()?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SET_ADAPTERS_LORA_FAILS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_SET_ADAPTERS_LORA_FAILS,
+    );
 
     ensure!(
         context.set_lora_adapters(&[LoraAdapterScale {

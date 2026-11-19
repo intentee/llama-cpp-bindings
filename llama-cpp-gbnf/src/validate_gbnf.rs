@@ -1,74 +1,57 @@
 use std::ffi::{CString, c_char};
 use std::ptr;
 
-use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_EMPTY_RULE_SET;
-use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_OK;
-use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ROOT_SYMBOL_MISSING;
-use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR;
-use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
-use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR;
-use llama_cpp_bindings_sys::llama_rs_gbnf_validation_status;
-use llama_cpp_bindings_sys::llama_rs_validate_gbnf;
-use llama_cpp_bindings_sys::llama_vocab;
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+use llama_cpp_bindings_sys::bindings::llama_rs_gbnf_validation_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_validate_gbnf;
+use llama_cpp_bindings_sys::bindings::llama_vocab;
 
 use crate::gbnf_error::GbnfError;
+use crate::read_exception_message::read_exception_message;
 
-fn validation_status_to_result(
+/// # Safety
+///
+/// On `LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION` `out_error` must be the non-null message the
+/// C++ side allocated; it is freed here.
+unsafe fn validation_status_to_result(
     status: llama_rs_gbnf_validation_status,
     root: &str,
     out_error: *mut c_char,
 ) -> Result<(), GbnfError> {
-    const OPERATION: &str = "llama_rs_validate_gbnf";
-
     match status {
-        LLAMA_RS_GBNF_VALIDATION_OK => Ok(()),
-        LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR => Err(GbnfError::SyntaxError),
-        LLAMA_RS_GBNF_VALIDATION_EMPTY_RULE_SET => Err(GbnfError::EmptyRuleSet),
-        LLAMA_RS_GBNF_VALIDATION_ROOT_SYMBOL_MISSING => Err(GbnfError::RootSymbolMissing {
-            root: root.to_owned(),
-        }),
-        LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR => Err(GbnfError::UnsupportedGrammar),
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG => {
-            Err(GbnfError::WrapperRefusedNullPointer {
-                operation: OPERATION,
-                pointer: "grammar",
+        llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_OK => Ok(()),
+        llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_SYNTAX_ERROR => {
+            Err(GbnfError::SyntaxError)
+        }
+        llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_EMPTY_RULE_SET => {
+            Err(GbnfError::EmptyRuleSet)
+        }
+        llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_ROOT_SYMBOL_MISSING => {
+            Err(GbnfError::RootSymbolMissing {
+                root: root.to_owned(),
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG => {
-            Err(GbnfError::WrapperRefusedNullPointer {
-                operation: OPERATION,
-                pointer: "root",
-            })
+        llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_UNSUPPORTED_GRAMMAR => {
+            Err(GbnfError::UnsupportedGrammar)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG => {
-            Err(GbnfError::WrapperRefusedNullPointer {
-                operation: OPERATION,
-                pointer: "output error",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GbnfError::ValidationNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(GbnfError::ValidationLlamaCppOutOfMemory)
         }
-        LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
+            let message = unsafe { read_exception_message("llama_rs_validate_gbnf", out_error) }?;
 
             Err(GbnfError::ValidationReported { message })
         }
-        other => Err(GbnfError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
 /// # Errors
 ///
 /// Returns [`GbnfError`] when `grammar` or `root` contains an interior
-/// NUL byte, or when the grammar parser rejects the grammar.
+/// NUL byte, when the grammar parser rejects the grammar, or when llama.cpp throws while
+/// validating it.
 pub fn validate_gbnf(
     vocab: Option<&llama_vocab>,
     grammar: &str,
@@ -87,7 +70,7 @@ pub fn validate_gbnf(
         )
     };
 
-    validation_status_to_result(status, root, out_error)
+    unsafe { validation_status_to_result(status, root, out_error) }
 }
 
 #[cfg(test)]
@@ -96,8 +79,7 @@ mod tests {
     use std::fmt::Write;
     use std::ptr;
 
-    use llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION;
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
+    use llama_cpp_bindings_sys::bindings::llama_rs_gbnf_validation_status;
 
     use super::validate_gbnf;
     use super::validation_status_to_result;
@@ -182,34 +164,22 @@ mod tests {
     }
 
     #[test]
-    fn exception_status_without_message_is_reported_as_a_missing_exception_message() {
-        assert_eq!(
-            validation_status_to_result(
-                LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION,
-                "root",
-                ptr::null_mut(),
-            ),
-            Err(GbnfError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_validate_gbnf"
-                }
-            ))
-        );
-    }
-
-    #[test]
     fn exception_status_preserves_reported_message() {
         let out_error = unsafe {
-            llama_cpp_bindings_sys::llama_rs_string_dup(c"grammar engine exploded".as_ptr())
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(
+                c"grammar engine exploded".as_ptr(),
+            )
         };
         assert!(!out_error.is_null());
 
         assert_eq!(
-            validation_status_to_result(
-                LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION,
-                "root",
-                out_error,
-            ),
+            unsafe {
+                validation_status_to_result(
+                    llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION,
+                    "root",
+                    out_error,
+                )
+            },
             Err(GbnfError::ValidationReported {
                 message: "grammar engine exploded".to_owned()
             })
@@ -217,58 +187,15 @@ mod tests {
     }
 
     #[test]
-    fn null_grammar_status_is_a_refused_null_pointer() {
-        assert_eq!(
-            validation_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG,
-                "root",
-                ptr::null_mut(),
-            ),
-            Err(GbnfError::WrapperRefusedNullPointer {
-                operation: "llama_rs_validate_gbnf",
-                pointer: "grammar"
-            })
-        );
-    }
-
-    #[test]
-    fn null_root_status_is_a_refused_null_pointer() {
-        assert_eq!(
-            validation_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG,
-                "root",
-                ptr::null_mut(),
-            ),
-            Err(GbnfError::WrapperRefusedNullPointer {
-                operation: "llama_rs_validate_gbnf",
-                pointer: "root"
-            })
-        );
-    }
-
-    #[test]
-    fn null_output_error_status_is_a_refused_null_pointer() {
-        assert_eq!(
-            validation_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG,
-                "root",
-                ptr::null_mut(),
-            ),
-            Err(GbnfError::WrapperRefusedNullPointer {
-                operation: "llama_rs_validate_gbnf",
-                pointer: "output error"
-            })
-        );
-    }
-
-    #[test]
     fn llama_cpp_out_of_memory_status_maps_to_llama_cpp_out_of_memory() {
         assert_eq!(
-            validation_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY,
+            unsafe {
+                validation_status_to_result(
+                llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY,
                 "root",
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(GbnfError::ValidationLlamaCppOutOfMemory)
         );
     }
@@ -276,23 +203,14 @@ mod tests {
     #[test]
     fn allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
-            validation_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED,
+            unsafe {
+                validation_status_to_result(
+                llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED,
                 "root",
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(GbnfError::ValidationNotEnoughMemory)
-        );
-    }
-
-    #[test]
-    fn unknown_status_is_preserved() {
-        assert_eq!(
-            validation_status_to_result(255, "root", ptr::null_mut(),),
-            Err(GbnfError::UnknownWrapperStatus {
-                operation: "llama_rs_validate_gbnf",
-                code: 255
-            })
         );
     }
 }

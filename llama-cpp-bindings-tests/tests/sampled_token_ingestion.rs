@@ -262,8 +262,9 @@ fn ingesting_a_generated_token_reports_a_classification_llama_cpp_fails(
     let session = user_turn_chat_session(model, "Hello!", &[], false)?;
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let generated = model.str_to_token("Hi", AddBos::Never, ParseSpecialTokens::Never)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
+    );
 
     ensure!(
         classifier.ingest(
@@ -291,8 +292,9 @@ fn ending_the_generation_reports_a_classification_llama_cpp_fails(
     let end_of_sequence = model
         .token_eos()
         .context("the model declares an EOS token")?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
+    );
 
     ensure!(classifier.ingest(end_of_sequence, &mut Vec::new()) == Err(failed_classification()?));
 
@@ -317,8 +319,9 @@ fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>)
     classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
+    );
 
     ensure!(
         classifier

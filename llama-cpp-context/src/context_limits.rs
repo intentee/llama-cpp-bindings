@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings_sys::llama_seq_id;
+use llama_cpp_bindings_sys::bindings::llama_seq_id;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ContextLimits {

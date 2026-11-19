@@ -28,9 +28,7 @@ members = [
   "llama-cpp-test-harness-macros",
   "llama-cpp-test-model-provisioning",
   "llama-cpp-token-usage",
-  "llama-cpp-wrapper-error-fixture",
   "llama-cpp-wrapper-sources",
-  "llama-cpp-wrapper-string",
 ]
 
 [workspace.package]
@@ -75,9 +73,7 @@ llama-cpp-test-harness-macros = { path = "llama-cpp-test-harness-macros", versio
 llama-cpp-test-model-provisioning = { path = "llama-cpp-test-model-provisioning", version = "0.29" }
 llama-cpp-fault-injection = { path = "llama-cpp-fault-injection", version = "0.29" }
 llama-cpp-token-usage = { path = "llama-cpp-token-usage", version = "0.29" }
-llama-cpp-wrapper-error-fixture = { path = "llama-cpp-wrapper-error-fixture" }
 llama-cpp-wrapper-sources = { path = "llama-cpp-wrapper-sources", version = "0.29" }
-llama-cpp-wrapper-string = { path = "llama-cpp-wrapper-string", version = "0.29" }
 llguidance = "1.7"
 log = "0.4"
 once_cell = "1.21"
@@ -118,7 +114,6 @@ test_crates = [
   "llama-cpp-test-harness",
   "llama-cpp-test-harness-macros",
   "llama-cpp-test-model-provisioning",
-  "llama-cpp-wrapper-error-fixture",
 ]
 
 [[workspace.metadata.heisenberg.configurations]]

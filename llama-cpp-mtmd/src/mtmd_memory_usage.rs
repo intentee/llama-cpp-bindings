@@ -4,70 +4,40 @@ use std::num::NonZeroU32;
 use std::ptr;
 
 use llama_cpp_backend::backend_device_index::backend_device_index;
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_get_memory_usage_status;
 
 use crate::mtmd_context_params::MtmdContextParams;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_image_token_limit::MtmdImageTokenLimit;
+use crate::read_exception_message::read_exception_message;
 
-const OPERATION: &str = "llama_rs_mtmd_get_memory_usage";
-
-fn get_memory_usage_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_mtmd_get_memory_usage_status,
+/// # Safety
+///
+/// On `LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be the
+/// non-null message the C++ side allocated; it is freed here.
+unsafe fn get_memory_usage_status_to_result(
+    status: llama_rs_mtmd_get_memory_usage_status,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_MMPROJ_PATH_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "mmproj_path",
+        llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_OK => Ok(()),
+        llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED => {
+            Err(MtmdError::MemoryUsageCoversMoreDevicesThanRegistered {
+                operation: "llama_rs_mtmd_get_memory_usage",
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_device_memory",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_COUNT_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_device_memory_count",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_IMAGE_MAX_TOKENS_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_image_max_tokens",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_USE_NON_CAUSAL_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_use_non_causal",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED => {
-            Err(MtmdError::WrapperMeasuredMoreDevicesThanRegistered {
-                operation: OPERATION,
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::MemoryUsageNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(MtmdError::MemoryUsageLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message =
+                unsafe { read_exception_message("llama_rs_mtmd_get_memory_usage", out_error) }?;
 
             Err(MtmdError::MemoryUsageReported { message })
         }
-        other => Err(MtmdError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
@@ -75,7 +45,7 @@ fn get_memory_usage_status_to_result(
 /// budget it was measured at, as llama.cpp estimates it before the projector is loaded.
 #[derive(Debug)]
 pub struct MtmdMemoryUsage {
-    device_memory: Vec<llama_cpp_bindings_sys::llama_rs_mtmd_device_memory>,
+    device_memory: Vec<llama_cpp_bindings_sys::bindings::llama_rs_mtmd_device_memory>,
     image_max_tokens: i32,
     decodes_images_non_causally: bool,
 }
@@ -87,12 +57,13 @@ impl MtmdMemoryUsage {
     ///
     /// Returns [`MtmdError::MemoryUsageUnloadable`] when llama.cpp cannot load the projector,
     /// [`MtmdError::MemoryUsageContextParams`] when `params` have no C representation, or the
-    /// variant matching the wrapper's status code.
+    /// variant for llama.cpp failing to measure the projector.
     pub fn measure(mmproj_path: &CStr, params: &MtmdContextParams) -> Result<Self, MtmdError> {
-        let context_params = llama_cpp_bindings_sys::mtmd_context_params::try_from(params)
-            .map_err(Box::new)
-            .map_err(MtmdError::MemoryUsageContextParams)?;
-        let device_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
+        let context_params =
+            llama_cpp_bindings_sys::bindings::mtmd_context_params::try_from(params)
+                .map_err(Box::new)
+                .map_err(MtmdError::MemoryUsageContextParams)?;
+        let device_count = unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_dev_count() };
         let mut device_memory = Vec::with_capacity(device_count);
         let mut device_memory_count: usize = 0;
         let mut image_max_tokens: i32 = 0;
@@ -100,7 +71,7 @@ impl MtmdMemoryUsage {
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_get_memory_usage(
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_get_memory_usage(
                 mmproj_path.as_ptr(),
                 context_params,
                 device_memory.as_mut_ptr(),
@@ -112,7 +83,7 @@ impl MtmdMemoryUsage {
             )
         };
 
-        get_memory_usage_status_to_result(status, out_error)?;
+        unsafe { get_memory_usage_status_to_result(status, out_error) }?;
 
         unsafe { device_memory.set_len(device_memory_count) };
 
@@ -135,7 +106,7 @@ impl MtmdMemoryUsage {
     /// `LlamaModelParams::fit_params`;
     /// a device past its end has no margin to grow.
     pub fn add_to_fit_margins(&self, margins: &mut [usize]) {
-        for llama_cpp_bindings_sys::llama_rs_mtmd_device_memory { device, bytes } in
+        for llama_cpp_bindings_sys::bindings::llama_rs_mtmd_device_memory { device, bytes } in
             &self.device_memory
         {
             let margin = backend_device_index(*device)
@@ -175,9 +146,9 @@ mod tests {
     use std::num::NonZeroU32;
     use std::ptr;
 
+    use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_get_memory_usage_status;
     use llama_cpp_fault_injection::armed_fault::ArmedFault;
     use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::get_memory_usage_status_to_result;
     use crate::mtmd_context_params::MtmdContextParams;
@@ -189,10 +160,12 @@ mod tests {
 
     fn first_device_usage(bytes: usize) -> MtmdMemoryUsage {
         MtmdMemoryUsage {
-            device_memory: vec![llama_cpp_bindings_sys::llama_rs_mtmd_device_memory {
-                device: unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(0) },
-                bytes,
-            }],
+            device_memory: vec![
+                llama_cpp_bindings_sys::bindings::llama_rs_mtmd_device_memory {
+                    device: unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_dev_get(0) },
+                    bytes,
+                },
+            ],
             image_max_tokens: -1,
             decodes_images_non_causally: false,
         }
@@ -213,13 +186,6 @@ mod tests {
         }
     }
 
-    fn refused_null_argument(argument: &'static str) -> MtmdError {
-        MtmdError::WrapperRefusedNullArgument {
-            operation: "llama_rs_mtmd_get_memory_usage",
-            argument,
-        }
-    }
-
     #[test]
     fn measuring_a_missing_projector_reports_it_unloadable() {
         assert_eq!(
@@ -234,7 +200,7 @@ mod tests {
     #[test]
     fn a_measurement_llama_cpp_fails_is_reported() {
         let _fault = ArmedFault::at(
-            llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_GET_MEMORY_USAGE_THROWS,
+            llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_MTMD_GET_MEMORY_USAGE_THROWS,
         );
 
         assert_eq!(
@@ -322,47 +288,40 @@ mod tests {
     #[test]
     fn the_ok_status_is_success() {
         assert_eq!(
-            get_memory_usage_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_OK,
-                ptr::null_mut(),
-            ),
+            unsafe {
+                get_memory_usage_status_to_result(
+                    llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_OK,
+                    ptr::null_mut(),
+                )
+            },
             Ok(())
         );
     }
 
     #[test]
-    fn each_refused_null_argument_and_more_measured_devices_than_registered_is_reported() {
-        let statuses = [
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_MMPROJ_PATH_ARG,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_ARG,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_DEVICE_MEMORY_COUNT_ARG,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_IMAGE_MAX_TOKENS_ARG,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_NULL_OUT_USE_NON_CAUSAL_ARG,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED,
-        ];
-
+    fn more_measured_devices_than_registered_is_reported() {
         assert_eq!(
-            statuses.map(|status| get_memory_usage_status_to_result(status, ptr::null_mut())),
-            [
-                Err(refused_null_argument("mmproj_path")),
-                Err(refused_null_argument("out_device_memory")),
-                Err(refused_null_argument("out_device_memory_count")),
-                Err(refused_null_argument("out_image_max_tokens")),
-                Err(refused_null_argument("out_use_non_causal")),
-                Err(MtmdError::WrapperMeasuredMoreDevicesThanRegistered {
-                    operation: "llama_rs_mtmd_get_memory_usage"
-                }),
-            ]
+            unsafe {
+                get_memory_usage_status_to_result(
+                llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED,
+                ptr::null_mut(),
+            )
+            },
+            Err(MtmdError::MemoryUsageCoversMoreDevicesThanRegistered {
+                operation: "llama_rs_mtmd_get_memory_usage"
+            })
         );
     }
 
     #[test]
     fn a_failed_error_string_allocation_is_not_enough_memory() {
         assert_eq!(
-            get_memory_usage_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED,
+            unsafe {
+                get_memory_usage_status_to_result(
+                llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(MtmdError::MemoryUsageNotEnoughMemory)
         );
     }
@@ -370,48 +329,31 @@ mod tests {
     #[test]
     fn llama_cpp_running_out_of_memory_is_reported() {
         assert_eq!(
-            get_memory_usage_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_OUT_OF_MEMORY,
+            unsafe {
+                get_memory_usage_status_to_result(
+                llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(MtmdError::MemoryUsageLlamaCppOutOfMemory)
         );
     }
 
     #[test]
     fn a_thrown_exception_reports_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"projector threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"projector threw".as_ptr())
+        };
 
         assert_eq!(
-            get_memory_usage_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            unsafe {
+                get_memory_usage_status_to_result(
+                llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 out_error,
-            ),
+            )
+            },
             Err(MtmdError::MemoryUsageReported {
                 message: "projector threw".to_owned(),
-            })
-        );
-    }
-
-    #[test]
-    fn a_thrown_exception_without_a_message_is_reported_as_a_missing_exception_message() {
-        assert_eq!(
-            get_memory_usage_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                ptr::null_mut(),
-            ),
-            Err(MtmdError::WrapperString(WrapperStringError::ExceptionMessageMissing { operation: "llama_rs_mtmd_get_memory_usage" }))
-        );
-    }
-
-    #[test]
-    fn an_unknown_status_is_preserved() {
-        assert_eq!(
-            get_memory_usage_status_to_result(255, ptr::null_mut()),
-            Err(MtmdError::UnknownWrapperStatus {
-                operation: "llama_rs_mtmd_get_memory_usage",
-                code: 255
             })
         );
     }

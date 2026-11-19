@@ -1,25 +1,29 @@
 use std::ffi::c_char;
+use std::num::NonZeroI32;
 use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 use std::str::Utf8Error;
 
+use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_encode_chunk_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_eval_chunk_single_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunk_copy_status;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_token::LlamaToken;
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 use crate::optional_mtmd_id::optional_mtmd_id;
+use crate::read_exception_message::read_exception_message;
 
 /// # Safety
 ///
 /// `tokens_ptr` must point to at least `n_tokens` valid `llama_token` values
 /// that remain valid for the lifetime `'chunk`.
 const unsafe fn tokens_from_raw_ptr<'chunk>(
-    tokens_ptr: *const llama_cpp_bindings_sys::llama_token,
+    tokens_ptr: *const llama_cpp_bindings_sys::bindings::llama_token,
     n_tokens: usize,
 ) -> Option<&'chunk [LlamaToken]> {
     if tokens_ptr.is_null() || n_tokens == 0 {
@@ -53,152 +57,94 @@ fn non_causal_chunk_micro_batch_error(
     None
 }
 
-fn input_chunk_copy_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_mtmd_input_chunk_copy_status,
-    out_chunk: *mut llama_cpp_bindings_sys::mtmd_input_chunk,
+/// # Safety
+///
+/// On `LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK` `out_chunk` must be the non-null chunk llama.cpp copied,
+/// and on `LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be the
+/// non-null message the C++ side allocated; the message is freed here.
+unsafe fn input_chunk_copy_status_to_result(
+    status: llama_rs_mtmd_input_chunk_copy_status,
+    out_chunk: *mut llama_cpp_bindings_sys::bindings::mtmd_input_chunk,
     out_error: *mut c_char,
 ) -> Result<MtmdInputChunk, MtmdError> {
-    const OPERATION: &str = "llama_rs_mtmd_input_chunk_copy";
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK => NonNull::new(out_chunk)
-            .map(|chunk| MtmdInputChunk { chunk, owned: true })
-            .ok_or(MtmdError::WrapperSucceededWithoutOutput {
-                operation: OPERATION,
-                output: "chunk",
-            }),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "chunk",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_chunk",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK => Ok(MtmdInputChunk {
+            chunk: unsafe { NonNull::new_unchecked(out_chunk) },
+            owned: true,
+        }),
+        llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::ChunkCopyNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(MtmdError::ChunkCopyLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message =
+                unsafe { read_exception_message("llama_rs_mtmd_input_chunk_copy", out_error) }?;
 
             Err(MtmdError::ChunkCopyReported { message })
         }
-        other => Err(MtmdError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
-fn map_encode_chunk_status(
-    status: llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk_status,
+/// # Safety
+///
+/// On `LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be the non-null
+/// message the C++ side allocated; it is freed here.
+unsafe fn map_encode_chunk_status(
+    status: llama_rs_mtmd_encode_chunk_status,
     llama_cpp_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
-    const OPERATION: &str = "llama_rs_mtmd_encode_chunk";
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_RETURNED_NONZERO_CODE => {
-            Err(MtmdError::EncodingFailed {
-                code: llama_cpp_return_code,
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_OK => NonZeroI32::new(llama_cpp_return_code)
+            .map_or(Ok(()), |code| Err(MtmdError::EncodingFailed { code: code.get() })),
+        llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::EncodeNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(MtmdError::EncodeLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message =
+                unsafe { read_exception_message("llama_rs_mtmd_encode_chunk", out_error) }?;
             Err(MtmdError::EncodeReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "ctx",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "chunk",
-            })
-        }
-        other => Err(MtmdError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
-fn eval_chunk_single_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single_status,
-    final_position: llama_cpp_bindings_sys::llama_pos,
+/// # Safety
+///
+/// On `LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be the
+/// non-null message the C++ side allocated; it is freed here.
+unsafe fn eval_chunk_single_status_to_result(
+    status: llama_rs_mtmd_eval_chunk_single_status,
+    final_position: llama_cpp_bindings_sys::bindings::llama_pos,
     out_llama_cpp_return_code: i32,
     out_error: *mut c_char,
-) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdError> {
-    const OPERATION: &str = "llama_rs_mtmd_eval_chunk_single";
-
+) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK => Ok(final_position),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_RETURNED_NONZERO_CODE => {
-            Err(MtmdError::EvalFailed {
-                code: out_llama_cpp_return_code,
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK => NonZeroI32::new(out_llama_cpp_return_code)
+            .map_or(Ok(final_position), |code| {
+                Err(MtmdError::EvalFailed { code: code.get() })
+            }),
+        llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::EvalNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(MtmdError::EvalLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message =
+                unsafe { read_exception_message("llama_rs_mtmd_eval_chunk_single", out_error) }?;
             Err(MtmdError::EvalReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "mtmd_ctx",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "llama_ctx",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "chunk",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_new_n_past",
-            })
-        }
-        other => Err(MtmdError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
 #[derive(Debug)]
 pub struct MtmdInputChunk {
-    pub chunk: NonNull<llama_cpp_bindings_sys::mtmd_input_chunk>,
+    pub chunk: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunk>,
     pub owned: bool,
 }
 
@@ -207,32 +153,35 @@ impl MtmdInputChunk {
     /// Returns an error if the chunk type is unknown.
     pub fn chunk_type(&self) -> Result<MtmdInputChunkType, MtmdError> {
         let chunk_type = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunk_get_type(self.chunk.as_ptr())
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunk_get_type(
+                self.chunk.as_ptr(),
+            )
         };
         MtmdInputChunkType::try_from(chunk_type)
     }
 
     /// # Errors
     ///
-    /// Returns the [`MtmdError`] variant matching the wrapper's status code.
+    /// Returns an [`MtmdError`] when llama.cpp fails to copy the chunk.
     pub fn copy(&self) -> Result<Self, MtmdError> {
-        let mut out_chunk: *mut llama_cpp_bindings_sys::mtmd_input_chunk = ptr::null_mut();
+        let mut out_chunk: *mut llama_cpp_bindings_sys::bindings::mtmd_input_chunk =
+            ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunk_copy(
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunk_copy(
                 self.chunk.as_ptr(),
                 &raw mut out_chunk,
                 &raw mut out_error,
             )
         };
 
-        input_chunk_copy_status_to_result(status, out_chunk, out_error)
+        unsafe { input_chunk_copy_status_to_result(status, out_chunk, out_error) }
     }
 
     #[must_use]
     pub fn decode_use_non_causal(&self, MtmdContext { context, .. }: &MtmdContext) -> bool {
         unsafe {
-            llama_cpp_bindings_sys::mtmd_decode_use_non_causal(
+            llama_cpp_bindings_sys::bindings::mtmd_decode_use_non_causal(
                 context.as_ptr(),
                 self.chunk.as_ptr(),
             )
@@ -241,13 +190,13 @@ impl MtmdInputChunk {
 
     /// # Errors
     ///
-    /// Returns an [`MtmdError`] variant matching the wrapper's status code.
+    /// Returns an [`MtmdError`] when llama.cpp fails to encode the chunk.
     pub fn encode(&self, MtmdContext { context, .. }: &MtmdContext) -> Result<(), MtmdError> {
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_encode_chunk(
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_encode_chunk(
                 context.as_ptr(),
                 self.chunk.as_ptr(),
                 &raw mut out_llama_cpp_return_code,
@@ -255,7 +204,7 @@ impl MtmdInputChunk {
             )
         };
 
-        map_encode_chunk_status(status, out_llama_cpp_return_code, out_error)
+        unsafe { map_encode_chunk_status(status, out_llama_cpp_return_code, out_error) }
     }
 
     /// Encodes the chunk when it holds media and decodes it into `llama_ctx` from `start_position`,
@@ -263,7 +212,7 @@ impl MtmdInputChunk {
     ///
     /// # Errors
     ///
-    /// Returns an [`MtmdError`] variant matching the wrapper's status code.
+    /// Returns an [`MtmdError`] when llama.cpp fails to encode or decode the chunk.
     pub fn eval(
         &self,
         MtmdContext {
@@ -271,17 +220,17 @@ impl MtmdInputChunk {
             ..
         }: &MtmdContext,
         llama_ctx: &mut LlamaContext,
-        start_position: llama_cpp_bindings_sys::llama_pos,
-        seq_id: llama_cpp_bindings_sys::llama_seq_id,
+        start_position: llama_cpp_bindings_sys::bindings::llama_pos,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
         n_batch: i32,
         logits_last: bool,
-    ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdError> {
-        let mut final_position: llama_cpp_bindings_sys::llama_pos = start_position;
+    ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
+        let mut final_position: llama_cpp_bindings_sys::bindings::llama_pos = start_position;
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_eval_chunk_single(
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_eval_chunk_single(
                 mtmd_context.as_ptr(),
                 llama_ctx.context.as_ptr(),
                 self.chunk.as_ptr(),
@@ -295,12 +244,14 @@ impl MtmdInputChunk {
             )
         };
 
-        let next_position = eval_chunk_single_status_to_result(
-            status,
-            final_position,
-            out_llama_cpp_return_code,
-            out_error,
-        )?;
+        let next_position = unsafe {
+            eval_chunk_single_status_to_result(
+                status,
+                final_position,
+                out_llama_cpp_return_code,
+                out_error,
+            )
+        }?;
         llama_ctx.record_helper_decode(self.n_tokens() as u64, logits_last);
 
         Ok(next_position)
@@ -340,7 +291,7 @@ impl MtmdInputChunk {
     /// Returns [`Utf8Error`] when the id is not valid UTF-8.
     pub fn id(&self) -> Result<Option<String>, Utf8Error> {
         unsafe {
-            optional_mtmd_id(llama_cpp_bindings_sys::mtmd_input_chunk_get_id(
+            optional_mtmd_id(llama_cpp_bindings_sys::bindings::mtmd_input_chunk_get_id(
                 self.chunk.as_ptr(),
             ))
         }
@@ -348,12 +299,14 @@ impl MtmdInputChunk {
 
     #[must_use]
     pub fn n_positions(&self) -> i32 {
-        unsafe { llama_cpp_bindings_sys::mtmd_input_chunk_get_n_pos(self.chunk.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::mtmd_input_chunk_get_n_pos(self.chunk.as_ptr()) }
     }
 
     #[must_use]
     pub fn n_tokens(&self) -> usize {
-        unsafe { llama_cpp_bindings_sys::mtmd_input_chunk_get_n_tokens(self.chunk.as_ptr()) }
+        unsafe {
+            llama_cpp_bindings_sys::bindings::mtmd_input_chunk_get_n_tokens(self.chunk.as_ptr())
+        }
     }
 
     #[must_use]
@@ -364,7 +317,7 @@ impl MtmdInputChunk {
 
         let mut n_tokens = 0usize;
         let tokens_ptr = unsafe {
-            llama_cpp_bindings_sys::mtmd_input_chunk_get_tokens_text(
+            llama_cpp_bindings_sys::bindings::mtmd_input_chunk_get_tokens_text(
                 self.chunk.as_ptr(),
                 &raw mut n_tokens,
             )
@@ -377,7 +330,7 @@ impl MtmdInputChunk {
 impl Drop for MtmdInputChunk {
     fn drop(&mut self) {
         if self.owned {
-            unsafe { llama_cpp_bindings_sys::mtmd_input_chunk_free(self.chunk.as_ptr()) }
+            unsafe { llama_cpp_bindings_sys::bindings::mtmd_input_chunk_free(self.chunk.as_ptr()) }
         }
     }
 }
@@ -386,10 +339,10 @@ impl Drop for MtmdInputChunk {
 mod tests {
     use std::ptr;
 
+    use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_encode_chunk_status;
+    use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_eval_chunk_single_status;
+    use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunk_copy_status;
     use llama_cpp_model::llama_token::LlamaToken;
-    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
-    use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::eval_chunk_single_status_to_result;
     use super::input_chunk_copy_status_to_result;
@@ -399,15 +352,6 @@ mod tests {
     use crate::mtmd_error::MtmdError;
     use crate::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 
-    const OPERATION: &str = "llama_rs_mtmd_input_chunk_copy";
-
-    fn refused_null_argument(argument: &'static str) -> MtmdError {
-        MtmdError::WrapperRefusedNullArgument {
-            operation: OPERATION,
-            argument,
-        }
-    }
-
     #[test]
     fn tokens_from_raw_ptr_returns_none_for_null() {
         assert_eq!(unsafe { tokens_from_raw_ptr(ptr::null(), 5) }, None);
@@ -415,14 +359,14 @@ mod tests {
 
     #[test]
     fn tokens_from_raw_ptr_returns_none_for_zero_count() {
-        let token: llama_cpp_bindings_sys::llama_token = 42;
+        let token: llama_cpp_bindings_sys::bindings::llama_token = 42;
 
         assert_eq!(unsafe { tokens_from_raw_ptr(&raw const token, 0) }, None);
     }
 
     #[test]
     fn tokens_from_raw_ptr_views_every_token() {
-        let tokens: [llama_cpp_bindings_sys::llama_token; 2] = [1, 2];
+        let tokens: [llama_cpp_bindings_sys::bindings::llama_token; 2] = [1, 2];
         let result = unsafe { tokens_from_raw_ptr(tokens.as_ptr(), 2) };
 
         assert_eq!(result, Some(&[LlamaToken::new(1), LlamaToken::new(2)][..]));
@@ -454,52 +398,38 @@ mod tests {
     #[test]
     fn every_failure_status_maps_to_its_error() {
         let statuses = [
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_CHUNK_ARG,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_NULL_OUT_CHUNK_ARG,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_OUT_OF_MEMORY,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            255,
+            llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED,
+            llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_OUT_OF_MEMORY,
         ];
 
         assert_eq!(
             statuses.map(|status| {
-                input_chunk_copy_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
+                unsafe {
+                    input_chunk_copy_status_to_result(status, ptr::null_mut(), ptr::null_mut())
+                }
+                .err()
             }),
             [
-                Some(MtmdError::WrapperSucceededWithoutOutput {
-                    operation: OPERATION,
-                    output: "chunk"
-                }),
-                Some(refused_null_argument("chunk")),
-                Some(refused_null_argument("out_chunk")),
                 Some(MtmdError::ChunkCopyNotEnoughMemory),
                 Some(MtmdError::ChunkCopyLlamaCppOutOfMemory),
-                Some(MtmdError::WrapperString(
-                    WrapperStringError::ExceptionMessageMissing {
-                        operation: OPERATION
-                    }
-                )),
-                Some(MtmdError::UnknownWrapperStatus {
-                    operation: OPERATION,
-                    code: 255
-                }),
             ]
         );
     }
 
     #[test]
     fn a_thrown_exception_reports_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"allocation threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"allocation threw".as_ptr())
+        };
 
         assert_eq!(
-            input_chunk_copy_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                ptr::null_mut(),
-                out_error,
-            )
+            unsafe {
+                input_chunk_copy_status_to_result(
+                    llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    ptr::null_mut(),
+                    out_error,
+                )
+            }
             .err(),
             Some(MtmdError::ChunkCopyReported {
                 message: "allocation threw".to_owned(),
@@ -509,294 +439,146 @@ mod tests {
 
     #[test]
     fn eval_chunk_single_status_cxx_exception_surfaces_the_reported_message() {
-        let expected_message = unsafe {
-            read_and_free_exception_message(
-                "llama_rs_mtmd_eval_chunk_single",
-                wrapper_allocated_error_message_pointer(),
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"evaluation threw".as_ptr())
+        };
+        let result = unsafe {
+            eval_chunk_single_status_to_result(
+                llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                0,
+                0,
+                out_error,
             )
         };
-        let result = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            0,
-            wrapper_allocated_error_message_pointer(),
-        );
 
         assert_eq!(
             result.err(),
-            expected_message
-                .ok()
-                .map(|message| MtmdError::EvalReported { message })
+            Some(MtmdError::EvalReported {
+                message: "evaluation threw".to_owned(),
+            })
         );
     }
 
     #[test]
     fn eval_chunk_single_status_ok_returns_final_position() {
-        let result = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK,
-            7,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            eval_chunk_single_status_to_result(
+                llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK,
+                7,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Ok(7));
     }
 
     #[test]
-    fn eval_chunk_single_status_nonzero_code_maps_to_eval_failed() {
-        let result = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_RETURNED_NONZERO_CODE,
-            0,
-            -3,
-            ptr::null_mut(),
-        );
+    fn eval_chunk_single_nonzero_llama_cpp_code_maps_to_eval_failed() {
+        let result = unsafe {
+            eval_chunk_single_status_to_result(
+                llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_OK,
+                0,
+                -3,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Err(MtmdError::EvalFailed { code: -3 }));
     }
 
     #[test]
     fn eval_chunk_single_status_allocation_failed_maps_to_not_enough_memory() {
-        let result = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED,
-            0,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            eval_chunk_single_status_to_result(
+                llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_ERROR_STRING_ALLOCATION_FAILED,
+                0,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Err(MtmdError::EvalNotEnoughMemory));
     }
 
     #[test]
-    fn eval_chunk_single_status_reports_an_exception_without_a_message_as_a_missing_exception_message()
-     {
-        let result = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            0,
-            ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(MtmdError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_mtmd_eval_chunk_single"
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn eval_chunk_single_unknown_status_is_preserved() {
-        let result = eval_chunk_single_status_to_result(255, 0, 0, ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(MtmdError::UnknownWrapperStatus {
-                operation: "llama_rs_mtmd_eval_chunk_single",
-                code: 255
-            })
-        );
-    }
-
-    #[test]
-    fn eval_chunk_single_status_to_result_reports_a_null_mtmd_ctx_arg_as_a_refused_null_argument() {
-        let outcome = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_MTMD_CTX_ARG,
-            0,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_eval_chunk_single",
-                argument: "mtmd_ctx"
-            })
-        );
-    }
-
-    #[test]
-    fn eval_chunk_single_status_to_result_reports_a_null_llama_ctx_arg_as_a_refused_null_argument()
-    {
-        let outcome = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_LLAMA_CTX_ARG,
-            0,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_eval_chunk_single",
-                argument: "llama_ctx"
-            })
-        );
-    }
-
-    #[test]
-    fn eval_chunk_single_status_to_result_reports_a_null_chunk_arg_as_a_refused_null_argument() {
-        let outcome = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_CHUNK_ARG,
-            0,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_eval_chunk_single",
-                argument: "chunk"
-            })
-        );
-    }
-
-    #[test]
-    fn eval_chunk_single_status_to_result_reports_a_null_out_new_n_past_arg_as_a_refused_null_argument()
-     {
-        let outcome = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_NULL_OUT_NEW_N_PAST_ARG,
-            0,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_eval_chunk_single",
-                argument: "out_new_n_past"
-            })
-        );
-    }
-
-    #[test]
     fn eval_chunk_single_status_to_result_reports_llama_cpp_running_out_of_memory() {
-        let outcome = eval_chunk_single_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY,
-            0,
-            0,
-            ptr::null_mut(),
-        );
+        let outcome = unsafe {
+            eval_chunk_single_status_to_result(
+                llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_OUT_OF_MEMORY,
+                0,
+                0,
+                ptr::null_mut(),
+            )
+        };
         assert_eq!(outcome.err(), Some(MtmdError::EvalLlamaCppOutOfMemory));
     }
 
     #[test]
     fn encode_chunk_status_maps_ok_to_unit() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_OK,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            map_encode_chunk_status(
+                llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_OK,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Ok(()));
     }
 
     #[test]
-    fn encode_chunk_status_maps_encoding_failed_with_code() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_RETURNED_NONZERO_CODE,
-            5,
-            ptr::null_mut(),
-        );
+    fn encode_chunk_nonzero_llama_cpp_code_maps_to_encoding_failed() {
+        let result = unsafe {
+            map_encode_chunk_status(
+                llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_OK,
+                5,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Err(MtmdError::EncodingFailed { code: 5 }));
     }
 
     #[test]
     fn encode_chunk_status_maps_string_allocation_failed_to_not_enough_memory() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            map_encode_chunk_status(
+                llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_ERROR_STRING_ALLOCATION_FAILED,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Err(MtmdError::EncodeNotEnoughMemory));
     }
 
     #[test]
-    fn encode_chunk_status_reports_an_exception_without_a_message_as_a_missing_exception_message() {
-        let result = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(MtmdError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_mtmd_encode_chunk"
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn encode_chunk_unknown_status_is_preserved() {
-        let result = map_encode_chunk_status(255, 0, ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(MtmdError::UnknownWrapperStatus {
-                operation: "llama_rs_mtmd_encode_chunk",
-                code: 255
-            })
-        );
-    }
-
-    #[test]
-    fn map_encode_chunk_status_reports_a_null_ctx_arg_as_a_refused_null_argument() {
-        let outcome = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CTX_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_encode_chunk",
-                argument: "ctx"
-            })
-        );
-    }
-
-    #[test]
-    fn map_encode_chunk_status_reports_a_null_chunk_arg_as_a_refused_null_argument() {
-        let outcome = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_NULL_CHUNK_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_encode_chunk",
-                argument: "chunk"
-            })
-        );
-    }
-
-    #[test]
     fn map_encode_chunk_status_reports_llama_cpp_running_out_of_memory() {
-        let outcome = map_encode_chunk_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY,
-            0,
-            ptr::null_mut(),
-        );
+        let outcome = unsafe {
+            map_encode_chunk_status(
+                llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_OUT_OF_MEMORY,
+                0,
+                ptr::null_mut(),
+            )
+        };
         assert_eq!(outcome.err(), Some(MtmdError::EncodeLlamaCppOutOfMemory));
     }
 
     #[test]
     fn map_encode_chunk_status_maps_a_thrown_exception_with_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"encoder threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"encoder threw".as_ptr())
+        };
 
         assert_eq!(
-            map_encode_chunk_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                0,
-                out_error,
-            ),
+            unsafe {
+                map_encode_chunk_status(
+                    llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    0,
+                    out_error,
+                )
+            },
             Err(MtmdError::EncodeReported {
                 message: "encoder threw".to_owned(),
             })

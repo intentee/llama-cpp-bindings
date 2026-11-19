@@ -1,7 +1,7 @@
 use std::ops::Range;
 
-use llama_cpp_bindings_sys::LLAMA_TOKEN_NULL;
-use llama_cpp_bindings_sys::llama_token;
+use llama_cpp_bindings_sys::bindings::LLAMA_TOKEN_NULL;
+use llama_cpp_bindings_sys::bindings::llama_token;
 use llama_cpp_model::llama_token::LlamaToken;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -52,7 +52,7 @@ impl ChatOutput {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_sys::LLAMA_TOKEN_NULL;
+    use llama_cpp_bindings_sys::bindings::LLAMA_TOKEN_NULL;
     use llama_cpp_model::llama_token::LlamaToken;
 
     use crate::chat_output::ChatOutput;

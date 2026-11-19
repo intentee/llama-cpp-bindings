@@ -10,31 +10,37 @@ pub enum LlamaPoolingType {
     Rank,
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_pooling_type> for LlamaPoolingType {
+impl TryFrom<llama_cpp_bindings_sys::bindings::llama_pooling_type> for LlamaPoolingType {
     type Error = ParamsError;
 
-    fn try_from(value: llama_cpp_bindings_sys::llama_pooling_type) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: llama_cpp_bindings_sys::bindings::llama_pooling_type,
+    ) -> Result<Self, Self::Error> {
         match value {
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_UNSPECIFIED => Ok(Self::Unspecified),
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_NONE => Ok(Self::None),
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_MEAN => Ok(Self::Mean),
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_CLS => Ok(Self::Cls),
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_LAST => Ok(Self::Last),
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_RANK => Ok(Self::Rank),
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_UNSPECIFIED => {
+                Ok(Self::Unspecified)
+            }
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_NONE => Ok(Self::None),
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_MEAN => Ok(Self::Mean),
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_CLS => Ok(Self::Cls),
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_LAST => Ok(Self::Last),
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_RANK => Ok(Self::Rank),
             unknown => Err(ParamsError::UnknownPoolingType(unknown)),
         }
     }
 }
 
-impl From<LlamaPoolingType> for llama_cpp_bindings_sys::llama_pooling_type {
+impl From<LlamaPoolingType> for llama_cpp_bindings_sys::bindings::llama_pooling_type {
     fn from(value: LlamaPoolingType) -> Self {
         match value {
-            LlamaPoolingType::Unspecified => llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_UNSPECIFIED,
-            LlamaPoolingType::None => llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_NONE,
-            LlamaPoolingType::Mean => llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_MEAN,
-            LlamaPoolingType::Cls => llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_CLS,
-            LlamaPoolingType::Last => llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_LAST,
-            LlamaPoolingType::Rank => llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_RANK,
+            LlamaPoolingType::Unspecified => {
+                llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_UNSPECIFIED
+            }
+            LlamaPoolingType::None => llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_NONE,
+            LlamaPoolingType::Mean => llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_MEAN,
+            LlamaPoolingType::Cls => llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_CLS,
+            LlamaPoolingType::Last => llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_LAST,
+            LlamaPoolingType::Rank => llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_RANK,
         }
     }
 }
@@ -47,12 +53,12 @@ mod tests {
     #[test]
     fn every_llama_cpp_value_converts_to_its_variant_and_back() {
         let raw_values = [
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_UNSPECIFIED,
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_NONE,
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_MEAN,
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_CLS,
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_LAST,
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_RANK,
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_UNSPECIFIED,
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_NONE,
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_MEAN,
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_CLS,
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_LAST,
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_RANK,
         ];
 
         assert_eq!(
@@ -75,7 +81,7 @@ mod tests {
                 LlamaPoolingType::Last,
                 LlamaPoolingType::Rank,
             ]
-            .map(llama_cpp_bindings_sys::llama_pooling_type::from),
+            .map(llama_cpp_bindings_sys::bindings::llama_pooling_type::from),
             raw_values
         );
     }

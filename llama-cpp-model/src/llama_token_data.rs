@@ -3,14 +3,14 @@ use crate::llama_token::LlamaToken;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(transparent)]
 pub struct LlamaTokenData {
-    data: llama_cpp_bindings_sys::llama_token_data,
+    data: llama_cpp_bindings_sys::bindings::llama_token_data,
 }
 
 impl LlamaTokenData {
     #[must_use]
     pub const fn new(LlamaToken(id): LlamaToken, logit: f32, probability: f32) -> Self {
         Self {
-            data: llama_cpp_bindings_sys::llama_token_data {
+            data: llama_cpp_bindings_sys::bindings::llama_token_data {
                 id,
                 logit,
                 p: probability,

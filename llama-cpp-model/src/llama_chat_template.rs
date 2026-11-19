@@ -6,93 +6,62 @@ use std::fmt::Formatter;
 use std::ptr;
 use std::str::Utf8Error;
 
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
-use llama_cpp_wrapper_string::read_and_free_wrapper_string::read_and_free_wrapper_string;
-use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
+use llama_cpp_bindings_sys::bindings::llama_rs_render_template_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::model_error::ModelError;
+use crate::read_exception_message::read_exception_message;
+
+const OPERATION: &str = "llama_rs_render_template";
 
 /// # Safety
 ///
-/// `out_rendered` and `out_error` must be the pointers populated by the preceding
-/// `llama_rs_render_template` call (or null). `out_rendered` is read and freed only on
-/// `LLAMA_RS_RENDER_TEMPLATE_OK`, `out_error` only in the arms that carry a message.
+/// On `LLAMA_RS_RENDER_TEMPLATE_OK` `out_rendered` must be the non-null text the C++ side
+/// allocated, and on the statuses that carry a message `out_error` must be the non-null message
+/// it allocated; whichever is read is freed here.
 unsafe fn render_template_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_render_template_status,
+    status: llama_rs_render_template_status,
     out_rendered: *mut c_char,
     out_error: *mut c_char,
 ) -> Result<String, ModelError> {
-    const OPERATION: &str = "llama_rs_render_template";
-
-    let reported_message = || -> Result<String, WrapperStringError> {
-        unsafe { read_and_free_exception_message(OPERATION, out_error) }
+    let reported_message = || -> Result<String, ModelError> {
+        unsafe { read_exception_message(OPERATION, out_error) }
     };
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_OK => {
-            unsafe { read_and_free_wrapper_string(OPERATION, out_rendered) }?.ok_or(
-                ModelError::WrapperSucceededWithoutOutput {
-                    operation: OPERATION,
-                    output: "rendered string",
-                },
-            )
+        llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_OK => {
+            unsafe { CppAllocatedString::from_raw(out_rendered) }
+                .into_string()
+                .map_err(|source| ModelError::RenderedTemplateNotUtf8 { source })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ModelError::RenderNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ModelError::RenderLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_INVALID_JSON => {
+        llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_INVALID_JSON => {
             Err(ModelError::TemplateGlobalsInvalidJson {
                 message: reported_message()?,
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_GLOBALS_NOT_A_JSON_OBJECT => {
+        llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_GLOBALS_NOT_A_JSON_OBJECT => {
             Err(ModelError::TemplateGlobalsNotAJsonObject)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_INVALID_TEMPLATE => {
+        llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_INVALID_TEMPLATE => {
             Err(ModelError::TemplateInvalid {
                 message: reported_message()?,
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_EXECUTION_FAILED => {
+        llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_EXECUTION_FAILED => {
             Err(ModelError::TemplateExecutionFailed {
                 message: reported_message()?,
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+        llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(ModelError::RenderReported {
                 message: reported_message()?,
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_TEMPLATE_SOURCE_ARG => {
-            Err(ModelError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "template_source",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_GLOBALS_JSON_ARG => {
-            Err(ModelError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "globals_json",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_RENDERED_ARG => {
-            Err(ModelError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_rendered",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_ERROR_ARG => {
-            Err(ModelError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_error",
-            })
-        }
-        other => Err(ModelError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
@@ -114,15 +83,15 @@ impl LlamaChatTemplate {
     /// # Errors
     ///
     /// Returns [`ModelError`] when `globals_json` contains a NUL byte, is not valid
-    /// JSON or not a JSON object, the template cannot be parsed or executed, the wrapper fails,
-    /// or the rendered text is not valid UTF-8.
+    /// JSON or not a JSON object, the template cannot be parsed or executed, llama.cpp fails
+    /// while rendering, or the rendered text or error message is not valid UTF-8.
     pub fn render(&self, globals_json: &str) -> Result<String, ModelError> {
         let globals =
             CString::new(globals_json).map_err(ModelError::TemplateGlobalsContainNulByte)?;
         let mut out_rendered: *mut c_char = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_render_template(
+            llama_cpp_bindings_sys::bindings::llama_rs_render_template(
                 self.0.as_ptr(),
                 globals.as_ptr(),
                 &raw mut out_rendered,
@@ -158,7 +127,7 @@ mod tests {
     use std::ffi::c_char;
     use std::ptr;
 
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
+    use llama_cpp_bindings_sys::bindings::llama_rs_render_template_status;
 
     use super::render_template_status_to_result;
     use crate::llama_chat_template::LlamaChatTemplate;
@@ -285,72 +254,35 @@ mod tests {
     fn a_rendered_text_that_is_not_utf8_is_reported_with_its_bytes() {
         let not_utf8_text: [u8; 2] = [0xFF, 0];
         let out_rendered = unsafe {
-            llama_cpp_bindings_sys::llama_rs_string_dup(not_utf8_text.as_ptr().cast::<c_char>())
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(
+                not_utf8_text.as_ptr().cast::<c_char>(),
+            )
         };
 
         assert_eq!(
             unsafe {
                 render_template_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_OK,
+                    llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_OK,
                     out_rendered,
                     ptr::null_mut(),
                 )
             },
-            Err(ModelError::WrapperString(WrapperStringError::NotUtf8 {
-                operation: "llama_rs_render_template",
-                source: String::from_utf8(vec![0xFF]).unwrap_err().utf8_error(),
-                bytes: vec![0xFF],
-            }))
-        );
-    }
-
-    #[test]
-    fn a_success_without_a_rendered_text_is_a_success_without_output() {
-        assert_eq!(
-            unsafe {
-                render_template_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_OK,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                )
-            },
-            Err(ModelError::WrapperSucceededWithoutOutput {
-                operation: "llama_rs_render_template",
-                output: "rendered string",
+            Err(ModelError::RenderedTemplateNotUtf8 {
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
             })
         );
     }
 
     #[test]
-    fn each_status_that_carries_a_message_without_one_is_reported_as_a_missing_exception_message() {
-        for status in [
-            llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_INVALID_JSON,
-            llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_INVALID_TEMPLATE,
-            llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_EXECUTION_FAILED,
-            llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-        ] {
-            assert_eq!(
-                unsafe {
-                    render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
-                },
-                Err(ModelError::WrapperString(
-                    WrapperStringError::ExceptionMessageMissing {
-                        operation: "llama_rs_render_template"
-                    }
-                ))
-            );
-        }
-    }
-
-    #[test]
     fn an_exception_llama_cpp_throws_is_reported_with_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"rendering threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"rendering threw".as_ptr())
+        };
 
         assert_eq!(
             unsafe {
                 render_template_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION,
                     ptr::null_mut(),
                     out_error,
                 )
@@ -365,8 +297,8 @@ mod tests {
     fn rendering_reports_memory_exhaustion() {
         assert_eq!(
             [
-                llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED,
-                llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY,
+                llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_ERROR_STRING_ALLOCATION_FAILED,
+                llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_OUT_OF_MEMORY,
             ]
             .map(|status| unsafe {
                 render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
@@ -375,58 +307,6 @@ mod tests {
                 Err(ModelError::RenderNotEnoughMemory),
                 Err(ModelError::RenderLlamaCppOutOfMemory),
             ]
-        );
-    }
-
-    #[test]
-    fn rendering_reports_each_null_argument_as_a_refused_null_argument() {
-        for (status, expected_error) in [
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_TEMPLATE_SOURCE_ARG,
-                ModelError::WrapperRefusedNullArgument {
-                    operation: "llama_rs_render_template",
-                    argument: "template_source",
-                },
-            ),
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_GLOBALS_JSON_ARG,
-                ModelError::WrapperRefusedNullArgument {
-                    operation: "llama_rs_render_template",
-                    argument: "globals_json",
-                },
-            ),
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_RENDERED_ARG,
-                ModelError::WrapperRefusedNullArgument {
-                    operation: "llama_rs_render_template",
-                    argument: "out_rendered",
-                },
-            ),
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_ERROR_ARG,
-                ModelError::WrapperRefusedNullArgument {
-                    operation: "llama_rs_render_template",
-                    argument: "out_error",
-                },
-            ),
-        ] {
-            assert_eq!(
-                unsafe {
-                    render_template_status_to_result(status, ptr::null_mut(), ptr::null_mut())
-                },
-                Err(expected_error)
-            );
-        }
-    }
-
-    #[test]
-    fn rendering_preserves_an_unknown_status() {
-        assert_eq!(
-            unsafe { render_template_status_to_result(255, ptr::null_mut(), ptr::null_mut()) },
-            Err(ModelError::UnknownWrapperStatus {
-                operation: "llama_rs_render_template",
-                code: 255
-            })
         );
     }
 }

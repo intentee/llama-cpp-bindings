@@ -45,21 +45,8 @@ extern "C" auto llama_rs_model_decision_type(
     const struct llama_model * model,
     llama_rs_decision_type * out_decision_type,
     char ** out_error) -> llama_rs_model_decision_type_status {
-    if (out_decision_type != nullptr) {
-        *out_decision_type = LLAMA_RS_DECISION_TYPE_NONE;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (model == nullptr) {
-        return LLAMA_RS_MODEL_DECISION_TYPE_NULL_MODEL_ARG;
-    }
-    if (out_decision_type == nullptr) {
-        return LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_DECISION_TYPE_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_MODEL_DECISION_TYPE_NULL_OUT_ERROR_ARG;
-    }
+    *out_decision_type = LLAMA_RS_DECISION_TYPE_NONE;
+    *out_error = nullptr;
 
     try {
         *out_decision_type = mirrored_decision_type(common_get_decision_type(model));
@@ -86,21 +73,8 @@ extern "C" auto llama_rs_read_gguf_info(
     const char * path,
     llama_rs_gguf_info * out_info,
     char ** out_error) -> llama_rs_read_gguf_info_status {
-    if (out_info != nullptr) {
-        *out_info = llama_rs_gguf_info{LLAMA_RS_DECISION_TYPE_UNKNOWN, 0, false};
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (path == nullptr) {
-        return LLAMA_RS_READ_GGUF_INFO_NULL_PATH_ARG;
-    }
-    if (out_info == nullptr) {
-        return LLAMA_RS_READ_GGUF_INFO_NULL_OUT_INFO_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_READ_GGUF_INFO_NULL_OUT_ERROR_ARG;
-    }
+    *out_info = llama_rs_gguf_info{LLAMA_RS_DECISION_TYPE_UNKNOWN, 0, false};
+    *out_error = nullptr;
 
     try {
         const common_gguf_info info = common_get_gguf_info(path);
@@ -126,24 +100,8 @@ extern "C" auto llama_rs_render_template(
     const char * globals_json,
     char ** out_rendered,
     char ** out_error) -> llama_rs_render_template_status {
-    if (out_rendered != nullptr) {
-        *out_rendered = nullptr;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (template_source == nullptr) {
-        return LLAMA_RS_RENDER_TEMPLATE_NULL_TEMPLATE_SOURCE_ARG;
-    }
-    if (globals_json == nullptr) {
-        return LLAMA_RS_RENDER_TEMPLATE_NULL_GLOBALS_JSON_ARG;
-    }
-    if (out_rendered == nullptr) {
-        return LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_RENDERED_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_RENDER_TEMPLATE_NULL_OUT_ERROR_ARG;
-    }
+    *out_rendered = nullptr;
+    *out_error = nullptr;
 
     try {
         const common_json globals = common_json::parse(globals_json);

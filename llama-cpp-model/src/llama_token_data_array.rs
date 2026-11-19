@@ -61,20 +61,21 @@ impl LlamaTokenDataArray {
     /// If the data is not sorted, sorted must be false.
     pub unsafe fn modify_as_c_llama_token_data_array<TResult>(
         &mut self,
-        modify: impl FnOnce(&mut llama_cpp_bindings_sys::llama_token_data_array) -> TResult,
+        modify: impl FnOnce(&mut llama_cpp_bindings_sys::bindings::llama_token_data_array) -> TResult,
     ) -> Result<TResult, ModelError> {
         let size = self.data.len();
         let data = self
             .data
             .as_mut_ptr()
-            .cast::<llama_cpp_bindings_sys::llama_token_data>();
+            .cast::<llama_cpp_bindings_sys::bindings::llama_token_data>();
 
-        let mut c_llama_token_data_array = llama_cpp_bindings_sys::llama_token_data_array {
-            data,
-            size,
-            selected: self.c_selection()?,
-            sorted: self.sorted,
-        };
+        let mut c_llama_token_data_array =
+            llama_cpp_bindings_sys::bindings::llama_token_data_array {
+                data,
+                size,
+                selected: self.c_selection()?,
+                sorted: self.sorted,
+            };
 
         let result = modify(&mut c_llama_token_data_array);
 
@@ -172,12 +173,12 @@ mod tests {
         );
 
         let replacement = [
-            llama_cpp_bindings_sys::llama_token_data {
+            llama_cpp_bindings_sys::bindings::llama_token_data {
                 id: 10,
                 logit: 5.0,
                 p: 0.0,
             },
-            llama_cpp_bindings_sys::llama_token_data {
+            llama_cpp_bindings_sys::bindings::llama_token_data {
                 id: 20,
                 logit: 6.0,
                 p: 0.0,
@@ -187,7 +188,7 @@ mod tests {
         unsafe {
             array
                 .modify_as_c_llama_token_data_array(
-                    |llama_cpp_bindings_sys::llama_token_data_array {
+                    |llama_cpp_bindings_sys::bindings::llama_token_data_array {
                          data,
                          size,
                          selected,
@@ -216,7 +217,7 @@ mod tests {
 
         let result = unsafe {
             array.modify_as_c_llama_token_data_array(
-                |llama_cpp_bindings_sys::llama_token_data_array { selected, .. }| {
+                |llama_cpp_bindings_sys::bindings::llama_token_data_array { selected, .. }| {
                     *selected = 5;
                 },
             )
@@ -262,7 +263,7 @@ mod tests {
 
         let result = unsafe {
             array.modify_as_c_llama_token_data_array(
-                |llama_cpp_bindings_sys::llama_token_data_array { size, .. }| {
+                |llama_cpp_bindings_sys::bindings::llama_token_data_array { size, .. }| {
                     *size = capacity + 1;
                 },
             )
@@ -292,7 +293,9 @@ mod tests {
         unsafe {
             array
                 .modify_as_c_llama_token_data_array(
-                    |llama_cpp_bindings_sys::llama_token_data_array { selected, .. }| {
+                    |llama_cpp_bindings_sys::bindings::llama_token_data_array {
+                         selected, ..
+                     }| {
                         assert_eq!(*selected, 1);
                     },
                 )

@@ -4,12 +4,14 @@ use crate::kv_override_value_iterator::KvOverrideValueIterator;
 
 #[derive(Debug)]
 pub struct KvOverrides<'model_params> {
-    model_params: &'model_params llama_cpp_bindings_sys::llama_model_params,
+    model_params: &'model_params llama_cpp_bindings_sys::bindings::llama_model_params,
 }
 
 impl KvOverrides<'_> {
     #[must_use]
-    pub const fn new(model_params: &llama_cpp_bindings_sys::llama_model_params) -> KvOverrides<'_> {
+    pub const fn new(
+        model_params: &llama_cpp_bindings_sys::bindings::llama_model_params,
+    ) -> KvOverrides<'_> {
         KvOverrides { model_params }
     }
 }

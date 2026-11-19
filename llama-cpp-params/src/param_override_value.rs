@@ -13,55 +13,65 @@ pub enum ParamOverrideValue {
 
 impl ParamOverrideValue {
     #[must_use]
-    pub const fn tag(&self) -> llama_cpp_bindings_sys::llama_model_kv_override_type {
+    pub const fn tag(&self) -> llama_cpp_bindings_sys::bindings::llama_model_kv_override_type {
         match self {
-            Self::Bool(_) => llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_BOOL,
-            Self::Float(_) => llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
-            Self::Int(_) => llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_INT,
-            Self::Str(_) => llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_STR,
+            Self::Bool(_) => llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_BOOL,
+            Self::Float(_) => llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
+            Self::Int(_) => llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_INT,
+            Self::Str(_) => llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_STR,
         }
     }
 
     #[must_use]
-    pub const fn value(&self) -> llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
+    pub const fn value(
+        &self,
+    ) -> llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
         match self {
             Self::Bool(value) => {
-                llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 { val_bool: *value }
+                llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
+                    val_bool: *value,
+                }
             }
             Self::Float(value) => {
-                llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 { val_f64: *value }
+                llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
+                    val_f64: *value,
+                }
             }
             Self::Int(value) => {
-                llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 { val_i64: *value }
+                llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
+                    val_i64: *value,
+                }
             }
             Self::Str(c_string) => {
-                llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 { val_str: *c_string }
+                llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
+                    val_str: *c_string,
+                }
             }
         }
     }
 }
 
-impl TryFrom<&llama_cpp_bindings_sys::llama_model_kv_override> for ParamOverrideValue {
+impl TryFrom<&llama_cpp_bindings_sys::bindings::llama_model_kv_override> for ParamOverrideValue {
     type Error = ParamsError;
 
     fn try_from(
-        llama_cpp_bindings_sys::llama_model_kv_override {
+        llama_cpp_bindings_sys::bindings::llama_model_kv_override {
             key: _,
             tag,
             __bindgen_anon_1,
-        }: &llama_cpp_bindings_sys::llama_model_kv_override,
+        }: &llama_cpp_bindings_sys::bindings::llama_model_kv_override,
     ) -> Result<Self, Self::Error> {
         match *tag {
-            llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_INT => {
+            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_INT => {
                 Ok(Self::Int(unsafe { __bindgen_anon_1.val_i64 }))
             }
-            llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_FLOAT => {
+            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_FLOAT => {
                 Ok(Self::Float(unsafe { __bindgen_anon_1.val_f64 }))
             }
-            llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_BOOL => {
+            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_BOOL => {
                 Ok(Self::Bool(unsafe { __bindgen_anon_1.val_bool }))
             }
-            llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_STR => {
+            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_STR => {
                 Ok(Self::Str(unsafe { __bindgen_anon_1.val_str }))
             }
             unknown_tag => Err(ParamsError::UnknownKvOverrideTag(unknown_tag)),
@@ -89,10 +99,10 @@ mod tests {
             ]
             .map(|value| value.tag()),
             [
-                llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_BOOL,
-                llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
-                llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_INT,
-                llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_STR,
+                llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_BOOL,
+                llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
+                llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_INT,
+                llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_STR,
             ]
         );
     }
@@ -126,11 +136,12 @@ mod tests {
 
     #[test]
     fn an_int_kv_override_reads_as_an_int_value() {
-        let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_INT,
-            __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
-                val_i64: 123,
-            },
+        let ffi_override = llama_cpp_bindings_sys::bindings::llama_model_kv_override {
+            tag: llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_INT,
+            __bindgen_anon_1:
+                llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
+                    val_i64: 123,
+                },
             ..EMPTY_KV_OVERRIDE
         };
 
@@ -141,11 +152,12 @@ mod tests {
 
     #[test]
     fn a_float_kv_override_reads_as_a_float_value() {
-        let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
-            __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
-                val_f64: 1.5,
-            },
+        let ffi_override = llama_cpp_bindings_sys::bindings::llama_model_kv_override {
+            tag: llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_FLOAT,
+            __bindgen_anon_1:
+                llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
+                    val_f64: 1.5,
+                },
             ..EMPTY_KV_OVERRIDE
         };
 
@@ -156,11 +168,12 @@ mod tests {
 
     #[test]
     fn a_bool_kv_override_reads_as_a_bool_value() {
-        let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_BOOL,
-            __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
-                val_bool: false,
-            },
+        let ffi_override = llama_cpp_bindings_sys::bindings::llama_model_kv_override {
+            tag: llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_BOOL,
+            __bindgen_anon_1:
+                llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
+                    val_bool: false,
+                },
             ..EMPTY_KV_OVERRIDE
         };
 
@@ -189,11 +202,12 @@ mod tests {
         str_data[0] = b'a'.cast_signed();
         str_data[1] = b'b'.cast_signed();
 
-        let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
-            tag: llama_cpp_bindings_sys::LLAMA_KV_OVERRIDE_TYPE_STR,
-            __bindgen_anon_1: llama_cpp_bindings_sys::llama_model_kv_override__bindgen_ty_1 {
-                val_str: str_data,
-            },
+        let ffi_override = llama_cpp_bindings_sys::bindings::llama_model_kv_override {
+            tag: llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_STR,
+            __bindgen_anon_1:
+                llama_cpp_bindings_sys::bindings::llama_model_kv_override__bindgen_ty_1 {
+                    val_str: str_data,
+                },
             ..EMPTY_KV_OVERRIDE
         };
 
@@ -204,7 +218,7 @@ mod tests {
 
     #[test]
     fn an_unknown_kv_override_tag_is_reported_with_its_value() {
-        let ffi_override = llama_cpp_bindings_sys::llama_model_kv_override {
+        let ffi_override = llama_cpp_bindings_sys::bindings::llama_model_kv_override {
             tag: 9999,
             __bindgen_anon_1: unsafe { mem::zeroed() },
             ..EMPTY_KV_OVERRIDE

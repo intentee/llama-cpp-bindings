@@ -21,7 +21,7 @@ pub enum BackendError {
     #[error("the device's backend name cannot be read: ggml reported text that is not valid UTF-8")]
     DeviceBackendNameNotUtf8(#[source] Utf8Error),
     #[error("backend device type {0} is not a value ggml defines")]
-    UnknownDeviceType(llama_cpp_bindings_sys::ggml_backend_dev_type),
+    UnknownDeviceType(llama_cpp_bindings_sys::bindings::ggml_backend_dev_type),
     #[error("NUMA strategy {0} is not a value ggml defines")]
-    UnknownNumaStrategy(llama_cpp_bindings_sys::ggml_numa_strategy),
+    UnknownNumaStrategy(llama_cpp_bindings_sys::bindings::ggml_numa_strategy),
 }

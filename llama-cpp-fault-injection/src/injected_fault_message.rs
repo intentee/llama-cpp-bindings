@@ -7,7 +7,7 @@ use std::str::Utf8Error;
 ///
 /// Returns [`Utf8Error`] when the wrappers' fault message is not UTF-8.
 pub fn injected_fault_message() -> Result<String, Utf8Error> {
-    unsafe { CStr::from_ptr(llama_cpp_bindings_sys::llama_rs_fault_injection_message()) }
+    unsafe { CStr::from_ptr(llama_cpp_bindings_sys::bindings::llama_rs_fault_injection_message()) }
         .to_str()
         .map(str::to_owned)
 }

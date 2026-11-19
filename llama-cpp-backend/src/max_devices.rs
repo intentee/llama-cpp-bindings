@@ -1,6 +1,6 @@
 #[must_use]
 pub fn max_devices() -> usize {
-    unsafe { llama_cpp_bindings_sys::llama_max_devices() }
+    unsafe { llama_cpp_bindings_sys::bindings::llama_max_devices() }
 }
 
 #[cfg(test)]

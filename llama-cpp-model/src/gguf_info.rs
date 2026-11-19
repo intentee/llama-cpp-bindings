@@ -2,19 +2,20 @@ use std::ffi::c_char;
 use std::path::Path;
 use std::ptr;
 
-use llama_cpp_bindings_sys::llama_rs_gguf_info;
+use llama_cpp_bindings_sys::bindings::llama_rs_gguf_info;
+use llama_cpp_bindings_sys::bindings::llama_rs_read_gguf_info_status;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::decision_type::DecisionType;
 use crate::model_error::ModelError;
+use crate::read_exception_message::read_exception_message;
 
 /// # Safety
 ///
-/// `out_error` must be the pointer populated by the preceding `llama_rs_read_gguf_info` call (or
-/// null); it is read and freed only in the CXX-exception arm.
+/// On `LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be the non-null
+/// message the C++ side allocated; it is freed here.
 unsafe fn read_gguf_info_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_read_gguf_info_status,
+    status: llama_rs_read_gguf_info_status,
     llama_rs_gguf_info {
         decision_type,
         n_ctx_train,
@@ -22,46 +23,22 @@ unsafe fn read_gguf_info_status_to_result(
     }: llama_rs_gguf_info,
     out_error: *mut c_char,
 ) -> Result<GgufInfo, ModelError> {
-    const OPERATION: &str = "llama_rs_read_gguf_info";
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_OK => Ok(GgufInfo {
+        llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_OK => Ok(GgufInfo {
             decision_type: DecisionType::try_from(decision_type)?,
             n_ctx_train,
             has_chat_template,
         }),
-        llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ModelError::GgufInfoNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ModelError::GgufInfoLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe { read_exception_message("llama_rs_read_gguf_info", out_error) }?;
             Err(ModelError::GgufInfoReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_PATH_ARG => {
-            Err(ModelError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "path",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_INFO_ARG => {
-            Err(ModelError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_info",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_ERROR_ARG => {
-            Err(ModelError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_error",
-            })
-        }
-        other => Err(ModelError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
@@ -75,18 +52,19 @@ pub struct GgufInfo {
 impl GgufInfo {
     /// # Errors
     ///
-    /// Returns [`ModelError`] when `path` is not UTF-8 or contains a NUL byte, the wrapper
-    /// fails, or it reports a decision type it does not define.
+    /// Returns [`ModelError`] when `path` is not UTF-8 or contains a NUL byte, llama.cpp
+    /// fails to read the file's metadata, or the decision type read is not one
+    /// `llama_rs_decision_type` defines.
     pub fn read(path: &Path) -> Result<Self, ModelError> {
         let path_c_string = path_c_string(path).map_err(ModelError::GgufInfoPathInvalid)?;
         let mut out_info = llama_rs_gguf_info {
-            decision_type: llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_UNKNOWN,
+            decision_type: llama_cpp_bindings_sys::bindings::LLAMA_RS_DECISION_TYPE_UNKNOWN,
             n_ctx_train: 0,
             has_chat_template: false,
         };
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_read_gguf_info(
+            llama_cpp_bindings_sys::bindings::llama_rs_read_gguf_info(
                 path_c_string.as_ptr(),
                 &raw mut out_info,
                 &raw mut out_error,
@@ -108,10 +86,10 @@ mod tests {
     use std::process;
     use std::ptr;
 
-    use llama_cpp_bindings_sys::llama_rs_gguf_info;
+    use llama_cpp_bindings_sys::bindings::llama_rs_gguf_info;
+    use llama_cpp_bindings_sys::bindings::llama_rs_read_gguf_info_status;
     use llama_cpp_gguf::gguf_context::GgufContext;
     use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
     use super::GgufInfo;
     use super::read_gguf_info_status_to_result;
@@ -124,7 +102,7 @@ mod tests {
     );
 
     const NOT_A_DECISION_MODEL: llama_rs_gguf_info = llama_rs_gguf_info {
-        decision_type: llama_cpp_bindings_sys::LLAMA_RS_DECISION_TYPE_NONE,
+        decision_type: llama_cpp_bindings_sys::bindings::LLAMA_RS_DECISION_TYPE_NONE,
         n_ctx_train: 0,
         has_chat_template: false,
     };
@@ -191,10 +169,10 @@ mod tests {
     }
 
     #[test]
-    fn a_decision_type_the_wrapper_does_not_define_is_refused() {
+    fn a_decision_type_llama_rs_decision_type_does_not_define_is_refused() {
         let result = unsafe {
             read_gguf_info_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_OK,
+                llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_OK,
                 llama_rs_gguf_info {
                     decision_type: 9999,
                     ..NOT_A_DECISION_MODEL
@@ -207,45 +185,11 @@ mod tests {
     }
 
     #[test]
-    fn reading_gguf_info_reports_each_null_argument_as_a_refused_null_argument() {
-        for (status, expected_error) in [
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_PATH_ARG,
-                ModelError::WrapperRefusedNullArgument {
-                    operation: "llama_rs_read_gguf_info",
-                    argument: "path",
-                },
-            ),
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_INFO_ARG,
-                ModelError::WrapperRefusedNullArgument {
-                    operation: "llama_rs_read_gguf_info",
-                    argument: "out_info",
-                },
-            ),
-            (
-                llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_NULL_OUT_ERROR_ARG,
-                ModelError::WrapperRefusedNullArgument {
-                    operation: "llama_rs_read_gguf_info",
-                    argument: "out_error",
-                },
-            ),
-        ] {
-            assert_eq!(
-                unsafe {
-                    read_gguf_info_status_to_result(status, NOT_A_DECISION_MODEL, ptr::null_mut())
-                },
-                Err(expected_error)
-            );
-        }
-    }
-
-    #[test]
     fn reading_gguf_info_reports_memory_exhaustion() {
         assert_eq!(
             [
-                llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_ERROR_STRING_ALLOCATION_FAILED,
-                llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_OUT_OF_MEMORY,
+                llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_ERROR_STRING_ALLOCATION_FAILED,
+                llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_OUT_OF_MEMORY,
             ]
             .map(|status| unsafe {
                 read_gguf_info_status_to_result(status, NOT_A_DECISION_MODEL, ptr::null_mut())
@@ -259,48 +203,20 @@ mod tests {
 
     #[test]
     fn reading_gguf_info_reports_an_exception_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"metadata read threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"metadata read threw".as_ptr())
+        };
 
         assert_eq!(
             unsafe {
                 read_gguf_info_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION,
                     NOT_A_DECISION_MODEL,
                     out_error,
                 )
             },
             Err(ModelError::GgufInfoReported {
                 message: "metadata read threw".to_owned()
-            })
-        );
-    }
-
-    #[test]
-    fn reading_gguf_info_reports_an_exception_without_a_message_as_a_missing_exception_message() {
-        assert_eq!(
-            unsafe {
-                read_gguf_info_status_to_result(
-                    llama_cpp_bindings_sys::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                    NOT_A_DECISION_MODEL,
-                    ptr::null_mut(),
-                )
-            },
-            Err(ModelError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_read_gguf_info"
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn reading_gguf_info_preserves_an_unknown_status() {
-        assert_eq!(
-            unsafe { read_gguf_info_status_to_result(255, NOT_A_DECISION_MODEL, ptr::null_mut()) },
-            Err(ModelError::UnknownWrapperStatus {
-                operation: "llama_rs_read_gguf_info",
-                code: 255
             })
         );
     }

@@ -3,14 +3,14 @@ use crate::llama_token::LlamaToken;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(transparent)]
 pub struct LlamaLogitBias {
-    logit_bias: llama_cpp_bindings_sys::llama_logit_bias,
+    logit_bias: llama_cpp_bindings_sys::bindings::llama_logit_bias,
 }
 
 impl LlamaLogitBias {
     #[must_use]
     pub const fn new(LlamaToken(token): LlamaToken, bias: f32) -> Self {
         Self {
-            logit_bias: llama_cpp_bindings_sys::llama_logit_bias { token, bias },
+            logit_bias: llama_cpp_bindings_sys::bindings::llama_logit_bias { token, bias },
         }
     }
 

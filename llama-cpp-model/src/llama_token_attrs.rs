@@ -21,10 +21,12 @@ impl DerefMut for LlamaTokenAttrs {
     }
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_token_attr> for LlamaTokenAttrs {
+impl TryFrom<llama_cpp_bindings_sys::bindings::llama_token_attr> for LlamaTokenAttrs {
     type Error = ModelError;
 
-    fn try_from(value: llama_cpp_bindings_sys::llama_token_attr) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: llama_cpp_bindings_sys::bindings::llama_token_attr,
+    ) -> Result<Self, Self::Error> {
         Ok(Self(BitFlags::from_bits(value).map_err(
             |bit_flag_error| ModelError::UnknownTokenAttributes(bit_flag_error.invalid_bits()),
         )?))
@@ -42,7 +44,7 @@ mod tests {
     #[test]
     fn a_known_attribute_bit_converts_to_its_flag() {
         assert_eq!(
-            LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_NORMAL),
+            LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::bindings::LLAMA_TOKEN_ATTR_NORMAL),
             Ok(LlamaTokenAttrs(BitFlags::from_flag(LlamaTokenAttr::Normal)))
         );
     }

@@ -97,8 +97,9 @@ fn reading_a_logits_row_reports_a_row_llama_cpp_does_not_return(
     let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_GET_LOGITS_ITH_RETURNS_NULL);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_GET_LOGITS_ITH_RETURNS_NULL,
+    );
 
     ensure!(context.get_logits_ith(-1).err() == Some(ContextError::LogitsNull));
 

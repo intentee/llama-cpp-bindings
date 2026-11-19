@@ -7,7 +7,8 @@ use std::ptr::null;
 
 use llama_cpp_backend::backend_device_index::backend_device_index;
 use llama_cpp_backend::max_devices::max_devices;
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+use llama_cpp_bindings_sys::bindings::llama_rs_fit_params_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::constants::EMPTY_KV_OVERRIDE;
 use crate::fit_extra_model::FitExtraModel;
@@ -20,97 +21,52 @@ use crate::llama_split_mode::LlamaSplitMode;
 use crate::param_override_value::ParamOverrideValue;
 use crate::params_error::ParamsError;
 
-fn fit_params_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
+/// # Safety
+///
+/// On `LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be the non-null message
+/// the C++ side allocated; it is freed here.
+unsafe fn fit_params_status_to_result(
+    status: llama_rs_fit_params_status,
     out_unrecognized_status_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), ParamsError> {
-    const OPERATION: &str = "llama_rs_fit_params";
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_FAILURE => {
+        llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_OK => Ok(()),
+        llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_FAILURE => {
             Err(ParamsError::NoFittingMemoryLayout)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_ERROR => {
+        llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_ERROR => {
             Err(ParamsError::FitAborted)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE => {
+        llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE => {
             Err(ParamsError::UnknownFitStatus {
                 code: out_unrecognized_status_code,
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ParamsError::FitNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ParamsError::FitLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_string()
+                .map_err(|source| ParamsError::ExceptionMessageNotUtf8 {
+                    operation: "llama_rs_fit_params",
+                    source,
+                })?;
             Err(ParamsError::FitReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG => {
-            Err(ParamsError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "path_model",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG => {
-            Err(ParamsError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "mparams",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG => {
-            Err(ParamsError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "cparams",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG => {
-            Err(ParamsError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_unrecognized_status_code",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG => {
-            Err(ParamsError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_error",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG => {
-            Err(ParamsError::WrapperRefusedExtraModelNullArgument {
-                operation: OPERATION,
-                argument: "path_model",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG => {
-            Err(ParamsError::WrapperRefusedExtraModelNullArgument {
-                operation: OPERATION,
-                argument: "mparams",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG => {
-            Err(ParamsError::WrapperRefusedExtraModelNullArgument {
-                operation: OPERATION,
-                argument: "cparams",
-            })
-        }
-        other => Err(ParamsError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
 pub struct LlamaModelParams {
-    pub params: llama_cpp_bindings_sys::llama_model_params,
-    kv_overrides: Vec<llama_cpp_bindings_sys::llama_model_kv_override>,
-    buft_overrides: Vec<llama_cpp_bindings_sys::llama_model_tensor_buft_override>,
+    pub params: llama_cpp_bindings_sys::bindings::llama_model_params,
+    kv_overrides: Vec<llama_cpp_bindings_sys::bindings::llama_model_kv_override>,
+    buft_overrides: Vec<llama_cpp_bindings_sys::bindings::llama_model_tensor_buft_override>,
     buft_override_patterns: Vec<CString>,
-    devices: Pin<Box<[llama_cpp_bindings_sys::ggml_backend_dev_t]>>,
+    devices: Pin<Box<[llama_cpp_bindings_sys::bindings::ggml_backend_dev_t]>>,
     tensor_split: Vec<f32>,
 }
 
@@ -201,7 +157,8 @@ impl LlamaModelParams {
         let pattern = key.to_owned();
 
         buft_override.pattern = pattern.as_ptr();
-        buft_override.buft = unsafe { llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type() };
+        buft_override.buft =
+            unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_cpu_buffer_type() };
 
         self.buft_override_patterns.push(pattern);
         self.push_buft_override_terminator();
@@ -219,11 +176,12 @@ impl LlamaModelParams {
     fn push_buft_override_terminator(mut self: Pin<&mut Self>) {
         self.params.tensor_buft_overrides = null();
 
-        self.buft_overrides
-            .push(llama_cpp_bindings_sys::llama_model_tensor_buft_override {
+        self.buft_overrides.push(
+            llama_cpp_bindings_sys::bindings::llama_model_tensor_buft_override {
                 pattern: null(),
                 buft: ptr::null_mut(),
-            });
+            },
+        );
 
         self.params.tensor_buft_overrides = self.buft_overrides.as_ptr();
     }
@@ -241,10 +199,10 @@ impl LlamaModelParams {
             return Err(ParamsError::MaxDevicesExceeded(max_devices));
         }
         for (device_slot, &dev) in self.devices.iter_mut().zip(devices) {
-            if dev >= unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() } {
+            if dev >= unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_dev_count() } {
                 return Err(ParamsError::BackendDeviceNotFound(dev));
             }
-            *device_slot = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(dev) };
+            *device_slot = unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_dev_get(dev) };
         }
         self.params.devices = self.devices.as_mut_ptr();
 
@@ -355,7 +313,8 @@ impl LlamaModelParams {
 impl LlamaModelParams {
     /// # Errors
     ///
-    /// Returns one of the [`ParamsError`] variants matching the llama.cpp wrapper's status code.
+    /// Returns [`ParamsError::FitMarginsDeviceCountMismatch`] when `margins` does not hold one
+    /// entry per device, or the variant naming how llama.cpp failed to fit the parameters.
     pub fn fit_params(
         mut self: Pin<&mut Self>,
         model_path: &CStr,
@@ -363,10 +322,11 @@ impl LlamaModelParams {
         margins: &mut [usize],
         n_ctx_min: u32,
         mut extra: Option<&mut FitExtraModel<'_>>,
-        log_level: llama_cpp_bindings_sys::ggml_log_level,
+        log_level: llama_cpp_bindings_sys::bindings::ggml_log_level,
     ) -> Result<FitResult, ParamsError> {
-        let max_devices = unsafe { llama_cpp_bindings_sys::llama_max_devices() };
-        let max_buft = unsafe { llama_cpp_bindings_sys::llama_max_tensor_buft_overrides() };
+        let max_devices = unsafe { llama_cpp_bindings_sys::bindings::llama_max_devices() };
+        let max_buft =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_max_tensor_buft_overrides() };
 
         if margins.len() != max_devices {
             return Err(ParamsError::FitMarginsDeviceCountMismatch {
@@ -381,7 +341,7 @@ impl LlamaModelParams {
         self.buft_overrides.clear();
         self.buft_overrides.resize(
             max_buft.saturating_add(1),
-            llama_cpp_bindings_sys::llama_model_tensor_buft_override {
+            llama_cpp_bindings_sys::bindings::llama_model_tensor_buft_override {
                 pattern: null(),
                 buft: ptr::null_mut(),
             },
@@ -399,7 +359,7 @@ impl LlamaModelParams {
             .map_or_else(null, |extra_model| &raw const *extra_model);
 
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_fit_params(
+            llama_cpp_bindings_sys::bindings::llama_rs_fit_params(
                 model_path.as_ptr(),
                 &raw mut self.params,
                 &raw mut *context_params,
@@ -414,7 +374,7 @@ impl LlamaModelParams {
             )
         };
 
-        fit_params_status_to_result(status, out_unrecognized_status_code, out_error)?;
+        unsafe { fit_params_status_to_result(status, out_unrecognized_status_code, out_error) }?;
 
         self.params.tensor_split = self.tensor_split.as_ptr();
         self.params.tensor_buft_overrides = self.buft_overrides.as_ptr();
@@ -427,14 +387,17 @@ impl LlamaModelParams {
 
 impl Default for LlamaModelParams {
     fn default() -> Self {
-        let default_params = unsafe { llama_cpp_bindings_sys::llama_model_default_params() };
+        let default_params =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_model_default_params() };
         Self {
             params: default_params,
             kv_overrides: vec![EMPTY_KV_OVERRIDE],
-            buft_overrides: vec![llama_cpp_bindings_sys::llama_model_tensor_buft_override {
-                pattern: null(),
-                buft: ptr::null_mut(),
-            }],
+            buft_overrides: vec![
+                llama_cpp_bindings_sys::bindings::llama_model_tensor_buft_override {
+                    pattern: null(),
+                    buft: ptr::null_mut(),
+                },
+            ],
             buft_override_patterns: Vec::new(),
             devices: Pin::new(
                 vec![ptr::null_mut(); max_devices().saturating_add(1)].into_boxed_slice(),
@@ -453,7 +416,7 @@ mod tests {
 
     use llama_cpp_backend::llama_backend::LlamaBackend;
     use llama_cpp_backend::max_devices::max_devices;
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
+    use llama_cpp_bindings_sys::bindings::llama_rs_fit_params_status;
 
     use super::LlamaModelParams;
     use super::fit_params_status_to_result;
@@ -465,26 +428,6 @@ mod tests {
     use crate::llama_split_mode::LlamaSplitMode;
     use crate::param_override_value::ParamOverrideValue;
     use crate::params_error::ParamsError;
-
-    fn error_reported_for(
-        status: llama_cpp_bindings_sys::llama_rs_fit_params_status,
-    ) -> Option<ParamsError> {
-        fit_params_status_to_result(status, 0, ptr::null_mut()).err()
-    }
-
-    fn refused_extra_model_null_argument(argument: &'static str) -> ParamsError {
-        ParamsError::WrapperRefusedExtraModelNullArgument {
-            operation: "llama_rs_fit_params",
-            argument,
-        }
-    }
-
-    fn refused_null_argument(argument: &'static str) -> ParamsError {
-        ParamsError::WrapperRefusedNullArgument {
-            operation: "llama_rs_fit_params",
-            argument,
-        }
-    }
 
     #[test]
     fn default_params_match_the_llama_cpp_model_defaults() {
@@ -517,7 +460,7 @@ mod tests {
     #[test]
     fn unknown_lazy_mode_in_model_params_preserves_its_value() {
         let mut params = LlamaModelParams::default();
-        let unknown = llama_cpp_bindings_sys::llama_lazy_mode::MAX;
+        let unknown = llama_cpp_bindings_sys::bindings::llama_lazy_mode::MAX;
         params.params.lazy_mode = unknown;
 
         assert_eq!(
@@ -666,7 +609,7 @@ mod tests {
             c"test_pattern"
         );
         assert_eq!(params.buft_overrides.first().unwrap().buft, unsafe {
-            llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type()
+            llama_cpp_bindings_sys::bindings::ggml_backend_cpu_buffer_type()
         });
         assert_eq!(params.buft_overrides.get(1).unwrap().pattern, ptr::null());
         assert_eq!(
@@ -714,7 +657,7 @@ mod tests {
             c"\\.ffn_(up|down|gate)_(ch|)exps"
         );
         assert_eq!(params.buft_overrides.first().unwrap().buft, unsafe {
-            llama_cpp_bindings_sys::ggml_backend_cpu_buffer_type()
+            llama_cpp_bindings_sys::bindings::ggml_backend_cpu_buffer_type()
         });
     }
 
@@ -790,10 +733,10 @@ mod tests {
     #[test]
     fn with_devices_sets_devices_when_available() {
         unsafe {
-            llama_cpp_bindings_sys::ggml_backend_load_all();
+            llama_cpp_bindings_sys::bindings::ggml_backend_load_all();
         }
 
-        let dev_count = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() };
+        let dev_count = unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_dev_count() };
         assert!(dev_count > 0, "Test requires at least one backend device");
 
         let params = LlamaModelParams::default().with_devices(&[0]).unwrap();
@@ -853,7 +796,7 @@ mod tests {
             &mut margins,
             512,
             None,
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
         );
 
         assert_eq!(result.err(), Some(ParamsError::FitAborted));
@@ -871,7 +814,7 @@ mod tests {
             &mut margins,
             512,
             None,
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
         );
 
         assert_eq!(
@@ -885,68 +828,81 @@ mod tests {
 
     #[test]
     fn a_successful_fit_status_is_ok() {
-        let result = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_OK,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            fit_params_status_to_result(
+                llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_OK,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Ok(()));
     }
 
     #[test]
     fn fit_params_status_reported_failure_returns_no_fitting_memory_layout() {
-        let result = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_FAILURE,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            fit_params_status_to_result(
+                llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_FAILURE,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Err(ParamsError::NoFittingMemoryLayout));
     }
 
     #[test]
     fn fit_params_status_reported_error_returns_aborted() {
-        let result = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_ERROR,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            fit_params_status_to_result(
+                llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_REPORTED_ERROR,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Err(ParamsError::FitAborted));
     }
 
     #[test]
     fn fit_params_status_unrecognized_code_returns_unknown_status() {
-        let result = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE,
+        let result = unsafe {
+            fit_params_status_to_result(
+            llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE,
             42,
             ptr::null_mut(),
-        );
+        )
+        };
 
         assert_eq!(result, Err(ParamsError::UnknownFitStatus { code: 42 }));
     }
 
     #[test]
     fn fit_params_status_allocation_failed_returns_not_enough_memory() {
-        let result = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            fit_params_status_to_result(
+                llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_ERROR_STRING_ALLOCATION_FAILED,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Err(ParamsError::FitNotEnoughMemory));
     }
 
     #[test]
     fn fit_params_status_cxx_exception_reports_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"fitting threw".as_ptr()) };
-        let result = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            out_error,
-        );
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"fitting threw".as_ptr())
+        };
+        let result = unsafe {
+            fit_params_status_to_result(
+                llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                0,
+                out_error,
+            )
+        };
 
         assert_eq!(
             result,
@@ -957,117 +913,37 @@ mod tests {
     }
 
     #[test]
-    fn fit_params_status_reports_an_exception_without_a_message_as_a_missing_exception_message() {
-        let result = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            ptr::null_mut(),
-        );
+    fn fit_params_status_cxx_exception_with_a_message_that_is_not_utf8_keeps_its_bytes() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
+        let result = unsafe {
+            fit_params_status_to_result(
+                llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                0,
+                out_error,
+            )
+        };
 
         assert_eq!(
             result,
-            Err(ParamsError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_fit_params"
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn fit_params_unknown_wrapper_status_is_preserved() {
-        let result = fit_params_status_to_result(255, 0, ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(ParamsError::UnknownWrapperStatus {
+            Err(ParamsError::ExceptionMessageNotUtf8 {
                 operation: "llama_rs_fit_params",
-                code: 255
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
             })
         );
     }
 
     #[test]
     fn fit_params_status_llama_cpp_out_of_memory_returns_llama_cpp_out_of_memory() {
-        let outcome = fit_params_status_to_result(
-            llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY,
-            0,
-            ptr::null_mut(),
-        );
+        let outcome = unsafe {
+            fit_params_status_to_result(
+                llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_OUT_OF_MEMORY,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(outcome.err(), Some(ParamsError::FitLlamaCppOutOfMemory));
-    }
-
-    #[test]
-    fn fit_params_status_to_result_reports_a_null_path_model_arg_as_a_refused_null_argument() {
-        assert_eq!(
-            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG),
-            Some(refused_null_argument("path_model"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_reports_a_null_mparams_arg_as_a_refused_null_argument() {
-        assert_eq!(
-            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG),
-            Some(refused_null_argument("mparams"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_reports_a_null_cparams_arg_as_a_refused_null_argument() {
-        assert_eq!(
-            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG),
-            Some(refused_null_argument("cparams"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_reports_a_null_out_unrecognized_status_code_arg_as_a_refused_null_argument()
-     {
-        assert_eq!(
-            error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG
-            ),
-            Some(refused_null_argument("out_unrecognized_status_code"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_reports_a_null_out_error_arg_as_a_refused_null_argument() {
-        assert_eq!(
-            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG),
-            Some(refused_null_argument("out_error"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_reports_a_null_extra_path_model_arg_as_a_refused_extra_model_null_argument()
-     {
-        assert_eq!(
-            error_reported_for(
-                llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG
-            ),
-            Some(refused_extra_model_null_argument("path_model"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_reports_a_null_extra_mparams_arg_as_a_refused_extra_model_null_argument()
-     {
-        assert_eq!(
-            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG),
-            Some(refused_extra_model_null_argument("mparams"))
-        );
-    }
-
-    #[test]
-    fn fit_params_status_to_result_reports_a_null_extra_cparams_arg_as_a_refused_extra_model_null_argument()
-     {
-        assert_eq!(
-            error_reported_for(llama_cpp_bindings_sys::LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG),
-            Some(refused_extra_model_null_argument("cparams"))
-        );
     }
 
     #[test]

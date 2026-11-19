@@ -16,18 +16,20 @@ pub enum ChatAssistantTurn {
     ContinueContent(ChatAssistantPrefill),
 }
 
-impl From<&ChatAssistantTurn> for llama_cpp_bindings_sys::llama_rs_chat_assistant_turn {
+impl From<&ChatAssistantTurn> for llama_cpp_bindings_sys::bindings::llama_rs_chat_assistant_turn {
     fn from(assistant_turn: &ChatAssistantTurn) -> Self {
         match assistant_turn {
             ChatAssistantTurn::Omitted => {
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_ASSISTANT_TURN_OMITTED
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_ASSISTANT_TURN_OMITTED
             }
-            ChatAssistantTurn::New => llama_cpp_bindings_sys::LLAMA_RS_CHAT_ASSISTANT_TURN_NEW,
+            ChatAssistantTurn::New => {
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_ASSISTANT_TURN_NEW
+            }
             ChatAssistantTurn::ContinueReasoning(_) => {
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_ASSISTANT_TURN_CONTINUE_REASONING
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_ASSISTANT_TURN_CONTINUE_REASONING
             }
             ChatAssistantTurn::ContinueContent(_) => {
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_ASSISTANT_TURN_CONTINUE_CONTENT
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_ASSISTANT_TURN_CONTINUE_CONTENT
             }
         }
     }

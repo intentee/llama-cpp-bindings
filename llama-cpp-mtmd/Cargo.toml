@@ -15,12 +15,10 @@ llama-cpp-backend = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-context = { workspace = true }
 llama-cpp-model = { workspace = true }
-llama-cpp-wrapper-string = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 llama-cpp-fault-injection = { workspace = true }
-llama-cpp-wrapper-error-fixture = { workspace = true }
 
 [lints]
 workspace = true

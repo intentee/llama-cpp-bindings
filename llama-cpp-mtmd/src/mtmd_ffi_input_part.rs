@@ -7,18 +7,18 @@ use crate::mtmd_input_part::MtmdInputPart;
 
 pub enum MtmdFfiInputPart<'bitmap> {
     Bitmap(&'bitmap MtmdBitmap),
-    Text(llama_cpp_bindings_sys::mtmd_input_text),
+    Text(llama_cpp_bindings_sys::bindings::mtmd_input_text),
 }
 
 impl MtmdFfiInputPart<'_> {
     #[must_use]
-    pub const fn ffi_part(&self) -> llama_cpp_bindings_sys::mtmd_input_part {
+    pub const fn ffi_part(&self) -> llama_cpp_bindings_sys::bindings::mtmd_input_part {
         match self {
-            Self::Bitmap(bitmap) => llama_cpp_bindings_sys::mtmd_input_part {
+            Self::Bitmap(bitmap) => llama_cpp_bindings_sys::bindings::mtmd_input_part {
                 text: ptr::null(),
                 bitmap: bitmap.bitmap.as_ptr().cast_const(),
             },
-            Self::Text(input_text) => llama_cpp_bindings_sys::mtmd_input_part {
+            Self::Text(input_text) => llama_cpp_bindings_sys::bindings::mtmd_input_part {
                 text: ptr::from_ref(input_text),
                 bitmap: ptr::null(),
             },
@@ -36,12 +36,14 @@ impl<'bitmap> TryFrom<&MtmdInputPart<'bitmap>> for MtmdFfiInputPart<'bitmap> {
                 let text = CString::new(text_part.text.as_str())?;
                 let text_len = text.as_bytes().len();
 
-                Ok(Self::Text(llama_cpp_bindings_sys::mtmd_input_text {
-                    text: text.into_raw(),
-                    text_len,
-                    add_special: false,
-                    parse_special: text_part.parse_special,
-                }))
+                Ok(Self::Text(
+                    llama_cpp_bindings_sys::bindings::mtmd_input_text {
+                        text: text.into_raw(),
+                        text_len,
+                        add_special: false,
+                        parse_special: text_part.parse_special,
+                    },
+                ))
             }
         }
     }

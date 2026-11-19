@@ -25,26 +25,27 @@ impl ChatSpanKind {
     }
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_rs_chat_span_kind> for ChatSpanKind {
+impl TryFrom<llama_cpp_bindings_sys::bindings::llama_rs_chat_span_kind> for ChatSpanKind {
     type Error = ChatError;
 
     fn try_from(
-        kind: llama_cpp_bindings_sys::llama_rs_chat_span_kind,
+        kind: llama_cpp_bindings_sys::bindings::llama_rs_chat_span_kind,
     ) -> Result<Self, Self::Error> {
         match kind {
-            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK => {
+            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK => {
                 Ok(Self::ReasoningBlock)
             }
-            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_REASONING => Ok(Self::Reasoning),
-            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_CONTENT => Ok(Self::Content),
-            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL => Ok(Self::ToolCall),
-            llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER => {
+            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_REASONING => {
+                Ok(Self::Reasoning)
+            }
+            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_CONTENT => Ok(Self::Content),
+            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL => {
+                Ok(Self::ToolCall)
+            }
+            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER => {
                 Ok(Self::ToolCallMarker)
             }
-            other => Err(ChatError::UnknownWrapperStatus {
-                operation: "llama_rs_chat_reading_spans_view",
-                code: i64::from(other),
-            }),
+            value => Err(ChatError::ChatSpanKindUnrecognized { value }),
         }
     }
 }
@@ -87,14 +88,14 @@ mod tests {
     }
 
     #[test]
-    fn every_wrapper_span_kind_maps_to_its_variant() {
+    fn every_llama_cpp_span_kind_maps_to_its_variant() {
         assert_eq!(
             [
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK,
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_REASONING,
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_CONTENT,
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL,
-                llama_cpp_bindings_sys::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER,
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK,
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_REASONING,
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_CONTENT,
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL,
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER,
             ]
             .map(ChatSpanKind::try_from),
             [
@@ -108,13 +109,10 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_wrapper_span_kind_is_an_unknown_wrapper_status() {
+    fn an_unrecognized_span_kind_keeps_its_value() {
         assert_eq!(
             ChatSpanKind::try_from(99),
-            Err(ChatError::UnknownWrapperStatus {
-                operation: "llama_rs_chat_reading_spans_view",
-                code: 99,
-            })
+            Err(ChatError::ChatSpanKindUnrecognized { value: 99 })
         );
     }
 }

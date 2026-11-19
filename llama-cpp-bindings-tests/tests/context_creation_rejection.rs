@@ -25,7 +25,9 @@ fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(
         ..
     }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_INIT_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_BATCH_EXT_INIT_THROWS,
+    );
 
     ensure!(
         LlamaContext::from_model(
@@ -51,12 +53,13 @@ fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(
     n_ubatch = 128,
 )]
 fn a_context_whose_pooling_type_llama_cpp_does_not_define_is_refused(fixture: &LlamaFixture<'_>) {
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_POOLING_TYPE_UNKNOWN);
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_POOLING_TYPE_UNKNOWN);
 
     assert_eq!(
         fixture.build_context().err(),
         Some(ContextError::Params(ParamsError::UnknownPoolingType(
-            llama_cpp_bindings_sys::LLAMA_POOLING_TYPE_RANK + 1
+            llama_cpp_bindings_sys::bindings::LLAMA_POOLING_TYPE_RANK + 1
         )))
     );
 }

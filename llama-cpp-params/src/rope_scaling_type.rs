@@ -9,33 +9,41 @@ pub enum RopeScalingType {
     LongRope,
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_rope_scaling_type> for RopeScalingType {
+impl TryFrom<llama_cpp_bindings_sys::bindings::llama_rope_scaling_type> for RopeScalingType {
     type Error = ParamsError;
 
     fn try_from(
-        value: llama_cpp_bindings_sys::llama_rope_scaling_type,
+        value: llama_cpp_bindings_sys::bindings::llama_rope_scaling_type,
     ) -> Result<Self, Self::Error> {
         match value {
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED => Ok(Self::Unspecified),
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_NONE => Ok(Self::None),
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_LINEAR => Ok(Self::Linear),
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_YARN => Ok(Self::Yarn),
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_LONGROPE => Ok(Self::LongRope),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED => {
+                Ok(Self::Unspecified)
+            }
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_NONE => Ok(Self::None),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_LINEAR => Ok(Self::Linear),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_YARN => Ok(Self::Yarn),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_LONGROPE => {
+                Ok(Self::LongRope)
+            }
             unknown => Err(ParamsError::UnknownRopeScalingType(unknown)),
         }
     }
 }
 
-impl From<RopeScalingType> for llama_cpp_bindings_sys::llama_rope_scaling_type {
+impl From<RopeScalingType> for llama_cpp_bindings_sys::bindings::llama_rope_scaling_type {
     fn from(value: RopeScalingType) -> Self {
         match value {
             RopeScalingType::Unspecified => {
-                llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED
             }
-            RopeScalingType::None => llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_NONE,
-            RopeScalingType::Linear => llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_LINEAR,
-            RopeScalingType::Yarn => llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_YARN,
-            RopeScalingType::LongRope => llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_LONGROPE,
+            RopeScalingType::None => llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_NONE,
+            RopeScalingType::Linear => {
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_LINEAR
+            }
+            RopeScalingType::Yarn => llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_YARN,
+            RopeScalingType::LongRope => {
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_LONGROPE
+            }
         }
     }
 }
@@ -48,11 +56,11 @@ mod tests {
     #[test]
     fn every_llama_cpp_value_converts_to_its_variant_and_back() {
         let raw_values = [
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED,
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_NONE,
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_LINEAR,
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_YARN,
-            llama_cpp_bindings_sys::LLAMA_ROPE_SCALING_TYPE_LONGROPE,
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED,
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_NONE,
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_LINEAR,
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_YARN,
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_SCALING_TYPE_LONGROPE,
         ];
 
         assert_eq!(
@@ -73,7 +81,7 @@ mod tests {
                 RopeScalingType::Yarn,
                 RopeScalingType::LongRope,
             ]
-            .map(llama_cpp_bindings_sys::llama_rope_scaling_type::from),
+            .map(llama_cpp_bindings_sys::bindings::llama_rope_scaling_type::from),
             raw_values
         );
     }

@@ -1,7 +1,7 @@
 use std::mem;
 
 /// A KV override with every byte zero, which llama.cpp reads as the end of an override list.
-pub const EMPTY_KV_OVERRIDE: llama_cpp_bindings_sys::llama_model_kv_override =
+pub const EMPTY_KV_OVERRIDE: llama_cpp_bindings_sys::bindings::llama_model_kv_override =
     unsafe { mem::zeroed() };
 
 /// How many bytes, its NUL included, a string KV override value holds in llama.cpp.

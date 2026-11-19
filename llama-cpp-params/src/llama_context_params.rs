@@ -10,7 +10,7 @@ use crate::rope_scaling_type::RopeScalingType;
 
 #[derive(Debug, Clone, Copy)]
 pub struct LlamaContextParams {
-    pub context_params: llama_cpp_bindings_sys::llama_context_params,
+    pub context_params: llama_cpp_bindings_sys::bindings::llama_context_params,
 }
 
 unsafe impl Send for LlamaContextParams {}
@@ -26,7 +26,7 @@ impl LlamaContextParams {
     #[must_use]
     pub fn with_cb_eval(
         mut self,
-        cb_eval: llama_cpp_bindings_sys::ggml_backend_sched_eval_callback,
+        cb_eval: llama_cpp_bindings_sys::bindings::ggml_backend_sched_eval_callback,
     ) -> Self {
         self.context_params.cb_eval = cb_eval;
         self
@@ -47,7 +47,7 @@ impl LlamaContextParams {
     #[must_use]
     pub const fn with_flash_attention_policy(
         mut self,
-        policy: llama_cpp_bindings_sys::llama_flash_attn_type,
+        policy: llama_cpp_bindings_sys::bindings::llama_flash_attn_type,
     ) -> Self {
         self.context_params.flash_attn_type = policy;
         self
@@ -201,7 +201,9 @@ impl LlamaContextParams {
     }
 
     #[must_use]
-    pub const fn flash_attention_policy(&self) -> llama_cpp_bindings_sys::llama_flash_attn_type {
+    pub const fn flash_attention_policy(
+        &self,
+    ) -> llama_cpp_bindings_sys::bindings::llama_flash_attn_type {
         self.context_params.flash_attn_type
     }
     #[must_use]
@@ -322,7 +324,8 @@ impl LlamaContextParams {
 
 impl Default for LlamaContextParams {
     fn default() -> Self {
-        let context_params = unsafe { llama_cpp_bindings_sys::llama_context_default_params() };
+        let context_params =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_context_default_params() };
         Self { context_params }
     }
 }
@@ -522,8 +525,8 @@ mod tests {
     #[test]
     fn with_flash_attention_policy_sets_each_policy() {
         let policies = [
-            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED,
-            llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_DISABLED,
+            llama_cpp_bindings_sys::bindings::LLAMA_FLASH_ATTN_TYPE_ENABLED,
+            llama_cpp_bindings_sys::bindings::LLAMA_FLASH_ATTN_TYPE_DISABLED,
         ];
 
         assert_eq!(
@@ -565,7 +568,7 @@ mod tests {
     #[test]
     fn with_cb_eval_installs_the_given_callback() {
         extern "C" fn echo_whether_asked(
-            _tensor: *mut llama_cpp_bindings_sys::ggml_tensor,
+            _tensor: *mut llama_cpp_bindings_sys::bindings::ggml_tensor,
             ask: bool,
             _user_data: *mut c_void,
         ) -> bool {

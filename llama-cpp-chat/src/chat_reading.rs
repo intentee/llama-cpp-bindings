@@ -4,7 +4,8 @@ use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+use llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_free;
+use llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_parse_status;
 
 use crate::chat_classification::ChatClassification;
 use crate::chat_error::ChatError;
@@ -16,28 +17,31 @@ use crate::chat_span_kind::ChatSpanKind;
 use crate::chat_spans::ChatSpans;
 use crate::cpp_text_view::cpp_text_view;
 use crate::raw_chat_message::RawChatMessage;
+use crate::read_exception_message::read_exception_message;
 use crate::take_parsed_chat_message::take_parsed_chat_message;
 
 fn spans_of(
-    reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
+    reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
     completeness: ChatOutputCompleteness,
 ) -> Result<ChatSpans, ChatError> {
-    let view =
-        unsafe { llama_cpp_bindings_sys::llama_rs_chat_reading_spans_view(reading.as_ptr()) };
-    let wrapper_spans = NonNull::new(view.spans.cast_mut()).map_or(&[][..], |first_span| unsafe {
-        slice::from_raw_parts(first_span.as_ptr(), view.spans_count)
-    });
+    let view = unsafe {
+        llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_spans_view(reading.as_ptr())
+    };
+    let llama_cpp_spans = NonNull::new(view.spans.cast_mut())
+        .map_or(&[][..], |first_span| unsafe {
+            slice::from_raw_parts(first_span.as_ptr(), view.spans_count)
+        });
 
-    wrapper_spans
+    llama_cpp_spans
         .iter()
         .map(
-            |&llama_cpp_bindings_sys::llama_rs_chat_span {
-                 kind: wrapper_kind,
+            |&llama_cpp_bindings_sys::bindings::llama_rs_chat_span {
+                 kind: llama_cpp_kind,
                  start,
                  end,
                  ..
              }| {
-                ChatSpanKind::try_from(wrapper_kind).map(|kind| ChatSpan {
+                ChatSpanKind::try_from(llama_cpp_kind).map(|kind| ChatSpan {
                     kind,
                     bytes: start..end,
                 })
@@ -48,11 +52,14 @@ fn spans_of(
 }
 
 fn expected_format_of(
-    reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
+    reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
 ) -> Result<String, ChatError> {
     let mut length = 0;
     let format_name = unsafe {
-        llama_cpp_bindings_sys::llama_rs_chat_reading_format_name(reading.as_ptr(), &raw mut length)
+        llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_format_name(
+            reading.as_ptr(),
+            &raw mut length,
+        )
     };
 
     unsafe { cpp_text_view(format_name, length) }
@@ -61,11 +68,13 @@ fn expected_format_of(
 }
 
 fn classification_of(
-    reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
+    reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
     output: &ChatOutput,
     completeness: ChatOutputCompleteness,
 ) -> Result<ChatClassification, ChatError> {
-    if unsafe { llama_cpp_bindings_sys::llama_rs_chat_reading_matches_format(reading.as_ptr()) } {
+    if unsafe {
+        llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_matches_format(reading.as_ptr())
+    } {
         return spans_of(reading, completeness).map(ChatClassification::Spans);
     }
 
@@ -78,70 +87,49 @@ fn classification_of(
     ))
 }
 
-fn chat_reading_parse_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_chat_reading_parse_status,
-    out_handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
+/// # Safety
+///
+/// On `LLAMA_RS_CHAT_READING_PARSE_OK` `out_handle` must be the non-null handle the C++ side
+/// created, and on `LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be
+/// the non-null message it allocated; the message is freed here.
+unsafe fn chat_reading_parse_status_to_result(
+    status: llama_rs_chat_reading_parse_status,
+    out_handle: *mut llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat,
     out_error: *mut c_char,
-) -> Result<NonNull<llama_cpp_bindings_sys::llama_rs_parsed_chat>, ChatError> {
-    const OPERATION: &str = "llama_rs_chat_reading_parse";
-
+) -> Result<NonNull<llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat>, ChatError> {
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_OK => {
-            NonNull::new(out_handle).ok_or(ChatError::WrapperSucceededWithoutOutput {
-                operation: OPERATION,
-                output: "handle",
-            })
+        llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_OK => {
+            Ok(unsafe { NonNull::new_unchecked(out_handle) })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+        llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(ChatError::ParseReported {
-                message: unsafe { read_and_free_exception_message(OPERATION, out_error) }?,
+                message: unsafe { read_exception_message("llama_rs_chat_reading_parse", out_error) }?,
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ChatError::ParseNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ChatError::ParseLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG => {
-            Err(ChatError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "reading",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG => {
-            Err(ChatError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_handle",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG => {
-            Err(ChatError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_error",
-            })
-        }
-        other => Err(ChatError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
 fn parsed_message_of(
-    reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
+    reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
 ) -> Result<ChatMessageParseOutcome, ChatError> {
-    let mut out_handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat = ptr::null_mut();
+    let mut out_handle: *mut llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat =
+        ptr::null_mut();
     let mut out_error: *mut c_char = ptr::null_mut();
     let status = unsafe {
-        llama_cpp_bindings_sys::llama_rs_chat_reading_parse(
+        llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_parse(
             reading.as_ptr(),
             &raw mut out_handle,
             &raw mut out_error,
         )
     };
 
-    chat_reading_parse_status_to_result(status, out_handle, out_error)
+    unsafe { chat_reading_parse_status_to_result(status, out_handle, out_error) }
         .and_then(take_parsed_chat_message)
         .map(ChatMessageParseOutcome::Recognized)
 }
@@ -152,7 +140,7 @@ fn parsed_message_of(
 /// is asked for: a partial answer's message comes from the same parse, and a finished answer's
 /// message comes from llama.cpp completing it as llama.cpp completes every finished message.
 pub struct ChatReading {
-    reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
+    reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
     classification: ChatClassification,
     parse_outcome: OnceCell<Result<ChatMessageParseOutcome, ChatError>>,
 }
@@ -167,7 +155,7 @@ impl ChatReading {
     /// Returns [`ChatError`] when a span kind is unknown to this binding or the
     /// expected format's name is not UTF-8; the reading is released either way.
     pub fn take(
-        reading: NonNull<llama_cpp_bindings_sys::llama_rs_chat_reading>,
+        reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
         output: &ChatOutput,
         completeness: ChatOutputCompleteness,
     ) -> Result<Self, ChatError> {
@@ -178,7 +166,7 @@ impl ChatReading {
                 parse_outcome: OnceCell::new(),
             }),
             Err(classification_failure) => {
-                unsafe { llama_cpp_bindings_sys::llama_rs_chat_reading_free(reading.as_ptr()) };
+                unsafe { llama_rs_chat_reading_free(reading.as_ptr()) };
 
                 Err(classification_failure)
             }
@@ -211,85 +199,50 @@ impl ChatReading {
 
 impl Drop for ChatReading {
     fn drop(&mut self) {
-        unsafe { llama_cpp_bindings_sys::llama_rs_chat_reading_free(self.reading.as_ptr()) };
+        unsafe { llama_rs_chat_reading_free(self.reading.as_ptr()) };
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::c_char;
     use std::ptr;
 
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
+    use llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_parse_status;
 
     use super::chat_reading_parse_status_to_result;
     use crate::chat_error::ChatError;
 
+    fn parse_error(
+        status: llama_rs_chat_reading_parse_status,
+        out_error: *mut c_char,
+    ) -> Option<ChatError> {
+        unsafe { chat_reading_parse_status_to_result(status, ptr::null_mut(), out_error) }.err()
+    }
+
     #[test]
     fn parsing_a_reading_maps_every_failure_status() {
-        let parse = |status, out_error| {
-            chat_reading_parse_status_to_result(status, ptr::null_mut(), out_error).err()
-        };
-        let refused_null_argument = |argument| {
-            Some(ChatError::WrapperRefusedNullArgument {
-                operation: "llama_rs_chat_reading_parse",
-                argument,
-            })
-        };
-
         assert_eq!(
             [
-                parse(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_OK,
+                parse_error(
+                    llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"the mapper threw".as_ptr()) }
+                ),
+                parse_error(
+                    llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED,
                     ptr::null_mut()
                 ),
-                parse(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                    unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"the mapper threw".as_ptr()) }
-                ),
-                parse(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                parse_error(
+                    llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY,
                     ptr::null_mut()
                 ),
-                parse(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED,
-                    ptr::null_mut()
-                ),
-                parse(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_OUT_OF_MEMORY,
-                    ptr::null_mut()
-                ),
-                parse(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG,
-                    ptr::null_mut()
-                ),
-                parse(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG,
-                    ptr::null_mut()
-                ),
-                parse(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG,
-                    ptr::null_mut()
-                ),
-                parse(255, ptr::null_mut()),
             ],
             [
-                Some(ChatError::WrapperSucceededWithoutOutput {
-                    operation: "llama_rs_chat_reading_parse",
-                    output: "handle",
-                }),
                 Some(ChatError::ParseReported {
                     message: "the mapper threw".to_owned()
                 }),
-                Some(ChatError::WrapperString(WrapperStringError::ExceptionMessageMissing { operation: "llama_rs_chat_reading_parse" })),
                 Some(ChatError::ParseNotEnoughMemory),
                 Some(ChatError::ParseLlamaCppOutOfMemory),
-                refused_null_argument("reading"),
-                refused_null_argument("out_handle"),
-                refused_null_argument("out_error"),
-                Some(ChatError::UnknownWrapperStatus {
-                    operation: "llama_rs_chat_reading_parse",
-                    code: 255,
-                }),
             ]
         );
     }

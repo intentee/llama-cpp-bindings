@@ -75,8 +75,9 @@ fn a_chat_answer_classifier_reports_a_failed_reading_of_its_empty_answer(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = user_turn_chat_session(model, "hello", &[], false)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
+    );
 
     ensure!(
         SampledTokenClassifier::for_chat_session(model, session).err()

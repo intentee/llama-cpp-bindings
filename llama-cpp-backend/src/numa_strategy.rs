@@ -9,29 +9,33 @@ pub enum NumaStrategy {
     Mirror,
 }
 
-impl TryFrom<llama_cpp_bindings_sys::ggml_numa_strategy> for NumaStrategy {
+impl TryFrom<llama_cpp_bindings_sys::bindings::ggml_numa_strategy> for NumaStrategy {
     type Error = BackendError;
 
-    fn try_from(value: llama_cpp_bindings_sys::ggml_numa_strategy) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: llama_cpp_bindings_sys::bindings::ggml_numa_strategy,
+    ) -> Result<Self, Self::Error> {
         match value {
-            llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_DISABLED => Ok(Self::Disabled),
-            llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_DISTRIBUTE => Ok(Self::Distribute),
-            llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_ISOLATE => Ok(Self::Isolate),
-            llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_NUMACTL => Ok(Self::Numactl),
-            llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_MIRROR => Ok(Self::Mirror),
+            llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_DISABLED => Ok(Self::Disabled),
+            llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_DISTRIBUTE => Ok(Self::Distribute),
+            llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_ISOLATE => Ok(Self::Isolate),
+            llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_NUMACTL => Ok(Self::Numactl),
+            llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_MIRROR => Ok(Self::Mirror),
             value => Err(BackendError::UnknownNumaStrategy(value)),
         }
     }
 }
 
-impl From<NumaStrategy> for llama_cpp_bindings_sys::ggml_numa_strategy {
+impl From<NumaStrategy> for llama_cpp_bindings_sys::bindings::ggml_numa_strategy {
     fn from(value: NumaStrategy) -> Self {
         match value {
-            NumaStrategy::Disabled => llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_DISABLED,
-            NumaStrategy::Distribute => llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_DISTRIBUTE,
-            NumaStrategy::Isolate => llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_ISOLATE,
-            NumaStrategy::Numactl => llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_NUMACTL,
-            NumaStrategy::Mirror => llama_cpp_bindings_sys::GGML_NUMA_STRATEGY_MIRROR,
+            NumaStrategy::Disabled => llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_DISABLED,
+            NumaStrategy::Distribute => {
+                llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_DISTRIBUTE
+            }
+            NumaStrategy::Isolate => llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_ISOLATE,
+            NumaStrategy::Numactl => llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_NUMACTL,
+            NumaStrategy::Mirror => llama_cpp_bindings_sys::bindings::GGML_NUMA_STRATEGY_MIRROR,
         }
     }
 }
@@ -52,7 +56,7 @@ mod tests {
         ];
 
         for numa in &numas {
-            let raw = llama_cpp_bindings_sys::ggml_numa_strategy::from(*numa);
+            let raw = llama_cpp_bindings_sys::bindings::ggml_numa_strategy::from(*numa);
             let roundtripped =
                 NumaStrategy::try_from(raw).expect("Failed to roundtrip NumaStrategy");
 

@@ -145,12 +145,15 @@ fn memory_seq_add_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN);
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN);
 
     ensure!(
         context.memory_seq_add(0, None, None, 1)
             == Err(ContextMemoryError::SeqAddUnknownRopeType(
-                ModelError::UnknownRopeType(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1)
+                ModelError::UnknownRopeType(
+                    llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_IMROPE + 1
+                )
             ))
     );
 
@@ -169,12 +172,15 @@ fn memory_seq_div_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN);
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN);
 
     ensure!(
         context.memory_seq_div(0, None, None, NonZeroU8::MIN)
             == Err(ContextMemoryError::SeqDivUnknownRopeType(
-                ModelError::UnknownRopeType(llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1)
+                ModelError::UnknownRopeType(
+                    llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_IMROPE + 1
+                )
             ))
     );
 

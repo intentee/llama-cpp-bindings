@@ -45,7 +45,9 @@ fn the_eos_token_carries_only_the_control_attribute(
 
     ensure!(
         model.token_attr(eos)?
-            == LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::LLAMA_TOKEN_ATTR_CONTROL)?
+            == LlamaTokenAttrs::try_from(
+                llama_cpp_bindings_sys::bindings::LLAMA_TOKEN_ATTR_CONTROL
+            )?
     );
     Ok(())
 }

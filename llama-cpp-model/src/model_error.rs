@@ -7,7 +7,6 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
-use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 use crate::llama_token::LlamaToken;
 
@@ -41,6 +40,12 @@ pub enum ModelError {
         "an override template must not be empty, because llama.cpp reads an empty override as no override"
     )]
     EmptyTemplateOverride,
+    #[error("the exception message reported by {operation} is not valid UTF-8")]
+    ExceptionMessageNotUtf8 {
+        operation: &'static str,
+        #[source]
+        source: FromUtf8Error,
+    },
     #[error("the llama.cpp library ran out of memory")]
     GgufInfoLlamaCppOutOfMemory,
     #[error("not enough memory")]
@@ -91,6 +96,11 @@ pub enum ModelError {
     RenderNotEnoughMemory,
     #[error("{message}")]
     RenderReported { message: String },
+    #[error("the rendered chat template is not valid UTF-8")]
+    RenderedTemplateNotUtf8 {
+        #[source]
+        source: FromUtf8Error,
+    },
     #[error("the llama.cpp sampler selected a token outside the token data array")]
     SamplerSelectedCandidateOutsideCandidates {
         selected: i64,
@@ -125,28 +135,12 @@ pub enum ModelError {
     TokenizeReported { message: String },
     #[error("the text to tokenize contains a NUL byte")]
     TokenizeTextContainsNulByte(#[source] NulError),
-    #[error("decision type {0} is not a value the llama.cpp wrapper defines")]
-    UnknownDecisionType(llama_cpp_bindings_sys::llama_rs_decision_type),
+    #[error("decision type {0} is not a value llama_rs_decision_type defines")]
+    UnknownDecisionType(llama_cpp_bindings_sys::bindings::llama_rs_decision_type),
     #[error("rope type {0} is not a value llama.cpp defines")]
-    UnknownRopeType(llama_cpp_bindings_sys::llama_rope_type),
+    UnknownRopeType(llama_cpp_bindings_sys::bindings::llama_rope_type),
     #[error("Unknown Value {0}")]
     UnknownTokenAttributes(c_uint),
     #[error("Unknown Value {0}")]
-    UnknownVocabType(llama_cpp_bindings_sys::llama_vocab_type),
-    #[error("{operation} returned unknown FFI status {code}")]
-    UnknownWrapperStatus { operation: &'static str, code: i64 },
-    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
-    WrapperRefusedNullArgument {
-        operation: &'static str,
-        argument: &'static str,
-    },
-    #[error(transparent)]
-    WrapperString(#[from] WrapperStringError),
-    #[error(
-        "{operation} returned an invalid FFI response: success status contained a null {output}"
-    )]
-    WrapperSucceededWithoutOutput {
-        operation: &'static str,
-        output: &'static str,
-    },
+    UnknownVocabType(llama_cpp_bindings_sys::bindings::llama_vocab_type),
 }

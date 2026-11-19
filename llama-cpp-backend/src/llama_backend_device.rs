@@ -27,7 +27,7 @@ fn device_text(
     not_utf8: fn(Utf8Error) -> BackendError,
 ) -> Result<String, BackendError> {
     text_of(
-        unsafe { llama_cpp_bindings_sys::llama_rs_backend_device_text(text) },
+        unsafe { llama_cpp_bindings_sys::bindings::llama_rs_backend_device_text(text) },
         missing,
         not_utf8,
     )
@@ -46,13 +46,14 @@ pub struct LlamaBackendDevice {
 
 impl LlamaBackendDevice {
     fn at_index(device_index: usize) -> Result<Self, BackendError> {
-        let dev = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_get(device_index) };
+        let dev = unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_dev_get(device_index) };
         let props = unsafe {
             let mut props = mem::zeroed();
-            llama_cpp_bindings_sys::ggml_backend_dev_get_props(dev, &raw mut props);
+            llama_cpp_bindings_sys::bindings::ggml_backend_dev_get_props(dev, &raw mut props);
             props
         };
-        let backend_reg = unsafe { llama_cpp_bindings_sys::ggml_backend_dev_backend_reg(dev) };
+        let backend_reg =
+            unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_dev_backend_reg(dev) };
 
         Ok(Self {
             index: device_index,
@@ -67,14 +68,14 @@ impl LlamaBackendDevice {
                 BackendError::DeviceDescriptionNotUtf8,
             )?,
             backend: device_text(
-                unsafe { llama_cpp_bindings_sys::ggml_backend_reg_name(backend_reg) },
+                unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_reg_name(backend_reg) },
                 BackendError::DeviceBackendNameMissing,
                 BackendError::DeviceBackendNameNotUtf8,
             )?,
             memory_total: props.memory_total,
             memory_free: props.memory_free,
             device_type: LlamaBackendDeviceType::try_from(unsafe {
-                llama_cpp_bindings_sys::llama_rs_backend_device_type(dev)
+                llama_cpp_bindings_sys::bindings::llama_rs_backend_device_type(dev)
             })?,
         })
     }
@@ -86,7 +87,7 @@ impl LlamaBackendDevice {
     /// Returns [`BackendError`] when ggml reports a device text that is missing or not
     /// UTF-8, or a device type it does not define.
     pub fn list_all() -> Result<Vec<Self>, BackendError> {
-        (0..unsafe { llama_cpp_bindings_sys::ggml_backend_dev_count() })
+        (0..unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_dev_count() })
             .map(Self::at_index)
             .collect()
     }

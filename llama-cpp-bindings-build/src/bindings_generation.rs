@@ -65,6 +65,7 @@ fn configured_builder() -> Builder {
         .allowlist_type("llama_.*")
         .allowlist_var("LLAMA_TOKEN_NULL")
         .allowlist_var("LLAMA_DRY_MAX_SEQ_BREAKERS")
+        .allowlist_var("LLAMA_STATE_SEQ_FLAGS_.*")
         .allowlist_function("mtmd_.*")
         .allowlist_type("mtmd_.*")
         .blocklist_function("ggml_fopen")
@@ -74,6 +75,7 @@ fn configured_builder() -> Builder {
         .blocklist_function("llama_model_load_from_file_ptr")
         .blocklist_type("FILE")
         .blocklist_type("_IO_.*")
+        .rustified_enum("llama_rs_.*_status")
         .prepend_enum_name(false);
 
     let builder = DEPRECATED_FUNCTIONS

@@ -15,14 +15,14 @@ use crate::mask_outcome::MaskOutcome;
 use crate::sampler_error::SamplerError;
 
 const unsafe extern "C" fn llg_name(
-    _smpl: *const llama_cpp_bindings_sys::llama_sampler,
+    _smpl: *const llama_cpp_bindings_sys::bindings::llama_sampler,
 ) -> *const c_char {
     c"llguidance".as_ptr()
 }
 
 unsafe extern "C" fn llg_accept(
-    smpl: *mut llama_cpp_bindings_sys::llama_sampler,
-    token: llama_cpp_bindings_sys::llama_token,
+    smpl: *mut llama_cpp_bindings_sys::bindings::llama_sampler,
+    token: llama_cpp_bindings_sys::bindings::llama_token,
 ) {
     let ctx = unsafe { &mut *(*smpl).ctx.cast::<LlguidanceSamplerContext>() };
 
@@ -32,8 +32,8 @@ unsafe extern "C" fn llg_accept(
 }
 
 unsafe extern "C" fn llg_apply(
-    smpl: *mut llama_cpp_bindings_sys::llama_sampler,
-    cur_p: *mut llama_cpp_bindings_sys::llama_token_data_array,
+    smpl: *mut llama_cpp_bindings_sys::bindings::llama_sampler,
+    cur_p: *mut llama_cpp_bindings_sys::bindings::llama_token_data_array,
 ) {
     let ctx = unsafe { &mut *(*smpl).ctx.cast::<LlguidanceSamplerContext>() };
     let cur_p = unsafe { &mut *cur_p };
@@ -56,7 +56,7 @@ unsafe extern "C" fn llg_apply(
     }
 }
 
-unsafe extern "C" fn llg_reset(smpl: *mut llama_cpp_bindings_sys::llama_sampler) {
+unsafe extern "C" fn llg_reset(smpl: *mut llama_cpp_bindings_sys::bindings::llama_sampler) {
     let ctx = unsafe { &mut *(*smpl).ctx.cast::<LlguidanceSamplerContext>() };
 
     if let Err(grammar_error) = ctx.grammar.reset() {
@@ -65,8 +65,8 @@ unsafe extern "C" fn llg_reset(smpl: *mut llama_cpp_bindings_sys::llama_sampler)
 }
 
 unsafe extern "C" fn llg_clone(
-    smpl: *const llama_cpp_bindings_sys::llama_sampler,
-) -> *mut llama_cpp_bindings_sys::llama_sampler {
+    smpl: *const llama_cpp_bindings_sys::bindings::llama_sampler,
+) -> *mut llama_cpp_bindings_sys::bindings::llama_sampler {
     let ctx = unsafe { &*(*smpl).ctx.cast::<LlguidanceSamplerContext>() };
     let new_ctx = Box::new(LlguidanceSamplerContext {
         grammar: ctx.grammar.deep_clone(),
@@ -75,19 +75,19 @@ unsafe extern "C" fn llg_clone(
         grammar_data: ctx.grammar_data.clone(),
     });
     unsafe {
-        llama_cpp_bindings_sys::llama_sampler_init(
+        llama_cpp_bindings_sys::bindings::llama_sampler_init(
             &raw mut LLG_SAMPLER_I,
             Box::into_raw(new_ctx).cast::<c_void>(),
         )
     }
 }
 
-unsafe extern "C" fn llg_free(smpl: *mut llama_cpp_bindings_sys::llama_sampler) {
+unsafe extern "C" fn llg_free(smpl: *mut llama_cpp_bindings_sys::bindings::llama_sampler) {
     drop(unsafe { Box::from_raw((*smpl).ctx.cast::<LlguidanceSamplerContext>()) });
 }
 
-static mut LLG_SAMPLER_I: llama_cpp_bindings_sys::llama_sampler_i =
-    llama_cpp_bindings_sys::llama_sampler_i {
+static mut LLG_SAMPLER_I: llama_cpp_bindings_sys::bindings::llama_sampler_i =
+    llama_cpp_bindings_sys::bindings::llama_sampler_i {
         name: Some(llg_name),
         accept: Some(llg_accept),
         apply: Some(llg_apply),
@@ -106,8 +106,8 @@ const UNCOMPILABLE_BIAS_SLICE: &str = "(";
 
 fn bias_slices() -> Vec<String> {
     let factory_fault_reached = unsafe {
-        llama_cpp_bindings_sys::llama_rs_fault_point_reached(
-            llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_LLGUIDANCE_FACTORY_FAILS,
+        llama_cpp_bindings_sys::bindings::llama_rs_fault_point_reached(
+            llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_LLGUIDANCE_FACTORY_FAILS,
         )
     };
 
@@ -171,7 +171,7 @@ impl LlguidanceSamplerContext {
     ///
     /// `sampler` must be a sampler [`Self::initialize_sampler`] initialized that holds no
     /// context yet.
-    pub unsafe fn attach_to(self, sampler: *mut llama_cpp_bindings_sys::llama_sampler) {
+    pub unsafe fn attach_to(self, sampler: *mut llama_cpp_bindings_sys::bindings::llama_sampler) {
         unsafe { (*sampler).ctx = Box::into_raw(Box::new(self)).cast::<c_void>() };
     }
 
@@ -182,11 +182,11 @@ impl LlguidanceSamplerContext {
     ///
     /// `out_sampler` and `out_error` must be valid for writes.
     pub unsafe fn initialize_sampler(
-        out_sampler: *mut *mut llama_cpp_bindings_sys::llama_sampler,
+        out_sampler: *mut *mut llama_cpp_bindings_sys::bindings::llama_sampler,
         out_error: *mut *mut c_char,
-    ) -> llama_cpp_bindings_sys::llama_rs_sampler_init_status {
+    ) -> llama_cpp_bindings_sys::bindings::llama_rs_sampler_init_status {
         unsafe {
-            llama_cpp_bindings_sys::llama_rs_sampler_init(
+            llama_cpp_bindings_sys::bindings::llama_rs_sampler_init(
                 &raw mut LLG_SAMPLER_I,
                 ptr::null_mut(),
                 out_sampler,
@@ -228,8 +228,9 @@ mod tests {
         .map(|factory_error| SamplerError::LlguidanceFactoryUnavailable {
             message: factory_error.to_string(),
         });
-        let _fault =
-            ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_LLGUIDANCE_FACTORY_FAILS);
+        let _fault = ArmedFault::at(
+            llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_LLGUIDANCE_FACTORY_FAILS,
+        );
 
         assert_ne!(factory_failure, None);
         assert_eq!(

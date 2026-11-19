@@ -1,16 +1,14 @@
+use std::string::FromUtf8Error;
+
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
-use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ContextStateError {
-    #[error(transparent)]
-    WrapperString(#[from] WrapperStringError),
-    #[error("{operation} returned unknown FFI status {code}")]
-    UnknownWrapperStatus { operation: &'static str, code: i64 },
-    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
-    WrapperRefusedNullArgument {
+    #[error("the exception message reported by {operation} is not valid UTF-8")]
+    ExceptionMessageNotUtf8 {
         operation: &'static str,
-        argument: &'static str,
+        #[source]
+        source: FromUtf8Error,
     },
     #[error("the sequence state file path to load cannot be handed to llama.cpp")]
     LoadSeqStatePathInvalid(#[source] PathCStringError),

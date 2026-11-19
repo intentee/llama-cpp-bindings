@@ -7,8 +7,6 @@ use llama_cpp_token_usage::token_usage_error::TokenUsageError;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum LlamaCppError {
-    #[error("chunk index {0} out of bounds during post-eval walk")]
-    ChunkOutOfBounds(usize),
     #[error("the chat template's parser could not classify the answer")]
     Classify(#[source] ChatError),
     #[error(transparent)]

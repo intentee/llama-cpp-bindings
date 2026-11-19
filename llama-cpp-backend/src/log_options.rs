@@ -19,14 +19,16 @@ use crate::log_record::LogRecord;
 static LLAMA_SOURCE: OnceLock<LogSource> = OnceLock::new();
 static GGML_SOURCE: OnceLock<LogSource> = OnceLock::new();
 
-const fn ggml_level_to_incoming(raw: llama_cpp_bindings_sys::ggml_log_level) -> IncomingLogLevel {
+const fn ggml_level_to_incoming(
+    raw: llama_cpp_bindings_sys::bindings::ggml_log_level,
+) -> IncomingLogLevel {
     match raw {
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE => IncomingLogLevel::None,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_DEBUG => IncomingLogLevel::Debug,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO => IncomingLogLevel::Info,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN => IncomingLogLevel::Warn,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_ERROR => IncomingLogLevel::Error,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_CONT => IncomingLogLevel::Cont,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE => IncomingLogLevel::None,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_DEBUG => IncomingLogLevel::Debug,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_INFO => IncomingLogLevel::Info,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_WARN => IncomingLogLevel::Warn,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_ERROR => IncomingLogLevel::Error,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_CONT => IncomingLogLevel::Cont,
         other => IncomingLogLevel::Unknown(other),
     }
 }
@@ -87,7 +89,7 @@ fn dispatch_anomaly(LogSource { target, .. }: &LogSource, anomaly: DecodeAnomaly
 }
 
 unsafe extern "C" fn logs_to_log(
-    raw_level: llama_cpp_bindings_sys::ggml_log_level,
+    raw_level: llama_cpp_bindings_sys::bindings::ggml_log_level,
     text_ptr: *const c_char,
     data_ptr: *mut c_void,
 ) {
@@ -185,11 +187,11 @@ impl LogOptions {
         let ggml_source: *const LogSource = ggml_source;
 
         unsafe {
-            llama_cpp_bindings_sys::llama_log_set(
+            llama_cpp_bindings_sys::bindings::llama_log_set(
                 Some(logs_to_log),
                 llama_source.cast::<c_void>().cast_mut(),
             );
-            llama_cpp_bindings_sys::ggml_log_set(
+            llama_cpp_bindings_sys::bindings::ggml_log_set(
                 Some(logs_to_log),
                 ggml_source.cast::<c_void>().cast_mut(),
             );
@@ -233,7 +235,7 @@ mod tests {
     }
 
     fn invoke_callback(
-        level: llama_cpp_bindings_sys::ggml_log_level,
+        level: llama_cpp_bindings_sys::bindings::ggml_log_level,
         text: &CStr,
         source: &LogSource,
     ) {
@@ -246,27 +248,27 @@ mod tests {
     #[test]
     fn every_ggml_log_level_maps_to_its_incoming_level() {
         assert_eq!(
-            ggml_level_to_incoming(llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE),
+            ggml_level_to_incoming(llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE),
             IncomingLogLevel::None,
         );
         assert_eq!(
-            ggml_level_to_incoming(llama_cpp_bindings_sys::GGML_LOG_LEVEL_DEBUG),
+            ggml_level_to_incoming(llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_DEBUG),
             IncomingLogLevel::Debug,
         );
         assert_eq!(
-            ggml_level_to_incoming(llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO),
+            ggml_level_to_incoming(llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_INFO),
             IncomingLogLevel::Info,
         );
         assert_eq!(
-            ggml_level_to_incoming(llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN),
+            ggml_level_to_incoming(llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_WARN),
             IncomingLogLevel::Warn,
         );
         assert_eq!(
-            ggml_level_to_incoming(llama_cpp_bindings_sys::GGML_LOG_LEVEL_ERROR),
+            ggml_level_to_incoming(llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_ERROR),
             IncomingLogLevel::Error,
         );
         assert_eq!(
-            ggml_level_to_incoming(llama_cpp_bindings_sys::GGML_LOG_LEVEL_CONT),
+            ggml_level_to_incoming(llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_CONT),
             IncomingLogLevel::Cont,
         );
     }
@@ -286,7 +288,7 @@ mod tests {
         let target = "test-dispatch-when-disabled";
         let source = LogSource::new(target, LogOptions::default().with_logs_enabled(false));
         invoke_callback(
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_INFO,
             c"hello\n",
             &source,
         );
@@ -304,7 +306,7 @@ mod tests {
             LogOptions::default().with_demote_info_to_debug(true),
         );
         invoke_callback(
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_INFO,
             c"info-line\n",
             &source,
         );
@@ -328,7 +330,7 @@ mod tests {
             LogOptions::default().with_demote_info_to_debug(true),
         );
         invoke_callback(
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN,
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_WARN,
             c"warn-line\n",
             &source,
         );
@@ -366,7 +368,7 @@ mod tests {
         let target = "test-dispatch-orphan-cont";
         let source = LogSource::new(target, LogOptions::default());
         invoke_callback(
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_CONT,
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_CONT,
             c"ghost\n",
             &source,
         );
@@ -458,7 +460,7 @@ mod tests {
         let source_ptr = ptr::from_ref(&source).cast::<c_void>().cast_mut();
         unsafe {
             logs_to_log(
-                llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
+                llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_INFO,
                 ptr::null(),
                 source_ptr,
             );
@@ -494,7 +496,7 @@ mod tests {
         assert!(source.decoder.is_poisoned());
 
         invoke_callback(
-            llama_cpp_bindings_sys::GGML_LOG_LEVEL_INFO,
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_INFO,
             c"after-poison\n",
             &source,
         );

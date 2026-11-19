@@ -1,16 +1,20 @@
 use std::ffi::c_int;
 use std::num::NonZeroI32;
 use std::num::TryFromIntError;
+use std::string::FromUtf8Error;
 
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_params::params_error::ParamsError;
-use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 use crate::context_limits::ContextLimits;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ContextError {
+    #[error(
+        "llama_batch_ext_add_token returned the code {code}, which llama.cpp does not document"
+    )]
+    BatchAddTokenReturnedUndocumentedCode { code: i32 },
     #[error("the batch already holds the {n_batch} tokens one decode of the context takes")]
     BatchFull { n_batch: u32 },
     #[error("the batch was built for context limits {batch:?}, but the context has {context:?}")]
@@ -72,10 +76,37 @@ pub enum ContextError {
     EncodeProcess(Box<Self>),
     #[error("encode returned an unknown status code: {code}")]
     EncodeUnknownStatus { code: c_int },
+    #[error("the exception message reported by {operation} is not valid UTF-8")]
+    ExceptionMessageNotUtf8 {
+        operation: &'static str,
+        #[source]
+        source: FromUtf8Error,
+    },
     #[error("the model graph of the last decode produces no logits")]
     GraphProducesNoLogits,
     #[error("Invalid embedding dimension")]
     InvalidEmbeddingDimension(#[source] TryFromIntError),
+    #[error("{operation}: llama.cpp refused the {field} of an entry it had just added")]
+    LlamaCppRefusedFieldOfAddedEntry {
+        operation: &'static str,
+        field: &'static str,
+    },
+    #[error(
+        "{operation}: llama.cpp refused an additional sequence id of an entry, although the sequence ids were validated against the context"
+    )]
+    LlamaCppRefusedValidatedAdditionalSequenceId { operation: &'static str },
+    #[error(
+        "{operation}: llama.cpp refused an entry as full, although the batch was validated against its limits"
+    )]
+    LlamaCppRefusedValidatedEntryAsFull { operation: &'static str },
+    #[error(
+        "{operation}: llama.cpp refused a sequence id, although it was validated against the context"
+    )]
+    LlamaCppRefusedValidatedSequenceId { operation: &'static str },
+    #[error(
+        "{operation}: llama.cpp refused a token, although it was validated against the vocabulary"
+    )]
+    LlamaCppRefusedValidatedToken { operation: &'static str },
     #[error("logit for token index {0} is not initialized")]
     LogitTokenNotInitialized(i32),
     #[error("logits data pointer is null")]
@@ -123,55 +154,8 @@ pub enum ContextError {
     TokenIndexOutsideBatch { token_index: i32, n_tokens: i32 },
     #[error("token {token} is outside the vocabulary of {n_vocab} tokens")]
     TokenOutsideVocabulary { token: LlamaToken, n_vocab: i32 },
-    #[error("{operation} returned unknown FFI status {code}")]
-    UnknownWrapperStatus { operation: &'static str, code: i64 },
     #[error("n_vocab does not fit into usize")]
     VocabSizeOverflow(#[source] TryFromIntError),
-    #[error(
-        "{operation} returned an invalid FFI response: was given an entry without sequence ids"
-    )]
-    WrapperGivenEntryWithoutSequenceIds { operation: &'static str },
-    #[error(
-        "{operation} returned an invalid FFI response: was given an entry whose sequence ids lie outside the sequence id buffer"
-    )]
-    WrapperGivenSequenceIdsOutsideBuffer { operation: &'static str },
-    #[error(
-        "{operation} returned an invalid FFI response: nonzero llama.cpp return status contained zero"
-    )]
-    WrapperNonzeroReturnStatusContainedZero { operation: &'static str },
-    #[error(
-        "{operation} returned an invalid FFI response: refused the {field} of an entry it had just added"
-    )]
-    WrapperRefusedFieldOfAddedEntry {
-        operation: &'static str,
-        field: &'static str,
-    },
-    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
-    WrapperRefusedNullArgument {
-        operation: &'static str,
-        argument: &'static str,
-    },
-    #[error(
-        "{operation} returned an invalid FFI response: refused an entry of a batch validated against its limits as full"
-    )]
-    WrapperRefusedValidatedEntryAsFull { operation: &'static str },
-    #[error(
-        "{operation} returned an invalid FFI response: refused a sequence id validated against the context"
-    )]
-    WrapperRefusedValidatedSequenceId { operation: &'static str },
-    #[error(
-        "{operation} returned an invalid FFI response: refused a token validated against the vocabulary"
-    )]
-    WrapperRefusedValidatedToken { operation: &'static str },
-    #[error(transparent)]
-    WrapperString(#[from] WrapperStringError),
-    #[error(
-        "{operation} returned an invalid FFI response: success status contained a null {output}"
-    )]
-    WrapperSucceededWithoutOutput {
-        operation: &'static str,
-        output: &'static str,
-    },
 }
 
 impl ContextError {

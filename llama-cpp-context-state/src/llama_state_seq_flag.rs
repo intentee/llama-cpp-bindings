@@ -5,6 +5,7 @@ use enumflags2::bitflags;
 #[repr(u32)]
 pub enum LlamaStateSeqFlag {
     PartialOnly = 1 << 0,
+    OnDevice = 1 << 1,
 }
 
 #[cfg(test)]
@@ -14,10 +15,14 @@ mod tests {
     use super::LlamaStateSeqFlag;
 
     #[test]
-    fn partial_only_is_the_bit_llama_cpp_defines_for_partial_states() {
+    fn each_flag_is_the_bit_llama_cpp_defines_for_it() {
         assert_eq!(
-            BitFlags::from_flag(LlamaStateSeqFlag::PartialOnly).bits(),
-            1
+            [LlamaStateSeqFlag::PartialOnly, LlamaStateSeqFlag::OnDevice]
+                .map(|flag| BitFlags::from_flag(flag).bits()),
+            [
+                llama_cpp_bindings_sys::bindings::LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY,
+                llama_cpp_bindings_sys::bindings::LLAMA_STATE_SEQ_FLAGS_ON_DEVICE,
+            ]
         );
     }
 }

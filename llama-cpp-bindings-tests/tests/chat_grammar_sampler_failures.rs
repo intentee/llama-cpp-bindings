@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
@@ -23,10 +24,16 @@ fn the_grammar_sampler_refuses_a_grammar_that_is_not_utf8(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = weather_chat_session(model, ChatToolChoice::Required)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_NOT_UTF8,
+    );
 
-    ensure!(session.grammar_sampler(model).err() == not_utf8().map(ChatError::SessionTextNotUtf8));
+    let expected_utf8_error = not_utf8().context("a lone 0xff byte is not UTF-8")?;
+
+    ensure!(
+        session.grammar_sampler(model).err()
+            == Some(ChatError::SessionTextNotUtf8(expected_utf8_error))
+    );
 
     Ok(())
 }
@@ -43,8 +50,9 @@ fn the_grammar_sampler_reports_a_grammar_llama_cpp_cannot_load(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = weather_chat_session(model, ChatToolChoice::Required)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_THROWS,
+    );
 
     ensure!(!session.grammar_is_lazy());
     ensure!(
@@ -69,7 +77,9 @@ fn the_grammar_sampler_reports_a_generation_prompt_token_the_grammar_cannot_acce
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = weather_chat_session(model, ChatToolChoice::Required)?;
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_ACCEPT_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_SAMPLER_ACCEPT_THROWS,
+    );
 
     ensure!(session.generation_prompt_tokens() != []);
     ensure!(
@@ -96,7 +106,8 @@ fn the_grammar_sampler_reports_a_trigger_word_llama_cpp_cannot_escape(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = weather_chat_session(model, ChatToolChoice::Auto)?;
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_REGEX_ESCAPE_THROWS);
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_REGEX_ESCAPE_THROWS);
 
     ensure!(session.grammar_is_lazy());
     ensure!(
@@ -122,7 +133,7 @@ fn the_grammar_sampler_reports_a_lazy_grammar_llama_cpp_cannot_load(
 ) -> Result<()> {
     let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_THROWS,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_THROWS,
     );
 
     ensure!(

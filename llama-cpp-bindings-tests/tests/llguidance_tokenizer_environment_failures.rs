@@ -37,7 +37,8 @@ fn creating_a_sampler_reports_a_vocabulary_llama_cpp_cannot_render(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = freshly_loaded(fixture)?;
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_TOKEN_TO_PIECE_FAILS);
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_TOKEN_TO_PIECE_FAILS);
 
     ensure!(
         LlamaSampler::llguidance(&model, "regex", YES_OR_NO_REGEX).err()
@@ -61,8 +62,9 @@ fn the_tokenizer_environment_reports_a_control_token_llama_cpp_cannot_render(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let model = freshly_loaded(fixture)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SPECIAL_TOKEN_TO_PIECE_FAILS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_SPECIAL_TOKEN_TO_PIECE_FAILS,
+    );
 
     ensure!(
         model.approximate_tok_env().err() == Some(ModelError::PieceInsufficientBufferSpace(-34))

@@ -1,89 +1,63 @@
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CString, c_char};
 use std::ptr;
 
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
+use llama_cpp_bindings_sys::bindings::llama_rs_json_schema_to_grammar_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::gbnf_error::GbnfError;
+use crate::read_exception_message::read_exception_message;
+
+const OPERATION: &str = "llama_rs_json_schema_to_grammar";
 
 /// # Safety
 ///
-/// On `LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK` the function reads and frees `out` as a
-/// null-terminated C string allocated by the wrapper, so `out` must be a valid such
-/// pointer for that status. On error statuses it reads and frees `error_ptr`, reporting a null
-/// pointer as a contract violation.
+/// On `LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK` `out` must be the non-null grammar the C++ side
+/// allocated, and on the statuses that carry a message `error_ptr` must be the non-null message
+/// it allocated; whichever is read is freed here.
 unsafe fn json_schema_to_grammar_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar_status,
+    status: llama_rs_json_schema_to_grammar_status,
     out: *mut c_char,
     error_ptr: *mut c_char,
 ) -> Result<String, GbnfError> {
-    const OPERATION: &str = "llama_rs_json_schema_to_grammar";
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK => {
-            if out.is_null() {
-                return Err(GbnfError::WrapperSucceededWithoutOutput {
-                    operation: OPERATION,
-                    output: "grammar string",
-                });
-            }
-            let grammar_bytes = unsafe { CStr::from_ptr(out) }.to_bytes().to_vec();
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_free(out) };
-            String::from_utf8(grammar_bytes).map_err(GbnfError::GrammarNotUtf8)
+        llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK => {
+            unsafe { CppAllocatedString::from_raw(out) }
+                .into_string()
+                .map_err(|source| GbnfError::GrammarNotUtf8 { source })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED => {
             Err(GbnfError::SchemaConversionNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(GbnfError::SchemaConversionLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, error_ptr) }?;
+        llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
+            let message = unsafe { read_exception_message(OPERATION, error_ptr) }?;
             Err(GbnfError::InvalidSchema { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, error_ptr) }?;
+        llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
+            let message = unsafe { read_exception_message(OPERATION, error_ptr) }?;
             Err(GbnfError::InvalidJson { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, error_ptr) }?;
+        llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe { read_exception_message(OPERATION, error_ptr) }?;
             Err(GbnfError::SchemaConversionReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG => {
-            Err(GbnfError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "schema_json",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG => {
-            Err(GbnfError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_grammar",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG => {
-            Err(GbnfError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_error",
-            })
-        }
-        other => Err(GbnfError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
 /// # Errors
 ///
 /// Returns [`GbnfError`] if the schema string contains a NUL byte,
-/// the wrapper reports any non-OK status, or the returned grammar is not valid UTF-8.
+/// llama.cpp rejects the schema or fails to convert it, or the returned grammar or error
+/// message is not valid UTF-8.
 pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, GbnfError> {
     let schema_cstr = CString::new(schema_json).map_err(GbnfError::SchemaContainsNulByte)?;
     let mut out: *mut c_char = ptr::null_mut();
     let mut error_ptr: *mut c_char = ptr::null_mut();
 
     let status = unsafe {
-        llama_cpp_bindings_sys::llama_rs_json_schema_to_grammar(
+        llama_cpp_bindings_sys::bindings::llama_rs_json_schema_to_grammar(
             schema_cstr.as_ptr(),
             &raw mut out,
             &raw mut error_ptr,
@@ -97,14 +71,12 @@ pub fn json_schema_to_grammar(schema_json: &str) -> Result<String, GbnfError> {
 mod tests {
     use std::ffi::CString;
     use std::ffi::c_char;
-
     use std::ptr;
 
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
-
-    use crate::gbnf_error::GbnfError;
+    use llama_cpp_bindings_sys::bindings::llama_rs_json_schema_to_grammar_status;
 
     use super::json_schema_to_grammar_status_to_result;
+    use crate::gbnf_error::GbnfError;
     use crate::json_schema_to_grammar::json_schema_to_grammar;
 
     #[test]
@@ -166,73 +138,14 @@ mod tests {
     }
 
     #[test]
-    fn invalid_schema_status_without_a_message_is_reported_as_a_missing_exception_message() {
-        let result = unsafe {
-            json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-
-        assert_eq!(
-            result,
-            Err(GbnfError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_json_schema_to_grammar"
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn invalid_json_status_without_a_message_is_reported_as_a_missing_exception_message() {
-        let result = unsafe {
-            json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-
-        assert_eq!(
-            result,
-            Err(GbnfError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_json_schema_to_grammar"
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn llama_cpp_exception_status_without_a_message_is_reported_as_a_missing_exception_message() {
-        let result = unsafe {
-            json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-
-        assert_eq!(
-            result,
-            Err(GbnfError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_json_schema_to_grammar"
-                }
-            ))
-        );
-    }
-
-    #[test]
     fn llama_cpp_exception_status_carries_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"conversion threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"conversion threw".as_ptr())
+        };
 
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 ptr::null_mut(),
                 out_error,
             )
@@ -250,7 +163,7 @@ mod tests {
     fn allocation_failed_status_returns_not_enough_memory() {
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED,
+                llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
@@ -263,24 +176,24 @@ mod tests {
     fn ok_status_with_non_utf8_grammar_reports_the_utf8_error() {
         let invalid_utf8_grammar: [u8; 2] = [0xFF, 0];
         let out = unsafe {
-            llama_cpp_bindings_sys::llama_rs_string_dup(
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(
                 invalid_utf8_grammar.as_ptr().cast::<c_char>(),
             )
         };
-        assert!(!out.is_null(), "the wrapper must allocate a copy");
+        assert!(!out.is_null(), "llama_rs_string_dup must allocate a copy");
 
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
+                llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
                 out,
                 ptr::null_mut(),
             )
         };
         assert_eq!(
             result,
-            Err(GbnfError::GrammarNotUtf8(
-                String::from_utf8(vec![0xFF]).unwrap_err()
-            ))
+            Err(GbnfError::GrammarNotUtf8 {
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
+            })
         );
     }
 
@@ -288,13 +201,15 @@ mod tests {
     fn ok_status_with_valid_utf8_grammar_returns_grammar_string() {
         let grammar_text: &[u8; 14] = b"root ::= \"x\"\0\0";
         let out = unsafe {
-            llama_cpp_bindings_sys::llama_rs_string_dup(grammar_text.as_ptr().cast::<c_char>())
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(
+                grammar_text.as_ptr().cast::<c_char>(),
+            )
         };
-        assert!(!out.is_null(), "the wrapper must allocate a copy");
+        assert!(!out.is_null(), "llama_rs_string_dup must allocate a copy");
 
         let result = unsafe {
             json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
+                llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
                 out,
                 ptr::null_mut(),
             )
@@ -304,101 +219,10 @@ mod tests {
     }
 
     #[test]
-    fn ok_status_with_null_grammar_is_a_success_without_output() {
-        let result = unsafe {
-            json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-
-        assert_eq!(
-            result,
-            Err(GbnfError::WrapperSucceededWithoutOutput {
-                operation: "llama_rs_json_schema_to_grammar",
-                output: "grammar string"
-            })
-        );
-    }
-
-    #[test]
-    fn unknown_status_is_preserved() {
-        let result = unsafe {
-            json_schema_to_grammar_status_to_result(255, ptr::null_mut(), ptr::null_mut())
-        };
-
-        assert_eq!(
-            result,
-            Err(GbnfError::UnknownWrapperStatus {
-                operation: "llama_rs_json_schema_to_grammar",
-                code: 255
-            })
-        );
-    }
-
-    #[test]
-    fn json_schema_to_grammar_status_to_result_reports_a_null_schema_json_arg_as_a_refused_null_argument()
-     {
-        let outcome = unsafe {
-            json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-        assert_eq!(
-            outcome.err(),
-            Some(GbnfError::WrapperRefusedNullArgument {
-                operation: "llama_rs_json_schema_to_grammar",
-                argument: "schema_json"
-            })
-        );
-    }
-
-    #[test]
-    fn json_schema_to_grammar_status_to_result_reports_a_null_out_grammar_arg_as_a_refused_null_argument()
-     {
-        let outcome = unsafe {
-            json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-        assert_eq!(
-            outcome.err(),
-            Some(GbnfError::WrapperRefusedNullArgument {
-                operation: "llama_rs_json_schema_to_grammar",
-                argument: "out_grammar"
-            })
-        );
-    }
-
-    #[test]
-    fn json_schema_to_grammar_status_to_result_reports_a_null_out_error_arg_as_a_refused_null_argument()
-     {
-        let outcome = unsafe {
-            json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-        assert_eq!(
-            outcome.err(),
-            Some(GbnfError::WrapperRefusedNullArgument {
-                operation: "llama_rs_json_schema_to_grammar",
-                argument: "out_error"
-            })
-        );
-    }
-
-    #[test]
     fn json_schema_to_grammar_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = unsafe {
             json_schema_to_grammar_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
+                llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
                 ptr::null_mut(),
                 ptr::null_mut(),
             )

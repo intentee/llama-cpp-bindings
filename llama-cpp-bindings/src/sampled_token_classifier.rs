@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
-use llama_cpp_bindings_sys::llama_pos;
-use llama_cpp_bindings_sys::llama_seq_id;
+use llama_cpp_bindings_sys::bindings::llama_pos;
+use llama_cpp_bindings_sys::bindings::llama_seq_id;
 use llama_cpp_chat::chat_output::ChatOutput;
 use llama_cpp_chat::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_chat::chat_piece_role::ChatPieceRole;
@@ -128,9 +128,7 @@ impl<'model> SampledTokenClassifier<'model> {
     /// # Errors
     /// Returns [`LlamaCppError::MultimodalChunksEval`] when `params.n_batch` or `params.seq_id`
     /// does not fit the context, a chunk cannot be decoded or reports a type unknown to this
-    /// binding (all before any chunk is evaluated), or when evaluating a chunk fails, or
-    /// [`LlamaCppError::ChunkOutOfBounds`] when a valid index returns
-    /// `None` from `chunks.get`.
+    /// binding (all before any chunk is evaluated), or when evaluating a chunk fails.
     pub fn eval_multimodal_chunks(
         &mut self,
         chunks: &MtmdInputChunks,
@@ -158,9 +156,7 @@ impl<'model> SampledTokenClassifier<'model> {
         let last_chunk_index = chunk_count.checked_sub(1);
         let mut next_position = start_position;
 
-        for index in 0..chunk_count {
-            let fitted_chunk = FittedMtmdInputChunk::at(&fitted_chunks, index)
-                .ok_or(LlamaCppError::ChunkOutOfBounds(index))?;
+        for (index, fitted_chunk) in fitted_chunks.fitted_chunks().into_iter().enumerate() {
             let logits_for_this_chunk = logits_last && Some(index) == last_chunk_index;
 
             next_position = fitted_chunk

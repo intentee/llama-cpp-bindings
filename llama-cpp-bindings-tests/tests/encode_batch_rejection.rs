@@ -60,7 +60,7 @@ fn encoding_reports_an_exception_thrown_while_transferring_the_batch(
     let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     let _fault = ArmedFault::at(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS,
     );
 
     ensure!(

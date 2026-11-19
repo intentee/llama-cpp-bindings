@@ -1,9 +1,7 @@
-use std::borrow::Borrow;
 use std::marker::PhantomData;
 
 use llama_cpp_context::llama_context::LlamaContext;
 
-use crate::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_eval_limits::MtmdEvalLimits;
@@ -19,23 +17,19 @@ pub struct FittedMtmdInputChunk<'fitted> {
     micro_batch_tokens: u32,
 }
 
-impl<'fitted> FittedMtmdInputChunk<'fitted> {
+impl FittedMtmdInputChunk<'_> {
     #[must_use]
-    pub fn at<TChunks>(
-        fitted_chunks: &'fitted FittedMtmdInputChunks<TChunks>,
-        chunk_index: usize,
-    ) -> Option<Self>
-    where
-        TChunks: Borrow<MtmdInputChunks>,
-    {
-        let chunk_type = fitted_chunks.chunk_type(chunk_index)?;
-
-        fitted_chunks.get(chunk_index).map(|chunk| Self {
+    pub const fn new(
+        chunk: MtmdInputChunk,
+        chunk_type: MtmdInputChunkType,
+        micro_batch_tokens: u32,
+    ) -> Self {
+        Self {
             chunk,
             chunk_type,
             fitted_chunks: PhantomData,
-            micro_batch_tokens: fitted_chunks.micro_batch_tokens(),
-        })
+            micro_batch_tokens,
+        }
     }
 
     #[must_use]
@@ -58,11 +52,11 @@ impl<'fitted> FittedMtmdInputChunk<'fitted> {
         &self,
         mtmd_ctx: &MtmdContext,
         llama_ctx: &mut LlamaContext,
-        start_position: llama_cpp_bindings_sys::llama_pos,
-        seq_id: llama_cpp_bindings_sys::llama_seq_id,
+        start_position: llama_cpp_bindings_sys::bindings::llama_pos,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
         n_batch: i32,
         logits_last: bool,
-    ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdError> {
+    ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
         let limits = MtmdEvalLimits::of(llama_ctx);
         let evaluated_micro_batch_tokens = limits
             .context

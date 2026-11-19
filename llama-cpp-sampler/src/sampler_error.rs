@@ -1,10 +1,10 @@
 use std::ffi::NulError;
 use std::num::TryFromIntError;
+use std::string::FromUtf8Error;
 
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_model::model_error::ModelError;
-use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SamplerError {
@@ -18,8 +18,6 @@ pub enum SamplerError {
     ApplyLlamaCppOutOfMemory,
     #[error("the sampler ran out of memory while applying to the token data array")]
     ApplyNotEnoughMemory,
-    #[error("the sampler pointer was null when applying to the token data array")]
-    ApplyNullSampler,
     #[error(
         "the llama.cpp sampler threw a C++ exception while applying to the token data array: {message}"
     )]
@@ -42,8 +40,19 @@ pub enum SamplerError {
         length: usize,
         max_length: usize,
     },
+    #[error("the regex-escaped trigger word is not valid UTF-8")]
+    EscapedPatternNotUtf8 {
+        #[source]
+        source: FromUtf8Error,
+    },
     #[error("the sampler excluded every candidate, leaving no token to select")]
     EveryCandidateExcluded,
+    #[error("the exception message reported by {operation} is not valid UTF-8")]
+    ExceptionMessageNotUtf8 {
+        operation: &'static str,
+        #[source]
+        source: FromUtf8Error,
+    },
     #[error("the grammar string contains an interior NUL byte")]
     GrammarContainsNul(#[source] NulError),
     #[error("the grammar parser failed a step without stopping: {message}")]
@@ -120,20 +129,4 @@ pub enum SamplerError {
     TooManyDistinctDrySequenceBreakers { distinct: usize, max: usize },
     #[error("a lazy-grammar trigger pattern contains an interior NUL byte")]
     TriggerPatternContainsNul(#[source] NulError),
-    #[error("{operation} returned unknown FFI status {code}")]
-    UnknownWrapperStatus { operation: &'static str, code: i64 },
-    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
-    WrapperRefusedNullArgument {
-        operation: &'static str,
-        argument: &'static str,
-    },
-    #[error(transparent)]
-    WrapperString(#[from] WrapperStringError),
-    #[error(
-        "{operation} returned an invalid FFI response: success status contained a null {output}"
-    )]
-    WrapperSucceededWithoutOutput {
-        operation: &'static str,
-        output: &'static str,
-    },
 }

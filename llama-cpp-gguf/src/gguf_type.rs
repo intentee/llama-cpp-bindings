@@ -18,7 +18,7 @@ pub enum GgufType {
 
 impl GgufType {
     #[must_use]
-    pub const fn from_raw(value: llama_cpp_bindings_sys::gguf_type) -> Option<Self> {
+    pub const fn from_raw(value: llama_cpp_bindings_sys::bindings::gguf_type) -> Option<Self> {
         match value {
             0 => Some(Self::Uint8),
             1 => Some(Self::Int8),
@@ -38,8 +38,8 @@ impl GgufType {
     }
 
     #[must_use]
-    pub const fn to_raw(self) -> llama_cpp_bindings_sys::gguf_type {
-        self as llama_cpp_bindings_sys::gguf_type
+    pub const fn to_raw(self) -> llama_cpp_bindings_sys::bindings::gguf_type {
+        self as llama_cpp_bindings_sys::bindings::gguf_type
     }
 }
 
@@ -68,7 +68,7 @@ mod tests {
     fn from_raw_returns_none_for_unknown() {
         assert_eq!(GgufType::from_raw(99), None);
         assert_eq!(
-            GgufType::from_raw(llama_cpp_bindings_sys::gguf_type::MAX),
+            GgufType::from_raw(llama_cpp_bindings_sys::bindings::gguf_type::MAX),
             None,
         );
     }

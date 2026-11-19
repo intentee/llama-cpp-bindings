@@ -202,8 +202,9 @@ fn tokenizing_parts_reports_a_chunk_list_llama_cpp_cannot_allocate(
     &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS,
+    );
 
     ensure!(
         MtmdInputChunks::tokenize_from_parts(mtmd_ctx, &[text_part("Hello", true)], true).err()
@@ -231,7 +232,7 @@ fn tokenizing_parts_reports_a_tokenizer_llama_cpp_fails(
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let _fault = ArmedFault::at(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_TOKENIZE_FROM_PARTS_THROWS,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_MTMD_TOKENIZE_FROM_PARTS_THROWS,
     );
 
     ensure!(

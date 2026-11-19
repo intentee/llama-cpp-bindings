@@ -29,7 +29,7 @@ impl MtmdEvalLimits {
     pub fn batch_tokens(
         &self,
         n_batch: i32,
-        seq_id: llama_cpp_bindings_sys::llama_seq_id,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
     ) -> Result<NonZeroU32, MtmdError> {
         let batch_tokens = u32::try_from(n_batch)
             .ok()

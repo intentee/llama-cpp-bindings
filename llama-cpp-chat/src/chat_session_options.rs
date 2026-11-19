@@ -9,7 +9,7 @@ pub struct ChatSessionOptions {
     pub tool_choice: ChatToolChoice,
 }
 
-impl From<&ChatSessionOptions> for llama_cpp_bindings_sys::llama_rs_chat_session_options {
+impl From<&ChatSessionOptions> for llama_cpp_bindings_sys::bindings::llama_rs_chat_session_options {
     fn from(
         ChatSessionOptions {
             assistant_turn,

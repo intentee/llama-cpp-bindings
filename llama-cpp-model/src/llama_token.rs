@@ -5,7 +5,7 @@ use std::fmt::Formatter;
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct LlamaToken(pub llama_cpp_bindings_sys::llama_token);
+pub struct LlamaToken(pub llama_cpp_bindings_sys::bindings::llama_token);
 
 impl Display for LlamaToken {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {

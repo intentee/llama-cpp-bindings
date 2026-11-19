@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
@@ -20,17 +21,17 @@ use llama_cpp_test_harness_macros::llama_test;
 fn grammar_triggers_refuse_a_trigger_value_that_is_not_utf8(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let expected_utf8_error = not_utf8();
+    let expected_utf8_error = not_utf8().context("a lone 0xff byte is not UTF-8")?;
     let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_VALUE_NOT_UTF8,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_VALUE_NOT_UTF8,
     );
 
     ensure!(
         [
             session.grammar_triggers().err(),
             session.grammar_sampler(model).err(),
-        ] == [(); 2].map(|()| expected_utf8_error.map(ChatError::SessionTextNotUtf8))
+        ] == [(); 2].map(|()| Some(ChatError::SessionTextNotUtf8(expected_utf8_error)))
     );
 
     Ok(())
@@ -49,17 +50,14 @@ fn grammar_triggers_refuse_a_trigger_type_the_bindings_do_not_recognize(
 ) -> Result<()> {
     let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED,
     );
 
     ensure!(
-        session.grammar_triggers().err()
-            == Some(ChatError::UnknownWrapperStatus {
-                operation: "llama_rs_chat_session_grammar_trigger_type",
-                code: i64::from(
-                    llama_cpp_bindings_sys::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED
-                )
-            })
+        session.grammar_triggers().err() == Some(ChatError::GrammarTriggerTypeUnrecognized {
+            value:
+                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED
+        })
     );
 
     Ok(())

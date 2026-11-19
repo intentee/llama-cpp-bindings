@@ -3,8 +3,10 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
+use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunks_init_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_from_parts_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_status;
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
 
 use crate::mtmd_bitmap::MtmdBitmap;
 use crate::mtmd_context::MtmdContext;
@@ -15,164 +17,107 @@ use crate::mtmd_input_chunk::MtmdInputChunk;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::mtmd_input_part::MtmdInputPart;
 use crate::mtmd_input_text::MtmdInputText;
+use crate::read_exception_message::read_exception_message;
 
-fn input_chunks_init_status_to_result(
-    status: llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_init_status,
-    out_chunks: *mut llama_cpp_bindings_sys::mtmd_input_chunks,
+/// # Safety
+///
+/// On `LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK` `out_chunks` must be the non-null chunk list llama.cpp
+/// created, and on `LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must
+/// be the non-null message the C++ side allocated; the message is freed here.
+unsafe fn input_chunks_init_status_to_result(
+    status: llama_rs_mtmd_input_chunks_init_status,
+    out_chunks: *mut llama_cpp_bindings_sys::bindings::mtmd_input_chunks,
     out_error: *mut c_char,
 ) -> Result<MtmdInputChunks, MtmdError> {
-    const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => NonNull::new(out_chunks)
-            .map(|chunks| MtmdInputChunks { chunks })
-            .ok_or(MtmdError::WrapperSucceededWithoutChunks {
-                operation: OPERATION,
-            }),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "out_chunks",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => Ok(MtmdInputChunks {
+            chunks: unsafe { NonNull::new_unchecked(out_chunks) },
+        }),
+        llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::InputChunksNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(MtmdError::InputChunksLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message =
+                unsafe { read_exception_message("llama_rs_mtmd_input_chunks_init", out_error) }?;
 
             Err(MtmdError::InputChunksReported { message })
         }
-        other => Err(MtmdError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
-fn map_tokenize_status(
-    status: llama_cpp_bindings_sys::llama_rs_mtmd_tokenize_status,
+/// # Safety
+///
+/// On `LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be the non-null
+/// message the C++ side allocated; it is freed here.
+unsafe fn map_tokenize_status(
+    status: llama_rs_mtmd_tokenize_status,
     undocumented_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
-    const OPERATION: &str = "llama_rs_mtmd_tokenize";
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT => {
+        llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_OK => Ok(()),
+        llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT => {
             Err(MtmdError::BitmapCountDoesNotMatchMarkerCount)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE => {
+        llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE => {
             Err(MtmdError::MediaPreprocessingOrTokenizationFailed)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE => {
+        llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE => {
             Err(MtmdError::TokenizeUnknownStatus {
                 code: undocumented_return_code,
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::TokenizeNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_and_free_exception_message(OPERATION, out_error) }?;
+        llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message = unsafe { read_exception_message("llama_rs_mtmd_tokenize", out_error) }?;
             Err(MtmdError::TokenizeReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO => {
-            Err(MtmdError::WrapperRefusedNullBitmapArray {
-                operation: OPERATION,
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "ctx",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "output",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "text",
-            })
-        }
-        other => Err(MtmdError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
-fn map_tokenize_from_parts_status(
-    status: llama_cpp_bindings_sys::llama_rs_mtmd_tokenize_from_parts_status,
+/// # Safety
+///
+/// On `LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be the
+/// non-null message the C++ side allocated; it is freed here.
+unsafe fn map_tokenize_from_parts_status(
+    status: llama_rs_mtmd_tokenize_from_parts_status,
     undocumented_return_code: i32,
     out_error: *mut c_char,
 ) -> Result<(), MtmdError> {
-    const OPERATION: &str = "llama_rs_mtmd_tokenize_from_parts";
-
     match status {
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK => Ok(()),
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART => {
-            Err(MtmdError::WrapperReportedMalformedPartList {
-                operation: OPERATION,
+        llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK => Ok(()),
+        llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART => {
+            Err(MtmdError::LlamaCppReportedMalformedPartList {
+                operation: "llama_rs_mtmd_tokenize_from_parts",
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE => {
+        llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE => {
             Err(MtmdError::MediaPreprocessingOrTokenizationFailed)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE => {
+        llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE => {
             Err(MtmdError::TokenizeFromPartsUnknownStatus {
                 code: undocumented_return_code,
             })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED => {
+        llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::TokenizeNotEnoughMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY => {
+        llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe {
-                read_and_free_exception_message(OPERATION, out_error)
-            }?;
+        llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            let message =
+                unsafe { read_exception_message("llama_rs_mtmd_tokenize_from_parts", out_error) }?;
             Err(MtmdError::TokenizeReported { message })
         }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "ctx",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG => {
-            Err(MtmdError::WrapperRefusedNullArgument {
-                operation: OPERATION,
-                argument: "output",
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO => {
-            Err(MtmdError::WrapperRefusedNullPartArray {
-                operation: OPERATION,
-            })
-        }
-        llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT => {
-            Err(MtmdError::WrapperRefusedNullPartsElement {
-                operation: OPERATION,
-            })
-        }
-        other => Err(MtmdError::UnknownWrapperStatus {
-            operation: OPERATION,
-            code: i64::from(other),
-        }),
     }
 }
 
@@ -189,7 +134,7 @@ fn fit_each(
 
 #[derive(Debug)]
 pub struct MtmdInputChunks {
-    pub chunks: NonNull<llama_cpp_bindings_sys::mtmd_input_chunks>,
+    pub chunks: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunks>,
 }
 
 unsafe impl Send for MtmdInputChunks {}
@@ -197,23 +142,25 @@ unsafe impl Send for MtmdInputChunks {}
 impl MtmdInputChunks {
     /// # Errors
     ///
-    /// Returns the [`MtmdError`] variant matching the wrapper's status code.
+    /// Returns an [`MtmdError`] when llama.cpp fails to create the chunk list.
     pub fn new() -> Result<Self, MtmdError> {
-        let mut out_chunks: *mut llama_cpp_bindings_sys::mtmd_input_chunks = ptr::null_mut();
+        let mut out_chunks: *mut llama_cpp_bindings_sys::bindings::mtmd_input_chunks =
+            ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_init(
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunks_init(
                 &raw mut out_chunks,
                 &raw mut out_error,
             )
         };
 
-        input_chunks_init_status_to_result(status, out_chunks, out_error)
+        unsafe { input_chunks_init_status_to_result(status, out_chunks, out_error) }
     }
 
     /// # Errors
     ///
-    /// Returns an [`MtmdError`] variant matching the wrapper's status code.
+    /// Returns an [`MtmdError`] when the chunk list cannot be created, the text holds a nul byte,
+    /// or llama.cpp fails to tokenize the text and bitmaps.
     pub fn tokenize(
         MtmdContext { context, .. }: &MtmdContext,
         MtmdInputText {
@@ -227,14 +174,14 @@ impl MtmdInputChunks {
             .map_err(Box::new)
             .map_err(MtmdError::TokenizeInputChunks)?;
         let text_cstring = CString::new(text).map_err(MtmdError::InputTextContainsNul)?;
-        let input_text = llama_cpp_bindings_sys::mtmd_input_text {
+        let input_text = llama_cpp_bindings_sys::bindings::mtmd_input_text {
             text: text_cstring.as_ptr(),
             text_len: text_cstring.as_bytes().len(),
             add_special,
             parse_special,
         };
 
-        let bitmap_ptrs: Vec<*const llama_cpp_bindings_sys::mtmd_bitmap> = bitmaps
+        let bitmap_ptrs: Vec<*const llama_cpp_bindings_sys::bindings::mtmd_bitmap> = bitmaps
             .iter()
             .map(|MtmdBitmap { bitmap, .. }| bitmap.as_ptr().cast_const())
             .collect();
@@ -243,7 +190,7 @@ impl MtmdInputChunks {
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_tokenize(
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize(
                 context.as_ptr(),
                 chunks.chunks.as_ptr(),
                 &raw const input_text,
@@ -254,13 +201,14 @@ impl MtmdInputChunks {
             )
         };
 
-        map_tokenize_status(status, out_undocumented_return_code, out_error)?;
+        unsafe { map_tokenize_status(status, out_undocumented_return_code, out_error) }?;
         Ok(chunks)
     }
 
     /// # Errors
     ///
-    /// Returns an [`MtmdError`] variant matching the wrapper's status code.
+    /// Returns an [`MtmdError`] when the chunk list cannot be created, a text part holds a nul
+    /// byte, or llama.cpp fails to tokenize the parts.
     pub fn tokenize_from_parts(
         MtmdContext { context, .. }: &MtmdContext,
         parts: &[MtmdInputPart<'_>],
@@ -274,18 +222,18 @@ impl MtmdInputChunks {
             .map(MtmdFfiInputPart::try_from)
             .collect::<Result<Vec<MtmdFfiInputPart<'_>>, _>>()
             .map_err(MtmdError::InputTextContainsNul)?;
-        let ffi_parts: Vec<llama_cpp_bindings_sys::mtmd_input_part> = ffi_input_parts
+        let ffi_parts: Vec<llama_cpp_bindings_sys::bindings::mtmd_input_part> = ffi_input_parts
             .iter()
             .map(MtmdFfiInputPart::ffi_part)
             .collect();
-        let ffi_part_pointers: Vec<*const llama_cpp_bindings_sys::mtmd_input_part> =
+        let ffi_part_pointers: Vec<*const llama_cpp_bindings_sys::bindings::mtmd_input_part> =
             ffi_parts.iter().map(ptr::from_ref).collect();
 
         let mut out_undocumented_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_tokenize_from_parts(
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_from_parts(
                 context.as_ptr(),
                 chunks.chunks.as_ptr(),
                 ffi_part_pointers.as_ptr(),
@@ -296,8 +244,15 @@ impl MtmdInputChunks {
             )
         };
 
-        map_tokenize_from_parts_status(status, out_undocumented_return_code, out_error)?;
+        unsafe { map_tokenize_from_parts_status(status, out_undocumented_return_code, out_error) }?;
         Ok(chunks)
+    }
+
+    #[must_use]
+    pub fn chunks(&self) -> Vec<MtmdInputChunk> {
+        (0..self.len())
+            .map(|index| unsafe { self.chunk_within_count(index) })
+            .collect()
     }
 
     /// Checks every chunk with [`Self::fit_to_micro_batch`] before evaluating any of them, so a
@@ -311,16 +266,16 @@ impl MtmdInputChunks {
         &self,
         mtmd_ctx: &MtmdContext,
         llama_ctx: &mut LlamaContext,
-        start_position: llama_cpp_bindings_sys::llama_pos,
-        seq_id: llama_cpp_bindings_sys::llama_seq_id,
+        start_position: llama_cpp_bindings_sys::bindings::llama_pos,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
         n_batch: i32,
         logits_last: bool,
-    ) -> Result<llama_cpp_bindings_sys::llama_pos, MtmdError> {
+    ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
         let limits = MtmdEvalLimits::of(llama_ctx);
         let micro_batch_tokens = limits
             .context
             .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?);
-        let chunks = self.chunks_within_count()?;
+        let chunks = self.chunks();
 
         fit_each(&chunks, mtmd_ctx, micro_batch_tokens)?;
 
@@ -347,31 +302,19 @@ impl MtmdInputChunks {
     /// # Errors
     ///
     /// Returns [`MtmdError::NonCausalChunkExceedsMicroBatch`] for the first chunk decoded
-    /// non-causally that has more tokens than `micro_batch_tokens`,
-    /// [`MtmdError::EvalUnknownChunkType`] when a chunk type is unknown, or
-    /// [`MtmdError::WrapperReturnedNullChunkWithinCount`] when a chunk within the chunk count is null.
+    /// non-causally that has more tokens than `micro_batch_tokens`, or
+    /// [`MtmdError::EvalUnknownChunkType`] when a chunk type is unknown.
     pub fn fit_to_micro_batch(
         &self,
         mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
     ) -> Result<Vec<MtmdInputChunkType>, MtmdError> {
-        fit_each(&self.chunks_within_count()?, mtmd_ctx, micro_batch_tokens)
+        fit_each(&self.chunks(), mtmd_ctx, micro_batch_tokens)
     }
 
     #[must_use]
     pub fn get(&self, index: usize) -> Option<MtmdInputChunk> {
-        if index >= self.len() {
-            return None;
-        }
-
-        let chunk_ptr = unsafe {
-            llama_cpp_bindings_sys::llama_rs_mtmd_input_chunks_get(self.chunks.as_ptr(), index)
-        };
-
-        NonNull::new(chunk_ptr.cast_mut()).map(|ptr| MtmdInputChunk {
-            chunk: ptr,
-            owned: false,
-        })
+        (index < self.len()).then(|| unsafe { self.chunk_within_count(index) })
     }
 
     #[must_use]
@@ -381,34 +324,40 @@ impl MtmdInputChunks {
 
     #[must_use]
     pub fn len(&self) -> usize {
-        unsafe { llama_cpp_bindings_sys::mtmd_input_chunks_size(self.chunks.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::mtmd_input_chunks_size(self.chunks.as_ptr()) }
     }
 
     #[must_use]
     pub fn total_positions(&self) -> i32 {
-        unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_pos(self.chunks.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::mtmd_helper_get_n_pos(self.chunks.as_ptr()) }
     }
 
     #[must_use]
     pub fn total_tokens(&self) -> usize {
-        unsafe { llama_cpp_bindings_sys::mtmd_helper_get_n_tokens(self.chunks.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::mtmd_helper_get_n_tokens(self.chunks.as_ptr()) }
     }
 
-    fn chunks_within_count(&self) -> Result<Vec<MtmdInputChunk>, MtmdError> {
-        (0..self.len())
-            .map(|index| {
-                self.get(index)
-                    .ok_or(MtmdError::WrapperReturnedNullChunkWithinCount {
-                        operation: "mtmd_input_chunks_get",
-                    })
-            })
-            .collect()
+    /// # Safety
+    ///
+    /// `index` must be below [`Self::len`], where llama.cpp always holds a chunk.
+    unsafe fn chunk_within_count(&self, index: usize) -> MtmdInputChunk {
+        let chunk = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunks_get(
+                self.chunks.as_ptr(),
+                index,
+            )
+        };
+
+        MtmdInputChunk {
+            chunk: unsafe { NonNull::new_unchecked(chunk.cast_mut()) },
+            owned: false,
+        }
     }
 }
 
 impl Drop for MtmdInputChunks {
     fn drop(&mut self) {
-        unsafe { llama_cpp_bindings_sys::mtmd_input_chunks_free(self.chunks.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::mtmd_input_chunks_free(self.chunks.as_ptr()) }
     }
 }
 
@@ -416,18 +365,15 @@ impl Drop for MtmdInputChunks {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_wrapper_error_fixture::wrapper_allocated_error_message_pointer::wrapper_allocated_error_message_pointer;
-    use llama_cpp_wrapper_string::read_and_free_exception_message::read_and_free_exception_message;
-    use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
+    use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunks_init_status;
+    use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_from_parts_status;
+    use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_status;
 
     use super::input_chunks_init_status_to_result;
     use super::map_tokenize_from_parts_status;
     use super::map_tokenize_status;
-    use crate::mtmd_input_chunks::MtmdInputChunks;
-
     use crate::mtmd_error::MtmdError;
-
-    const OPERATION: &str = "llama_rs_mtmd_input_chunks_init";
+    use crate::mtmd_input_chunks::MtmdInputChunks;
 
     #[test]
     fn new_creates_empty_chunks() {
@@ -448,52 +394,38 @@ mod tests {
     #[test]
     fn every_failure_status_maps_to_its_error() {
         let statuses = [
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_NULL_OUT_CHUNKS_ARG,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY,
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            255,
+            llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED,
+            llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY,
         ];
 
         assert_eq!(
             statuses.map(|status| {
-                input_chunks_init_status_to_result(status, ptr::null_mut(), ptr::null_mut()).err()
+                unsafe {
+                    input_chunks_init_status_to_result(status, ptr::null_mut(), ptr::null_mut())
+                }
+                .err()
             }),
             [
-                Some(MtmdError::WrapperSucceededWithoutChunks {
-                    operation: OPERATION
-                }),
-                Some(MtmdError::WrapperRefusedNullArgument {
-                    operation: OPERATION,
-                    argument: "out_chunks"
-                }),
                 Some(MtmdError::InputChunksNotEnoughMemory),
                 Some(MtmdError::InputChunksLlamaCppOutOfMemory),
-                Some(MtmdError::WrapperString(
-                    WrapperStringError::ExceptionMessageMissing {
-                        operation: OPERATION
-                    }
-                )),
-                Some(MtmdError::UnknownWrapperStatus {
-                    operation: OPERATION,
-                    code: 255
-                }),
             ]
         );
     }
 
     #[test]
     fn a_thrown_exception_reports_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"allocation threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"allocation threw".as_ptr())
+        };
 
         assert_eq!(
-            input_chunks_init_status_to_result(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                ptr::null_mut(),
-                out_error,
-            )
+            unsafe {
+                input_chunks_init_status_to_result(
+                    llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    ptr::null_mut(),
+                    out_error,
+                )
+            }
             .err(),
             Some(MtmdError::InputChunksReported {
                 message: "allocation threw".to_owned(),
@@ -504,11 +436,13 @@ mod tests {
     #[test]
     fn tokenize_from_parts_status_maps_ok_to_unit() {
         assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK,
-                0,
-                ptr::null_mut(),
-            ),
+            unsafe {
+                map_tokenize_from_parts_status(
+                    llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_OK,
+                    0,
+                    ptr::null_mut(),
+                )
+            },
             Ok(())
         );
     }
@@ -516,11 +450,13 @@ mod tests {
     #[test]
     fn tokenize_from_parts_status_reports_a_media_preprocessing_or_tokenization_failure() {
         assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
+            unsafe {
+                map_tokenize_from_parts_status(
+                llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
                 0,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(MtmdError::MediaPreprocessingOrTokenizationFailed)
         );
     }
@@ -528,11 +464,13 @@ mod tests {
     #[test]
     fn tokenize_from_parts_status_maps_an_undocumented_code_with_its_value() {
         assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
+            unsafe {
+                map_tokenize_from_parts_status(
+                llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
                 42,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(MtmdError::TokenizeFromPartsUnknownStatus { code: 42 })
         );
     }
@@ -540,11 +478,13 @@ mod tests {
     #[test]
     fn tokenize_from_parts_status_maps_string_allocation_failed_to_not_enough_memory() {
         assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED,
+            unsafe {
+                map_tokenize_from_parts_status(
+                llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED,
                 0,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(MtmdError::TokenizeNotEnoughMemory)
         );
     }
@@ -552,164 +492,79 @@ mod tests {
     #[test]
     fn tokenize_from_parts_status_reports_llama_cpp_running_out_of_memory() {
         assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY,
+            unsafe {
+                map_tokenize_from_parts_status(
+                llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY,
                 0,
                 ptr::null_mut(),
-            ),
+            )
+            },
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         );
     }
 
     #[test]
     fn tokenize_from_parts_status_maps_a_thrown_exception_with_its_message() {
-        let expected_message = unsafe {
-            read_and_free_exception_message(
-                "llama_rs_mtmd_tokenize_from_parts",
-                wrapper_allocated_error_message_pointer(),
-            )
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"parts tokenizer threw".as_ptr())
         };
 
         assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                0,
-                wrapper_allocated_error_message_pointer(),
-            )
+            unsafe {
+                map_tokenize_from_parts_status(
+                    llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    0,
+                    out_error,
+                )
+            }
             .err(),
-            expected_message
-                .ok()
-                .map(|message| MtmdError::TokenizeReported { message })
+            Some(MtmdError::TokenizeReported {
+                message: "parts tokenizer threw".to_owned(),
+            })
         );
     }
 
     #[test]
     fn map_tokenize_from_parts_status_reports_a_malformed_part_list() {
         assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART,
-                0,
-                ptr::null_mut(),
-            )
+            unsafe {
+                map_tokenize_from_parts_status(
+                    llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_MALFORMED_PART,
+                    0,
+                    ptr::null_mut(),
+                )
+            }
             .err(),
             Some(
-                MtmdError::WrapperReportedMalformedPartList {
+                MtmdError::LlamaCppReportedMalformedPartList {
                     operation: "llama_rs_mtmd_tokenize_from_parts",
                 }
             )
-        );
-    }
-
-    #[test]
-    fn map_tokenize_from_parts_status_reports_a_refused_null_part_element() {
-        assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PART_ELEMENT,
-                0,
-                ptr::null_mut(),
-            )
-            .err(),
-            Some(MtmdError::WrapperRefusedNullPartsElement {
-                operation: "llama_rs_mtmd_tokenize_from_parts"
-            })
-        );
-    }
-
-    #[test]
-    fn map_tokenize_from_parts_status_reports_an_exception_without_a_message_as_a_missing_exception_message()
-     {
-        assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                0,
-                ptr::null_mut(),
-            )
-            .err(),
-            Some(
-                MtmdError::WrapperString(WrapperStringError::ExceptionMessageMissing { operation: "llama_rs_mtmd_tokenize_from_parts" })
-            )
-        );
-    }
-
-    #[test]
-    fn map_tokenize_from_parts_status_reports_a_null_ctx_arg_as_a_refused_null_argument() {
-        assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_CTX_ARG,
-                0,
-                ptr::null_mut(),
-            )
-            .err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                argument: "ctx"
-            })
-        );
-    }
-
-    #[test]
-    fn map_tokenize_from_parts_status_reports_a_null_output_arg_as_a_refused_null_argument() {
-        assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_OUTPUT_ARG,
-                0,
-                ptr::null_mut(),
-            )
-            .err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                argument: "output"
-            })
-        );
-    }
-
-    #[test]
-    fn map_tokenize_from_parts_status_reports_a_refused_null_part_array_with_a_nonzero_part_count()
-    {
-        assert_eq!(
-            map_tokenize_from_parts_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_NULL_PARTS_ARG_WHEN_NUM_PARTS_NONZERO,
-                0,
-                ptr::null_mut(),
-            )
-            .err(),
-            Some(
-                MtmdError::WrapperRefusedNullPartArray {
-                    operation: "llama_rs_mtmd_tokenize_from_parts",
-                }
-            )
-        );
-    }
-
-    #[test]
-    fn map_tokenize_from_parts_status_preserves_an_unknown_status() {
-        assert_eq!(
-            map_tokenize_from_parts_status(255, 0, ptr::null_mut()).err(),
-            Some(MtmdError::UnknownWrapperStatus {
-                operation: "llama_rs_mtmd_tokenize_from_parts",
-                code: 255
-            })
         );
     }
 
     #[test]
     fn tokenize_status_reports_a_bitmap_count_that_does_not_match_the_marker_count() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
+        let result = unsafe {
+            map_tokenize_status(
+            llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
             0,
             ptr::null_mut(),
-        );
+        )
+        };
 
         assert_eq!(result, Err(MtmdError::BitmapCountDoesNotMatchMarkerCount));
     }
 
     #[test]
     fn tokenize_status_reports_a_media_preprocessing_or_tokenization_failure() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
+        let result = unsafe {
+            map_tokenize_status(
+            llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
             0,
             ptr::null_mut(),
-        );
+        )
+        };
 
         assert_eq!(
             result,
@@ -719,153 +574,69 @@ mod tests {
 
     #[test]
     fn tokenize_status_maps_an_undocumented_code_with_its_value() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
+        let result = unsafe {
+            map_tokenize_status(
+            llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
             42,
             ptr::null_mut(),
-        );
+        )
+        };
 
         assert_eq!(result, Err(MtmdError::TokenizeUnknownStatus { code: 42 }));
     }
 
     #[test]
     fn tokenize_status_maps_ok_to_unit() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_OK,
-            0,
-            ptr::null_mut(),
-        );
+        let result = unsafe {
+            map_tokenize_status(
+                llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_OK,
+                0,
+                ptr::null_mut(),
+            )
+        };
 
         assert_eq!(result, Ok(()));
     }
 
     #[test]
     fn tokenize_status_maps_string_allocation_failed_to_not_enough_memory() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED,
+        let result = unsafe {
+            map_tokenize_status(
+            llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED,
             0,
             ptr::null_mut(),
-        );
+        )
+        };
 
         assert_eq!(result, Err(MtmdError::TokenizeNotEnoughMemory));
     }
 
     #[test]
-    fn tokenize_status_reports_an_exception_without_a_message_as_a_missing_exception_message() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-            0,
-            ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(MtmdError::WrapperString(
-                WrapperStringError::ExceptionMessageMissing {
-                    operation: "llama_rs_mtmd_tokenize"
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn tokenize_null_bitmaps_status_is_a_refused_null_bitmap_array() {
-        let result = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_BITMAPS_ARG_WHEN_NUM_BITMAPS_NONZERO,
-            0,
-            ptr::null_mut(),
-        );
-
-        assert_eq!(
-            result,
-            Err(MtmdError::WrapperRefusedNullBitmapArray {
-                operation: "llama_rs_mtmd_tokenize"
-            })
-        );
-    }
-
-    #[test]
-    fn tokenize_unknown_status_is_preserved() {
-        let result = map_tokenize_status(255, 0, ptr::null_mut());
-
-        assert_eq!(
-            result,
-            Err(MtmdError::UnknownWrapperStatus {
-                operation: "llama_rs_mtmd_tokenize",
-                code: 255
-            })
-        );
-    }
-
-    #[test]
-    fn map_tokenize_status_reports_a_null_ctx_arg_as_a_refused_null_argument() {
-        let outcome = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_CTX_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_tokenize",
-                argument: "ctx"
-            })
-        );
-    }
-
-    #[test]
-    fn map_tokenize_status_reports_a_null_output_arg_as_a_refused_null_argument() {
-        let outcome = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_OUTPUT_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_tokenize",
-                argument: "output"
-            })
-        );
-    }
-
-    #[test]
-    fn map_tokenize_status_reports_a_null_text_arg_as_a_refused_null_argument() {
-        let outcome = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_NULL_TEXT_ARG,
-            0,
-            ptr::null_mut(),
-        );
-        assert_eq!(
-            outcome.err(),
-            Some(MtmdError::WrapperRefusedNullArgument {
-                operation: "llama_rs_mtmd_tokenize",
-                argument: "text"
-            })
-        );
-    }
-
-    #[test]
     fn map_tokenize_status_reports_llama_cpp_running_out_of_memory() {
-        let outcome = map_tokenize_status(
-            llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,
-            0,
-            ptr::null_mut(),
-        );
+        let outcome = unsafe {
+            map_tokenize_status(
+                llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,
+                0,
+                ptr::null_mut(),
+            )
+        };
         assert_eq!(outcome.err(), Some(MtmdError::TokenizeLlamaCppOutOfMemory));
     }
 
     #[test]
     fn map_tokenize_status_maps_a_thrown_exception_with_its_message() {
-        let out_error =
-            unsafe { llama_cpp_bindings_sys::llama_rs_string_dup(c"tokenizer threw".as_ptr()) };
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"tokenizer threw".as_ptr())
+        };
 
         assert_eq!(
-            map_tokenize_status(
-                llama_cpp_bindings_sys::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            unsafe {
+                map_tokenize_status(
+                llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
                 0,
                 out_error,
-            ),
+            )
+            },
             Err(MtmdError::TokenizeReported {
                 message: "tokenizer threw".to_owned(),
             })

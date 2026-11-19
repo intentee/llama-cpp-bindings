@@ -7,28 +7,36 @@ pub enum LlamaAttentionType {
     NonCausal,
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_attention_type> for LlamaAttentionType {
+impl TryFrom<llama_cpp_bindings_sys::bindings::llama_attention_type> for LlamaAttentionType {
     type Error = ParamsError;
 
-    fn try_from(value: llama_cpp_bindings_sys::llama_attention_type) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: llama_cpp_bindings_sys::bindings::llama_attention_type,
+    ) -> Result<Self, Self::Error> {
         match value {
-            llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_UNSPECIFIED => Ok(Self::Unspecified),
-            llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_CAUSAL => Ok(Self::Causal),
-            llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_NON_CAUSAL => Ok(Self::NonCausal),
+            llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_UNSPECIFIED => {
+                Ok(Self::Unspecified)
+            }
+            llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_CAUSAL => Ok(Self::Causal),
+            llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_NON_CAUSAL => {
+                Ok(Self::NonCausal)
+            }
             unknown => Err(ParamsError::UnknownAttentionType(unknown)),
         }
     }
 }
 
-impl From<LlamaAttentionType> for llama_cpp_bindings_sys::llama_attention_type {
+impl From<LlamaAttentionType> for llama_cpp_bindings_sys::bindings::llama_attention_type {
     fn from(value: LlamaAttentionType) -> Self {
         match value {
             LlamaAttentionType::Unspecified => {
-                llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_UNSPECIFIED
+                llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_UNSPECIFIED
             }
-            LlamaAttentionType::Causal => llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_CAUSAL,
+            LlamaAttentionType::Causal => {
+                llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_CAUSAL
+            }
             LlamaAttentionType::NonCausal => {
-                llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_NON_CAUSAL
+                llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_NON_CAUSAL
             }
         }
     }
@@ -42,9 +50,9 @@ mod tests {
     #[test]
     fn every_llama_cpp_value_converts_to_its_variant_and_back() {
         let raw_values = [
-            llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_UNSPECIFIED,
-            llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_CAUSAL,
-            llama_cpp_bindings_sys::LLAMA_ATTENTION_TYPE_NON_CAUSAL,
+            llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_UNSPECIFIED,
+            llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_CAUSAL,
+            llama_cpp_bindings_sys::bindings::LLAMA_ATTENTION_TYPE_NON_CAUSAL,
         ];
 
         assert_eq!(
@@ -61,7 +69,7 @@ mod tests {
                 LlamaAttentionType::Causal,
                 LlamaAttentionType::NonCausal,
             ]
-            .map(llama_cpp_bindings_sys::llama_attention_type::from),
+            .map(llama_cpp_bindings_sys::bindings::llama_attention_type::from),
             raw_values
         );
     }

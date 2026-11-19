@@ -9,7 +9,6 @@ use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsa
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_mtmd::mtmd_default_marker::mtmd_default_marker;
@@ -217,8 +216,9 @@ fn text_chunk_records_prompt_tokens(
         llama_ctx.n_ubatch(),
     )?;
 
-    let text_chunk = (0..fitted_chunks.len())
-        .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
+    let text_chunk = fitted_chunks
+        .fitted_chunks()
+        .into_iter()
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Text)
         .context("text-only tokenization should produce at least one text chunk")?;
 
@@ -294,8 +294,9 @@ fn image_chunk_records_input_image_tokens_only(
         llama_ctx.n_ubatch(),
     )?;
 
-    let image_chunk = (0..fitted_chunks.len())
-        .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
+    let image_chunk = fitted_chunks
+        .fitted_chunks()
+        .into_iter()
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Image)
         .context("multimodal tokenization should produce an image chunk")?;
 

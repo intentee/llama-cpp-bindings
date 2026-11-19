@@ -188,30 +188,8 @@ extern "C" auto llama_rs_chat_session_create(
     llama_rs_chat_session_options options,
     llama_rs_chat_session_handle * out_session,
     char ** out_error) -> llama_rs_chat_session_create_status {
-    if (out_session != nullptr) {
-        *out_session = nullptr;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (templates == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CREATE_NULL_TEMPLATES_ARG;
-    }
-    if (vocab == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CREATE_NULL_VOCAB_ARG;
-    }
-    if (messages_json == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CREATE_NULL_MESSAGES_JSON_ARG;
-    }
-    if (tools_json == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CREATE_NULL_TOOLS_JSON_ARG;
-    }
-    if (out_session == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_SESSION_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_CREATE_NULL_OUT_ERROR_ARG;
-    }
+    *out_session = nullptr;
+    *out_error = nullptr;
 
     try {
         common_chat_templates_inputs inputs;
@@ -383,27 +361,8 @@ extern "C" auto llama_rs_chat_session_read(
     bool is_partial,
     llama_rs_chat_reading_handle * out_reading,
     char ** out_error) -> llama_rs_chat_session_read_status {
-    if (out_reading != nullptr) {
-        *out_reading = nullptr;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (session == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_READ_NULL_SESSION_ARG;
-    }
-    if (text == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_READ_NULL_TEXT_ARG;
-    }
-    if (byte_tokens == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_READ_NULL_BYTE_TOKENS_ARG;
-    }
-    if (out_reading == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_READING_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_CHAT_SESSION_READ_NULL_OUT_ERROR_ARG;
-    }
+    *out_reading = nullptr;
+    *out_error = nullptr;
 
     try {
         llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
@@ -477,21 +436,8 @@ extern "C" auto llama_rs_chat_reading_parse(
     llama_rs_chat_reading_handle reading,
     llama_rs_parsed_chat_handle * out_handle,
     char ** out_error) -> llama_rs_chat_reading_parse_status {
-    if (out_handle != nullptr) {
-        *out_handle = nullptr;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (reading == nullptr) {
-        return LLAMA_RS_CHAT_READING_PARSE_NULL_READING_ARG;
-    }
-    if (out_handle == nullptr) {
-        return LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_HANDLE_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_CHAT_READING_PARSE_NULL_OUT_ERROR_ARG;
-    }
+    *out_handle = nullptr;
+    *out_error = nullptr;
 
     try {
         llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_CHAT_READING_PARSE_THROWS);
@@ -527,21 +473,8 @@ extern "C" auto llama_rs_regex_escape(
     size_t text_length,
     char ** out_string,
     char ** out_error) -> llama_rs_regex_escape_status {
-    if (out_string != nullptr) {
-        *out_string = nullptr;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (text == nullptr) {
-        return LLAMA_RS_REGEX_ESCAPE_NULL_TEXT_ARG;
-    }
-    if (out_string == nullptr) {
-        return LLAMA_RS_REGEX_ESCAPE_NULL_OUT_STRING_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_REGEX_ESCAPE_NULL_OUT_ERROR_ARG;
-    }
+    *out_string = nullptr;
+    *out_error = nullptr;
 
     try {
         llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_REGEX_ESCAPE_THROWS);

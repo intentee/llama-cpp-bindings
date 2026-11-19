@@ -68,7 +68,7 @@ fn a_valid_grammar_llama_cpp_refuses_to_load_is_reported_malformed(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) {
     let _fault = ArmedFault::at(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_RETURNS_NULL,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_SAMPLER_INIT_GRAMMAR_RETURNS_NULL,
     );
 
     assert_eq!(

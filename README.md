@@ -32,12 +32,11 @@ The API is split per llama.cpp handle family. Each crate has one concern and one
 | `llama-cpp-gguf` | Reading and rewriting GGUF files | `GgufContextError` |
 | `llama-cpp-token-usage` | Token accounting | `TokenUsageError` |
 | `llama-cpp-bindings-types` | Chat message value types, free of FFI | `ModelProvidedToolCallIdError` |
-| `llama-cpp-wrapper-string` | Reading and freeing strings the C++ wrapper allocated | `WrapperStringError` |
 | `llama-cpp-path-c-string` | Converting a path into the C string llama.cpp takes | `PathCStringError` |
 | `llama-cpp-error-chain` | Rendering an error with its source chain as one line | |
 | `llama-cpp-error-recorder` | Capturing an error raised inside an FFI callback for the Rust code that drove the call | |
 | `llama-cpp-log-decoder` | Decoding the llama.cpp / ggml log callback stream | |
-| `llama-cpp-bindings-sys` | Raw FFI bindings | |
+| `llama-cpp-bindings-sys` | Raw FFI bindings, and the owner of strings the C++ side allocates | |
 | `llama-cpp-bindings-build` | Build system | `BuildError` |
 
 Every item is imported from the module named after it, for example:

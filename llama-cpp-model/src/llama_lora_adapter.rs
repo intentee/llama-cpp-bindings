@@ -1,15 +1,15 @@
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
-unsafe fn free_lora_adapter(adapter: *mut llama_cpp_bindings_sys::llama_adapter_lora) {
-    unsafe { llama_cpp_bindings_sys::llama_adapter_lora_free(adapter) }
+unsafe fn free_lora_adapter(adapter: *mut llama_cpp_bindings_sys::bindings::llama_adapter_lora) {
+    unsafe { llama_cpp_bindings_sys::bindings::llama_adapter_lora_free(adapter) }
 }
 
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct LlamaLoraAdapter<'model> {
-    lora_adapter: *mut llama_cpp_bindings_sys::llama_adapter_lora,
-    model: PhantomData<&'model llama_cpp_bindings_sys::llama_model>,
+    lora_adapter: *mut llama_cpp_bindings_sys::bindings::llama_adapter_lora,
+    model: PhantomData<&'model llama_cpp_bindings_sys::bindings::llama_model>,
 }
 
 impl LlamaLoraAdapter<'_> {
@@ -21,7 +21,7 @@ impl LlamaLoraAdapter<'_> {
     /// borrows, and no other [`LlamaLoraAdapter`] may own it.
     #[must_use]
     pub const unsafe fn new(
-        lora_adapter: NonNull<llama_cpp_bindings_sys::llama_adapter_lora>,
+        lora_adapter: NonNull<llama_cpp_bindings_sys::bindings::llama_adapter_lora>,
     ) -> Self {
         Self {
             lora_adapter: lora_adapter.as_ptr(),
@@ -30,7 +30,7 @@ impl LlamaLoraAdapter<'_> {
     }
 
     #[must_use]
-    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::llama_adapter_lora {
+    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::bindings::llama_adapter_lora {
         self.lora_adapter
     }
 }

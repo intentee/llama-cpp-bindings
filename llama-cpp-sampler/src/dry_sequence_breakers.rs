@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::ffi::CString;
 
-use llama_cpp_bindings_sys::LLAMA_DRY_MAX_SEQ_BREAKERS;
+use llama_cpp_bindings_sys::bindings::LLAMA_DRY_MAX_SEQ_BREAKERS;
 
 use crate::sampler_error::SamplerError;
 

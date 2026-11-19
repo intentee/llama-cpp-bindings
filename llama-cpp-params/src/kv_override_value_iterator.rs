@@ -7,14 +7,14 @@ use crate::params_error::ParamsError;
 
 #[derive(Debug)]
 pub struct KvOverrideValueIterator<'model_params> {
-    model_params: &'model_params llama_cpp_bindings_sys::llama_model_params,
+    model_params: &'model_params llama_cpp_bindings_sys::bindings::llama_model_params,
     current: usize,
 }
 
 impl<'model_params> KvOverrideValueIterator<'model_params> {
     #[must_use]
     pub const fn new(
-        model_params: &'model_params llama_cpp_bindings_sys::llama_model_params,
+        model_params: &'model_params llama_cpp_bindings_sys::bindings::llama_model_params,
     ) -> Self {
         Self {
             model_params,

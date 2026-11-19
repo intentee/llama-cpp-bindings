@@ -10,31 +10,35 @@ pub enum LlamaLoadMode {
     DirectIo,
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_load_mode> for LlamaLoadMode {
+impl TryFrom<llama_cpp_bindings_sys::bindings::llama_load_mode> for LlamaLoadMode {
     type Error = ParamsError;
 
-    fn try_from(value: llama_cpp_bindings_sys::llama_load_mode) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: llama_cpp_bindings_sys::bindings::llama_load_mode,
+    ) -> Result<Self, Self::Error> {
         match value {
-            llama_cpp_bindings_sys::LLAMA_LOAD_MODE_AUTO => Ok(Self::Auto),
-            llama_cpp_bindings_sys::LLAMA_LOAD_MODE_NONE => Ok(Self::None),
-            llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MMAP => Ok(Self::Mmap),
-            llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MLOCK => Ok(Self::Mlock),
-            llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MMAP_MLOCK => Ok(Self::MmapMlock),
-            llama_cpp_bindings_sys::LLAMA_LOAD_MODE_DIRECT_IO => Ok(Self::DirectIo),
+            llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_AUTO => Ok(Self::Auto),
+            llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_NONE => Ok(Self::None),
+            llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MMAP => Ok(Self::Mmap),
+            llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MLOCK => Ok(Self::Mlock),
+            llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MMAP_MLOCK => Ok(Self::MmapMlock),
+            llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_DIRECT_IO => Ok(Self::DirectIo),
             value => Err(ParamsError::UnknownLoadMode { value }),
         }
     }
 }
 
-impl From<LlamaLoadMode> for llama_cpp_bindings_sys::llama_load_mode {
+impl From<LlamaLoadMode> for llama_cpp_bindings_sys::bindings::llama_load_mode {
     fn from(value: LlamaLoadMode) -> Self {
         match value {
-            LlamaLoadMode::Auto => llama_cpp_bindings_sys::LLAMA_LOAD_MODE_AUTO,
-            LlamaLoadMode::None => llama_cpp_bindings_sys::LLAMA_LOAD_MODE_NONE,
-            LlamaLoadMode::Mmap => llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MMAP,
-            LlamaLoadMode::Mlock => llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MLOCK,
-            LlamaLoadMode::MmapMlock => llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MMAP_MLOCK,
-            LlamaLoadMode::DirectIo => llama_cpp_bindings_sys::LLAMA_LOAD_MODE_DIRECT_IO,
+            LlamaLoadMode::Auto => llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_AUTO,
+            LlamaLoadMode::None => llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_NONE,
+            LlamaLoadMode::Mmap => llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MMAP,
+            LlamaLoadMode::Mlock => llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MLOCK,
+            LlamaLoadMode::MmapMlock => {
+                llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MMAP_MLOCK
+            }
+            LlamaLoadMode::DirectIo => llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_DIRECT_IO,
         }
     }
 }
@@ -47,33 +51,33 @@ mod tests {
     const LOAD_MODES: &[LoadModeMapping] = &[
         LoadModeMapping {
             load_mode: LlamaLoadMode::Auto,
-            ffi_value: llama_cpp_bindings_sys::LLAMA_LOAD_MODE_AUTO,
+            ffi_value: llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_AUTO,
         },
         LoadModeMapping {
             load_mode: LlamaLoadMode::None,
-            ffi_value: llama_cpp_bindings_sys::LLAMA_LOAD_MODE_NONE,
+            ffi_value: llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_NONE,
         },
         LoadModeMapping {
             load_mode: LlamaLoadMode::Mmap,
-            ffi_value: llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MMAP,
+            ffi_value: llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MMAP,
         },
         LoadModeMapping {
             load_mode: LlamaLoadMode::Mlock,
-            ffi_value: llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MLOCK,
+            ffi_value: llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MLOCK,
         },
         LoadModeMapping {
             load_mode: LlamaLoadMode::MmapMlock,
-            ffi_value: llama_cpp_bindings_sys::LLAMA_LOAD_MODE_MMAP_MLOCK,
+            ffi_value: llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_MMAP_MLOCK,
         },
         LoadModeMapping {
             load_mode: LlamaLoadMode::DirectIo,
-            ffi_value: llama_cpp_bindings_sys::LLAMA_LOAD_MODE_DIRECT_IO,
+            ffi_value: llama_cpp_bindings_sys::bindings::LLAMA_LOAD_MODE_DIRECT_IO,
         },
     ];
 
     struct LoadModeMapping {
         load_mode: LlamaLoadMode,
-        ffi_value: llama_cpp_bindings_sys::llama_load_mode,
+        ffi_value: llama_cpp_bindings_sys::bindings::llama_load_mode,
     }
 
     #[test]
@@ -84,7 +88,7 @@ mod tests {
         } in LOAD_MODES
         {
             assert_eq!(
-                llama_cpp_bindings_sys::llama_load_mode::from(load_mode),
+                llama_cpp_bindings_sys::bindings::llama_load_mode::from(load_mode),
                 ffi_value
             );
         }

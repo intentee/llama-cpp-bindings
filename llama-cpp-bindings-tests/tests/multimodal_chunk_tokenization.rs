@@ -336,8 +336,9 @@ fn tokenizing_reports_a_chunk_list_llama_cpp_cannot_allocate(
     &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNKS_INIT_THROWS,
+    );
 
     ensure!(
         MtmdInputChunks::tokenize(

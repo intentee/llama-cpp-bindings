@@ -9,16 +9,22 @@ pub enum LlamaBackendDeviceType {
     Meta,
 }
 
-impl TryFrom<llama_cpp_bindings_sys::ggml_backend_dev_type> for LlamaBackendDeviceType {
+impl TryFrom<llama_cpp_bindings_sys::bindings::ggml_backend_dev_type> for LlamaBackendDeviceType {
     type Error = BackendError;
 
-    fn try_from(value: llama_cpp_bindings_sys::ggml_backend_dev_type) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: llama_cpp_bindings_sys::bindings::ggml_backend_dev_type,
+    ) -> Result<Self, Self::Error> {
         match value {
-            llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_CPU => Ok(Self::Cpu),
-            llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_GPU => Ok(Self::Gpu),
-            llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_IGPU => Ok(Self::IntegratedGpu),
-            llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_ACCEL => Ok(Self::Accelerator),
-            llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_META => Ok(Self::Meta),
+            llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_CPU => Ok(Self::Cpu),
+            llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_GPU => Ok(Self::Gpu),
+            llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_IGPU => {
+                Ok(Self::IntegratedGpu)
+            }
+            llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_ACCEL => {
+                Ok(Self::Accelerator)
+            }
+            llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_META => Ok(Self::Meta),
             unknown => Err(BackendError::UnknownDeviceType(unknown)),
         }
     }
@@ -33,11 +39,11 @@ mod tests {
     fn every_ggml_device_type_converts_to_its_variant() {
         assert_eq!(
             [
-                llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_CPU,
-                llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_GPU,
-                llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_IGPU,
-                llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_ACCEL,
-                llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_META,
+                llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_CPU,
+                llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_GPU,
+                llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_IGPU,
+                llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_ACCEL,
+                llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_META,
             ]
             .map(LlamaBackendDeviceType::try_from),
             [

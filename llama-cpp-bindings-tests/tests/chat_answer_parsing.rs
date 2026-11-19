@@ -269,13 +269,13 @@ fn every_parsed_field_refuses_text_that_is_not_utf8(
     let answer = ChatOutput::from(
         "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n</function>\n</tool_call>",
     );
-    let expected_utf8_error = not_utf8();
+    let expected_utf8_error = not_utf8().context("a lone 0xff byte is not UTF-8")?;
     let fault_points = [
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_CONTENT_NOT_UTF8,
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_REASONING_CONTENT_NOT_UTF8,
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_ID_NOT_UTF8,
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_NAME_NOT_UTF8,
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NOT_UTF8,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_PARSED_CHAT_CONTENT_NOT_UTF8,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_PARSED_CHAT_REASONING_CONTENT_NOT_UTF8,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_ID_NOT_UTF8,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_NAME_NOT_UTF8,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_PARSED_CHAT_TOOL_CALL_ARGUMENTS_NOT_UTF8,
     ];
 
     let mut parse_errors = Vec::new();
@@ -292,7 +292,7 @@ fn every_parsed_field_refuses_text_that_is_not_utf8(
     ensure!(
         parse_errors
             == fault_points
-                .map(|_fault_point| expected_utf8_error.map(ChatError::ParsedTextNotUtf8))
+                .map(|_fault_point| Some(ChatError::ParsedTextNotUtf8(expected_utf8_error)))
     );
 
     Ok(())
@@ -314,8 +314,9 @@ fn a_reading_maps_its_parse_once_and_keeps_it(
         ChatOutputCompleteness::Finished,
     )?;
     let first_parse = reading.parse().cloned();
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_READING_PARSE_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_READING_PARSE_THROWS,
+    );
 
     ensure!(reading.parse().cloned() == first_parse);
 

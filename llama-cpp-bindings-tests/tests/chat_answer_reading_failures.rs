@@ -27,8 +27,9 @@ fn reading_an_answer_reports_a_parse_llama_cpp_fails(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = weather_chat_session(model, ChatToolChoice::Auto)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
+    );
 
     ensure!(
         session
@@ -62,8 +63,9 @@ fn parsing_a_reading_reports_a_mapping_llama_cpp_fails(
             ChatOutputCompleteness::Finished,
         )
         .context("the answer must be read")?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_READING_PARSE_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_READING_PARSE_THROWS,
+    );
 
     ensure!(
         reading.parse().err()
@@ -88,7 +90,7 @@ fn reading_an_answer_that_does_not_match_the_format_refuses_a_format_name_that_i
 ) -> Result<()> {
     let session = weather_chat_session(model, ChatToolChoice::Auto)?;
     let _fault = ArmedFault::at(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_READING_FORMAT_NAME_NOT_UTF8,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_READING_FORMAT_NAME_NOT_UTF8,
     );
 
     ensure!(
@@ -98,7 +100,9 @@ fn reading_an_answer_that_does_not_match_the_format_refuses_a_format_name_that_i
                 ChatOutputCompleteness::Finished,
             )
             .err()
-            == not_utf8().map(ChatError::FormatNameNotUtf8)
+            == Some(ChatError::FormatNameNotUtf8(
+                not_utf8().context("a lone 0xff byte is not UTF-8")?
+            ))
     );
 
     Ok(())

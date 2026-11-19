@@ -10,14 +10,14 @@ use crate::llama_context_params::LlamaContextParams;
 /// accounted for by the fitted model, as they are for an MTP context.
 pub struct FitExtraModel<'extra_model> {
     pub model_path: &'extra_model CStr,
-    pub model_params: &'extra_model mut llama_cpp_bindings_sys::llama_model_params,
+    pub model_params: &'extra_model mut llama_cpp_bindings_sys::bindings::llama_model_params,
     pub context_params: &'extra_model mut LlamaContextParams,
     pub shares_model: bool,
 }
 
 impl FitExtraModel<'_> {
-    pub const fn as_ffi(&mut self) -> llama_cpp_bindings_sys::llama_rs_fit_extra_model {
-        llama_cpp_bindings_sys::llama_rs_fit_extra_model {
+    pub const fn as_ffi(&mut self) -> llama_cpp_bindings_sys::bindings::llama_rs_fit_extra_model {
+        llama_cpp_bindings_sys::bindings::llama_rs_fit_extra_model {
             path_model: self.model_path.as_ptr(),
             mparams: &raw mut *self.model_params,
             cparams: &raw mut self.context_params.context_params,

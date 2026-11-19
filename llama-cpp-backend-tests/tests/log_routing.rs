@@ -17,7 +17,7 @@ fn records_with_text(target: &str, text: &str) -> Vec<CapturedRecord> {
 }
 
 fn emit_warning(callback: &RegisteredLogCallback, text: &CStr) -> bool {
-    callback.emit(llama_cpp_bindings_sys::GGML_LOG_LEVEL_WARN, text)
+    callback.emit(llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_WARN, text)
 }
 
 #[test]
@@ -49,10 +49,10 @@ fn sending_logs_to_log_creates_the_llama_cpp_source_and_routes_ggml_logs() {
     LogOptions::default().send_logs_to_log();
 
     let model_of_no_splits = unsafe {
-        llama_cpp_bindings_sys::llama_model_load_from_splits(
+        llama_cpp_bindings_sys::bindings::llama_model_load_from_splits(
             ptr::null_mut(),
             0,
-            llama_cpp_bindings_sys::llama_model_default_params(),
+            llama_cpp_bindings_sys::bindings::llama_model_default_params(),
         )
     };
 

@@ -12,7 +12,7 @@ pub fn load_backends_from_path(path: &Path) -> Result<(), BackendError> {
     let path_cstring = path_c_string(path).map_err(BackendError::BackendDirectoryPathInvalid)?;
 
     unsafe {
-        llama_cpp_bindings_sys::ggml_backend_load_all_from_path(path_cstring.as_ptr());
+        llama_cpp_bindings_sys::bindings::ggml_backend_load_all_from_path(path_cstring.as_ptr());
     }
 
     Ok(())
@@ -58,11 +58,12 @@ mod tests {
 
     #[test]
     fn a_directory_without_backend_libraries_loads_no_backend() {
-        let registered_before = unsafe { llama_cpp_bindings_sys::ggml_backend_reg_count() };
+        let registered_before =
+            unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_reg_count() };
 
         assert_eq!(load_backends_from_path(&env::temp_dir()), Ok(()));
         assert_eq!(
-            unsafe { llama_cpp_bindings_sys::ggml_backend_reg_count() },
+            unsafe { llama_cpp_bindings_sys::bindings::ggml_backend_reg_count() },
             registered_before
         );
     }

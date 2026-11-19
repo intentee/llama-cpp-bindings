@@ -30,17 +30,23 @@ fn tool_call_id_reported_by_llama_cpp(llama_cpp_tool_call_id: String) -> ParsedT
 }
 
 fn parsed_tool_call(
-    handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
+    handle: *mut llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat,
     index: usize,
 ) -> Result<ParsedToolCall, ChatError> {
     let id = parsed_text(|out_length| unsafe {
-        llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_id(handle, index, out_length)
+        llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat_tool_call_id(
+            handle, index, out_length,
+        )
     })?;
     let name = parsed_text(|out_length| unsafe {
-        llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_name(handle, index, out_length)
+        llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat_tool_call_name(
+            handle, index, out_length,
+        )
     })?;
     let arguments = parsed_text(|out_length| unsafe {
-        llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_arguments(handle, index, out_length)
+        llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat_tool_call_arguments(
+            handle, index, out_length,
+        )
     })?;
 
     Ok(ParsedToolCall::new(
@@ -51,16 +57,16 @@ fn parsed_tool_call(
 }
 
 fn collect_parsed_chat_message(
-    handle: *mut llama_cpp_bindings_sys::llama_rs_parsed_chat,
+    handle: *mut llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat,
 ) -> Result<ParsedChatMessage, ChatError> {
     let content = parsed_text(|out_length| unsafe {
-        llama_cpp_bindings_sys::llama_rs_parsed_chat_content(handle, out_length)
+        llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat_content(handle, out_length)
     })?;
     let reasoning_content = parsed_text(|out_length| unsafe {
-        llama_cpp_bindings_sys::llama_rs_parsed_chat_reasoning_content(handle, out_length)
+        llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat_reasoning_content(handle, out_length)
     })?;
     let tool_call_count =
-        unsafe { llama_cpp_bindings_sys::llama_rs_parsed_chat_tool_call_count(handle) };
+        unsafe { llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat_tool_call_count(handle) };
     let tool_calls = (0..tool_call_count)
         .map(|index| parsed_tool_call(handle, index))
         .collect::<Result<Vec<ParsedToolCall>, ChatError>>()?;
@@ -78,11 +84,11 @@ fn collect_parsed_chat_message(
 ///
 /// Returns [`ChatError`] when an accessor fails or reports text that is not UTF-8.
 pub fn take_parsed_chat_message(
-    handle: NonNull<llama_cpp_bindings_sys::llama_rs_parsed_chat>,
+    handle: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat>,
 ) -> Result<ParsedChatMessage, ChatError> {
     let message = collect_parsed_chat_message(handle.as_ptr());
 
-    unsafe { llama_cpp_bindings_sys::llama_rs_parsed_chat_free(handle.as_ptr()) };
+    unsafe { llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat_free(handle.as_ptr()) };
 
     message
 }

@@ -16,7 +16,7 @@ unsafe fn marker_bytes_to_str(c_str: *const c_char) -> Result<&'static str, Mtmd
 /// the llama.cpp library; surfacing the error keeps the failure explicit rather than
 /// papering over it with a substituted literal.
 pub fn mtmd_default_marker() -> Result<&'static str, MtmdError> {
-    unsafe { marker_bytes_to_str(llama_cpp_bindings_sys::mtmd_default_marker()) }
+    unsafe { marker_bytes_to_str(llama_cpp_bindings_sys::bindings::mtmd_default_marker()) }
 }
 
 #[cfg(test)]

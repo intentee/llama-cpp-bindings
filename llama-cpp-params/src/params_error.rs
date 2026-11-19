@@ -1,9 +1,15 @@
-use llama_cpp_wrapper_string::wrapper_string_error::WrapperStringError;
+use std::string::FromUtf8Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ParamsError {
     #[error("Backend device {0} not found")]
     BackendDeviceNotFound(usize),
+    #[error("the exception message reported by {operation} is not valid UTF-8")]
+    ExceptionMessageNotUtf8 {
+        operation: &'static str,
+        #[source]
+        source: FromUtf8Error,
+    },
     #[error("parameter fitting aborted")]
     FitAborted,
     #[error("the llama.cpp library ran out of memory")]
@@ -28,37 +34,21 @@ pub enum ParamsError {
     #[error("Override slot is not empty")]
     OverrideSlotNotEmpty,
     #[error("attention type {0} is not a value llama.cpp defines")]
-    UnknownAttentionType(llama_cpp_bindings_sys::llama_attention_type),
+    UnknownAttentionType(llama_cpp_bindings_sys::bindings::llama_attention_type),
     #[error("parameter fitting returned an unknown status code: {code}")]
     UnknownFitStatus { code: i32 },
     #[error("unknown KV override tag: {0}")]
-    UnknownKvOverrideTag(llama_cpp_bindings_sys::llama_model_kv_override_type),
+    UnknownKvOverrideTag(llama_cpp_bindings_sys::bindings::llama_model_kv_override_type),
     #[error("unknown llama lazy mode {value}")]
     UnknownLazyMode { value: i64 },
     #[error("unknown llama load mode {value}")]
     UnknownLoadMode { value: i32 },
     #[error("pooling type {0} is not a value llama.cpp defines")]
-    UnknownPoolingType(llama_cpp_bindings_sys::llama_pooling_type),
+    UnknownPoolingType(llama_cpp_bindings_sys::bindings::llama_pooling_type),
     #[error("rope scaling type {0} is not a value llama.cpp defines")]
-    UnknownRopeScalingType(llama_cpp_bindings_sys::llama_rope_scaling_type),
+    UnknownRopeScalingType(llama_cpp_bindings_sys::bindings::llama_rope_scaling_type),
     #[error("unknown split mode value: {value}")]
     UnknownSplitMode {
-        value: llama_cpp_bindings_sys::llama_split_mode,
+        value: llama_cpp_bindings_sys::bindings::llama_split_mode,
     },
-    #[error("{operation} returned unknown FFI status {code}")]
-    UnknownWrapperStatus { operation: &'static str, code: i64 },
-    #[error(
-        "{operation} returned an invalid FFI response: was given an extra model with a null {argument} argument"
-    )]
-    WrapperRefusedExtraModelNullArgument {
-        operation: &'static str,
-        argument: &'static str,
-    },
-    #[error("{operation} returned an invalid FFI response: was given a null {argument} argument")]
-    WrapperRefusedNullArgument {
-        operation: &'static str,
-        argument: &'static str,
-    },
-    #[error(transparent)]
-    WrapperString(#[from] WrapperStringError),
 }

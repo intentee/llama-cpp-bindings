@@ -6,5 +6,6 @@ pub mod lazy_grammar_triggers;
 pub mod llama_sampler;
 mod llguidance_sampler_context;
 pub mod mask_outcome;
+mod read_exception_message;
 pub mod sampler_error;
 pub mod sanitized_grammar;

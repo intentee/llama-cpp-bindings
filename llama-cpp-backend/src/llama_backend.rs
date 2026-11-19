@@ -14,7 +14,7 @@ impl LlamaBackend {
     /// Returns an error if the backend was already initialized.
     pub fn init() -> Result<Self, BackendError> {
         Self::mark_init()?;
-        unsafe { llama_cpp_bindings_sys::llama_backend_init() }
+        unsafe { llama_cpp_bindings_sys::bindings::llama_backend_init() }
         Ok(Self {})
     }
 
@@ -27,8 +27,8 @@ impl LlamaBackend {
         let backend = Self::init()?;
 
         unsafe {
-            llama_cpp_bindings_sys::llama_numa_init(
-                llama_cpp_bindings_sys::ggml_numa_strategy::from(strategy),
+            llama_cpp_bindings_sys::bindings::llama_numa_init(
+                llama_cpp_bindings_sys::bindings::ggml_numa_strategy::from(strategy),
             );
         }
 
@@ -37,17 +37,17 @@ impl LlamaBackend {
 
     #[must_use]
     pub fn supports_gpu_offload() -> bool {
-        unsafe { llama_cpp_bindings_sys::llama_supports_gpu_offload() }
+        unsafe { llama_cpp_bindings_sys::bindings::llama_supports_gpu_offload() }
     }
 
     #[must_use]
     pub fn supports_mlock() -> bool {
-        unsafe { llama_cpp_bindings_sys::llama_supports_mlock() }
+        unsafe { llama_cpp_bindings_sys::bindings::llama_supports_mlock() }
     }
 
     #[must_use]
     pub fn supports_mmap() -> bool {
-        unsafe { llama_cpp_bindings_sys::llama_supports_mmap() }
+        unsafe { llama_cpp_bindings_sys::bindings::llama_supports_mmap() }
     }
 
     fn mark_init() -> Result<(), BackendError> {
@@ -61,6 +61,6 @@ impl LlamaBackend {
 impl Drop for LlamaBackend {
     fn drop(&mut self) {
         LLAMA_BACKEND_INITIALIZED.store(false, SeqCst);
-        unsafe { llama_cpp_bindings_sys::llama_backend_free() }
+        unsafe { llama_cpp_bindings_sys::bindings::llama_backend_free() }
     }
 }

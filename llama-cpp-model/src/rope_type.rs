@@ -10,17 +10,19 @@ pub enum RopeType {
     Vision,
 }
 
-impl TryFrom<llama_cpp_bindings_sys::llama_rope_type> for RopeType {
+impl TryFrom<llama_cpp_bindings_sys::bindings::llama_rope_type> for RopeType {
     type Error = ModelError;
 
-    fn try_from(value: llama_cpp_bindings_sys::llama_rope_type) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: llama_cpp_bindings_sys::bindings::llama_rope_type,
+    ) -> Result<Self, Self::Error> {
         match value {
-            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NONE => Ok(Self::None),
-            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NORM => Ok(Self::Norm),
-            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NEOX => Ok(Self::NeoX),
-            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_MROPE => Ok(Self::MRope),
-            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE => Ok(Self::IMRope),
-            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_VISION => Ok(Self::Vision),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_NONE => Ok(Self::None),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_NORM => Ok(Self::Norm),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_NEOX => Ok(Self::NeoX),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_MROPE => Ok(Self::MRope),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_IMROPE => Ok(Self::IMRope),
+            llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_VISION => Ok(Self::Vision),
             unknown => Err(ModelError::UnknownRopeType(unknown)),
         }
     }
@@ -47,12 +49,12 @@ mod tests {
     fn every_llama_cpp_rope_type_converts_to_its_variant() {
         assert_eq!(
             [
-                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NONE,
-                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NORM,
-                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_NEOX,
-                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_MROPE,
-                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE,
-                llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_VISION,
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_NONE,
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_NORM,
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_NEOX,
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_MROPE,
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_IMROPE,
+                llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_VISION,
             ]
             .map(RopeType::try_from),
             [

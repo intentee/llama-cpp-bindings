@@ -15,15 +15,16 @@ pub struct MtmdContextParams {
 
 impl Default for MtmdContextParams {
     fn default() -> Self {
-        unsafe { llama_cpp_bindings_sys::mtmd_context_params_default() }.into()
+        unsafe { llama_cpp_bindings_sys::bindings::mtmd_context_params_default() }.into()
     }
 }
 
-impl TryFrom<&MtmdContextParams> for llama_cpp_bindings_sys::mtmd_context_params {
+impl TryFrom<&MtmdContextParams> for llama_cpp_bindings_sys::bindings::mtmd_context_params {
     type Error = MtmdError;
 
     fn try_from(params: &MtmdContextParams) -> Result<Self, Self::Error> {
-        let mut context = unsafe { llama_cpp_bindings_sys::mtmd_context_params_default() };
+        let mut context =
+            unsafe { llama_cpp_bindings_sys::bindings::mtmd_context_params_default() };
         let MtmdContextParams {
             use_gpu,
             print_timings,
@@ -56,9 +57,9 @@ impl TryFrom<&MtmdContextParams> for llama_cpp_bindings_sys::mtmd_context_params
     }
 }
 
-impl From<llama_cpp_bindings_sys::mtmd_context_params> for MtmdContextParams {
+impl From<llama_cpp_bindings_sys::bindings::mtmd_context_params> for MtmdContextParams {
     fn from(
-        llama_cpp_bindings_sys::mtmd_context_params {
+        llama_cpp_bindings_sys::bindings::mtmd_context_params {
             use_gpu,
             print_timings,
             n_threads,
@@ -66,7 +67,7 @@ impl From<llama_cpp_bindings_sys::mtmd_context_params> for MtmdContextParams {
             image_min_tokens,
             image_max_tokens,
             ..
-        }: llama_cpp_bindings_sys::mtmd_context_params,
+        }: llama_cpp_bindings_sys::bindings::mtmd_context_params,
     ) -> Self {
         Self {
             use_gpu,
@@ -100,7 +101,7 @@ mod tests {
         };
 
         assert_eq!(
-            llama_cpp_bindings_sys::mtmd_context_params::try_from(&params)
+            llama_cpp_bindings_sys::bindings::mtmd_context_params::try_from(&params)
                 .map(|c_params| [c_params.image_min_tokens, c_params.image_max_tokens]),
             Ok([16, 64])
         );
@@ -114,7 +115,7 @@ mod tests {
         };
 
         assert_eq!(
-            llama_cpp_bindings_sys::mtmd_context_params::try_from(&params).err(),
+            llama_cpp_bindings_sys::bindings::mtmd_context_params::try_from(&params).err(),
             i32::try_from(u32::MAX).err().map(|source| {
                 MtmdError::ImageMinTokensExceedCInt {
                     limit: UNREPRESENTABLE_LIMIT,
@@ -132,7 +133,7 @@ mod tests {
         };
 
         assert_eq!(
-            llama_cpp_bindings_sys::mtmd_context_params::try_from(&params).err(),
+            llama_cpp_bindings_sys::bindings::mtmd_context_params::try_from(&params).err(),
             i32::try_from(u32::MAX).err().map(|source| {
                 MtmdError::ImageMaxTokensExceedCInt {
                     limit: UNREPRESENTABLE_LIMIT,

@@ -1,8 +1,8 @@
 use std::borrow::Borrow;
 
+use crate::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
-use crate::mtmd_input_chunk::MtmdInputChunk;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::mtmd_input_chunks::MtmdInputChunks;
 
@@ -42,14 +42,18 @@ where
         })
     }
 
+    /// Every chunk in order, each with the type it was fitted as.
     #[must_use]
-    pub fn chunk_type(&self, chunk_index: usize) -> Option<MtmdInputChunkType> {
-        self.chunk_types.get(chunk_index).copied()
-    }
-
-    #[must_use]
-    pub fn get(&self, chunk_index: usize) -> Option<MtmdInputChunk> {
-        self.chunks.borrow().get(chunk_index)
+    pub fn fitted_chunks(&self) -> Vec<FittedMtmdInputChunk<'_>> {
+        self.chunks
+            .borrow()
+            .chunks()
+            .into_iter()
+            .zip(self.chunk_types.iter().copied())
+            .map(|(chunk, chunk_type)| {
+                FittedMtmdInputChunk::new(chunk, chunk_type, self.micro_batch_tokens)
+            })
+            .collect()
     }
 
     #[must_use]

@@ -20,38 +20,8 @@ extern "C" auto llama_rs_fit_params(
     enum ggml_log_level log_level,
     int32_t * out_unrecognized_status_code,
     char ** out_error) -> llama_rs_fit_params_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (out_unrecognized_status_code != nullptr) {
-        *out_unrecognized_status_code = 0;
-    }
-    if (path_model == nullptr) {
-        return LLAMA_RS_FIT_PARAMS_NULL_PATH_MODEL_ARG;
-    }
-    if (mparams == nullptr) {
-        return LLAMA_RS_FIT_PARAMS_NULL_MPARAMS_ARG;
-    }
-    if (cparams == nullptr) {
-        return LLAMA_RS_FIT_PARAMS_NULL_CPARAMS_ARG;
-    }
-    if (out_unrecognized_status_code == nullptr) {
-        return LLAMA_RS_FIT_PARAMS_NULL_OUT_UNRECOGNIZED_STATUS_CODE_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_FIT_PARAMS_NULL_OUT_ERROR_ARG;
-    }
-    if (extra != nullptr) {
-        if (extra->path_model == nullptr) {
-            return LLAMA_RS_FIT_PARAMS_NULL_EXTRA_PATH_MODEL_ARG;
-        }
-        if (extra->mparams == nullptr) {
-            return LLAMA_RS_FIT_PARAMS_NULL_EXTRA_MPARAMS_ARG;
-        }
-        if (extra->cparams == nullptr) {
-            return LLAMA_RS_FIT_PARAMS_NULL_EXTRA_CPARAMS_ARG;
-        }
-    }
+    *out_error = nullptr;
+    *out_unrecognized_status_code = 0;
 
     try {
         common_fit_extra_model llama_cpp_extra{};

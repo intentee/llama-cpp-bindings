@@ -6,7 +6,7 @@ use llama_cpp_test_harness_macros::llama_test;
 
 fn listing_with_missing_text_after(passing_hits: usize) -> Option<BackendError> {
     let _fault = ArmedFault::after_passing(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BACKEND_DEVICE_TEXT_NULL,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_BACKEND_DEVICE_TEXT_NULL,
         passing_hits,
     );
 
@@ -41,13 +41,14 @@ fn a_device_text_ggml_does_not_report_refuses_the_listing(_fixture: &LlamaFixtur
     n_ubatch = 128,
 )]
 fn a_device_type_ggml_does_not_define_refuses_the_listing(_fixture: &LlamaFixture<'_>) {
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BACKEND_DEVICE_TYPE_UNKNOWN);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_BACKEND_DEVICE_TYPE_UNKNOWN,
+    );
 
     assert_eq!(
         LlamaBackendDevice::list_all().err(),
         Some(BackendError::UnknownDeviceType(
-            llama_cpp_bindings_sys::GGML_BACKEND_DEVICE_TYPE_META + 1
+            llama_cpp_bindings_sys::bindings::GGML_BACKEND_DEVICE_TYPE_META + 1
         ))
     );
 }

@@ -63,7 +63,7 @@ fn fit_params_fits_a_nonzero_context_for_the_model(
         &mut margins,
         512,
         None,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
     );
 
     let fit = result?;
@@ -106,7 +106,7 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
         &mut margins,
         512,
         Some(&mut extra),
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
     );
 
     let fit = result?;
@@ -157,7 +157,7 @@ fn fit_params_fits_the_model_beside_the_projector_memory_reserved_on_its_device(
         &mut margins,
         512,
         None,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
     )?;
 
     ensure!(fit.n_ctx > 0);

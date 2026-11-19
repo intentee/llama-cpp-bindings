@@ -1,6 +1,6 @@
 #[must_use]
 pub fn llama_time_us() -> i64 {
-    unsafe { llama_cpp_bindings_sys::llama_time_us() }
+    unsafe { llama_cpp_bindings_sys::bindings::llama_time_us() }
 }
 
 #[cfg(test)]

@@ -16,7 +16,6 @@ llama-cpp-context = { workspace = true }
 llama-cpp-error-recorder = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
 llama-cpp-model = { workspace = true }
-llama-cpp-wrapper-string = { workspace = true }
 llguidance = { workspace = true }
 thiserror = { workspace = true }
 toktrie = { workspace = true }

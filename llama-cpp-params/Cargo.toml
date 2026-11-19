@@ -12,7 +12,6 @@ doctest = false
 [dependencies]
 llama-cpp-backend = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
-llama-cpp-wrapper-string = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]

@@ -18,7 +18,7 @@ const F32_SIZE_IN_BYTES: usize = size_of::<f32>();
 
 #[derive(Debug)]
 pub struct GgufContext {
-    context: NonNull<llama_cpp_bindings_sys::gguf_context>,
+    context: NonNull<llama_cpp_bindings_sys::bindings::gguf_context>,
     path: PathBuf,
 }
 
@@ -32,13 +32,14 @@ impl GgufContext {
         let path_ref = path.as_ref();
         let c_path = path_c_string(path_ref).map_err(GgufContextError::LoadPathInvalid)?;
 
-        let init_params = llama_cpp_bindings_sys::gguf_init_params {
+        let init_params = llama_cpp_bindings_sys::bindings::gguf_init_params {
             no_alloc: true,
             ctx: ptr::null_mut(),
         };
 
-        let raw =
-            unsafe { llama_cpp_bindings_sys::gguf_init_from_file(c_path.as_ptr(), init_params) };
+        let raw = unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_init_from_file(c_path.as_ptr(), init_params)
+        };
         let context = NonNull::new(raw)
             .ok_or_else(|| GgufContextError::InitFailed(path_ref.to_path_buf()))?;
 
@@ -54,8 +55,9 @@ impl GgufContext {
     /// Returns [`GgufContextError::KeyContainsNulByte`] if the key contains a null byte.
     pub fn find_key(&self, key: &str) -> Result<i64, GgufContextError> {
         let c_key = CString::new(key).map_err(GgufContextError::KeyContainsNulByte)?;
-        let index =
-            unsafe { llama_cpp_bindings_sys::gguf_find_key(self.context.as_ptr(), c_key.as_ptr()) };
+        let index = unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_find_key(self.context.as_ptr(), c_key.as_ptr())
+        };
 
         if index < 0 {
             return Err(GgufContextError::KeyNotFound {
@@ -74,7 +76,7 @@ impl GgufContext {
         self.require_key_id_in_range(key_id)?;
 
         let c_str = unsafe {
-            CStr::from_ptr(llama_cpp_bindings_sys::gguf_get_key(
+            CStr::from_ptr(llama_cpp_bindings_sys::bindings::gguf_get_key(
                 self.context.as_ptr(),
                 key_id,
             ))
@@ -92,20 +94,21 @@ impl GgufContext {
     pub fn kv_type(&self, key_id: i64) -> Result<GgufType, GgufContextError> {
         self.require_key_id_in_range(key_id)?;
 
-        let raw_type =
-            unsafe { llama_cpp_bindings_sys::gguf_get_kv_type(self.context.as_ptr(), key_id) };
+        let raw_type = unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_kv_type(self.context.as_ptr(), key_id)
+        };
 
         GgufType::from_raw(raw_type).ok_or(GgufContextError::UnknownValueType { key_id, raw_type })
     }
 
     #[must_use]
     pub fn n_kv(&self) -> i64 {
-        unsafe { llama_cpp_bindings_sys::gguf_get_n_kv(self.context.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::gguf_get_n_kv(self.context.as_ptr()) }
     }
 
     #[must_use]
     pub fn n_tensors(&self) -> i64 {
-        unsafe { llama_cpp_bindings_sys::gguf_get_n_tensors(self.context.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::gguf_get_n_tensors(self.context.as_ptr()) }
     }
 
     /// # Errors
@@ -117,7 +120,10 @@ impl GgufContext {
     pub fn read_tensor_f32(&self, name: &str) -> Result<GgufTensorF32, GgufContextError> {
         let c_name = CString::new(name).map_err(GgufContextError::TensorNameContainsNulByte)?;
         let tensor_id = unsafe {
-            llama_cpp_bindings_sys::gguf_find_tensor(self.context.as_ptr(), c_name.as_ptr())
+            llama_cpp_bindings_sys::bindings::gguf_find_tensor(
+                self.context.as_ptr(),
+                c_name.as_ptr(),
+            )
         };
 
         if tensor_id < 0 {
@@ -127,10 +133,10 @@ impl GgufContext {
         }
 
         let ggml_type = unsafe {
-            llama_cpp_bindings_sys::gguf_get_tensor_type(self.context.as_ptr(), tensor_id)
+            llama_cpp_bindings_sys::bindings::gguf_get_tensor_type(self.context.as_ptr(), tensor_id)
         };
 
-        if ggml_type != llama_cpp_bindings_sys::GGML_TYPE_F32 {
+        if ggml_type != llama_cpp_bindings_sys::bindings::GGML_TYPE_F32 {
             return Err(GgufContextError::TensorIsNotF32 {
                 name: name.to_owned(),
                 ggml_type,
@@ -149,17 +155,20 @@ impl GgufContext {
     /// Returns [`GgufContextError::KeyContainsNulByte`] if the key contains a null byte.
     pub fn remove_key(&mut self, key: &str) -> Result<(), GgufContextError> {
         let key_id = self.find_key(key)?;
-        let stored_key =
-            unsafe { llama_cpp_bindings_sys::gguf_get_key(self.context.as_ptr(), key_id) };
+        let stored_key = unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_key(self.context.as_ptr(), key_id)
+        };
 
-        unsafe { llama_cpp_bindings_sys::gguf_remove_key(self.context.as_ptr(), stored_key) };
+        unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_remove_key(self.context.as_ptr(), stored_key)
+        };
 
         Ok(())
     }
 
     pub fn set_arr_i32(&mut self, key: &CStr, values: &[i32]) {
         unsafe {
-            llama_cpp_bindings_sys::gguf_set_arr_data(
+            llama_cpp_bindings_sys::bindings::gguf_set_arr_data(
                 self.context.as_ptr(),
                 key.as_ptr(),
                 GgufType::Int32.to_raw(),
@@ -171,7 +180,7 @@ impl GgufContext {
 
     pub fn set_val_str(&mut self, key: &CStr, value: &CStr) {
         unsafe {
-            llama_cpp_bindings_sys::gguf_set_val_str(
+            llama_cpp_bindings_sys::bindings::gguf_set_val_str(
                 self.context.as_ptr(),
                 key.as_ptr(),
                 value.as_ptr(),
@@ -181,7 +190,11 @@ impl GgufContext {
 
     pub fn set_val_u32(&mut self, key: &CStr, value: u32) {
         unsafe {
-            llama_cpp_bindings_sys::gguf_set_val_u32(self.context.as_ptr(), key.as_ptr(), value);
+            llama_cpp_bindings_sys::bindings::gguf_set_val_u32(
+                self.context.as_ptr(),
+                key.as_ptr(),
+                value,
+            );
         }
     }
 
@@ -194,8 +207,9 @@ impl GgufContext {
     pub fn val_arr_i32(&self, key_id: i64) -> Result<&[i32], GgufContextError> {
         self.require_value_type(key_id, GgufType::Array)?;
 
-        let element_type =
-            unsafe { llama_cpp_bindings_sys::gguf_get_arr_type(self.context.as_ptr(), key_id) };
+        let element_type = unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_arr_type(self.context.as_ptr(), key_id)
+        };
 
         if element_type != GgufType::Int32.to_raw() {
             return Err(GgufContextError::ArrayElementTypeMismatch {
@@ -207,9 +221,9 @@ impl GgufContext {
 
         Ok(unsafe {
             slice::from_raw_parts(
-                llama_cpp_bindings_sys::gguf_get_arr_data(self.context.as_ptr(), key_id)
+                llama_cpp_bindings_sys::bindings::gguf_get_arr_data(self.context.as_ptr(), key_id)
                     .cast::<i32>(),
-                llama_cpp_bindings_sys::gguf_get_arr_n(self.context.as_ptr(), key_id),
+                llama_cpp_bindings_sys::bindings::gguf_get_arr_n(self.context.as_ptr(), key_id),
             )
         })
     }
@@ -221,7 +235,9 @@ impl GgufContext {
     pub fn val_f32(&self, key_id: i64) -> Result<f32, GgufContextError> {
         self.require_value_type(key_id, GgufType::Float32)?;
 
-        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_f32(self.context.as_ptr(), key_id) })
+        Ok(unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_val_f32(self.context.as_ptr(), key_id)
+        })
     }
 
     /// # Errors
@@ -231,7 +247,9 @@ impl GgufContext {
     pub fn val_i32(&self, key_id: i64) -> Result<i32, GgufContextError> {
         self.require_value_type(key_id, GgufType::Int32)?;
 
-        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_i32(self.context.as_ptr(), key_id) })
+        Ok(unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_val_i32(self.context.as_ptr(), key_id)
+        })
     }
 
     /// # Errors
@@ -243,7 +261,7 @@ impl GgufContext {
         self.require_value_type(key_id, GgufType::String)?;
 
         let c_str = unsafe {
-            CStr::from_ptr(llama_cpp_bindings_sys::gguf_get_val_str(
+            CStr::from_ptr(llama_cpp_bindings_sys::bindings::gguf_get_val_str(
                 self.context.as_ptr(),
                 key_id,
             ))
@@ -261,7 +279,9 @@ impl GgufContext {
     pub fn val_u32(&self, key_id: i64) -> Result<u32, GgufContextError> {
         self.require_value_type(key_id, GgufType::Uint32)?;
 
-        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_u32(self.context.as_ptr(), key_id) })
+        Ok(unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_val_u32(self.context.as_ptr(), key_id)
+        })
     }
 
     /// # Errors
@@ -271,7 +291,9 @@ impl GgufContext {
     pub fn val_u64(&self, key_id: i64) -> Result<u64, GgufContextError> {
         self.require_value_type(key_id, GgufType::Uint64)?;
 
-        Ok(unsafe { llama_cpp_bindings_sys::gguf_get_val_u64(self.context.as_ptr(), key_id) })
+        Ok(unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_val_u64(self.context.as_ptr(), key_id)
+        })
     }
 
     /// # Errors
@@ -288,8 +310,9 @@ impl GgufContext {
                 path: self.path.clone(),
                 source,
             })?;
-        let data_offset =
-            unsafe { llama_cpp_bindings_sys::gguf_get_data_offset(self.context.as_ptr()) };
+        let data_offset = unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_data_offset(self.context.as_ptr())
+        };
 
         if gguf_bytes.len() < data_offset {
             return Err(GgufContextError::SourceFileTruncated {
@@ -310,11 +333,15 @@ impl GgufContext {
     }
 
     fn metadata_bytes(&self) -> Vec<u8> {
-        let mut metadata =
-            vec![0; unsafe { llama_cpp_bindings_sys::gguf_get_meta_size(self.context.as_ptr()) }];
+        let mut metadata = vec![
+            0;
+            unsafe {
+                llama_cpp_bindings_sys::bindings::gguf_get_meta_size(self.context.as_ptr())
+            }
+        ];
 
         unsafe {
-            llama_cpp_bindings_sys::gguf_get_meta_data(
+            llama_cpp_bindings_sys::bindings::gguf_get_meta_data(
                 self.context.as_ptr(),
                 metadata.as_mut_ptr().cast(),
             );
@@ -348,13 +375,17 @@ impl GgufContext {
     }
 
     fn tensor_f32_values(&self, name: &str, tensor_id: i64) -> Result<Vec<f32>, GgufContextError> {
-        let data_offset =
-            unsafe { llama_cpp_bindings_sys::gguf_get_data_offset(self.context.as_ptr()) };
+        let data_offset = unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_get_data_offset(self.context.as_ptr())
+        };
         let tensor_offset = unsafe {
-            llama_cpp_bindings_sys::gguf_get_tensor_offset(self.context.as_ptr(), tensor_id)
+            llama_cpp_bindings_sys::bindings::gguf_get_tensor_offset(
+                self.context.as_ptr(),
+                tensor_id,
+            )
         };
         let tensor_size = unsafe {
-            llama_cpp_bindings_sys::gguf_get_tensor_size(self.context.as_ptr(), tensor_id)
+            llama_cpp_bindings_sys::bindings::gguf_get_tensor_size(self.context.as_ptr(), tensor_id)
         };
         let read_failed = |source: io::Error| GgufContextError::TensorReadFailed {
             name: name.to_owned(),
@@ -381,14 +412,17 @@ impl GgufContext {
     fn tensor_shape(
         &self,
         tensor_id: i64,
-    ) -> [i64; llama_cpp_bindings_sys::GGML_MAX_DIMS as usize] {
+    ) -> [i64; llama_cpp_bindings_sys::bindings::GGML_MAX_DIMS as usize] {
         let element_counts = unsafe {
             slice::from_raw_parts(
-                llama_cpp_bindings_sys::gguf_get_tensor_ne(self.context.as_ptr(), tensor_id),
-                llama_cpp_bindings_sys::GGML_MAX_DIMS as usize,
+                llama_cpp_bindings_sys::bindings::gguf_get_tensor_ne(
+                    self.context.as_ptr(),
+                    tensor_id,
+                ),
+                llama_cpp_bindings_sys::bindings::GGML_MAX_DIMS as usize,
             )
         };
-        let mut shape = [0; llama_cpp_bindings_sys::GGML_MAX_DIMS as usize];
+        let mut shape = [0; llama_cpp_bindings_sys::bindings::GGML_MAX_DIMS as usize];
 
         shape.copy_from_slice(element_counts);
 
@@ -398,7 +432,7 @@ impl GgufContext {
 
 impl Drop for GgufContext {
     fn drop(&mut self) {
-        unsafe { llama_cpp_bindings_sys::gguf_free(self.context.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::gguf_free(self.context.as_ptr()) }
     }
 }
 
@@ -413,7 +447,6 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
     use std::process;
-    use std::str;
 
     use llama_cpp_error_chain::error_chain::error_chain;
 
@@ -462,7 +495,7 @@ mod tests {
             .tensor(
                 b"synthetic.weight",
                 &[3, 2],
-                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                llama_cpp_bindings_sys::bindings::GGML_TYPE_F32,
                 f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
             )
             .write(test_name)
@@ -818,7 +851,7 @@ mod tests {
             .tensor(
                 b"synthetic.weight",
                 &[2],
-                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                llama_cpp_bindings_sys::bindings::GGML_TYPE_F32,
                 f32_bytes(&[1.0, 2.0]),
             )
             .write("read_tensor_f32_reports_a_file_truncated_after_opening");
@@ -843,7 +876,7 @@ mod tests {
             .tensor(
                 b"synthetic.weight",
                 &[2],
-                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                llama_cpp_bindings_sys::bindings::GGML_TYPE_F32,
                 f32_bytes(&[1.0, 2.0]),
             )
             .write("read_tensor_f32_reports_a_file_removed_after_opening");
@@ -943,7 +976,7 @@ mod tests {
             .tensor(
                 b"synthetic.weight",
                 &[3, 2],
-                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                llama_cpp_bindings_sys::bindings::GGML_TYPE_F32,
                 f32_bytes(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
             )
             .write("write_to_file_keeps_every_tensor_and_key_except_the_removed_one");
@@ -1033,7 +1066,7 @@ mod tests {
             .tensor(
                 b"synthetic.weight",
                 &[2],
-                llama_cpp_bindings_sys::GGML_TYPE_F32,
+                llama_cpp_bindings_sys::bindings::GGML_TYPE_F32,
                 f32_bytes(&[1.0, 2.0]),
             )
             .write("write_to_file_reports_a_source_file_truncated_before_its_tensor_data");
@@ -1052,7 +1085,9 @@ mod tests {
             format!(
                 "GGUF file {} holds 0 bytes, but its tensor data begins at byte {}",
                 fixture.path.display(),
-                unsafe { llama_cpp_bindings_sys::gguf_get_data_offset(context.context.as_ptr()) }
+                unsafe {
+                    llama_cpp_bindings_sys::bindings::gguf_get_data_offset(context.context.as_ptr())
+                }
             )
         );
     }
