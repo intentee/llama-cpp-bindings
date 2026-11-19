@@ -14,8 +14,8 @@ use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_eval_limits::MtmdEvalLimits;
 use crate::mtmd_ffi_input_part::MtmdFfiInputPart;
-use crate::mtmd_input_chunk::MtmdInputChunk;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
+use crate::mtmd_input_chunk_view::MtmdInputChunkView;
 use crate::mtmd_input_part::MtmdInputPart;
 use crate::mtmd_input_text::MtmdInputText;
 
@@ -125,7 +125,7 @@ unsafe fn map_tokenize_from_parts_status(
 }
 
 fn fit_each(
-    chunks: &[MtmdInputChunk],
+    chunks: &[MtmdInputChunkView<'_>],
     mtmd_ctx: &MtmdContext,
     micro_batch_tokens: u32,
 ) -> Result<Vec<MtmdInputChunkType>, MtmdError> {
@@ -137,7 +137,7 @@ fn fit_each(
 
 #[derive(Debug)]
 pub struct MtmdInputChunks {
-    pub chunks: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunks>,
+    chunks: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunks>,
 }
 
 unsafe impl Send for MtmdInputChunks {}
@@ -252,7 +252,7 @@ impl MtmdInputChunks {
     }
 
     #[must_use]
-    pub fn chunks(&self) -> Vec<MtmdInputChunk> {
+    pub fn chunks(&self) -> Vec<MtmdInputChunkView<'_>> {
         (0..self.len())
             .map(|index| unsafe { self.chunk_within_count(index) })
             .collect()
@@ -299,7 +299,7 @@ impl MtmdInputChunks {
             })
     }
 
-    /// Checks every chunk with [`MtmdInputChunk::fit_to_micro_batch`] before any of them is
+    /// Checks every chunk with [`MtmdInputChunkView::fit_to_micro_batch`] before any of them is
     /// evaluated, and returns the chunk types it classified, in chunk order.
     ///
     /// # Errors
@@ -316,7 +316,7 @@ impl MtmdInputChunks {
     }
 
     #[must_use]
-    pub fn get(&self, index: usize) -> Option<MtmdInputChunk> {
+    pub fn get(&self, index: usize) -> Option<MtmdInputChunkView<'_>> {
         (index < self.len()).then(|| unsafe { self.chunk_within_count(index) })
     }
 
@@ -343,18 +343,12 @@ impl MtmdInputChunks {
     /// # Safety
     ///
     /// `index` must be below [`Self::len`], where llama.cpp always holds a chunk.
-    unsafe fn chunk_within_count(&self, index: usize) -> MtmdInputChunk {
+    unsafe fn chunk_within_count(&self, index: usize) -> MtmdInputChunkView<'_> {
         let chunk = unsafe {
-            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunks_get(
-                self.chunks.as_ptr(),
-                index,
-            )
+            llama_cpp_bindings_sys::bindings::mtmd_input_chunks_get(self.chunks.as_ptr(), index)
         };
 
-        MtmdInputChunk {
-            chunk: unsafe { NonNull::new_unchecked(chunk.cast_mut()) },
-            owned: false,
-        }
+        unsafe { MtmdInputChunkView::from_raw(NonNull::new_unchecked(chunk.cast_mut())) }
     }
 }
 
@@ -395,7 +389,7 @@ mod tests {
     }
 
     #[test]
-    fn every_failure_status_maps_to_its_error() {
+    fn out_of_memory_statuses_map_to_their_errors() {
         let statuses = [
             llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED,
             llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY,

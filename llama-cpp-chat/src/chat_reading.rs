@@ -23,7 +23,7 @@ use crate::take_parsed_chat_message::take_parsed_chat_message;
 fn spans_of(
     reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
     completeness: ChatOutputCompleteness,
-) -> Result<ChatSpans, ChatError> {
+) -> ChatSpans {
     let view = unsafe {
         llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_spans_view(reading.as_ptr())
     };
@@ -32,7 +32,7 @@ fn spans_of(
             slice::from_raw_parts(first_span.as_ptr(), view.spans_count)
         });
 
-    llama_cpp_spans
+    let spans = llama_cpp_spans
         .iter()
         .map(
             |&llama_cpp_bindings_sys::bindings::llama_rs_chat_span {
@@ -41,14 +41,15 @@ fn spans_of(
                  end,
                  ..
              }| {
-                ChatSpanKind::try_from(llama_cpp_kind).map(|kind| ChatSpan {
-                    kind,
+                ChatSpan {
+                    kind: ChatSpanKind::from(llama_cpp_kind),
                     bytes: start..end,
-                })
+                }
             },
         )
-        .collect::<Result<Vec<ChatSpan>, ChatError>>()
-        .map(|spans| ChatSpans::new(view.parsed_length, &spans, completeness))
+        .collect::<Vec<ChatSpan>>();
+
+    ChatSpans::new(view.parsed_length, &spans, completeness)
 }
 
 fn expected_format_of(
@@ -75,7 +76,7 @@ fn classification_of(
     if unsafe {
         llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_matches_format(reading.as_ptr())
     } {
-        return spans_of(reading, completeness).map(ChatClassification::Spans);
+        return Ok(ChatClassification::Spans(spans_of(reading, completeness)));
     }
 
     Ok(ChatClassification::OutputDoesNotMatchFormat(

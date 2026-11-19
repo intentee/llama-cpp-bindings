@@ -11,6 +11,7 @@ mod mtmd_ffi_input_part;
 pub mod mtmd_image_token_limit;
 pub mod mtmd_input_chunk;
 pub mod mtmd_input_chunk_type;
+pub mod mtmd_input_chunk_view;
 pub mod mtmd_input_chunks;
 pub mod mtmd_input_part;
 pub mod mtmd_input_text;

@@ -122,7 +122,7 @@ impl<'model> SampledTokenClassifier<'model> {
         discarded
     }
 
-    /// Checks every chunk with [`MtmdInputChunks::fit_to_micro_batch`] before evaluating any of
+    /// Checks every chunk with [`FittedMtmdInputChunks::fit`] before evaluating any of
     /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
     ///
     /// # Errors
@@ -152,11 +152,10 @@ impl<'model> SampledTokenClassifier<'model> {
             ),
         )
         .map_err(LlamaCppError::MultimodalChunksEval)?;
-        let chunk_count = fitted_chunks.len();
-        let last_chunk_index = chunk_count.checked_sub(1);
+        let last_chunk_index = fitted_chunks.fitted_chunks().len().checked_sub(1);
         let mut next_position = start_position;
 
-        for (index, fitted_chunk) in fitted_chunks.fitted_chunks().into_iter().enumerate() {
+        for (index, fitted_chunk) in fitted_chunks.fitted_chunks().iter().enumerate() {
             let logits_for_this_chunk = logits_last && Some(index) == last_chunk_index;
 
             next_position = fitted_chunk
@@ -169,7 +168,7 @@ impl<'model> SampledTokenClassifier<'model> {
                     logits_for_this_chunk,
                 )
                 .map_err(LlamaCppError::MultimodalChunksEval)?;
-            self.ingest_fitted_chunk(&fitted_chunk);
+            self.ingest_fitted_chunk(fitted_chunk);
         }
 
         Ok(next_position)

@@ -162,6 +162,16 @@ pub enum ContextError {
 
 impl ContextError {
     #[must_use]
+    pub const fn from_add_token_return_code(operation: &'static str, return_code: i32) -> Self {
+        match return_code {
+            -1 => Self::LlamaCppRefusedValidatedEntryAsFull { operation },
+            -2 => Self::LlamaCppRefusedValidatedToken { operation },
+            -3 => Self::LlamaCppRefusedValidatedSequenceId { operation },
+            code => Self::BatchAddTokenReturnedUndocumentedCode { code },
+        }
+    }
+
+    #[must_use]
     pub const fn from_decode_return_code(return_code: NonZeroI32) -> Self {
         match return_code.get() {
             1 => Self::DecodeNoKvCacheSlot,

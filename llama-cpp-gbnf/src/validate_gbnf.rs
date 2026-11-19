@@ -1,4 +1,5 @@
-use std::ffi::{CString, c_char};
+use std::ffi::CString;
+use std::ffi::c_char;
 use std::ptr;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_gbnf_validation_status;

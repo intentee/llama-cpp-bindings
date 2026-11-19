@@ -2,9 +2,10 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
-use llama_cpp_bindings_sys::bindings::{
-    llama_pos, llama_rs_batch_entry, llama_rs_batch_ext_assign_entries_status, llama_seq_id,
-};
+use llama_cpp_bindings_sys::bindings::llama_pos;
+use llama_cpp_bindings_sys::bindings::llama_rs_batch_entry;
+use llama_cpp_bindings_sys::bindings::llama_rs_batch_ext_assign_entries_status;
+use llama_cpp_bindings_sys::bindings::llama_seq_id;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
@@ -12,15 +13,6 @@ use llama_cpp_model::sampled_token::SampledToken;
 use crate::context_error::ContextError;
 use crate::context_limits::ContextLimits;
 use crate::decision_order::DecisionOrder;
-
-const fn refused_token_error(operation: &'static str, llama_cpp_return_code: i32) -> ContextError {
-    match llama_cpp_return_code {
-        -1 => ContextError::LlamaCppRefusedValidatedEntryAsFull { operation },
-        -2 => ContextError::LlamaCppRefusedValidatedToken { operation },
-        -3 => ContextError::LlamaCppRefusedValidatedSequenceId { operation },
-        code => ContextError::BatchAddTokenReturnedUndocumentedCode { code },
-    }
-}
 
 /// # Safety
 ///
@@ -36,7 +28,10 @@ unsafe fn batch_ext_assign_entries_status_to_result(
     match status {
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OK => Ok(()),
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_REFUSED_TOKEN => {
-            Err(refused_token_error(OPERATION, out_llama_cpp_return_code))
+            Err(ContextError::from_add_token_return_code(
+                OPERATION,
+                out_llama_cpp_return_code,
+            ))
         }
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_REFUSED_ADDITIONAL_SEQUENCE_ID => {
             Err(ContextError::LlamaCppRefusedValidatedAdditionalSequenceId {
@@ -271,9 +266,8 @@ impl LlamaBatch {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_bindings_sys::bindings::{
-        llama_rs_batch_entry, llama_rs_batch_ext_assign_entries_status,
-    };
+    use llama_cpp_bindings_sys::bindings::llama_rs_batch_entry;
+    use llama_cpp_bindings_sys::bindings::llama_rs_batch_ext_assign_entries_status;
     use llama_cpp_model::llama_token::LlamaToken;
     use llama_cpp_model::sampled_token::SampledToken;
 

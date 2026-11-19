@@ -84,25 +84,6 @@ mod tests {
     }
 
     #[test]
-    fn into_string_reads_the_text_the_cpp_side_allocated() {
-        let string =
-            unsafe { CppAllocatedString::from_raw(llama_rs_string_dup(c"llama".as_ptr())) };
-
-        assert_eq!(string.into_string(), Ok("llama".to_owned()));
-    }
-
-    #[test]
-    fn into_string_keeps_the_bytes_of_text_that_is_not_utf8() {
-        let string =
-            unsafe { CppAllocatedString::from_raw(llama_rs_string_dup(c"llama\xff".as_ptr())) };
-
-        assert_eq!(
-            string.into_string().map_err(FromUtf8Error::into_bytes),
-            Err(b"llama\xff".to_vec())
-        );
-    }
-
-    #[test]
     fn into_reported_error_builds_the_reported_error_from_the_message() {
         let message = unsafe {
             CppAllocatedString::from_raw(llama_rs_string_dup(c"llama.cpp threw".as_ptr()))

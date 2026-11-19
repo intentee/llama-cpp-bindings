@@ -3,6 +3,7 @@ use anyhow::Result;
 use anyhow::ensure;
 
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_input_chunk::MtmdInputChunk;
 use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -39,10 +40,12 @@ fn a_copied_chunk_is_owned_and_keeps_its_token_count(
     };
     let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
     let first_chunk = chunks.get(0).context("missing first chunk")?;
-    let copied = first_chunk.copy()?;
+    let first_chunk_tokens = first_chunk.n_tokens();
+    let copied = MtmdInputChunk::copy(first_chunk)?;
 
-    ensure!(copied.owned);
-    ensure!(copied.n_tokens() == first_chunk.n_tokens());
+    drop(chunks);
+
+    ensure!(copied.view().n_tokens() == first_chunk_tokens);
 
     Ok(())
 }

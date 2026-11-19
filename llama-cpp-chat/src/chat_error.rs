@@ -7,13 +7,7 @@ use llama_cpp_sampler::sampler_error::SamplerError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ChatError {
-    #[error(
-        "llama.cpp attributed a span of the answer to a kind {value} this binding does not recognize"
-    )]
-    ChatSpanKindUnrecognized {
-        value: llama_cpp_bindings_sys::bindings::llama_rs_chat_span_kind,
-    },
-    #[error("the exception message {operation} reported is not valid UTF-8")]
+    #[error("the exception message reported by {operation} is not valid UTF-8")]
     ExceptionMessageNotUtf8 {
         operation: &'static str,
         #[source]

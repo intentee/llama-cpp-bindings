@@ -1,6 +1,6 @@
+use llama_cpp_bindings_sys::bindings::llama_rs_chat_span_kind;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
-use crate::chat_error::ChatError;
 use crate::chat_piece_role::ChatPieceRole;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -25,37 +25,28 @@ impl ChatSpanKind {
     }
 }
 
-impl TryFrom<llama_cpp_bindings_sys::bindings::llama_rs_chat_span_kind> for ChatSpanKind {
-    type Error = ChatError;
-
-    fn try_from(
-        kind: llama_cpp_bindings_sys::bindings::llama_rs_chat_span_kind,
-    ) -> Result<Self, Self::Error> {
+impl From<llama_rs_chat_span_kind> for ChatSpanKind {
+    fn from(kind: llama_rs_chat_span_kind) -> Self {
         match kind {
-            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK => {
-                Ok(Self::ReasoningBlock)
+            llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK => {
+                Self::ReasoningBlock
             }
-            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_REASONING => {
-                Ok(Self::Reasoning)
+            llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_REASONING => Self::Reasoning,
+            llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_CONTENT => Self::Content,
+            llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL => Self::ToolCall,
+            llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER => {
+                Self::ToolCallMarker
             }
-            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_CONTENT => Ok(Self::Content),
-            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL => {
-                Ok(Self::ToolCall)
-            }
-            llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER => {
-                Ok(Self::ToolCallMarker)
-            }
-            value => Err(ChatError::ChatSpanKindUnrecognized { value }),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings_sys::bindings::llama_rs_chat_span_kind;
     use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
     use super::ChatSpanKind;
-    use crate::chat_error::ChatError;
     use crate::chat_piece_role::ChatPieceRole;
 
     #[test]
@@ -88,31 +79,23 @@ mod tests {
     }
 
     #[test]
-    fn every_llama_cpp_span_kind_maps_to_its_variant() {
+    fn every_span_kind_a_chat_reading_reports_maps_to_its_variant() {
         assert_eq!(
             [
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK,
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_REASONING,
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_CONTENT,
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL,
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER,
+                llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_REASONING_BLOCK,
+                llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_REASONING,
+                llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_CONTENT,
+                llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL,
+                llama_rs_chat_span_kind::LLAMA_RS_CHAT_SPAN_KIND_TOOL_CALL_MARKER,
             ]
-            .map(ChatSpanKind::try_from),
+            .map(ChatSpanKind::from),
             [
-                Ok(ChatSpanKind::ReasoningBlock),
-                Ok(ChatSpanKind::Reasoning),
-                Ok(ChatSpanKind::Content),
-                Ok(ChatSpanKind::ToolCall),
-                Ok(ChatSpanKind::ToolCallMarker),
+                ChatSpanKind::ReasoningBlock,
+                ChatSpanKind::Reasoning,
+                ChatSpanKind::Content,
+                ChatSpanKind::ToolCall,
+                ChatSpanKind::ToolCallMarker,
             ]
-        );
-    }
-
-    #[test]
-    fn an_unrecognized_span_kind_keeps_its_value() {
-        assert_eq!(
-            ChatSpanKind::try_from(99),
-            Err(ChatError::ChatSpanKindUnrecognized { value: 99 })
         );
     }
 }

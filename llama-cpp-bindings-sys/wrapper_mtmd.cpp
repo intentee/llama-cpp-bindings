@@ -331,11 +331,6 @@ extern "C" auto llama_rs_mtmd_input_chunk_copy(
     }
 }
 
-extern "C" auto llama_rs_mtmd_input_chunks_get(const struct mtmd_input_chunks * chunks, size_t index)
-    -> const struct mtmd_input_chunk * {
-    return mtmd_input_chunks_get(chunks, index);
-}
-
 extern "C" auto llama_rs_mtmd_input_chunk_get_type(const struct mtmd_input_chunk * chunk)
     -> mtmd_input_chunk_type {
     if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_MTMD_INPUT_CHUNK_TYPE_UNKNOWN)) {

@@ -39,8 +39,9 @@ fn encode_chunk_encodes_an_image_chunk(
         parse_special: true,
     };
     let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
-    let image_chunk = (0..chunks.len())
-        .filter_map(|chunk_index| chunks.get(chunk_index))
+    let image_chunk = chunks
+        .chunks()
+        .into_iter()
         .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
         .context("a prompt with an image must tokenize into an image chunk")?;
 

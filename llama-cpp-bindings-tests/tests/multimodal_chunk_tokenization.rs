@@ -9,16 +9,17 @@ use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_mtmd::mtmd_error::MtmdError;
-use llama_cpp_mtmd::mtmd_input_chunk::MtmdInputChunk;
 use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunk_view::MtmdInputChunkView;
 use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
-fn first_image_chunk(chunks: &MtmdInputChunks) -> Result<MtmdInputChunk> {
-    (0..chunks.len())
-        .filter_map(|chunk_index| chunks.get(chunk_index))
+fn first_image_chunk(chunks: &MtmdInputChunks) -> Result<MtmdInputChunkView<'_>> {
+    chunks
+        .chunks()
+        .into_iter()
         .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
         .context("a prompt with an image must tokenize into an image chunk")
 }

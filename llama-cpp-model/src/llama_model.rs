@@ -1266,20 +1266,6 @@ mod tests {
     }
 
     #[test]
-    fn a_decision_type_llama_rs_decision_type_does_not_define_is_refused() {
-        assert_eq!(
-            unsafe {
-                model_decision_type_status_to_result(
-                    llama_rs_model_decision_type_status::LLAMA_RS_MODEL_DECISION_TYPE_OK,
-                    9999,
-                    ptr::null_mut(),
-                )
-            },
-            Err(ModelError::UnknownDecisionType(9999))
-        );
-    }
-
-    #[test]
     fn reading_the_decision_type_reports_memory_exhaustion() {
         assert_eq!(
             [

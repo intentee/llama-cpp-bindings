@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_mtmd::mtmd_input_chunk::MtmdInputChunk;
 use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunk_view::MtmdInputChunkView;
 use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
 
 pub struct ChunkTokenBreakdown {
@@ -27,11 +27,11 @@ impl ChunkTokenBreakdown {
             chunks
                 .get(index)
                 .context("every index below the chunk count must hold a chunk")
-                .and_then(|chunk| breakdown.with_chunk(&chunk))
+                .and_then(|chunk| breakdown.with_chunk(chunk))
         })
     }
 
-    fn with_chunk(mut self, chunk: &MtmdInputChunk) -> Result<Self> {
+    fn with_chunk(mut self, chunk: MtmdInputChunkView<'_>) -> Result<Self> {
         let n_tokens = chunk.n_tokens() as u64;
 
         chunk

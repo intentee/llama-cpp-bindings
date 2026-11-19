@@ -2,7 +2,8 @@ use log::debug;
 use std::ffi::c_char;
 use std::ffi::c_void;
 use std::fmt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::num::NonZeroI32;
 use std::ptr;
 use std::ptr::NonNull;
@@ -12,9 +13,9 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
-use llama_cpp_bindings_sys::bindings::{
-    llama_rs_batch_ext_init_status, llama_rs_new_context_with_model_status, llama_rs_process_status,
-};
+use llama_cpp_bindings_sys::bindings::llama_rs_batch_ext_init_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_new_context_with_model_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_process_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
@@ -689,10 +690,9 @@ mod tests {
     use std::ptr;
     use std::ptr::NonNull;
 
-    use llama_cpp_bindings_sys::bindings::{
-        llama_rs_batch_ext_init_status, llama_rs_new_context_with_model_status,
-        llama_rs_process_status,
-    };
+    use llama_cpp_bindings_sys::bindings::llama_rs_batch_ext_init_status;
+    use llama_cpp_bindings_sys::bindings::llama_rs_new_context_with_model_status;
+    use llama_cpp_bindings_sys::bindings::llama_rs_process_status;
 
     use super::batch_ext_init_status_to_result;
     use super::check_lora_adapters_result;

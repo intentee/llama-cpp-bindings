@@ -210,15 +210,12 @@ fn text_chunk_records_prompt_tokens(
         backend,
         (*context_params).into_llama_context_params(),
     )?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(
-        MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[])?,
-        mtmd_ctx,
-        llama_ctx.n_ubatch(),
-    )?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[])?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(&chunks, mtmd_ctx, llama_ctx.n_ubatch())?;
 
     let text_chunk = fitted_chunks
         .fitted_chunks()
-        .into_iter()
+        .iter()
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Text)
         .context("text-only tokenization should produce at least one text chunk")?;
 
@@ -226,7 +223,7 @@ fn text_chunk_records_prompt_tokens(
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 
-    classifier.ingest_fitted_chunk(&text_chunk);
+    classifier.ingest_fitted_chunk(text_chunk);
 
     let usage = classifier.usage();
     if usage.prompt != n_tokens {
@@ -288,15 +285,12 @@ fn image_chunk_records_input_image_tokens_only(
         backend,
         (*context_params).into_llama_context_params(),
     )?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(
-        MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?,
-        mtmd_ctx,
-        llama_ctx.n_ubatch(),
-    )?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(&chunks, mtmd_ctx, llama_ctx.n_ubatch())?;
 
     let image_chunk = fitted_chunks
         .fitted_chunks()
-        .into_iter()
+        .iter()
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Image)
         .context("multimodal tokenization should produce an image chunk")?;
 
@@ -307,7 +301,7 @@ fn image_chunk_records_input_image_tokens_only(
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 
-    classifier.ingest_fitted_chunk(&image_chunk);
+    classifier.ingest_fitted_chunk(image_chunk);
 
     let usage = classifier.usage();
     if usage.input_image != n_tokens {

@@ -312,10 +312,9 @@ fn fitting_no_chunks_leaves_nothing_to_evaluate(
         backend,
         (*context_params).into_llama_context_params(),
     )?;
-    let fitted_chunks =
-        FittedMtmdInputChunks::fit(MtmdInputChunks::new()?, mtmd_ctx, llama_ctx.n_ubatch())?;
+    let chunks = MtmdInputChunks::new()?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(&chunks, mtmd_ctx, llama_ctx.n_ubatch())?;
 
-    ensure!(fitted_chunks.is_empty());
     ensure!(fitted_chunks.fitted_chunks().is_empty());
 
     Ok(())
@@ -348,15 +347,11 @@ fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
         fixture.backend,
         (*fixture.context_params).into_llama_context_params(),
     )?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?,
-        mtmd_ctx,
-        llama_ctx.n_ubatch(),
-    )?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(&chunks, mtmd_ctx, llama_ctx.n_ubatch())?;
     let first_chunk = fitted_chunks
         .fitted_chunks()
-        .into_iter()
-        .next()
+        .first()
         .context("tokenization produced no chunks")?;
 
     ensure!(
@@ -384,15 +379,11 @@ fn eval_single_rejects_a_batch_larger_than_the_context_batch_before_evaluating(
         .mtmd_context
         .context("mmproj_file declared in attribute")?;
     let mut llama_ctx = fixture.build_context()?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?,
-        mtmd_ctx,
-        llama_ctx.n_ubatch(),
-    )?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(&chunks, mtmd_ctx, llama_ctx.n_ubatch())?;
     let first_chunk = fitted_chunks
         .fitted_chunks()
-        .into_iter()
-        .next()
+        .first()
         .context("tokenization produced no chunks")?;
     let context_max = llama_ctx.n_batch();
     let oversized_batch = i32::try_from(
@@ -476,15 +467,11 @@ fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluati
         (*fixture.context_params).into_llama_context_params(),
     )?;
     let fitted_micro_batch_tokens = llama_ctx.n_ubatch();
-    let fitted_chunks = FittedMtmdInputChunks::fit(
-        tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?,
-        mtmd_ctx,
-        fitted_micro_batch_tokens,
-    )?;
+    let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(&chunks, mtmd_ctx, fitted_micro_batch_tokens)?;
     let first_chunk = fitted_chunks
         .fitted_chunks()
-        .into_iter()
-        .next()
+        .first()
         .context("tokenization produced no chunks")?;
     let smaller_micro_batch_tokens = fitted_micro_batch_tokens
         .checked_sub(1)
@@ -764,8 +751,9 @@ fn gemma3_fitting_rejects_a_non_causal_image_larger_than_the_micro_batch(
         .mtmd_context
         .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
-    let image_chunk = (0..chunks.len())
-        .filter_map(|chunk_index| chunks.get(chunk_index))
+    let image_chunk = chunks
+        .chunks()
+        .into_iter()
         .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
         .context("the prompt must contain an image chunk")?;
     let llama_ctx = LlamaContext::from_model(

@@ -4,10 +4,9 @@ use std::num::NonZeroU8;
 use std::num::TryFromIntError;
 use std::ptr;
 
-use llama_cpp_bindings_sys::bindings::{
-    llama_rs_memory_seq_add_status, llama_rs_memory_seq_div_status,
-    llama_rs_memory_seq_pos_max_status,
-};
+use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_add_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_div_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_pos_max_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_context::llama_context::LlamaContext;
 
@@ -382,10 +381,9 @@ impl ContextMemory for LlamaContext<'_> {
 mod tests {
     use std::ptr;
 
-    use llama_cpp_bindings_sys::bindings::{
-        llama_rs_memory_seq_add_status, llama_rs_memory_seq_div_status,
-        llama_rs_memory_seq_pos_max_status,
-    };
+    use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_add_status;
+    use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_div_status;
+    use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_pos_max_status;
 
     use super::memory_seq_add_status_to_result;
     use super::memory_seq_div_status_to_result;

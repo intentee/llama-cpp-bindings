@@ -1,40 +1,43 @@
-use std::marker::PhantomData;
-
 use llama_cpp_context::llama_context::LlamaContext;
 
 use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_eval_limits::MtmdEvalLimits;
-use crate::mtmd_input_chunk::MtmdInputChunk;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
-use crate::mtmd_input_chunks::MtmdInputChunks;
+use crate::mtmd_input_chunk_view::MtmdInputChunkView;
 
 #[derive(Debug)]
-pub struct FittedMtmdInputChunk<'fitted> {
-    chunk: MtmdInputChunk,
+pub struct FittedMtmdInputChunk<'chunks> {
+    chunk: MtmdInputChunkView<'chunks>,
     chunk_type: MtmdInputChunkType,
-    fitted_chunks: PhantomData<&'fitted MtmdInputChunks>,
     micro_batch_tokens: u32,
 }
 
-impl FittedMtmdInputChunk<'_> {
-    #[must_use]
-    pub const fn new(
-        chunk: MtmdInputChunk,
-        chunk_type: MtmdInputChunkType,
+impl<'chunks> FittedMtmdInputChunk<'chunks> {
+    /// Checks `chunk` once with [`MtmdInputChunkView::fit_to_micro_batch`] and keeps the chunk
+    /// type it classified, so the chunk can be evaluated and ingested without checking or
+    /// classifying it again.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error of [`MtmdInputChunkView::fit_to_micro_batch`].
+    pub fn fit(
+        chunk: MtmdInputChunkView<'chunks>,
+        mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, MtmdError> {
+        let chunk_type = chunk.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)?;
+
+        Ok(Self {
             chunk,
             chunk_type,
-            fitted_chunks: PhantomData,
             micro_batch_tokens,
-        }
+        })
     }
 
     #[must_use]
-    pub const fn chunk(&self) -> &MtmdInputChunk {
-        &self.chunk
+    pub const fn chunk(&self) -> MtmdInputChunkView<'chunks> {
+        self.chunk
     }
 
     #[must_use]
