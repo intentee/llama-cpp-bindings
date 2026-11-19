@@ -5,11 +5,11 @@ use std::ptr;
 
 use llama_cpp_backend::backend_device_index::backend_device_index;
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_get_memory_usage_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::mtmd_context_params::MtmdContextParams;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_image_token_limit::MtmdImageTokenLimit;
-use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -33,11 +33,10 @@ unsafe fn get_memory_usage_status_to_result(
             Err(MtmdError::MemoryUsageLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_mtmd_get_memory_usage", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_mtmd_get_memory_usage", |message| {
                     MtmdError::MemoryUsageReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -304,9 +303,9 @@ mod tests {
         assert_eq!(
             unsafe {
                 get_memory_usage_status_to_result(
-                llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED,
-                ptr::null_mut(),
-            )
+                    llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_DEVICE_MEMORY_CAPACITY_EXCEEDED,
+                    ptr::null_mut(),
+                )
             },
             Err(MtmdError::MemoryUsageCoversMoreDevicesThanRegistered {
                 operation: "llama_rs_mtmd_get_memory_usage"
@@ -319,9 +318,9 @@ mod tests {
         assert_eq!(
             unsafe {
                 get_memory_usage_status_to_result(
-                llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED,
-                ptr::null_mut(),
-            )
+                    llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_ERROR_STRING_ALLOCATION_FAILED,
+                    ptr::null_mut(),
+                )
             },
             Err(MtmdError::MemoryUsageNotEnoughMemory)
         );
@@ -332,9 +331,9 @@ mod tests {
         assert_eq!(
             unsafe {
                 get_memory_usage_status_to_result(
-                llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_OUT_OF_MEMORY,
-                ptr::null_mut(),
-            )
+                    llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_OUT_OF_MEMORY,
+                    ptr::null_mut(),
+                )
             },
             Err(MtmdError::MemoryUsageLlamaCppOutOfMemory)
         );
@@ -349,9 +348,9 @@ mod tests {
         assert_eq!(
             unsafe {
                 get_memory_usage_status_to_result(
-                llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                out_error,
-            )
+                    llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    out_error,
+                )
             },
             Err(MtmdError::MemoryUsageReported {
                 message: "projector threw".to_owned(),

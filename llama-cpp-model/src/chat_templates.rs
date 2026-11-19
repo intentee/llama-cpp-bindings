@@ -4,10 +4,10 @@ use std::ptr;
 use std::ptr::NonNull;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_init_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::llama_chat_template::LlamaChatTemplate;
 use crate::model_error::ModelError;
-use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -33,11 +33,10 @@ unsafe fn chat_templates_init_status_to_result(
             Err(ModelError::ChatTemplatesLlamaCppOutOfMemory)
         }
         llama_rs_chat_templates_init_status::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_chat_templates_init", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_chat_templates_init", |message| {
                     ModelError::ChatTemplatesReported { message }
-                })
-            })
+                }))
         }
     }
 }

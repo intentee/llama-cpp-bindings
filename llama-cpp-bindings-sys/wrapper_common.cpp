@@ -53,9 +53,6 @@ extern "C" auto llama_rs_json_schema_to_grammar(
 }
 
 extern "C" auto llama_rs_string_dup(const char * value) -> char * {
-    if (value == nullptr) {
-        return nullptr;
-    }
     return llama_rs_dup_string(value);
 }
 

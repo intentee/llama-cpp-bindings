@@ -6,6 +6,7 @@ use std::ptr::NonNull;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_create_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_free;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_read_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_bindings_types::chat_message::ChatMessage;
 use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
 use llama_cpp_bindings_types::chat_tool::ChatTool;
@@ -27,7 +28,6 @@ use crate::chat_prompt_part::ChatPromptPart;
 use crate::chat_reading::ChatReading;
 use crate::chat_session_options::ChatSessionOptions;
 use crate::cpp_text_view::cpp_text_view;
-use crate::reported_error::reported_error;
 
 const ASSISTANT_ROLE: &str = "assistant";
 const GRAMMAR_ROOT: &str = "root";
@@ -112,18 +112,16 @@ unsafe fn chat_session_create_status_to_result(
             Ok(unsafe { NonNull::new_unchecked(out_session) })
         }
         llama_rs_chat_session_create_status::LLAMA_RS_CHAT_SESSION_CREATE_TEMPLATE_CANNOT_SERVE_REQUEST => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| {
                     ChatError::TemplateCannotServeRequest { message }
-                })
-            })
+                }))
         }
         llama_rs_chat_session_create_status::LLAMA_RS_CHAT_SESSION_CREATE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| {
                     ChatError::SessionReported { message }
-                })
-            })
+                }))
         }
         llama_rs_chat_session_create_status::LLAMA_RS_CHAT_SESSION_CREATE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ChatError::SessionNotEnoughMemory)
@@ -149,11 +147,10 @@ unsafe fn chat_session_read_status_to_result(
             Ok(unsafe { NonNull::new_unchecked(out_reading) })
         }
         llama_rs_chat_session_read_status::LLAMA_RS_CHAT_SESSION_READ_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_chat_session_read", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_chat_session_read", |message| {
                     ChatError::ParseReported { message }
-                })
-            })
+                }))
         }
         llama_rs_chat_session_read_status::LLAMA_RS_CHAT_SESSION_READ_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ChatError::ParseNotEnoughMemory)

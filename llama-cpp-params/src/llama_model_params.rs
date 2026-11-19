@@ -50,13 +50,10 @@ unsafe fn fit_params_status_to_result(
             Err(ParamsError::FitLlamaCppOutOfMemory)
         }
         llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { CppAllocatedString::from_raw(out_error) }
-                .into_string()
-                .map_err(|source| ParamsError::ExceptionMessageNotUtf8 {
-                    operation: "llama_rs_fit_params",
-                    source,
-                })?;
-            Err(ParamsError::FitReported { message })
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_fit_params", |message| {
+                    ParamsError::FitReported { message }
+                }))
         }
     }
 }
@@ -869,10 +866,10 @@ mod tests {
     fn fit_params_status_unrecognized_code_returns_unknown_status() {
         let result = unsafe {
             fit_params_status_to_result(
-            llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE,
-            42,
-            ptr::null_mut(),
-        )
+                llama_rs_fit_params_status::LLAMA_RS_FIT_PARAMS_LLAMA_CPP_RETURNED_UNRECOGNIZED_STATUS_CODE,
+                42,
+                ptr::null_mut(),
+            )
         };
 
         assert_eq!(result, Err(ParamsError::UnknownFitStatus { code: 42 }));

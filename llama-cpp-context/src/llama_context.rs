@@ -15,6 +15,7 @@ use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_bindings_sys::bindings::{
     llama_rs_batch_ext_init_status, llama_rs_new_context_with_model_status, llama_rs_process_status,
 };
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::llama_token_data::LlamaTokenData;
@@ -28,7 +29,6 @@ use crate::context_limits::ContextLimits;
 use crate::decoded_output_rows::DecodedOutputRows;
 use crate::decoded_outputs::DecodedOutputs;
 use crate::llama_batch::LlamaBatch;
-use crate::reported_error::reported_error;
 use crate::sequence_output_capacity::SequenceOutputCapacity;
 
 const fn check_lora_adapters_result(err_code: i32) -> Result<(), ContextError> {
@@ -63,11 +63,10 @@ unsafe fn new_context_with_model_status_to_result(
             Err(ContextError::CreateLlamaCppOutOfMemory)
         }
         llama_rs_new_context_with_model_status::LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_new_context_with_model", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_new_context_with_model", |message| {
                     ContextError::CreateReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -93,11 +92,10 @@ unsafe fn batch_ext_init_status_to_result(
             Err(ContextError::CreateLlamaCppOutOfMemory)
         }
         llama_rs_batch_ext_init_status::LLAMA_RS_BATCH_EXT_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_batch_ext_init", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_batch_ext_init", |message| {
                     ContextError::CreateReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -123,11 +121,12 @@ unsafe fn process_status_to_result(
             Box::new(ContextError::ProcessLlamaCppOutOfMemory),
         )),
         llama_rs_process_status::LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(process_failure(Box::new(unsafe {
-                reported_error("llama_rs_process", out_error, |message| {
-                    ContextError::ProcessReported { message }
-                })
-            })))
+            Err(process_failure(Box::new(
+                unsafe { CppAllocatedString::from_raw(out_error) }
+                    .into_reported_error("llama_rs_process", |message| {
+                        ContextError::ProcessReported { message }
+                    }),
+            )))
         }
     }
 }

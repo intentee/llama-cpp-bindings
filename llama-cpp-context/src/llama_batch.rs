@@ -5,13 +5,13 @@ use std::ptr::NonNull;
 use llama_cpp_bindings_sys::bindings::{
     llama_pos, llama_rs_batch_entry, llama_rs_batch_ext_assign_entries_status, llama_seq_id,
 };
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 
 use crate::context_error::ContextError;
 use crate::context_limits::ContextLimits;
 use crate::decision_order::DecisionOrder;
-use crate::reported_error::reported_error;
 
 const fn refused_token_error(operation: &'static str, llama_cpp_return_code: i32) -> ContextError {
     match llama_cpp_return_code {
@@ -44,21 +44,18 @@ unsafe fn batch_ext_assign_entries_status_to_result(
             })
         }
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_POSITION_REJECTED => {
-            Err(ContextError::LlamaCppRefusedFieldOfAddedEntry {
+            Err(ContextError::LlamaCppRefusedPositionOfAddedEntry {
                 operation: OPERATION,
-                field: "position",
             })
         }
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED => {
-            Err(ContextError::LlamaCppRefusedFieldOfAddedEntry {
+            Err(ContextError::LlamaCppRefusedOutputFlagOfAddedEntry {
                 operation: OPERATION,
-                field: "output flag",
             })
         }
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_DECISION_ORDER_REJECTED => {
-            Err(ContextError::LlamaCppRefusedFieldOfAddedEntry {
+            Err(ContextError::LlamaCppRefusedDecisionOrderOfAddedEntry {
                 operation: OPERATION,
-                field: "decision order",
             })
         }
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_ERROR_STRING_ALLOCATION_FAILED => {
@@ -68,11 +65,10 @@ unsafe fn batch_ext_assign_entries_status_to_result(
             Err(ContextError::BatchTransferLlamaCppOutOfMemory)
         }
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| {
                     ContextError::BatchTransferReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -523,7 +519,7 @@ mod tests {
     }
 
     #[test]
-    fn a_token_llama_cpp_refuses_is_reported_by_its_documented_code() {
+    fn a_token_llama_cpp_refuses_is_reported_by_its_return_code() {
         assert_eq!(
             [-1, -2, -3, -7].map(|code| unsafe {
                 batch_ext_assign_entries_status_to_result(
@@ -548,41 +544,32 @@ mod tests {
     }
 
     #[test]
-    fn assigning_batch_entries_reports_each_entry_field_llama_cpp_refused() {
-        for (status, expected_error) in [
-            (
+    fn assigning_batch_entries_reports_each_refusal_after_llama_cpp_added_the_token() {
+        assert_eq!(
+            [
                 llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_REFUSED_ADDITIONAL_SEQUENCE_ID,
-                ContextError::LlamaCppRefusedValidatedAdditionalSequenceId {
-                    operation: "llama_rs_batch_ext_assign_entries",
-                },
-            ),
-            (
                 llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_POSITION_REJECTED,
-                ContextError::LlamaCppRefusedFieldOfAddedEntry {
-                    operation: "llama_rs_batch_ext_assign_entries",
-                    field: "position",
-                },
-            ),
-            (
                 llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_OUTPUT_REJECTED,
-                ContextError::LlamaCppRefusedFieldOfAddedEntry {
-                    operation: "llama_rs_batch_ext_assign_entries",
-                    field: "output flag",
-                },
-            ),
-            (
                 llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_DECISION_ORDER_REJECTED,
-                ContextError::LlamaCppRefusedFieldOfAddedEntry {
+            ]
+            .map(|status| unsafe {
+                batch_ext_assign_entries_status_to_result(status, 0, ptr::null_mut())
+            }),
+            [
+                Err(ContextError::LlamaCppRefusedValidatedAdditionalSequenceId {
                     operation: "llama_rs_batch_ext_assign_entries",
-                    field: "decision order",
-                },
-            ),
-        ] {
-            assert_eq!(
-                unsafe { batch_ext_assign_entries_status_to_result(status, 0, ptr::null_mut()) },
-                Err(expected_error)
-            );
-        }
+                }),
+                Err(ContextError::LlamaCppRefusedPositionOfAddedEntry {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                }),
+                Err(ContextError::LlamaCppRefusedOutputFlagOfAddedEntry {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                }),
+                Err(ContextError::LlamaCppRefusedDecisionOrderOfAddedEntry {
+                    operation: "llama_rs_batch_ext_assign_entries",
+                }),
+            ]
+        );
     }
 
     #[test]

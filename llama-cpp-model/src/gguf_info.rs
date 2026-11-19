@@ -4,11 +4,11 @@ use std::ptr;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_gguf_info;
 use llama_cpp_bindings_sys::bindings::llama_rs_read_gguf_info_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
 
 use crate::decision_type::DecisionType;
 use crate::model_error::ModelError;
-use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -36,11 +36,10 @@ unsafe fn read_gguf_info_status_to_result(
             Err(ModelError::GgufInfoLlamaCppOutOfMemory)
         }
         llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_read_gguf_info", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_read_gguf_info", |message| {
                     ModelError::GgufInfoReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -220,6 +219,26 @@ mod tests {
             },
             Err(ModelError::GgufInfoReported {
                 message: "metadata read threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn reading_gguf_info_reports_an_exception_message_that_is_not_utf8() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
+
+        assert_eq!(
+            unsafe {
+                read_gguf_info_status_to_result(
+                    llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    NOT_A_DECISION_MODEL,
+                    out_error,
+                )
+            },
+            Err(ModelError::ExceptionMessageNotUtf8 {
+                operation: "llama_rs_read_gguf_info",
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
             })
         );
     }

@@ -10,7 +10,6 @@ use llama_cpp_bindings_sys::bindings::llama_rs_render_template_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::model_error::ModelError;
-use crate::reported_error::reported_error;
 
 const OPERATION: &str = "llama_rs_render_template";
 
@@ -37,35 +36,31 @@ unsafe fn render_template_status_to_result(
             Err(ModelError::RenderLlamaCppOutOfMemory)
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_INVALID_JSON => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| {
                     ModelError::TemplateGlobalsInvalidJson { message }
-                })
-            })
+                }))
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_GLOBALS_NOT_A_JSON_OBJECT => {
             Err(ModelError::TemplateGlobalsNotAJsonObject)
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_INVALID_TEMPLATE => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| {
                     ModelError::TemplateInvalid { message }
-                })
-            })
+                }))
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_EXECUTION_FAILED => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| {
                     ModelError::TemplateExecutionFailed { message }
-                })
-            })
+                }))
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| {
                     ModelError::RenderReported { message }
-                })
-            })
+                }))
         }
     }
 }

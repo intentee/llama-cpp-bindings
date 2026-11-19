@@ -8,10 +8,10 @@ use llama_cpp_bindings_sys::bindings::{
     llama_rs_memory_seq_add_status, llama_rs_memory_seq_div_status,
     llama_rs_memory_seq_pos_max_status,
 };
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_context::llama_context::LlamaContext;
 
 use crate::context_memory_error::ContextMemoryError;
-use crate::reported_error::reported_error;
 
 fn open_ended_position(position: Option<u32>) -> Result<i32, TryFromIntError> {
     position.map_or(Ok(-1), i32::try_from)
@@ -39,11 +39,10 @@ unsafe fn memory_seq_add_status_to_result(
             Err(ContextMemoryError::SeqAddLlamaCppOutOfMemory)
         }
         llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
-                    ContextMemoryError::SeqAddReported { message }
-                })
-            })
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| ContextMemoryError::SeqAddReported {
+                    message,
+                }))
         }
     }
 }
@@ -70,11 +69,10 @@ unsafe fn memory_seq_div_status_to_result(
             Err(ContextMemoryError::SeqDivLlamaCppOutOfMemory)
         }
         llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
-                    ContextMemoryError::SeqDivReported { message }
-                })
-            })
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| ContextMemoryError::SeqDivReported {
+                    message,
+                }))
         }
     }
 }
@@ -102,11 +100,10 @@ unsafe fn memory_seq_pos_max_status_to_result(
             Err(ContextMemoryError::SeqPosMaxLlamaCppOutOfMemory)
         }
         llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error(OPERATION, out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(OPERATION, |message| {
                     ContextMemoryError::SeqPosMaxReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -440,9 +437,9 @@ mod tests {
         assert_eq!(
             unsafe {
                 memory_seq_add_status_to_result(
-                llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED,
-                ptr::null_mut(),
-            )
+                    llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED,
+                    ptr::null_mut(),
+                )
             },
             Err(ContextMemoryError::SeqAddNotEnoughMemory)
         );
@@ -457,12 +454,31 @@ mod tests {
         assert_eq!(
             unsafe {
                 memory_seq_add_status_to_result(
-                llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                out_error,
-            )
+                    llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    out_error,
+                )
             },
             Err(ContextMemoryError::SeqAddReported {
                 message: "shift threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn add_llama_cpp_exception_message_that_is_not_utf8_is_reported_with_its_bytes() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
+
+        assert_eq!(
+            unsafe {
+                memory_seq_add_status_to_result(
+                    llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    out_error,
+                )
+            },
+            Err(ContextMemoryError::ExceptionMessageNotUtf8 {
+                operation: "llama_rs_memory_seq_add",
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
             })
         );
     }
@@ -512,9 +528,9 @@ mod tests {
         assert_eq!(
             unsafe {
                 memory_seq_div_status_to_result(
-                llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED,
-                ptr::null_mut(),
-            )
+                    llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED,
+                    ptr::null_mut(),
+                )
             },
             Err(ContextMemoryError::SeqDivNotEnoughMemory)
         );
@@ -529,9 +545,9 @@ mod tests {
         assert_eq!(
             unsafe {
                 memory_seq_div_status_to_result(
-                llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                out_error,
-            )
+                    llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    out_error,
+                )
             },
             Err(ContextMemoryError::SeqDivReported {
                 message: "division threw".to_owned()
@@ -586,10 +602,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 memory_seq_pos_max_status_to_result(
-                llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED,
-                -1,
-                ptr::null_mut(),
-            )
+                    llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED,
+                    -1,
+                    ptr::null_mut(),
+                )
             },
             Err(ContextMemoryError::SeqPosMaxNotEnoughMemory)
         );
@@ -604,10 +620,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 memory_seq_pos_max_status_to_result(
-                llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                -1,
-                out_error,
-            )
+                    llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    -1,
+                    out_error,
+                )
             },
             Err(ContextMemoryError::SeqPosMaxReported {
                 message: "position lookup threw".to_owned()
@@ -619,10 +635,10 @@ mod tests {
     fn memory_seq_pos_max_status_to_result_reports_llama_cpp_running_out_of_memory() {
         let outcome = unsafe {
             memory_seq_pos_max_status_to_result(
-            llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
-            0,
-            ptr::null_mut(),
-        )
+                llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
+                0,
+                ptr::null_mut(),
+            )
         };
         assert_eq!(
             outcome.err(),

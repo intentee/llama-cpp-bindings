@@ -8,6 +8,7 @@ use std::str::Utf8Error;
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_encode_chunk_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_eval_chunk_single_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunk_copy_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_token::LlamaToken;
 
@@ -16,7 +17,6 @@ use crate::mtmd_error::MtmdError;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 use crate::optional_mtmd_id::optional_mtmd_id;
-use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -79,11 +79,10 @@ unsafe fn input_chunk_copy_status_to_result(
             Err(MtmdError::ChunkCopyLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_mtmd_input_chunk_copy", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_mtmd_input_chunk_copy", |message| {
                     MtmdError::ChunkCopyReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -107,11 +106,10 @@ unsafe fn map_encode_chunk_status(
             Err(MtmdError::EncodeLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_mtmd_encode_chunk", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_mtmd_encode_chunk", |message| {
                     MtmdError::EncodeReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -138,11 +136,10 @@ unsafe fn eval_chunk_single_status_to_result(
             Err(MtmdError::EvalLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_mtmd_eval_chunk_single", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_mtmd_eval_chunk_single", |message| {
                     MtmdError::EvalReported { message }
-                })
-            })
+                }))
         }
     }
 }

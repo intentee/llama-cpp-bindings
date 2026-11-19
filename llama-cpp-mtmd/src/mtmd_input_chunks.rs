@@ -6,6 +6,7 @@ use std::ptr::NonNull;
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunks_init_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_from_parts_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_context::llama_context::LlamaContext;
 
 use crate::mtmd_bitmap::MtmdBitmap;
@@ -17,7 +18,6 @@ use crate::mtmd_input_chunk::MtmdInputChunk;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::mtmd_input_part::MtmdInputPart;
 use crate::mtmd_input_text::MtmdInputText;
-use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -40,11 +40,10 @@ unsafe fn input_chunks_init_status_to_result(
             Err(MtmdError::InputChunksLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_mtmd_input_chunks_init", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_mtmd_input_chunks_init", |message| {
                     MtmdError::InputChunksReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -78,11 +77,10 @@ unsafe fn map_tokenize_status(
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_mtmd_tokenize", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_mtmd_tokenize", |message| {
                     MtmdError::TokenizeReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -118,11 +116,10 @@ unsafe fn map_tokenize_from_parts_status(
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_mtmd_tokenize_from_parts", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_mtmd_tokenize_from_parts", |message| {
                     MtmdError::TokenizeReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -458,10 +455,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 map_tokenize_from_parts_status(
-                llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
-                0,
-                ptr::null_mut(),
-            )
+                    llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
+                    0,
+                    ptr::null_mut(),
+                )
             },
             Err(MtmdError::MediaPreprocessingOrTokenizationFailed)
         );
@@ -472,10 +469,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 map_tokenize_from_parts_status(
-                llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
-                42,
-                ptr::null_mut(),
-            )
+                    llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
+                    42,
+                    ptr::null_mut(),
+                )
             },
             Err(MtmdError::TokenizeFromPartsUnknownStatus { code: 42 })
         );
@@ -486,10 +483,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 map_tokenize_from_parts_status(
-                llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED,
-                0,
-                ptr::null_mut(),
-            )
+                    llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_ERROR_STRING_ALLOCATION_FAILED,
+                    0,
+                    ptr::null_mut(),
+                )
             },
             Err(MtmdError::TokenizeNotEnoughMemory)
         );
@@ -500,10 +497,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 map_tokenize_from_parts_status(
-                llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY,
-                0,
-                ptr::null_mut(),
-            )
+                    llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_OUT_OF_MEMORY,
+                    0,
+                    ptr::null_mut(),
+                )
             },
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         );
@@ -553,10 +550,10 @@ mod tests {
     fn tokenize_status_reports_a_bitmap_count_that_does_not_match_the_marker_count() {
         let result = unsafe {
             map_tokenize_status(
-            llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
-            0,
-            ptr::null_mut(),
-        )
+                llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_BITMAP_COUNT_DOES_NOT_MATCH_MARKER_COUNT,
+                0,
+                ptr::null_mut(),
+            )
         };
 
         assert_eq!(result, Err(MtmdError::BitmapCountDoesNotMatchMarkerCount));
@@ -566,10 +563,10 @@ mod tests {
     fn tokenize_status_reports_a_media_preprocessing_or_tokenization_failure() {
         let result = unsafe {
             map_tokenize_status(
-            llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
-            0,
-            ptr::null_mut(),
-        )
+                llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_REPORTED_PREPROCESSING_OR_TOKENIZATION_FAILURE,
+                0,
+                ptr::null_mut(),
+            )
         };
 
         assert_eq!(
@@ -582,10 +579,10 @@ mod tests {
     fn tokenize_status_maps_an_undocumented_code_with_its_value() {
         let result = unsafe {
             map_tokenize_status(
-            llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
-            42,
-            ptr::null_mut(),
-        )
+                llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_RETURNED_UNDOCUMENTED_NONZERO_CODE,
+                42,
+                ptr::null_mut(),
+            )
         };
 
         assert_eq!(result, Err(MtmdError::TokenizeUnknownStatus { code: 42 }));
@@ -608,10 +605,10 @@ mod tests {
     fn tokenize_status_maps_string_allocation_failed_to_not_enough_memory() {
         let result = unsafe {
             map_tokenize_status(
-            llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED,
-            0,
-            ptr::null_mut(),
-        )
+                llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED,
+                0,
+                ptr::null_mut(),
+            )
         };
 
         assert_eq!(result, Err(MtmdError::TokenizeNotEnoughMemory));
@@ -638,10 +635,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 map_tokenize_status(
-                llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
-                0,
-                out_error,
-            )
+                    llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    0,
+                    out_error,
+                )
             },
             Err(MtmdError::TokenizeReported {
                 message: "tokenizer threw".to_owned(),

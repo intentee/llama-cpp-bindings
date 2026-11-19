@@ -1,5 +1,7 @@
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ParamsError {
     #[error("Backend device {0} not found")]
@@ -51,4 +53,10 @@ pub enum ParamsError {
     UnknownSplitMode {
         value: llama_cpp_bindings_sys::bindings::llama_split_mode,
     },
+}
+
+impl ExceptionMessageError for ParamsError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
+    }
 }

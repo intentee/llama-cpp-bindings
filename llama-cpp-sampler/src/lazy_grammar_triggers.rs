@@ -6,7 +6,6 @@ use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_model::llama_token::LlamaToken;
 
 use crate::chat_grammar_trigger::ChatGrammarTrigger;
-use crate::reported_error::reported_error;
 use crate::sampler_error::SamplerError;
 
 fn anchored_pattern(pattern: &str) -> String {
@@ -20,7 +19,11 @@ fn anchored_pattern(pattern: &str) -> String {
     format!("{start}{pattern}{end}")
 }
 
-fn regex_escape_status_to_result(
+/// # Safety
+///
+/// `out_string` must be the non-null escaped text the C++ side allocated when `status` is OK, and
+/// `out_error` must be the non-null message the C++ side allocated when `status` reports one; it is freed here.
+unsafe fn regex_escape_status_to_result(
     status: llama_rs_regex_escape_status,
     out_string: *mut c_char,
     out_error: *mut c_char,
@@ -32,11 +35,10 @@ fn regex_escape_status_to_result(
                 .map_err(|source| SamplerError::EscapedPatternNotUtf8 { source })
         }
         llama_rs_regex_escape_status::LLAMA_RS_REGEX_ESCAPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_regex_escape", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_regex_escape", |message| {
                     SamplerError::GrammarReported { message }
-                })
-            })
+                }))
         }
         llama_rs_regex_escape_status::LLAMA_RS_REGEX_ESCAPE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(SamplerError::GrammarNotEnoughMemory)
@@ -59,7 +61,7 @@ fn regex_escaped(word: &str) -> Result<String, SamplerError> {
         )
     };
 
-    regex_escape_status_to_result(status, out_string, out_error)
+    unsafe { regex_escape_status_to_result(status, out_string, out_error) }
 }
 
 /// The trigger patterns and tokens that start a lazy grammar, built from a chat session's
@@ -110,7 +112,7 @@ mod tests {
 
     #[test]
     fn regex_escape_status_to_result_maps_every_status_to_the_escaped_word_or_its_error() {
-        let escape = |status, out_string, out_error| {
+        let escape = |status, out_string, out_error| unsafe {
             regex_escape_status_to_result(status, out_string, out_error)
         };
 
@@ -156,11 +158,13 @@ mod tests {
             unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
 
         assert_eq!(
-            regex_escape_status_to_result(
-                llama_rs_regex_escape_status::LLAMA_RS_REGEX_ESCAPE_OK,
-                escaped,
-                ptr::null_mut()
-            ),
+            unsafe {
+                regex_escape_status_to_result(
+                    llama_rs_regex_escape_status::LLAMA_RS_REGEX_ESCAPE_OK,
+                    escaped,
+                    ptr::null_mut(),
+                )
+            },
             Err(SamplerError::EscapedPatternNotUtf8 {
                 source: String::from_utf8(vec![0xFF]).unwrap_err(),
             })

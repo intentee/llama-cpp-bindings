@@ -5,6 +5,7 @@ use std::ptr;
 use enumflags2::BitFlags;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_state_data_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
@@ -12,7 +13,6 @@ use llama_cpp_path_c_string::path_c_string::path_c_string;
 use crate::context_state_error::ContextStateError;
 use crate::llama_state_seq_flag::LlamaStateSeqFlag;
 use crate::loaded_seq_state::LoadedSeqState;
-use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -33,11 +33,10 @@ unsafe fn state_data_status_to_result(
             Err(ContextStateError::StateDataLlamaCppOutOfMemory)
         }
         llama_rs_state_data_status::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error(operation, out_error, |message| {
-                    ContextStateError::StateDataReported { message }
-                })
-            })
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error(operation, |message| ContextStateError::StateDataReported {
+                    message,
+                }))
         }
     }
 }
@@ -516,6 +515,27 @@ mod tests {
             },
             Err(ContextStateError::StateDataReported {
                 message: "serializer threw".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn state_data_status_to_result_reports_an_exception_message_that_is_not_utf8() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
+
+        assert_eq!(
+            unsafe {
+                state_data_status_to_result(
+                    llama_rs_state_data_status::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    0,
+                    out_error,
+                    "llama_rs_state_get_data",
+                )
+            },
+            Err(ContextStateError::ExceptionMessageNotUtf8 {
+                operation: "llama_rs_state_get_data",
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
             })
         );
     }

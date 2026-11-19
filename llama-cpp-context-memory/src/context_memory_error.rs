@@ -2,6 +2,7 @@ use std::ffi::c_int;
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
 use llama_cpp_model::model_error::ModelError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -78,4 +79,10 @@ pub enum ContextMemoryError {
     SeqRmSequenceIdTooLarge(#[source] TryFromIntError),
     #[error("provided start position is too large for an i32")]
     SeqRmStartPositionTooLarge(#[source] TryFromIntError),
+}
+
+impl ExceptionMessageError for ContextMemoryError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
+    }
 }

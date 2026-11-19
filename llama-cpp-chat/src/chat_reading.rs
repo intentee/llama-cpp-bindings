@@ -6,6 +6,7 @@ use std::slice;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_free;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_parse_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::chat_classification::ChatClassification;
 use crate::chat_error::ChatError;
@@ -17,7 +18,6 @@ use crate::chat_span_kind::ChatSpanKind;
 use crate::chat_spans::ChatSpans;
 use crate::cpp_text_view::cpp_text_view;
 use crate::raw_chat_message::RawChatMessage;
-use crate::reported_error::reported_error;
 use crate::take_parsed_chat_message::take_parsed_chat_message;
 
 fn spans_of(
@@ -102,11 +102,10 @@ unsafe fn chat_reading_parse_status_to_result(
             Ok(unsafe { NonNull::new_unchecked(out_handle) })
         }
         llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_chat_reading_parse", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_chat_reading_parse", |message| {
                     ChatError::ParseReported { message }
-                })
-            })
+                }))
         }
         llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ChatError::ParseNotEnoughMemory)
@@ -246,6 +245,20 @@ mod tests {
                 Some(ChatError::ParseNotEnoughMemory),
                 Some(ChatError::ParseLlamaCppOutOfMemory),
             ]
+        );
+    }
+
+    #[test]
+    fn parsing_a_reading_reports_an_exception_message_that_is_not_utf8() {
+        assert_eq!(
+            parse_error(
+                llama_rs_chat_reading_parse_status::LLAMA_RS_CHAT_READING_PARSE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) }
+            ),
+            Some(ChatError::ExceptionMessageNotUtf8 {
+                operation: "llama_rs_chat_reading_parse",
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
+            })
         );
     }
 }

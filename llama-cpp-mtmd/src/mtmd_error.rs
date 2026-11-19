@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
+
 use crate::mtmd_image_token_limit::MtmdImageTokenLimit;
 use crate::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 
@@ -147,4 +149,10 @@ pub enum MtmdError {
     TokenizeUnknownStatus { code: i32 },
     #[error("Unknown MTMD input chunk type: {0}")]
     UnknownInputChunkType(llama_cpp_bindings_sys::bindings::mtmd_input_chunk_type),
+}
+
+impl ExceptionMessageError for MtmdError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
+    }
 }

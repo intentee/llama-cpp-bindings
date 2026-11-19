@@ -1,6 +1,7 @@
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
 use llama_cpp_model::model_error::ModelError;
 use llama_cpp_sampler::sampler_error::SamplerError;
 
@@ -50,4 +51,10 @@ pub enum ChatError {
     SessionTextNotUtf8(#[source] Utf8Error),
     #[error("the chat template cannot serve the request: {message}")]
     TemplateCannotServeRequest { message: String },
+}
+
+impl ExceptionMessageError for ChatError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
+    }
 }

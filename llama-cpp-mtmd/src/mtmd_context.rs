@@ -6,12 +6,12 @@ use std::ptr;
 use std::ptr::NonNull;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_init_from_file_status;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_model::llama_model::LlamaModel;
 
 use crate::mtmd_capability::MtmdCapability;
 use crate::mtmd_context_params::MtmdContextParams;
 use crate::mtmd_error::MtmdError;
-use crate::reported_error::reported_error;
 
 fn capability_flags(
     llama_cpp_bindings_sys::bindings::mtmd_helper_cap {
@@ -71,11 +71,10 @@ unsafe fn map_init_from_file_status(
             Err(MtmdError::InitLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_init_from_file_status::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_mtmd_init_from_file", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_mtmd_init_from_file", |message| {
                     MtmdError::InitReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -218,6 +217,28 @@ mod tests {
             .err(),
             Some(MtmdError::InitReported {
                 message: "projector threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn map_init_from_file_status_reports_a_thrown_exception_message_that_is_not_utf8() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
+
+        assert_eq!(
+            unsafe {
+                map_init_from_file_status(
+                    llama_rs_mtmd_init_from_file_status::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    ptr::null_mut(),
+                    out_error,
+                    "mmproj.gguf",
+                )
+            }
+            .err(),
+            Some(MtmdError::ExceptionMessageNotUtf8 {
+                operation: "llama_rs_mtmd_init_from_file",
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
             })
         );
     }

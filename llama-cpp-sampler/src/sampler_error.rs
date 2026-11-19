@@ -2,6 +2,7 @@ use std::ffi::NulError;
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_gbnf::gbnf_error::GbnfError;
 use llama_cpp_model::model_error::ModelError;
@@ -129,4 +130,10 @@ pub enum SamplerError {
     TooManyDistinctDrySequenceBreakers { distinct: usize, max: usize },
     #[error("a lazy-grammar trigger pattern contains an interior NUL byte")]
     TriggerPatternContainsNul(#[source] NulError),
+}
+
+impl ExceptionMessageError for SamplerError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
+    }
 }

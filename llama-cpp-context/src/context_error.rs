@@ -3,6 +3,7 @@ use std::num::NonZeroI32;
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_params::params_error::ParamsError;
@@ -86,11 +87,12 @@ pub enum ContextError {
     GraphProducesNoLogits,
     #[error("Invalid embedding dimension")]
     InvalidEmbeddingDimension(#[source] TryFromIntError),
-    #[error("{operation}: llama.cpp refused the {field} of an entry it had just added")]
-    LlamaCppRefusedFieldOfAddedEntry {
-        operation: &'static str,
-        field: &'static str,
-    },
+    #[error("{operation}: llama.cpp refused the decision order of an entry it had just added")]
+    LlamaCppRefusedDecisionOrderOfAddedEntry { operation: &'static str },
+    #[error("{operation}: llama.cpp refused the output flag of an entry it had just added")]
+    LlamaCppRefusedOutputFlagOfAddedEntry { operation: &'static str },
+    #[error("{operation}: llama.cpp refused the position of an entry it had just added")]
+    LlamaCppRefusedPositionOfAddedEntry { operation: &'static str },
     #[error(
         "{operation}: llama.cpp refused an additional sequence id of an entry, although the sequence ids were validated against the context"
     )]
@@ -180,6 +182,12 @@ impl ContextError {
             -3 => Self::EncodeComputeFailed,
             code => Self::EncodeUnknownStatus { code },
         }
+    }
+}
+
+impl ExceptionMessageError for ContextError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
     }
 }
 

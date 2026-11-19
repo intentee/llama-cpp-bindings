@@ -1,5 +1,6 @@
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -37,4 +38,10 @@ pub enum ContextStateError {
     StateDataNotEnoughMemory,
     #[error("{message}")]
     StateDataReported { message: String },
+}
+
+impl ExceptionMessageError for ContextStateError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
+    }
 }

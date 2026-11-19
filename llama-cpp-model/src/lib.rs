@@ -15,7 +15,6 @@ pub mod lora_adapter_scale;
 pub mod model_error;
 pub mod parse_special_tokens;
 mod piece_write;
-mod reported_error;
 pub mod rope_type;
 pub mod sampled_token;
 pub mod sampled_token_section;

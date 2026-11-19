@@ -5,7 +5,6 @@ use llama_cpp_bindings_sys::bindings::llama_rs_json_schema_to_grammar_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::gbnf_error::GbnfError;
-use crate::reported_error::reported_error;
 
 const OPERATION: &str = "llama_rs_json_schema_to_grammar";
 
@@ -32,25 +31,22 @@ unsafe fn json_schema_to_grammar_status_to_result(
             Err(GbnfError::SchemaConversionLlamaCppOutOfMemory)
         }
         llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
-            Err(unsafe {
-                reported_error(OPERATION, error_ptr, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(error_ptr) }
+                .into_reported_error(OPERATION, |message| {
                     GbnfError::InvalidSchema { message }
-                })
-            })
+                }))
         }
         llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
-            Err(unsafe {
-                reported_error(OPERATION, error_ptr, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(error_ptr) }
+                .into_reported_error(OPERATION, |message| {
                     GbnfError::InvalidJson { message }
-                })
-            })
+                }))
         }
         llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error(OPERATION, error_ptr, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(error_ptr) }
+                .into_reported_error(OPERATION, |message| {
                     GbnfError::SchemaConversionReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -164,6 +160,26 @@ mod tests {
             result,
             Err(GbnfError::SchemaConversionReported {
                 message: "conversion threw".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn llama_cpp_exception_message_that_is_not_utf8_is_reported_with_its_bytes() {
+        let out_error =
+            unsafe { llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"\xff".as_ptr()) };
+
+        assert_eq!(
+            unsafe {
+                json_schema_to_grammar_status_to_result(
+                    llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    ptr::null_mut(),
+                    out_error,
+                )
+            },
+            Err(GbnfError::ExceptionMessageNotUtf8 {
+                operation: "llama_rs_json_schema_to_grammar",
+                source: String::from_utf8(vec![0xFF]).unwrap_err(),
             })
         );
     }

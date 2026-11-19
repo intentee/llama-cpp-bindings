@@ -4,9 +4,9 @@ use std::ptr;
 use llama_cpp_bindings_sys::bindings::llama_rs_gbnf_validation_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_validate_gbnf;
 use llama_cpp_bindings_sys::bindings::llama_vocab;
+use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::gbnf_error::GbnfError;
-use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -40,11 +40,10 @@ unsafe fn validation_status_to_result(
             Err(GbnfError::ValidationLlamaCppOutOfMemory)
         }
         llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
-            Err(unsafe {
-                reported_error("llama_rs_validate_gbnf", out_error, |message| {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_validate_gbnf", |message| {
                     GbnfError::ValidationReported { message }
-                })
-            })
+                }))
         }
     }
 }
@@ -193,10 +192,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 validation_status_to_result(
-                llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY,
-                "root",
-                ptr::null_mut(),
-            )
+                    llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_LLAMA_CPP_OUT_OF_MEMORY,
+                    "root",
+                    ptr::null_mut(),
+                )
             },
             Err(GbnfError::ValidationLlamaCppOutOfMemory)
         );
@@ -207,10 +206,10 @@ mod tests {
         assert_eq!(
             unsafe {
                 validation_status_to_result(
-                llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED,
-                "root",
-                ptr::null_mut(),
-            )
+                    llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_ERROR_STRING_ALLOCATION_FAILED,
+                    "root",
+                    ptr::null_mut(),
+                )
             },
             Err(GbnfError::ValidationNotEnoughMemory)
         );

@@ -1,6 +1,8 @@
 use std::ffi::NulError;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
+
 #[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
 pub enum GbnfError {
     #[error("grammar defines no rules")]
@@ -46,4 +48,10 @@ pub enum GbnfError {
     ValidationNotEnoughMemory,
     #[error("the llama.cpp grammar engine failed: {message}")]
     ValidationReported { message: String },
+}
+
+impl ExceptionMessageError for GbnfError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
+    }
 }

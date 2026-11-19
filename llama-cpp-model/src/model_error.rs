@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 use crate::llama_token::LlamaToken;
@@ -143,4 +144,10 @@ pub enum ModelError {
     UnknownTokenAttributes(c_uint),
     #[error("Unknown Value {0}")]
     UnknownVocabType(llama_cpp_bindings_sys::bindings::llama_vocab_type),
+}
+
+impl ExceptionMessageError for ModelError {
+    fn exception_message_not_utf8(operation: &'static str, source: FromUtf8Error) -> Self {
+        Self::ExceptionMessageNotUtf8 { operation, source }
+    }
 }
