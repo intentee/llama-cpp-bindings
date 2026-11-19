@@ -11,7 +11,7 @@ use llama_cpp_bindings_sys::bindings::{
 use llama_cpp_context::llama_context::LlamaContext;
 
 use crate::context_memory_error::ContextMemoryError;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 fn open_ended_position(position: Option<u32>) -> Result<i32, TryFromIntError> {
     position.map_or(Ok(-1), i32::try_from)
@@ -39,8 +39,11 @@ unsafe fn memory_seq_add_status_to_result(
             Err(ContextMemoryError::SeqAddLlamaCppOutOfMemory)
         }
         llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message(OPERATION, out_error) }?;
-            Err(ContextMemoryError::SeqAddReported { message })
+            Err(unsafe {
+                reported_error(OPERATION, out_error, |message| {
+                    ContextMemoryError::SeqAddReported { message }
+                })
+            })
         }
     }
 }
@@ -67,8 +70,11 @@ unsafe fn memory_seq_div_status_to_result(
             Err(ContextMemoryError::SeqDivLlamaCppOutOfMemory)
         }
         llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message(OPERATION, out_error) }?;
-            Err(ContextMemoryError::SeqDivReported { message })
+            Err(unsafe {
+                reported_error(OPERATION, out_error, |message| {
+                    ContextMemoryError::SeqDivReported { message }
+                })
+            })
         }
     }
 }
@@ -96,8 +102,11 @@ unsafe fn memory_seq_pos_max_status_to_result(
             Err(ContextMemoryError::SeqPosMaxLlamaCppOutOfMemory)
         }
         llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message(OPERATION, out_error) }?;
-            Err(ContextMemoryError::SeqPosMaxReported { message })
+            Err(unsafe {
+                reported_error(OPERATION, out_error, |message| {
+                    ContextMemoryError::SeqPosMaxReported { message }
+                })
+            })
         }
     }
 }

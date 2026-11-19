@@ -6,7 +6,7 @@ use llama_cpp_bindings_sys::bindings::llama_rs_validate_gbnf;
 use llama_cpp_bindings_sys::bindings::llama_vocab;
 
 use crate::gbnf_error::GbnfError;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -40,9 +40,11 @@ unsafe fn validation_status_to_result(
             Err(GbnfError::ValidationLlamaCppOutOfMemory)
         }
         llama_rs_gbnf_validation_status::LLAMA_RS_GBNF_VALIDATION_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_validate_gbnf", out_error) }?;
-
-            Err(GbnfError::ValidationReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_validate_gbnf", out_error, |message| {
+                    GbnfError::ValidationReported { message }
+                })
+            })
         }
     }
 }

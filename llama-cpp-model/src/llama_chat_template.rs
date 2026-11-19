@@ -10,7 +10,7 @@ use llama_cpp_bindings_sys::bindings::llama_rs_render_template_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::model_error::ModelError;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 const OPERATION: &str = "llama_rs_render_template";
 
@@ -24,9 +24,6 @@ unsafe fn render_template_status_to_result(
     out_rendered: *mut c_char,
     out_error: *mut c_char,
 ) -> Result<String, ModelError> {
-    let reported_message = || -> Result<String, ModelError> {
-        unsafe { read_exception_message(OPERATION, out_error) }
-    };
     match status {
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_OK => {
             unsafe { CppAllocatedString::from_raw(out_rendered) }
@@ -40,26 +37,34 @@ unsafe fn render_template_status_to_result(
             Err(ModelError::RenderLlamaCppOutOfMemory)
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_INVALID_JSON => {
-            Err(ModelError::TemplateGlobalsInvalidJson {
-                message: reported_message()?,
+            Err(unsafe {
+                reported_error(OPERATION, out_error, |message| {
+                    ModelError::TemplateGlobalsInvalidJson { message }
+                })
             })
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_GLOBALS_NOT_A_JSON_OBJECT => {
             Err(ModelError::TemplateGlobalsNotAJsonObject)
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_INVALID_TEMPLATE => {
-            Err(ModelError::TemplateInvalid {
-                message: reported_message()?,
+            Err(unsafe {
+                reported_error(OPERATION, out_error, |message| {
+                    ModelError::TemplateInvalid { message }
+                })
             })
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_EXECUTION_FAILED => {
-            Err(ModelError::TemplateExecutionFailed {
-                message: reported_message()?,
+            Err(unsafe {
+                reported_error(OPERATION, out_error, |message| {
+                    ModelError::TemplateExecutionFailed { message }
+                })
             })
         }
         llama_rs_render_template_status::LLAMA_RS_RENDER_TEMPLATE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(ModelError::RenderReported {
-                message: reported_message()?,
+            Err(unsafe {
+                reported_error(OPERATION, out_error, |message| {
+                    ModelError::RenderReported { message }
+                })
             })
         }
     }

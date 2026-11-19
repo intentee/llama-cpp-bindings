@@ -17,7 +17,7 @@ use crate::mtmd_input_chunk::MtmdInputChunk;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::mtmd_input_part::MtmdInputPart;
 use crate::mtmd_input_text::MtmdInputText;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -40,10 +40,11 @@ unsafe fn input_chunks_init_status_to_result(
             Err(MtmdError::InputChunksLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_mtmd_input_chunks_init", out_error) }?;
-
-            Err(MtmdError::InputChunksReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_input_chunks_init", out_error, |message| {
+                    MtmdError::InputChunksReported { message }
+                })
+            })
         }
     }
 }
@@ -77,8 +78,11 @@ unsafe fn map_tokenize_status(
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_tokenize_status::LLAMA_RS_MTMD_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_mtmd_tokenize", out_error) }?;
-            Err(MtmdError::TokenizeReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_tokenize", out_error, |message| {
+                    MtmdError::TokenizeReported { message }
+                })
+            })
         }
     }
 }
@@ -114,9 +118,11 @@ unsafe fn map_tokenize_from_parts_status(
             Err(MtmdError::TokenizeLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_tokenize_from_parts_status::LLAMA_RS_MTMD_TOKENIZE_FROM_PARTS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_mtmd_tokenize_from_parts", out_error) }?;
-            Err(MtmdError::TokenizeReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_tokenize_from_parts", out_error, |message| {
+                    MtmdError::TokenizeReported { message }
+                })
+            })
         }
     }
 }

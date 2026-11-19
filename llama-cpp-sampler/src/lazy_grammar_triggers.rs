@@ -6,7 +6,7 @@ use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_model::llama_token::LlamaToken;
 
 use crate::chat_grammar_trigger::ChatGrammarTrigger;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 use crate::sampler_error::SamplerError;
 
 fn anchored_pattern(pattern: &str) -> String {
@@ -32,8 +32,10 @@ fn regex_escape_status_to_result(
                 .map_err(|source| SamplerError::EscapedPatternNotUtf8 { source })
         }
         llama_rs_regex_escape_status::LLAMA_RS_REGEX_ESCAPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            Err(SamplerError::GrammarReported {
-                message: unsafe { read_exception_message("llama_rs_regex_escape", out_error) }?,
+            Err(unsafe {
+                reported_error("llama_rs_regex_escape", out_error, |message| {
+                    SamplerError::GrammarReported { message }
+                })
             })
         }
         llama_rs_regex_escape_status::LLAMA_RS_REGEX_ESCAPE_ERROR_STRING_ALLOCATION_FAILED => {

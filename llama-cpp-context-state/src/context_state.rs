@@ -12,7 +12,7 @@ use llama_cpp_path_c_string::path_c_string::path_c_string;
 use crate::context_state_error::ContextStateError;
 use crate::llama_state_seq_flag::LlamaStateSeqFlag;
 use crate::loaded_seq_state::LoadedSeqState;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -33,9 +33,11 @@ unsafe fn state_data_status_to_result(
             Err(ContextStateError::StateDataLlamaCppOutOfMemory)
         }
         llama_rs_state_data_status::LLAMA_RS_STATE_DATA_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message(operation, out_error) }?;
-
-            Err(ContextStateError::StateDataReported { message })
+            Err(unsafe {
+                reported_error(operation, out_error, |message| {
+                    ContextStateError::StateDataReported { message }
+                })
+            })
         }
     }
 }

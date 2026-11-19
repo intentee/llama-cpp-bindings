@@ -65,9 +65,4 @@ where
     pub const fn len(&self) -> usize {
         self.chunk_types.len()
     }
-
-    #[must_use]
-    pub const fn micro_batch_tokens(&self) -> u32 {
-        self.micro_batch_tokens
-    }
 }

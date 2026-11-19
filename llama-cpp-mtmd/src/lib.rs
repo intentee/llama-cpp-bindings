@@ -18,4 +18,4 @@ pub mod mtmd_input_text_part;
 pub mod mtmd_memory_usage;
 pub mod non_causal_chunk_micro_batch_mismatch;
 mod optional_mtmd_id;
-mod read_exception_message;
+mod reported_error;

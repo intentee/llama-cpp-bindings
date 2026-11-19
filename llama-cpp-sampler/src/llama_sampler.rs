@@ -28,7 +28,7 @@ use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 
 use crate::dry_sequence_breakers::dry_sequence_breakers;
 use crate::llguidance_sampler_context::LlguidanceSamplerContext;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 use crate::sampler_error::SamplerError;
 use crate::sanitized_grammar::SanitizedGrammar;
 
@@ -45,8 +45,11 @@ fn check_sampler_accept_status(
             Err(SamplerError::AcceptLlamaCppOutOfMemory)
         }
         llama_rs_sampler_accept_status::LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_sampler_accept", error_ptr) }?;
-            Err(SamplerError::GrammarStateCorrupted { message })
+            Err(unsafe {
+                reported_error("llama_rs_sampler_accept", error_ptr, |message| {
+                    SamplerError::GrammarStateCorrupted { message }
+                })
+            })
         }
     }
 }
@@ -64,8 +67,11 @@ fn sampler_apply_status_to_result(
             Err(SamplerError::ApplyLlamaCppOutOfMemory)
         }
         llama_rs_sampler_apply_status::LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_sampler_apply", out_error) }?;
-            Err(SamplerError::ApplyReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_sampler_apply", out_error, |message| {
+                    SamplerError::ApplyReported { message }
+                })
+            })
         }
     }
 }
@@ -84,8 +90,11 @@ fn sampler_sample_status_to_result(
             Err(SamplerError::SampleLlamaCppOutOfMemory)
         }
         llama_rs_sampler_sample_status::LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_sampler_sample", error_ptr) }?;
-            Err(SamplerError::SampleReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_sampler_sample", error_ptr, |message| {
+                    SamplerError::SampleReported { message }
+                })
+            })
         }
     }
 }
@@ -109,9 +118,11 @@ fn sampler_init_grammar_status_to_result(
             Err(SamplerError::GrammarLlamaCppOutOfMemory)
         }
         llama_rs_sampler_init_grammar_status::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_sampler_init_grammar", error_ptr) }?;
-            Err(SamplerError::GrammarReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_sampler_init_grammar", error_ptr, |message| {
+                    SamplerError::GrammarReported { message }
+                })
+            })
         }
     }
 }
@@ -139,12 +150,18 @@ fn sampler_init_grammar_lazy_patterns_status_to_result(
             Err(SamplerError::GrammarLlamaCppOutOfMemory)
         }
         llama_rs_sampler_init_grammar_lazy_patterns_status::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_INVALID_TRIGGER_PATTERN => {
-            let message = unsafe { read_exception_message(OPERATION, error_ptr) }?;
-            Err(SamplerError::InvalidTriggerPattern { message })
+            Err(unsafe {
+                reported_error(OPERATION, error_ptr, |message| {
+                    SamplerError::InvalidTriggerPattern { message }
+                })
+            })
         }
         llama_rs_sampler_init_grammar_lazy_patterns_status::LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message(OPERATION, error_ptr) }?;
-            Err(SamplerError::GrammarReported { message })
+            Err(unsafe {
+                reported_error(OPERATION, error_ptr, |message| {
+                    SamplerError::GrammarReported { message }
+                })
+            })
         }
     }
 }
@@ -173,10 +190,13 @@ fn sampler_init_status_to_result(
             })
         }
         llama_rs_sampler_init_status::LLAMA_RS_SAMPLER_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_sampler_init", error_ptr) }?;
-            Err(SamplerError::InitReported {
-                sampler: sampler_name,
-                message,
+            Err(unsafe {
+                reported_error("llama_rs_sampler_init", error_ptr, |message| {
+                    SamplerError::InitReported {
+                        sampler: sampler_name,
+                        message,
+                    }
+                })
             })
         }
     }
@@ -195,11 +215,10 @@ fn sampler_chain_add_status_to_result(
             Err(SamplerError::InitLlamaCppOutOfMemory { sampler: "chain" })
         }
         llama_rs_sampler_chain_add_status::LLAMA_RS_SAMPLER_CHAIN_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_sampler_chain_add", error_ptr) }?;
-            Err(SamplerError::InitReported {
-                sampler: "chain",
-                message,
+            Err(unsafe {
+                reported_error("llama_rs_sampler_chain_add", error_ptr, |message| {
+                    SamplerError::InitReported { sampler: "chain", message }
+                })
             })
         }
     }

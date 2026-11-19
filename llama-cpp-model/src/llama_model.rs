@@ -34,7 +34,7 @@ use crate::llama_token_attrs::LlamaTokenAttrs;
 use crate::model_error::ModelError;
 use crate::parse_special_tokens::ParseSpecialTokens;
 use crate::piece_write::PieceWrite;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 use crate::rope_type::RopeType;
 use crate::sampled_token::SampledToken;
 use crate::tokenizer_input::TokenizerInput;
@@ -124,9 +124,11 @@ unsafe fn load_model_from_file_status_to_result(
             Err(ModelError::LoadLlamaCppOutOfMemory)
         }
         llama_rs_load_model_from_file_status::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_load_model_from_file", out_error) }?;
-            Err(ModelError::LoadReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_load_model_from_file", out_error, |message| {
+                    ModelError::LoadReported { message }
+                })
+            })
         }
     }
 }
@@ -151,9 +153,11 @@ unsafe fn model_decision_type_status_to_result(
             Err(ModelError::DecisionTypeLlamaCppOutOfMemory)
         }
         llama_rs_model_decision_type_status::LLAMA_RS_MODEL_DECISION_TYPE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_model_decision_type", out_error) }?;
-            Err(ModelError::DecisionTypeReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_model_decision_type", out_error, |message| {
+                    ModelError::DecisionTypeReported { message }
+                })
+            })
         }
     }
 }
@@ -243,10 +247,11 @@ unsafe fn tokenize_status_to_result(
         llama_rs_tokenize_status::LLAMA_RS_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY => {
             Err(ModelError::TokenizeLlamaCppOutOfMemory)
         }
-        llama_rs_tokenize_status::LLAMA_RS_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_tokenize", out_error) }?;
-            Err(ModelError::TokenizeReported { message })
-        }
+        llama_rs_tokenize_status::LLAMA_RS_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION => Err(unsafe {
+            reported_error("llama_rs_tokenize", out_error, |message| {
+                ModelError::TokenizeReported { message }
+            })
+        }),
     }
 }
 

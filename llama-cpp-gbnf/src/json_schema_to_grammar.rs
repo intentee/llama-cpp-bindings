@@ -5,7 +5,7 @@ use llama_cpp_bindings_sys::bindings::llama_rs_json_schema_to_grammar_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
 use crate::gbnf_error::GbnfError;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 const OPERATION: &str = "llama_rs_json_schema_to_grammar";
 
@@ -32,16 +32,25 @@ unsafe fn json_schema_to_grammar_status_to_result(
             Err(GbnfError::SchemaConversionLlamaCppOutOfMemory)
         }
         llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA => {
-            let message = unsafe { read_exception_message(OPERATION, error_ptr) }?;
-            Err(GbnfError::InvalidSchema { message })
+            Err(unsafe {
+                reported_error(OPERATION, error_ptr, |message| {
+                    GbnfError::InvalidSchema { message }
+                })
+            })
         }
         llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_JSON => {
-            let message = unsafe { read_exception_message(OPERATION, error_ptr) }?;
-            Err(GbnfError::InvalidJson { message })
+            Err(unsafe {
+                reported_error(OPERATION, error_ptr, |message| {
+                    GbnfError::InvalidJson { message }
+                })
+            })
         }
         llama_rs_json_schema_to_grammar_status::LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message(OPERATION, error_ptr) }?;
-            Err(GbnfError::SchemaConversionReported { message })
+            Err(unsafe {
+                reported_error(OPERATION, error_ptr, |message| {
+                    GbnfError::SchemaConversionReported { message }
+                })
+            })
         }
     }
 }

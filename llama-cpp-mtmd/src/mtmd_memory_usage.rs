@@ -9,7 +9,7 @@ use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_get_memory_usage_status;
 use crate::mtmd_context_params::MtmdContextParams;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_image_token_limit::MtmdImageTokenLimit;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -33,10 +33,11 @@ unsafe fn get_memory_usage_status_to_result(
             Err(MtmdError::MemoryUsageLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_get_memory_usage_status::LLAMA_RS_MTMD_GET_MEMORY_USAGE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_mtmd_get_memory_usage", out_error) }?;
-
-            Err(MtmdError::MemoryUsageReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_get_memory_usage", out_error, |message| {
+                    MtmdError::MemoryUsageReported { message }
+                })
+            })
         }
     }
 }

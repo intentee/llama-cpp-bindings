@@ -11,7 +11,7 @@ use llama_cpp_model::llama_model::LlamaModel;
 use crate::mtmd_capability::MtmdCapability;
 use crate::mtmd_context_params::MtmdContextParams;
 use crate::mtmd_error::MtmdError;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 fn capability_flags(
     llama_cpp_bindings_sys::bindings::mtmd_helper_cap {
@@ -71,9 +71,11 @@ unsafe fn map_init_from_file_status(
             Err(MtmdError::InitLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_init_from_file_status::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_mtmd_init_from_file", out_error) }?;
-            Err(MtmdError::InitReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_init_from_file", out_error, |message| {
+                    MtmdError::InitReported { message }
+                })
+            })
         }
     }
 }

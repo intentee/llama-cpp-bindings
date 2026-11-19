@@ -7,7 +7,7 @@ use llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_init_status;
 
 use crate::llama_chat_template::LlamaChatTemplate;
 use crate::model_error::ModelError;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -33,9 +33,11 @@ unsafe fn chat_templates_init_status_to_result(
             Err(ModelError::ChatTemplatesLlamaCppOutOfMemory)
         }
         llama_rs_chat_templates_init_status::LLAMA_RS_CHAT_TEMPLATES_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_chat_templates_init", out_error) }?;
-            Err(ModelError::ChatTemplatesReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_chat_templates_init", out_error, |message| {
+                    ModelError::ChatTemplatesReported { message }
+                })
+            })
         }
     }
 }

@@ -8,7 +8,7 @@ use llama_cpp_path_c_string::path_c_string::path_c_string;
 
 use crate::decision_type::DecisionType;
 use crate::model_error::ModelError;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -36,8 +36,11 @@ unsafe fn read_gguf_info_status_to_result(
             Err(ModelError::GgufInfoLlamaCppOutOfMemory)
         }
         llama_rs_read_gguf_info_status::LLAMA_RS_READ_GGUF_INFO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_read_gguf_info", out_error) }?;
-            Err(ModelError::GgufInfoReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_read_gguf_info", out_error, |message| {
+                    ModelError::GgufInfoReported { message }
+                })
+            })
         }
     }
 }

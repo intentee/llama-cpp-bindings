@@ -15,7 +15,7 @@ use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_bitmap_init_status;
 use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
 use crate::optional_mtmd_id::optional_mtmd_id;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -44,8 +44,11 @@ unsafe fn from_file_status_to_result(
             Err(MtmdError::BitmapLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_bitmap_init_from_file_status::LLAMA_RS_MTMD_BITMAP_INIT_FROM_FILE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_mtmd_bitmap_init_from_file", out_error) }?;
-            Err(MtmdError::BitmapReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_bitmap_init_from_file", out_error, |message| {
+                    MtmdError::BitmapReported { message }
+                })
+            })
         }
     }
 }
@@ -74,8 +77,11 @@ unsafe fn from_buf_status_to_result(
             Err(MtmdError::BitmapLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_bitmap_init_from_buf_status::LLAMA_RS_MTMD_BITMAP_INIT_FROM_BUF_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_mtmd_bitmap_init_from_buf", out_error) }?;
-            Err(MtmdError::BitmapReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_bitmap_init_from_buf", out_error, |message| {
+                    MtmdError::BitmapReported { message }
+                })
+            })
         }
     }
 }
@@ -101,8 +107,11 @@ unsafe fn bitmap_init_status_to_result(
             Err(MtmdError::BitmapLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_bitmap_init_status::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_mtmd_bitmap_init", out_error) }?;
-            Err(MtmdError::BitmapReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_bitmap_init", out_error, |message| {
+                    MtmdError::BitmapReported { message }
+                })
+            })
         }
     }
 }
@@ -128,8 +137,11 @@ unsafe fn bitmap_init_from_audio_status_to_result(
             Err(MtmdError::BitmapLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_bitmap_init_from_audio_status::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message("llama_rs_mtmd_bitmap_init_from_audio", out_error) }?;
-            Err(MtmdError::BitmapReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_bitmap_init_from_audio", out_error, |message| {
+                    MtmdError::BitmapReported { message }
+                })
+            })
         }
     }
 }

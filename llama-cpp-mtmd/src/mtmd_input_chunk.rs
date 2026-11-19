@@ -16,7 +16,7 @@ use crate::mtmd_error::MtmdError;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismatch;
 use crate::optional_mtmd_id::optional_mtmd_id;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 /// # Safety
 ///
@@ -79,10 +79,11 @@ unsafe fn input_chunk_copy_status_to_result(
             Err(MtmdError::ChunkCopyLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_mtmd_input_chunk_copy", out_error) }?;
-
-            Err(MtmdError::ChunkCopyReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_input_chunk_copy", out_error, |message| {
+                    MtmdError::ChunkCopyReported { message }
+                })
+            })
         }
     }
 }
@@ -106,9 +107,11 @@ unsafe fn map_encode_chunk_status(
             Err(MtmdError::EncodeLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_encode_chunk_status::LLAMA_RS_MTMD_ENCODE_CHUNK_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_mtmd_encode_chunk", out_error) }?;
-            Err(MtmdError::EncodeReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_encode_chunk", out_error, |message| {
+                    MtmdError::EncodeReported { message }
+                })
+            })
         }
     }
 }
@@ -135,9 +138,11 @@ unsafe fn eval_chunk_single_status_to_result(
             Err(MtmdError::EvalLlamaCppOutOfMemory)
         }
         llama_rs_mtmd_eval_chunk_single_status::LLAMA_RS_MTMD_EVAL_CHUNK_SINGLE_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message =
-                unsafe { read_exception_message("llama_rs_mtmd_eval_chunk_single", out_error) }?;
-            Err(MtmdError::EvalReported { message })
+            Err(unsafe {
+                reported_error("llama_rs_mtmd_eval_chunk_single", out_error, |message| {
+                    MtmdError::EvalReported { message }
+                })
+            })
         }
     }
 }

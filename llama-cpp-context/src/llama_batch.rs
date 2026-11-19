@@ -11,7 +11,7 @@ use llama_cpp_model::sampled_token::SampledToken;
 use crate::context_error::ContextError;
 use crate::context_limits::ContextLimits;
 use crate::decision_order::DecisionOrder;
-use crate::read_exception_message::read_exception_message;
+use crate::reported_error::reported_error;
 
 const fn refused_token_error(operation: &'static str, llama_cpp_return_code: i32) -> ContextError {
     match llama_cpp_return_code {
@@ -68,8 +68,11 @@ unsafe fn batch_ext_assign_entries_status_to_result(
             Err(ContextError::BatchTransferLlamaCppOutOfMemory)
         }
         llama_rs_batch_ext_assign_entries_status::LLAMA_RS_BATCH_EXT_ASSIGN_ENTRIES_LLAMA_CPP_THREW_CXX_EXCEPTION => {
-            let message = unsafe { read_exception_message(OPERATION, out_error) }?;
-            Err(ContextError::BatchTransferReported { message })
+            Err(unsafe {
+                reported_error(OPERATION, out_error, |message| {
+                    ContextError::BatchTransferReported { message }
+                })
+            })
         }
     }
 }
