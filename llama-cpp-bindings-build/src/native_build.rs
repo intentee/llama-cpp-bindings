@@ -128,7 +128,7 @@ mod tests {
     use crate::target_os::TargetOs;
     use crate::wrapper_compilation::WrapperCompilation;
 
-    const HOST_TRIPLE: &str = env!("LLAMA_CPP_BINDINGS_BUILD_TARGET");
+    const HOST_TRIPLE: &str = include_str!(concat!(env!("OUT_DIR"), "/host_triple"));
 
     const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
 

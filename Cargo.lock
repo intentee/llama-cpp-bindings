@@ -1220,6 +1220,7 @@ name = "llama-cpp-bindings-sys"
 version = "0.29.0"
 dependencies = [
  "llama-cpp-bindings-build",
+ "thiserror",
 ]
 
 [[package]]
