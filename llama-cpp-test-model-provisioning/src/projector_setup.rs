@@ -257,6 +257,10 @@ mod tests {
             poisoned_failure,
             PhaseSetupError::MmprojPoisoned { mmproj_source } if *mmproj_source == LOCAL_MMPROJ
         ));
+        assert_eq!(
+            poisoned_failure.kind(),
+            PhaseSetupFailureKind::MmprojPoisoned
+        );
         assert!(ptr::eq(poisoned_failure, later_failure));
     }
 
