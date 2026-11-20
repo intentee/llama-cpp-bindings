@@ -124,17 +124,6 @@ unsafe fn map_tokenize_from_parts_status(
     }
 }
 
-fn fit_each(
-    chunks: &[MtmdInputChunkView<'_>],
-    mtmd_ctx: &MtmdContext,
-    micro_batch_tokens: u32,
-) -> Result<Vec<MtmdInputChunkType>, MtmdError> {
-    chunks
-        .iter()
-        .map(|chunk| chunk.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens))
-        .collect()
-}
-
 #[derive(Debug)]
 pub struct MtmdInputChunks {
     chunks: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunks>,
@@ -280,7 +269,7 @@ impl MtmdInputChunks {
             .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?);
         let chunks = self.chunks();
 
-        fit_each(&chunks, mtmd_ctx, micro_batch_tokens)?;
+        self.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)?;
 
         let last_chunk_index = chunks.len().checked_sub(1);
 
@@ -312,7 +301,10 @@ impl MtmdInputChunks {
         mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
     ) -> Result<Vec<MtmdInputChunkType>, MtmdError> {
-        fit_each(&self.chunks(), mtmd_ctx, micro_batch_tokens)
+        self.chunks()
+            .into_iter()
+            .map(|chunk| chunk.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens))
+            .collect()
     }
 
     #[must_use]
@@ -389,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn out_of_memory_statuses_map_to_their_errors() {
+    fn chunk_list_initialization_memory_failures_map_to_their_errors() {
         let statuses = [
             llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED,
             llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_LLAMA_CPP_OUT_OF_MEMORY,

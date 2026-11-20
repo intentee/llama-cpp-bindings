@@ -3,6 +3,7 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
+use llama_cpp_bindings_sys::bindings::llama_rs_chat_grammar_trigger_type;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_create_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_free;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_read_status;
@@ -71,26 +72,26 @@ fn session_text(text: *const c_char, length: usize) -> Result<String, ChatError>
 }
 
 fn grammar_trigger_of(
-    trigger_type: llama_cpp_bindings_sys::bindings::llama_rs_chat_grammar_trigger_type,
+    trigger_type: llama_rs_chat_grammar_trigger_type,
     value: String,
     token: impl FnOnce() -> LlamaToken,
 ) -> Result<ChatGrammarTrigger, ChatError> {
     match trigger_type {
-        llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN => {
+        llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN => {
             Ok(ChatGrammarTrigger::Token(token()))
         }
-        llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_WORD => {
+        llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_WORD => {
             Ok(ChatGrammarTrigger::Word(value))
         }
-        llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN => {
+        llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN => {
             Ok(ChatGrammarTrigger::Pattern(value))
         }
-        llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL => {
+        llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL => {
             Ok(ChatGrammarTrigger::PatternFull(value))
         }
-        unrecognized_type => Err(ChatError::GrammarTriggerTypeUnrecognized {
-            value: unrecognized_type,
-        }),
+        llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED => {
+            Err(ChatError::GrammarTriggerTypeUnrecognized)
+        }
     }
 }
 
@@ -528,6 +529,7 @@ mod tests {
     use serde_json::json;
     use std::ptr;
 
+    use llama_cpp_bindings_sys::bindings::llama_rs_chat_grammar_trigger_type;
     use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_create_status;
     use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_read_status;
     use llama_cpp_bindings_types::chat_message::ChatMessage;
@@ -546,7 +548,7 @@ mod tests {
     use crate::chat_error::ChatError;
 
     fn trigger_of(
-        trigger_type: llama_cpp_bindings_sys::bindings::llama_rs_chat_grammar_trigger_type,
+        trigger_type: llama_rs_chat_grammar_trigger_type,
     ) -> Result<ChatGrammarTrigger, ChatError> {
         grammar_trigger_of(trigger_type, "<tool_call>".to_owned(), || {
             LlamaToken::new(151_657)
@@ -718,13 +720,13 @@ mod tests {
     }
 
     #[test]
-    fn every_llama_cpp_trigger_type_maps_to_its_trigger() {
+    fn every_trigger_type_the_chat_session_reports_maps_to_its_trigger() {
         assert_eq!(
             [
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN,
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_WORD,
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN,
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL,
+                llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN,
+                llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_WORD,
+                llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN,
+                llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL,
             ]
             .map(trigger_of),
             [
@@ -733,14 +735,6 @@ mod tests {
                 Ok(ChatGrammarTrigger::Pattern("<tool_call>".to_owned())),
                 Ok(ChatGrammarTrigger::PatternFull("<tool_call>".to_owned())),
             ]
-        );
-    }
-
-    #[test]
-    fn an_unrecognized_trigger_type_keeps_its_value() {
-        assert_eq!(
-            trigger_of(99),
-            Err(ChatError::GrammarTriggerTypeUnrecognized { value: 99 })
         );
     }
 }

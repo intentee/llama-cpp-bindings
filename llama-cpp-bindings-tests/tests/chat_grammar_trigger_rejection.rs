@@ -53,12 +53,7 @@ fn grammar_triggers_refuse_a_trigger_type_the_bindings_do_not_recognize(
         llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED,
     );
 
-    ensure!(
-        session.grammar_triggers().err() == Some(ChatError::GrammarTriggerTypeUnrecognized {
-            value:
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_UNRECOGNIZED
-        })
-    );
+    ensure!(session.grammar_triggers().err() == Some(ChatError::GrammarTriggerTypeUnrecognized));
 
     Ok(())
 }

@@ -85,7 +85,7 @@ mod tests {
     use crate::mtmd_error::MtmdError;
 
     #[test]
-    fn out_of_memory_statuses_map_to_their_errors() {
+    fn chunk_copy_memory_failures_map_to_their_errors() {
         let statuses = [
             llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED,
             llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_LLAMA_CPP_OUT_OF_MEMORY,

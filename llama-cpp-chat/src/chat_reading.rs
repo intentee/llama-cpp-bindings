@@ -154,8 +154,8 @@ impl ChatReading {
     ///
     /// # Errors
     ///
-    /// Returns [`ChatError`] when a span kind is unknown to this binding or the
-    /// expected format's name is not UTF-8; the reading is released either way.
+    /// Returns [`ChatError`] when the expected format's name is not UTF-8; the reading is
+    /// released either way.
     pub fn take(
         reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
         output: &ChatOutput,

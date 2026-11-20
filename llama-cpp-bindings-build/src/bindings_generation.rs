@@ -77,6 +77,7 @@ fn configured_builder() -> Builder {
         .blocklist_type("_IO_.*")
         .rustified_enum("llama_rs_.*_status")
         .rustified_enum("llama_rs_chat_span_kind")
+        .rustified_enum("llama_rs_chat_grammar_trigger_type")
         .prepend_enum_name(false);
 
     let builder = DEPRECATED_FUNCTIONS

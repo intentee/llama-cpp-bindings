@@ -19,12 +19,8 @@ pub enum ChatError {
     Grammar(#[source] SamplerError),
     #[error("the grammar sampler refused a generation-prompt token")]
     GrammarPrefill(#[source] SamplerError),
-    #[error(
-        "llama.cpp produced a grammar trigger of a type {value} this binding does not recognize"
-    )]
-    GrammarTriggerTypeUnrecognized {
-        value: llama_cpp_bindings_sys::bindings::llama_rs_chat_grammar_trigger_type,
-    },
+    #[error("llama.cpp produced a grammar trigger of a type this binding does not recognize")]
+    GrammarTriggerTypeUnrecognized,
     #[error("the llama.cpp library ran out of memory")]
     ParseLlamaCppOutOfMemory,
     #[error("not enough memory")]

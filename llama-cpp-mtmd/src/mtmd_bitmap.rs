@@ -608,7 +608,7 @@ mod tests {
     }
 
     #[test]
-    fn every_image_failure_status_maps_to_its_error() {
+    fn image_initialization_memory_failures_map_to_their_errors() {
         let statuses = [
             llama_rs_mtmd_bitmap_init_status::LLAMA_RS_MTMD_BITMAP_INIT_ERROR_STRING_ALLOCATION_FAILED,
             llama_rs_mtmd_bitmap_init_status::LLAMA_RS_MTMD_BITMAP_INIT_LLAMA_CPP_OUT_OF_MEMORY,
@@ -627,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn every_audio_failure_status_maps_to_its_error() {
+    fn audio_initialization_memory_failures_map_to_their_errors() {
         let statuses = [
             llama_rs_mtmd_bitmap_init_from_audio_status::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_ERROR_STRING_ALLOCATION_FAILED,
             llama_rs_mtmd_bitmap_init_from_audio_status::LLAMA_RS_MTMD_BITMAP_INIT_FROM_AUDIO_LLAMA_CPP_OUT_OF_MEMORY,
