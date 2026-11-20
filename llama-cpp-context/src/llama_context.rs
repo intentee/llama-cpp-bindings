@@ -308,7 +308,7 @@ impl<'model> LlamaContext<'model> {
     ///
     /// - `ContextError` if the decoding failed.
     pub fn decode(&mut self, batch: &LlamaBatch) -> Result<(), ContextError> {
-        if self.decodes_batches_in_one_micro_batch() && self.exceeds_micro_batch(batch) {
+        if !self.decode_fits_micro_batch(batch.n_tokens().unsigned_abs()) {
             return Err(ContextError::DecodeBatchExceedsMicroBatch {
                 n_tokens: batch.n_tokens(),
                 n_ubatch: self.n_ubatch(),
@@ -326,15 +326,13 @@ impl<'model> LlamaContext<'model> {
         )
     }
 
-    /// Whether llama.cpp decodes every batch on this context in a single micro batch, as it does
-    /// while the context attends non-causally or keeps no memory, so a batch with more tokens
-    /// than [`Self::n_ubatch`] cannot be decoded.
+    /// Whether llama.cpp can decode a batch of `n_tokens` tokens on this context: any batch while
+    /// the context splits batches into micro batches, and only a batch of at most
+    /// [`Self::n_ubatch`] tokens while it decodes every batch in a single micro batch, as it does
+    /// while the context attends non-causally or keeps no memory.
     #[must_use]
-    pub fn decodes_batches_in_one_micro_batch(&self) -> bool {
-        self.keeps_no_memory
-            || !unsafe {
-                llama_cpp_bindings_sys::bindings::llama_get_causal_attn(self.context.as_ptr())
-            }
+    pub fn decode_fits_micro_batch(&self, n_tokens: u32) -> bool {
+        !self.decodes_batches_in_one_micro_batch() || self.fits_micro_batch(n_tokens)
     }
 
     /// # Errors
@@ -399,7 +397,7 @@ impl<'model> LlamaContext<'model> {
     /// - `ContextError` if the encoding failed, or [`ContextError::EncodeModelHasNoEncoder`] when the
     ///   model has no encoder to run.
     pub fn encode(&mut self, batch: &LlamaBatch) -> Result<(), ContextError> {
-        if self.exceeds_micro_batch(batch) {
+        if !self.fits_micro_batch(batch.n_tokens().unsigned_abs()) {
             return Err(ContextError::EncodeBatchExceedsMicroBatch {
                 n_tokens: batch.n_tokens(),
                 n_ubatch: self.n_ubatch(),
@@ -596,6 +594,13 @@ impl<'model> LlamaContext<'model> {
         Ok(token_data_array)
     }
 
+    fn decodes_batches_in_one_micro_batch(&self) -> bool {
+        self.keeps_no_memory
+            || !unsafe {
+                llama_cpp_bindings_sys::bindings::llama_get_causal_attn(self.context.as_ptr())
+            }
+    }
+
     const fn embeddings_enabled(&self) -> bool {
         self.embeddings
     }
@@ -612,8 +617,8 @@ impl<'model> LlamaContext<'model> {
         }
     }
 
-    fn exceeds_micro_batch(&self, batch: &LlamaBatch) -> bool {
-        i64::from(batch.n_tokens()) > i64::from(self.n_ubatch())
+    const fn fits_micro_batch(&self, n_tokens: u32) -> bool {
+        n_tokens <= self.n_ubatch()
     }
 
     fn output_embedding_row(&self, embedding: *const f32) -> Result<&[f32], ContextError> {

@@ -253,14 +253,13 @@ impl<'context> MtmdInputChunks<'context> {
             .collect()
     }
 
-    /// Checks every chunk with [`FittedMtmdInputChunks::fit`] and its positions with
+    /// Checks every chunk with [`Self::fit_in`] and its positions with
     /// [`FittedMtmdInputChunks::eval_each`] before evaluating any of them, so a chunk that cannot
     /// be decoded leaves the KV cache untouched.
     ///
     /// # Errors
     ///
-    /// Returns any error of [`MtmdContext::micro_batch_tokens_in`],
-    /// [`FittedMtmdInputChunks::fit`] or [`FittedMtmdInputChunks::eval_each`], or
+    /// Returns any error of [`Self::fit_in`] or [`FittedMtmdInputChunks::eval_each`], or
     /// [`MtmdError::EvalFailed`] if any encoding or decoding operation fails.
     pub fn eval_chunks(
         &self,
@@ -270,16 +269,33 @@ impl<'context> MtmdInputChunks<'context> {
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
-        let micro_batch_tokens = self
-            .mtmd_context
-            .micro_batch_tokens_in(llama_ctx, n_batch, seq_id)?;
-        let fitted_chunks = FittedMtmdInputChunks::fit(self.chunks(), micro_batch_tokens)?;
+        let fitted_chunks = self.fit_in(llama_ctx, n_batch, seq_id)?;
 
         fitted_chunks
             .eval_each(llama_ctx, start_position, seq_id, n_batch, logits_last)?
             .try_fold(start_position, |_position_before_chunk, evaluated_chunk| {
                 evaluated_chunk.map(|EvaluatedMtmdInputChunk { next_position, .. }| next_position)
             })
+    }
+
+    /// Checks `llama_ctx`, `n_batch` and `seq_id` with [`MtmdContext::batch_tokens_in`], then
+    /// every chunk with [`FittedMtmdInputChunks::fit`] for decodes of `n_batch` in `llama_ctx`.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error of [`MtmdContext::batch_tokens_in`], then any error of
+    /// [`FittedMtmdInputChunks::fit`].
+    pub fn fit_in(
+        &self,
+        llama_ctx: &LlamaContext,
+        n_batch: i32,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
+    ) -> Result<FittedMtmdInputChunks<'_, 'context>, MtmdError> {
+        let batch_tokens = self
+            .mtmd_context
+            .batch_tokens_in(llama_ctx, n_batch, seq_id)?;
+
+        FittedMtmdInputChunks::fit(self.chunks(), llama_ctx, batch_tokens)
     }
 
     #[must_use]

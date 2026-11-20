@@ -145,24 +145,34 @@ unsafe fn adapter_lora_init_status_to_result(
     status: llama_rs_adapter_lora_init_status,
     out_adapter: *mut llama_cpp_bindings_sys::bindings::llama_adapter_lora,
     out_error: *mut c_char,
+    path: &Path,
 ) -> Result<NonNull<llama_cpp_bindings_sys::bindings::llama_adapter_lora>, ModelError> {
     match status {
         llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_OK => {
             Ok(unsafe { NonNull::new_unchecked(out_adapter) })
         }
         llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_RETURNED_NULL => {
-            Err(ModelError::LoraAdapterUnloadable)
+            Err(ModelError::LoraAdapterUnloadable {
+                path: path.to_path_buf(),
+            })
         }
         llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_ERROR_STRING_ALLOCATION_FAILED => {
-            Err(ModelError::LoraAdapterNotEnoughMemory)
+            Err(ModelError::LoraAdapterNotEnoughMemory {
+                path: path.to_path_buf(),
+            })
         }
         llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
-            Err(ModelError::LoraAdapterLlamaCppOutOfMemory)
+            Err(ModelError::LoraAdapterLlamaCppOutOfMemory {
+                path: path.to_path_buf(),
+            })
         }
         llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
             Err(unsafe { CppAllocatedString::from_raw(out_error) }
                 .into_reported_error("llama_rs_adapter_lora_init", |message| {
-                    ModelError::LoraAdapterReported { message }
+                    ModelError::LoraAdapterReported {
+                        path: path.to_path_buf(),
+                        message,
+                    }
                 }))
         }
     }
@@ -548,7 +558,7 @@ impl LlamaModel {
     /// Returns [`ModelError::LoraAdapterPathInvalid`] when `path` cannot be handed to llama.cpp,
     /// [`ModelError::LoraAdapterFileNotFound`] when nothing exists at `path`,
     /// [`ModelError::LoraAdapterUnloadable`] when llama.cpp cannot load the adapter, or another
-    /// [`ModelError`] when llama.cpp runs out of memory or throws while loading it.
+    /// [`ModelError`] naming `path` when llama.cpp runs out of memory or throws while loading it.
     pub fn load_lora_adapter(&mut self, path: impl AsRef<Path>) -> Result<(), ModelError> {
         let path = path.as_ref();
 
@@ -570,7 +580,7 @@ impl LlamaModel {
             )
         };
         let lora_adapter =
-            unsafe { adapter_lora_init_status_to_result(status, out_adapter, out_error) }?;
+            unsafe { adapter_lora_init_status_to_result(status, out_adapter, out_error, path) }?;
 
         self.lora_adapters.push(lora_adapter);
 
@@ -1007,6 +1017,7 @@ mod tests {
     use std::ffi::CString;
     use std::ffi::c_char;
     use std::path::Path;
+    use std::path::PathBuf;
     use std::ptr;
     use std::ptr::NonNull;
     use std::slice;
@@ -1030,6 +1041,8 @@ mod tests {
     use super::tokenize_status_to_result;
     use crate::decision_type::DecisionType;
     use crate::model_error::ModelError;
+
+    const ADAPTER_PATH: &str = "/adapters/adapter.gguf";
 
     const NOT_A_DECISION_MODEL: llama_cpp_bindings_sys::bindings::llama_rs_decision_type =
         llama_cpp_bindings_sys::bindings::LLAMA_RS_DECISION_TYPE_NONE;
@@ -1303,6 +1316,7 @@ mod tests {
                     llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_OK,
                     adapter.as_ptr(),
                     ptr::null_mut(),
+                    Path::new(ADAPTER_PATH),
                 )
             },
             Ok(adapter)
@@ -1317,9 +1331,12 @@ mod tests {
                     llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_RETURNED_NULL,
                     ptr::null_mut(),
                     ptr::null_mut(),
+                    Path::new(ADAPTER_PATH),
                 )
             },
-            Err(ModelError::LoraAdapterUnloadable)
+            Err(ModelError::LoraAdapterUnloadable {
+                path: PathBuf::from(ADAPTER_PATH),
+            })
         );
     }
 
@@ -1331,11 +1348,20 @@ mod tests {
                 llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_OUT_OF_MEMORY,
             ]
             .map(|status| unsafe {
-                adapter_lora_init_status_to_result(status, ptr::null_mut(), ptr::null_mut())
+                adapter_lora_init_status_to_result(
+                    status,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    Path::new(ADAPTER_PATH),
+                )
             }),
             [
-                Err(ModelError::LoraAdapterNotEnoughMemory),
-                Err(ModelError::LoraAdapterLlamaCppOutOfMemory),
+                Err(ModelError::LoraAdapterNotEnoughMemory {
+                    path: PathBuf::from(ADAPTER_PATH),
+                }),
+                Err(ModelError::LoraAdapterLlamaCppOutOfMemory {
+                    path: PathBuf::from(ADAPTER_PATH),
+                }),
             ]
         );
     }
@@ -1352,9 +1378,11 @@ mod tests {
                     llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
                     ptr::null_mut(),
                     out_error,
+                    Path::new(ADAPTER_PATH),
                 )
             },
             Err(ModelError::LoraAdapterReported {
+                path: PathBuf::from(ADAPTER_PATH),
                 message: "adapter loading threw".to_owned()
             })
         );

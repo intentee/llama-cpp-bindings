@@ -15,7 +15,6 @@ use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
 use llama_cpp_mtmd::evaluated_mtmd_input_chunk::EvaluatedMtmdInputChunk;
 use llama_cpp_mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
-use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
 use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
@@ -121,10 +120,10 @@ impl<'model> SampledTokenClassifier<'model> {
         discarded
     }
 
-    /// Checks every chunk with [`FittedMtmdInputChunks::fit`] and its positions with
-    /// [`FittedMtmdInputChunks::eval_each`] before evaluating any of them, so a chunk that cannot
-    /// be decoded moves neither the KV cache nor the usage counters, then ingests the usage of
-    /// each chunk right after evaluating it.
+    /// Checks every chunk and its positions before evaluating any of them, as
+    /// [`MtmdInputChunks::eval_chunks`] does, so a chunk that cannot be decoded moves neither the
+    /// KV cache nor the usage counters, then ingests the usage of each chunk right after
+    /// evaluating it.
     ///
     /// # Errors
     /// Returns [`LlamaCppError::MultimodalChunksEval`] when `llama_ctx` was created for another
@@ -143,14 +142,9 @@ impl<'model> SampledTokenClassifier<'model> {
             logits_last,
         }: EvalMultimodalChunksParams,
     ) -> Result<llama_pos, LlamaCppError> {
-        let fitted_chunks = FittedMtmdInputChunks::fit(
-            chunks.chunks(),
-            chunks
-                .mtmd_context()
-                .micro_batch_tokens_in(llama_ctx, n_batch, seq_id)
-                .map_err(LlamaCppError::MultimodalChunksEval)?,
-        )
-        .map_err(LlamaCppError::MultimodalChunksEval)?;
+        let fitted_chunks = chunks
+            .fit_in(llama_ctx, n_batch, seq_id)
+            .map_err(LlamaCppError::MultimodalChunksEval)?;
 
         fitted_chunks
             .eval_each(llama_ctx, start_position, seq_id, n_batch, logits_last)

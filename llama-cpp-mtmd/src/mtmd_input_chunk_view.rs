@@ -1,6 +1,7 @@
 use std::ffi::c_char;
 use std::marker::PhantomData;
 use std::num::NonZeroI32;
+use std::num::NonZeroU32;
 use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
@@ -57,22 +58,38 @@ fn non_causal_chunk_micro_batch_error(
     None
 }
 
+fn largest_decode_piece_tokens(chunk_tokens: usize, batch_tokens: NonZeroU32) -> u32 {
+    let batch_tokens = batch_tokens.get();
+
+    u32::try_from(chunk_tokens).map_or(batch_tokens, |chunk_tokens| chunk_tokens.min(batch_tokens))
+}
+
 fn position_after_chunk(
     start_position: llama_cpp_bindings_sys::bindings::llama_pos,
     n_tokens: usize,
     n_positions: llama_cpp_bindings_sys::bindings::llama_pos,
 ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
-    let position_after_positions = start_position.checked_add(n_positions);
+    if start_position < 0 {
+        return Err(MtmdError::ChunkStartPositionNegative { start_position });
+    }
 
-    i32::try_from(n_tokens)
+    let positions_overflow = || MtmdError::ChunkPositionsOverflow {
+        start_position,
+        n_tokens,
+        n_positions,
+    };
+    let tokens_overflow = i32::try_from(n_tokens)
         .ok()
         .and_then(|tokens| start_position.checked_add(tokens))
-        .and(position_after_positions)
-        .ok_or(MtmdError::ChunkPositionsOverflow {
-            start_position,
-            n_tokens,
-            n_positions,
-        })
+        .is_none();
+
+    if tokens_overflow {
+        return Err(positions_overflow());
+    }
+
+    start_position
+        .checked_add(n_positions)
+        .ok_or_else(positions_overflow)
 }
 
 /// # Safety
@@ -209,9 +226,9 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
     ///
     /// # Errors
     ///
-    /// Returns any error of [`MtmdContext::micro_batch_tokens_in`],
-    /// [`Self::fit_to_micro_batch`] or [`Self::position_after`] before evaluating anything, or an
-    /// [`MtmdError`] when llama.cpp fails to encode or decode the chunk.
+    /// Returns any error of [`MtmdContext::batch_tokens_in`], [`Self::fit_to_micro_batch`] or
+    /// [`Self::position_after`] before evaluating anything, or an [`MtmdError`] when llama.cpp
+    /// fails to encode or decode the chunk.
     pub fn eval(
         self,
         llama_ctx: &mut LlamaContext,
@@ -220,11 +237,11 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
-        let micro_batch_tokens = self
+        let batch_tokens = self
             .mtmd_context
-            .micro_batch_tokens_in(llama_ctx, n_batch, seq_id)?;
+            .batch_tokens_in(llama_ctx, n_batch, seq_id)?;
 
-        self.fit_to_micro_batch(micro_batch_tokens)?;
+        self.fit_to_micro_batch(llama_ctx, batch_tokens)?;
 
         unsafe { self.eval_unchecked(llama_ctx, start_position, seq_id, n_batch, logits_last) }
     }
@@ -241,15 +258,15 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
     /// # Safety
     ///
     /// llama.cpp aborts the process, or reads past the output of this chunk's projector, unless
-    /// every one of these holds; [`MtmdContext::micro_batch_tokens_in`] checks the first four,
-    /// and [`Self::fit_to_micro_batch`], for the micro batch it returns, the last two:
+    /// every one of these holds; [`MtmdContext::batch_tokens_in`] checks the first three, and
+    /// [`Self::fit_to_micro_batch`], for the `n_batch` it accepted, the last three:
     ///
     /// - `llama_ctx` was created for the model this chunk's projector was loaded for;
     /// - `n_batch` is positive and at most the batch size of `llama_ctx`;
     /// - `seq_id` names a sequence of `llama_ctx`;
-    /// - `n_batch` is at most the micro batch of `llama_ctx` when
-    ///   [`LlamaContext::decodes_batches_in_one_micro_batch`];
     /// - llama.cpp reports a chunk type this binding recognizes;
+    /// - [`LlamaContext::decode_fits_micro_batch`] accepts a decode of the smaller of `n_batch`
+    ///   and the chunk's tokens, the largest piece the mtmd helper decodes the chunk in;
     /// - a media chunk that llama.cpp decodes non-causally has at most as many tokens as the
     ///   smaller of `n_batch` and the micro batch of `llama_ctx`.
     pub unsafe fn eval_unchecked(
@@ -294,32 +311,51 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
         Ok(next_position)
     }
 
-    /// Checks that this chunk can be evaluated in decodes of `micro_batch_tokens` and returns the
-    /// chunk type it classified. llama.cpp splits a causal chunk across decodes, while a media
-    /// chunk it decodes non-causally has to fit a single decode.
+    /// Checks that `llama_ctx` can decode this chunk in decodes of up to `batch_tokens` tokens and
+    /// returns the chunk type it classified. The mtmd helper decodes every chunk in pieces of up
+    /// to `batch_tokens` tokens, each of which has to fit a single micro batch while `llama_ctx`
+    /// decodes every batch in one, and a media chunk that llama.cpp decodes non-causally has to
+    /// fit a single decode whole.
     ///
     /// # Errors
     ///
-    /// Returns [`MtmdError::NonCausalChunkExceedsMicroBatch`] when a media chunk decoded
-    /// non-causally has more tokens than `micro_batch_tokens`, or
-    /// [`MtmdError::EvalUnknownChunkType`] when the chunk type is unknown.
+    /// Returns [`MtmdError::EvalUnknownChunkType`] when the chunk type is unknown,
+    /// [`MtmdError::NonCausalChunkExceedsMicroBatch`] when a media chunk decoded non-causally has
+    /// more tokens than a single decode of `batch_tokens` evaluates in `llama_ctx`, or
+    /// [`MtmdError::ChunkPieceExceedsSingleMicroBatch`] when
+    /// [`LlamaContext::decode_fits_micro_batch`] refuses the largest piece of the chunk.
     pub fn fit_to_micro_batch(
         self,
-        micro_batch_tokens: u32,
+        llama_ctx: &LlamaContext,
+        batch_tokens: NonZeroU32,
     ) -> Result<MtmdInputChunkType, MtmdError> {
         let chunk_type = self
             .chunk_type()
             .map_err(Box::new)
             .map_err(MtmdError::EvalUnknownChunkType)?;
+        let chunk_tokens = self.n_tokens();
         let decodes_non_causally =
             chunk_type != MtmdInputChunkType::Text && self.decode_use_non_causal();
 
-        non_causal_chunk_micro_batch_error(
+        if let Some(mismatch) = non_causal_chunk_micro_batch_error(
             decodes_non_causally,
-            self.n_tokens(),
-            micro_batch_tokens,
-        )
-        .map_or(Ok(chunk_type), Err)
+            chunk_tokens,
+            llama_ctx.limits().micro_batch_tokens(batch_tokens),
+        ) {
+            return Err(mismatch);
+        }
+
+        let piece_tokens = largest_decode_piece_tokens(chunk_tokens, batch_tokens);
+
+        if !llama_ctx.decode_fits_micro_batch(piece_tokens) {
+            return Err(MtmdError::ChunkPieceExceedsSingleMicroBatch {
+                chunk_tokens,
+                piece_tokens,
+                micro_batch: llama_ctx.n_ubatch(),
+            });
+        }
+
+        Ok(chunk_type)
     }
 
     /// # Errors
@@ -352,12 +388,13 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
     }
 
     /// The position after this chunk once it is evaluated from `start_position`, checked so that
-    /// no position llama.cpp computes while evaluating the chunk overflows.
+    /// every position llama.cpp computes while evaluating the chunk is a valid one.
     ///
     /// # Errors
     ///
-    /// Returns [`MtmdError::ChunkPositionsOverflow`] when `start_position` plus the chunk's tokens
-    /// or positions does not fit a `llama_pos`.
+    /// Returns [`MtmdError::ChunkStartPositionNegative`] when `start_position` is negative, or
+    /// [`MtmdError::ChunkPositionsOverflow`] when `start_position` plus the chunk's tokens or
+    /// positions does not fit a `llama_pos`.
     pub fn position_after(
         self,
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
@@ -385,6 +422,7 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
     use std::ptr;
 
     use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_encode_chunk_status;
@@ -392,6 +430,7 @@ mod tests {
     use llama_cpp_model::llama_token::LlamaToken;
 
     use super::eval_chunk_single_status_to_result;
+    use super::largest_decode_piece_tokens;
     use super::map_encode_chunk_status;
     use super::non_causal_chunk_micro_batch_error;
     use super::position_after_chunk;
@@ -443,8 +482,32 @@ mod tests {
     }
 
     #[test]
-    fn a_chunk_ending_at_the_last_position_advances_past_its_positions() {
-        assert_eq!(position_after_chunk(i32::MAX - 4, 4, 4), Ok(i32::MAX));
+    fn a_chunk_larger_than_the_batch_is_decoded_in_pieces_of_the_batch() {
+        assert_eq!(
+            largest_decode_piece_tokens(300, NonZeroU32::new(128).unwrap()),
+            128
+        );
+    }
+
+    #[test]
+    fn a_chunk_within_the_batch_is_decoded_in_one_piece() {
+        assert_eq!(
+            largest_decode_piece_tokens(100, NonZeroU32::new(128).unwrap()),
+            100
+        );
+    }
+
+    #[test]
+    fn a_chunk_whose_tokens_end_at_the_last_position_advances_past_its_positions() {
+        assert_eq!(position_after_chunk(i32::MAX - 4, 4, 2), Ok(i32::MAX - 2));
+    }
+
+    #[test]
+    fn a_chunk_evaluated_from_a_negative_position_is_refused() {
+        assert_eq!(
+            position_after_chunk(-1, 1, 1),
+            Err(MtmdError::ChunkStartPositionNegative { start_position: -1 })
+        );
     }
 
     #[test]

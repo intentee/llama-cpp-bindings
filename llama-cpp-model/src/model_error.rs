@@ -65,16 +65,19 @@ pub enum ModelError {
     LoadReported { message: String },
     #[error("adapter file not found: {0}")]
     LoraAdapterFileNotFound(PathBuf),
-    #[error("the llama.cpp library ran out of memory")]
-    LoraAdapterLlamaCppOutOfMemory,
-    #[error("not enough memory")]
-    LoraAdapterNotEnoughMemory,
+    #[error(
+        "the llama.cpp library ran out of memory while loading the LoRA adapter {}",
+        path.display()
+    )]
+    LoraAdapterLlamaCppOutOfMemory { path: PathBuf },
+    #[error("not enough memory while loading the LoRA adapter {}", path.display())]
+    LoraAdapterNotEnoughMemory { path: PathBuf },
     #[error("the LoRA adapter path cannot be handed to llama.cpp")]
     LoraAdapterPathInvalid(#[source] PathCStringError),
-    #[error("{message}")]
-    LoraAdapterReported { message: String },
-    #[error("adapter could not be loaded")]
-    LoraAdapterUnloadable,
+    #[error("loading the LoRA adapter {} failed: {message}", path.display())]
+    LoraAdapterReported { path: PathBuf, message: String },
+    #[error("the LoRA adapter {} could not be loaded", path.display())]
+    LoraAdapterUnloadable { path: PathBuf },
     #[error("null byte in string")]
     MetaKeyContainsNulByte(#[source] NulError),
     #[error("Negative return value. Likely due to a missing index or key. Got return value: {0}")]

@@ -10,6 +10,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use llama_cpp_bindings_tests::freshly_loaded_model::freshly_loaded_model;
+use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_model::model_error::ModelError;
 use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -53,7 +55,12 @@ fn load_lora_adapter_with_an_invalid_gguf_reports_it_unloadable(
 
     let result = model.load_lora_adapter(&dummy_path);
 
-    ensure!(result.err().context("the operation must fail")? == ModelError::LoraAdapterUnloadable);
+    ensure!(
+        result.err().context("the operation must fail")?
+            == ModelError::LoraAdapterUnloadable {
+                path: dummy_path.clone()
+            }
+    );
     fs::remove_file(&dummy_path)?;
     Ok(())
 }
@@ -98,6 +105,33 @@ fn load_lora_adapter_refuses_a_path_with_a_nul_byte(fixture: &LlamaFixture<'_>) 
                 .err()
                 .map(PathCStringError::ContainsNulByte)
                 .map(ModelError::LoraAdapterPathInvalid)
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn load_lora_adapter_reports_an_exception_llama_cpp_throws_with_the_adapter_path(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut model = freshly_loaded_model(fixture)?;
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_ADAPTER_LORA_INIT_THROWS,
+    );
+
+    ensure!(
+        model.load_lora_adapter(fixture.model_path)
+            == Err(ModelError::LoraAdapterReported {
+                path: fixture.model_path.to_path_buf(),
+                message: injected_fault_message()?,
+            })
     );
 
     Ok(())

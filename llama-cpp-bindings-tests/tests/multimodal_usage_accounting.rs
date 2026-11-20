@@ -9,7 +9,6 @@ use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsa
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_context::llama_context::LlamaContext;
-use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
@@ -210,7 +209,7 @@ fn text_chunk_records_prompt_tokens(
         (*context_params).into_llama_context_params(),
     )?;
     let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[])?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(chunks.chunks(), llama_ctx.n_ubatch())?;
+    let fitted_chunks = chunks.fit_in(&llama_ctx, i32::try_from(llama_ctx.n_batch())?, 0)?;
 
     let text_chunk = fitted_chunks
         .fitted_chunks()
@@ -285,7 +284,7 @@ fn image_chunk_records_input_image_tokens_only(
         (*context_params).into_llama_context_params(),
     )?;
     let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(chunks.chunks(), llama_ctx.n_ubatch())?;
+    let fitted_chunks = chunks.fit_in(&llama_ctx, i32::try_from(llama_ctx.n_batch())?, 0)?;
 
     let image_chunk = fitted_chunks
         .fitted_chunks()

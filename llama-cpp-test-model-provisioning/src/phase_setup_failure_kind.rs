@@ -6,5 +6,4 @@ pub enum PhaseSetupFailureKind {
     MmprojPathNotUnicode,
     ModelLoad,
     MmprojLoad,
-    MmprojPoisoned,
 }

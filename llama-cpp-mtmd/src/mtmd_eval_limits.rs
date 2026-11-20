@@ -8,15 +8,13 @@ use crate::mtmd_error::MtmdError;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MtmdEvalLimits {
     pub context: ContextLimits,
-    pub decodes_batches_in_one_micro_batch: bool,
 }
 
 impl MtmdEvalLimits {
     #[must_use]
-    pub fn of(llama_ctx: &LlamaContext) -> Self {
+    pub const fn of(llama_ctx: &LlamaContext) -> Self {
         Self {
             context: llama_ctx.limits(),
-            decodes_batches_in_one_micro_batch: llama_ctx.decodes_batches_in_one_micro_batch(),
         }
     }
 
@@ -54,34 +52,6 @@ impl MtmdEvalLimits {
 
         Ok(batch_tokens)
     }
-
-    /// Returns how many tokens each decode of `n_batch` evaluates in the context, once
-    /// [`Self::batch_tokens`] accepts `n_batch` and `seq_id`. The mtmd helper decodes text and
-    /// causally decoded media in pieces of up to `n_batch` tokens, which a context that decodes
-    /// every batch in a single micro batch aborts on once they exceed that micro batch.
-    ///
-    /// # Errors
-    ///
-    /// Returns any error of [`Self::batch_tokens`], or
-    /// [`MtmdError::BatchSizeExceedsSingleMicroBatch`] when the context decodes every batch in a
-    /// single micro batch and `n_batch` exceeds it.
-    pub fn micro_batch_tokens(
-        &self,
-        n_batch: i32,
-        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
-    ) -> Result<u32, MtmdError> {
-        let batch_tokens = self.batch_tokens(n_batch, seq_id)?;
-
-        if self.decodes_batches_in_one_micro_batch && batch_tokens.get() > self.context.micro_batch
-        {
-            return Err(MtmdError::BatchSizeExceedsSingleMicroBatch {
-                requested: n_batch,
-                micro_batch: self.context.micro_batch,
-            });
-        }
-
-        Ok(self.context.micro_batch_tokens(batch_tokens))
-    }
 }
 
 #[cfg(test)]
@@ -100,12 +70,6 @@ mod tests {
             max_sequences: 2,
             vocabulary_size: 100,
         },
-        decodes_batches_in_one_micro_batch: false,
-    };
-
-    const SINGLE_MICRO_BATCH_LIMITS: MtmdEvalLimits = MtmdEvalLimits {
-        decodes_batches_in_one_micro_batch: true,
-        ..LIMITS
     };
 
     #[test]
@@ -140,38 +104,6 @@ mod tests {
                 requested: 513,
                 context_max: 512,
             })
-        );
-    }
-
-    #[test]
-    fn an_accepted_batch_decodes_in_the_context_micro_batch_it_exceeds() {
-        assert_eq!(LIMITS.micro_batch_tokens(512, 1), Ok(128));
-    }
-
-    #[test]
-    fn a_refused_batch_has_no_micro_batch() {
-        assert_eq!(
-            LIMITS.micro_batch_tokens(0, 0),
-            Err(MtmdError::NonPositiveBatchSize { requested: 0 })
-        );
-    }
-
-    #[test]
-    fn a_batch_larger_than_the_single_micro_batch_of_the_context_is_rejected() {
-        assert_eq!(
-            SINGLE_MICRO_BATCH_LIMITS.micro_batch_tokens(129, 0),
-            Err(MtmdError::BatchSizeExceedsSingleMicroBatch {
-                requested: 129,
-                micro_batch: 128,
-            })
-        );
-    }
-
-    #[test]
-    fn a_batch_within_the_single_micro_batch_of_the_context_decodes_whole() {
-        assert_eq!(
-            SINGLE_MICRO_BATCH_LIMITS.micro_batch_tokens(128, 0),
-            Ok(128)
         );
     }
 

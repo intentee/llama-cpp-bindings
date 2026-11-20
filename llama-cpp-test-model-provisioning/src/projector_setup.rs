@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::MutexGuard;
 use std::sync::OnceLock;
+use std::sync::PoisonError;
 
 use llama_cpp_mtmd::mtmd_context::MtmdContext;
 
@@ -11,21 +11,10 @@ use crate::phase_setup::PhaseSetup;
 use crate::phase_setup_error::PhaseSetupError;
 use crate::projector_state::ProjectorState;
 
-fn lock_projector<'setup, TProjector>(
-    projector: &'setup Mutex<TProjector>,
-    poisoning: &'setup OnceLock<PhaseSetupError>,
-    mmproj_source: GgufSource,
-) -> Result<MutexGuard<'setup, TProjector>, &'setup PhaseSetupError> {
-    projector.lock().map_err(|_poisoned_projector| {
-        poisoning.get_or_init(|| PhaseSetupError::MmprojPoisoned { mmproj_source })
-    })
-}
-
 pub struct ProjectorSetup {
     mmproj_source: GgufSource,
     mmproj_file: OnceLock<Result<MmprojFile, PhaseSetupError>>,
     mtmd_context: OnceLock<Result<Mutex<MtmdContext>, PhaseSetupError>>,
-    mtmd_context_poisoning: OnceLock<PhaseSetupError>,
     phase_setup: Arc<PhaseSetup>,
 }
 
@@ -36,7 +25,6 @@ impl ProjectorSetup {
             mmproj_source,
             mmproj_file: OnceLock::new(),
             mtmd_context: OnceLock::new(),
-            mtmd_context_poisoning: OnceLock::new(),
             phase_setup,
         }
     }
@@ -61,15 +49,16 @@ impl ProjectorSetup {
     }
 
     /// Loads the projector and locks it for as long as the returned state lives, since only one
-    /// trial at a time may use it.
+    /// trial at a time may use it. A trial that panicked while it held the projector leaves it
+    /// usable for the trials after it, because a panic cannot interrupt a call into llama.cpp
+    /// halfway.
     ///
     /// # Errors
     ///
     /// Returns, in this order, the cached failure of downloading the model, of downloading the
-    /// mmproj, of loading the model, or of loading the mmproj into llama.cpp, or
-    /// [`PhaseSetupError::MmprojPoisoned`] once a trial panicked while it held the projector.
-    /// Every outcome is cached, so the mmproj is loaded at most once per phase, into the one model
-    /// the phase keeps loaded.
+    /// mmproj, of loading the model, or of loading the mmproj into llama.cpp. Every outcome is
+    /// cached, so the mmproj is loaded at most once per phase, into the one model the phase keeps
+    /// loaded.
     pub fn load_projector_state(&self) -> Result<ProjectorState<'_>, &PhaseSetupError> {
         self.phase_setup.download_model_file()?;
 
@@ -84,12 +73,10 @@ impl ProjectorSetup {
             })
             .as_ref()?;
 
-        lock_projector(projector, &self.mtmd_context_poisoning, self.mmproj_source).map(
-            |mtmd_context| ProjectorState {
-                phase_state,
-                mtmd_context,
-            },
-        )
+        Ok(ProjectorState {
+            phase_state,
+            mtmd_context: projector.lock().unwrap_or_else(PoisonError::into_inner),
+        })
     }
 }
 
@@ -100,16 +87,13 @@ mod tests {
     use std::path::PathBuf;
     use std::ptr;
     use std::sync::Arc;
-    use std::sync::Mutex;
     use std::sync::OnceLock;
     use std::sync::PoisonError;
-    use std::thread;
 
     use llama_cpp_backend::llama_backend::LlamaBackend;
     use llama_cpp_params::llama_load_mode::LlamaLoadMode;
 
     use super::ProjectorSetup;
-    use super::lock_projector;
     use crate::backend_init_gate::BACKEND_INIT_GATE;
     use crate::gguf_source::GgufSource;
     use crate::mmproj_file::MmprojFile;
@@ -215,7 +199,6 @@ mod tests {
                     OsString::from_vec(vec![0xff]),
                 ))),
                 mtmd_context: OnceLock::new(),
-                mtmd_context_poisoning: OnceLock::new(),
                 phase_setup,
             };
 
@@ -227,41 +210,6 @@ mod tests {
                 Some(PhaseSetupFailureKind::MmprojPathNotUnicode)
             );
         });
-    }
-
-    #[test]
-    fn a_projector_a_trial_panicked_while_holding_fails_every_later_trial_as_poisoned() {
-        let projector = Mutex::new(());
-        let poisoning = OnceLock::new();
-
-        assert!(
-            thread::scope(|scope| {
-                scope
-                    .spawn(|| {
-                        let _held_projector = projector.lock();
-                        let _second_projector_lock = projector
-                            .try_lock()
-                            .expect("the trial panics while it holds the projector");
-                    })
-                    .join()
-            })
-            .is_err()
-        );
-
-        let poisoned_failure = lock_projector(&projector, &poisoning, LOCAL_MMPROJ)
-            .expect_err("a poisoned projector must fail the trial that locks it");
-        let later_failure = lock_projector(&projector, &poisoning, LOCAL_MMPROJ)
-            .expect_err("a poisoned projector must fail every later trial too");
-
-        assert!(matches!(
-            poisoned_failure,
-            PhaseSetupError::MmprojPoisoned { mmproj_source } if *mmproj_source == LOCAL_MMPROJ
-        ));
-        assert_eq!(
-            poisoned_failure.kind(),
-            PhaseSetupFailureKind::MmprojPoisoned
-        );
-        assert!(ptr::eq(poisoned_failure, later_failure));
     }
 
     #[test]

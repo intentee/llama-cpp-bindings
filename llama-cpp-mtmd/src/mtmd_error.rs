@@ -14,11 +14,6 @@ use crate::non_causal_chunk_micro_batch_mismatch::NonCausalChunkMicroBatchMismat
 pub enum MtmdError {
     #[error("batch size {requested} exceeds context batch size {context_max}")]
     BatchSizeExceedsContextLimit { requested: i32, context_max: u32 },
-    #[error(
-        "batch size {requested} exceeds the micro batch {micro_batch} of a context that decodes \
-         every batch in a single micro batch"
-    )]
-    BatchSizeExceedsSingleMicroBatch { requested: i32, micro_batch: u32 },
     #[error("number of bitmaps does not match number of markers in the text")]
     BitmapCountDoesNotMatchMarkerCount,
     #[error("bitmap data could not be decoded")]
@@ -38,6 +33,16 @@ pub enum MtmdError {
     #[error("{message}")]
     ChunkCopyReported { message: String },
     #[error(
+        "a chunk of {chunk_tokens} tokens is decoded in pieces of up to {piece_tokens} tokens, \
+         which exceed the micro batch {micro_batch} of a context that decodes every batch in a \
+         single micro batch"
+    )]
+    ChunkPieceExceedsSingleMicroBatch {
+        chunk_tokens: usize,
+        piece_tokens: u32,
+        micro_batch: u32,
+    },
+    #[error(
         "a chunk of {n_tokens} tokens over {n_positions} positions, evaluated from position \
          {start_position}, runs past the last position llama.cpp can hold"
     )]
@@ -45,6 +50,10 @@ pub enum MtmdError {
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
         n_tokens: usize,
         n_positions: llama_cpp_bindings_sys::bindings::llama_pos,
+    },
+    #[error("a chunk cannot be evaluated from the negative position {start_position}")]
+    ChunkStartPositionNegative {
+        start_position: llama_cpp_bindings_sys::bindings::llama_pos,
     },
     #[error(
         "the llama context was created for another model than the one the multimodal projector \

@@ -1,6 +1,7 @@
 use enumflags2::BitFlags;
 use std::ffi::CString;
 use std::ffi::c_char;
+use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::ptr;
 use std::ptr::NonNull;
@@ -134,6 +135,27 @@ impl MtmdContext {
         self.context.as_ptr()
     }
 
+    /// Returns `n_batch` as a token count once `llama_ctx`, `n_batch` and `seq_id` fit the
+    /// evaluation of the chunks this projector tokenized.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MtmdError::ContextModelIsNotTheProjectorModel`] when `llama_ctx` was created for
+    /// another model than this projector, before any other check, or any error of
+    /// [`MtmdEvalLimits::batch_tokens`].
+    pub fn batch_tokens_in(
+        &self,
+        llama_ctx: &LlamaContext,
+        n_batch: i32,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
+    ) -> Result<NonZeroU32, MtmdError> {
+        if !ptr::eq(llama_ctx.model(), self.model.as_ref()) {
+            return Err(MtmdError::ContextModelIsNotTheProjectorModel);
+        }
+
+        MtmdEvalLimits::of(llama_ctx).batch_tokens(n_batch, seq_id)
+    }
+
     #[must_use]
     pub fn capabilities(&self) -> BitFlags<MtmdCapability> {
         capability_flags(unsafe {
@@ -155,29 +177,6 @@ impl MtmdContext {
             llama_cpp_bindings_sys::bindings::mtmd_get_audio_sample_rate(self.context.as_ptr())
         };
         (rate > 0).then_some(rate.unsigned_abs())
-    }
-
-    /// Returns how many tokens each decode of `n_batch` evaluates when the chunks this projector
-    /// tokenized are evaluated in `llama_ctx`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MtmdError::ContextModelIsNotTheProjectorModel`] when `llama_ctx` was created for
-    /// another model than this projector, before any other check, or any error of
-    /// [`MtmdEvalLimits::micro_batch_tokens`], such as
-    /// [`MtmdError::BatchSizeExceedsSingleMicroBatch`] for a context that decodes every batch in a
-    /// single micro batch.
-    pub fn micro_batch_tokens_in(
-        &self,
-        llama_ctx: &LlamaContext,
-        n_batch: i32,
-        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
-    ) -> Result<u32, MtmdError> {
-        if !ptr::eq(llama_ctx.model(), self.model.as_ref()) {
-            return Err(MtmdError::ContextModelIsNotTheProjectorModel);
-        }
-
-        MtmdEvalLimits::of(llama_ctx).micro_batch_tokens(n_batch, seq_id)
     }
 
     /// The text model this projector was loaded for.

@@ -35,11 +35,6 @@ pub enum PhaseSetupError {
         #[source]
         cause: MtmdError,
     },
-    #[error(
-        "the projector loaded from the mmproj {mmproj_source} is unusable, because a trial panicked \
-         while it held the projector"
-    )]
-    MmprojPoisoned { mmproj_source: GgufSource },
 }
 
 impl PhaseSetupError {
@@ -51,7 +46,6 @@ impl PhaseSetupError {
             Self::MmprojPathNotUnicode { .. } => PhaseSetupFailureKind::MmprojPathNotUnicode,
             Self::ModelLoad { .. } => PhaseSetupFailureKind::ModelLoad,
             Self::MmprojLoad { .. } => PhaseSetupFailureKind::MmprojLoad,
-            Self::MmprojPoisoned { .. } => PhaseSetupFailureKind::MmprojPoisoned,
         }
     }
 }
