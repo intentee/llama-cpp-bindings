@@ -63,8 +63,7 @@ clippy:
 	cargo clippy --workspace --all-targets $(DEVICE_FEATURE) -- -D warnings
 
 .PHONY: coverage
-coverage:
-	cargo llvm-cov clean --workspace
+coverage: coverage-clean
 	cargo llvm-cov --no-report --no-fail-fast --workspace $(DEVICE_FEATURE)
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
