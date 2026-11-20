@@ -93,22 +93,23 @@ impl ChatAnswer {
             .observed_content
             .saturating_add(outcome.observed_reasoning);
 
-        ensure!(outcome.observed_reasoning > 0, "{outcome:?}");
-        ensure!(outcome.observed_undeterminable == 0, "{outcome:?}");
-        ensure!(usage.reasoning == outcome.observed_reasoning, "{usage:?}");
-        ensure!(usage.undeterminable == 0, "{usage:?}");
-        ensure!(
-            usage.completion_tokens() == observed_completion,
-            "{usage:?}"
-        );
-        ensure!(!reasoning_content.is_empty(), "{outcome:?}");
+        let leaked_thinking_tags = thinking_tags
+            .iter()
+            .filter(|tag| {
+                outcome.reasoning_stream.contains(tag.as_str())
+                    || outcome.content_stream.contains(tag.as_str())
+            })
+            .collect::<Vec<&String>>();
+
+        ensure!(outcome.observed_reasoning > 0);
+        ensure!(outcome.observed_undeterminable == 0);
+        ensure!(usage.reasoning == outcome.observed_reasoning);
+        ensure!(usage.undeterminable == 0);
+        ensure!(usage.completion_tokens() == observed_completion);
+        ensure!(!reasoning_content.is_empty());
         ensure!(format!("{prompted_reasoning}{}", outcome.reasoning_stream) == *reasoning_content);
         ensure!(outcome.content_stream == *content);
-
-        for tag in thinking_tags {
-            ensure!(!outcome.reasoning_stream.contains(tag), "{outcome:?}");
-            ensure!(!outcome.content_stream.contains(tag), "{outcome:?}");
-        }
+        ensure!(leaked_thinking_tags == Vec::<&String>::new());
 
         Ok(())
     }

@@ -1016,6 +1016,7 @@ mod tests {
     use std::ffi::CStr;
     use std::ffi::CString;
     use std::ffi::c_char;
+    use std::ffi::c_int;
     use std::path::Path;
     use std::path::PathBuf;
     use std::ptr;
@@ -1053,6 +1054,12 @@ mod tests {
             .map_or(ptr::null(), |label| label.as_ptr())
     }
 
+    fn three_token_tokenizer()
+    -> impl Fn(*mut llama_cpp_bindings_sys::bindings::llama_token, c_int) -> Result<c_int, ModelError>
+    {
+        |_tokens, _n_tokens_max| Ok(3)
+    }
+
     #[test]
     fn cstring_with_validated_len_reports_a_nul_byte_in_the_text() {
         assert_eq!(
@@ -1087,7 +1094,7 @@ mod tests {
 
     #[test]
     fn tokenize_into_buffer_single_pass_sets_length() {
-        let buffer = tokenize_into_buffer(8, |_tokens, _n_tokens_max| Ok(3)).unwrap();
+        let buffer = tokenize_into_buffer(8, three_token_tokenizer()).unwrap();
 
         assert_eq!(buffer.len(), 3);
     }
@@ -1135,7 +1142,7 @@ mod tests {
     #[test]
     fn tokenize_into_buffer_refuses_a_capacity_beyond_a_c_int_before_allocating() {
         assert_eq!(
-            tokenize_into_buffer(usize::MAX, |_tokens, _n_tokens_max| Ok(0)),
+            tokenize_into_buffer(usize::MAX, three_token_tokenizer()),
             Err(ModelError::TokenizeIntConversion(
                 i32::try_from(usize::MAX).unwrap_err()
             ))
