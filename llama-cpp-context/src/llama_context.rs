@@ -184,9 +184,9 @@ impl<'model> LlamaContext<'model> {
     pub fn from_model(
         model: &'model LlamaModel,
         _backend: &LlamaBackend,
-        mut params: LlamaContextParams,
+        params: LlamaContextParams,
     ) -> Result<Self, ContextError> {
-        let context_params = unsafe { params.as_mut_ffi().read() };
+        let context_params = params.as_ffi();
         let embeddings = params.embeddings();
 
         SequenceOutputCapacity {
@@ -324,6 +324,17 @@ impl<'model> LlamaContext<'model> {
             ContextError::from_decode_return_code,
             ContextError::DecodeProcess,
         )
+    }
+
+    /// Whether llama.cpp decodes every batch on this context in a single micro batch, as it does
+    /// while the context attends non-causally or keeps no memory, so a batch with more tokens
+    /// than [`Self::n_ubatch`] cannot be decoded.
+    #[must_use]
+    pub fn decodes_batches_in_one_micro_batch(&self) -> bool {
+        self.keeps_no_memory
+            || !unsafe {
+                llama_cpp_bindings_sys::bindings::llama_get_causal_attn(self.context.as_ptr())
+            }
     }
 
     /// # Errors
@@ -533,11 +544,19 @@ impl<'model> LlamaContext<'model> {
 
     /// # Errors
     ///
-    /// See [`ContextError`] for more information.
-    pub fn set_lora_adapters(
-        &self,
-        adapters: &[LoraAdapterScale<'_, '_>],
-    ) -> Result<(), ContextError> {
+    /// Returns [`ContextError::LoraAdapterBelongsToAnotherModel`], before handing anything to
+    /// llama.cpp, when an adapter was not loaded into this context's model, or
+    /// [`ContextError::SetLoraAdaptersFailed`] when llama.cpp refuses the adapters.
+    pub fn set_lora_adapters(&self, adapters: &[LoraAdapterScale<'_>]) -> Result<(), ContextError> {
+        let model_adapters = self.model.lora_adapters();
+
+        if let Some(position) = adapters
+            .iter()
+            .position(|LoraAdapterScale { adapter, .. }| !model_adapters.contains(adapter))
+        {
+            return Err(ContextError::LoraAdapterBelongsToAnotherModel { position });
+        }
+
         let mut raw_adapters = adapters
             .iter()
             .map(|LoraAdapterScale { adapter, .. }| adapter.as_ptr())
@@ -575,13 +594,6 @@ impl<'model> LlamaContext<'model> {
         self.fill_token_data_array_ith(token_index, &mut token_data_array)?;
 
         Ok(token_data_array)
-    }
-
-    fn decodes_batches_in_one_micro_batch(&self) -> bool {
-        self.keeps_no_memory
-            || !unsafe {
-                llama_cpp_bindings_sys::bindings::llama_get_causal_attn(self.context.as_ptr())
-            }
     }
 
     const fn embeddings_enabled(&self) -> bool {

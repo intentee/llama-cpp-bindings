@@ -720,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    fn every_trigger_type_the_chat_session_reports_maps_to_its_trigger() {
+    fn every_recognized_trigger_type_maps_to_its_trigger() {
         assert_eq!(
             [
                 llama_rs_chat_grammar_trigger_type::LLAMA_RS_CHAT_GRAMMAR_TRIGGER_TYPE_TOKEN,

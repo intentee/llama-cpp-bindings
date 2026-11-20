@@ -9,11 +9,12 @@ use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_context::llama_context::LlamaContext;
 
+use crate::evaluated_mtmd_input_chunk::EvaluatedMtmdInputChunk;
+use crate::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use crate::mtmd_bitmap::MtmdBitmap;
 use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_ffi_input_part::MtmdFfiInputPart;
-use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::mtmd_input_chunk_view::MtmdInputChunkView;
 use crate::mtmd_input_part::MtmdInputPart;
 use crate::mtmd_input_text::MtmdInputText;
@@ -130,8 +131,6 @@ pub struct MtmdInputChunks<'context> {
     chunks: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunks>,
     mtmd_context: &'context MtmdContext,
 }
-
-unsafe impl Send for MtmdInputChunks<'_> {}
 
 impl<'context> MtmdInputChunks<'context> {
     /// An empty chunk list for the chunks `mtmd_context` tokenizes.
@@ -254,14 +253,15 @@ impl<'context> MtmdInputChunks<'context> {
             .collect()
     }
 
-    /// Checks every chunk with [`Self::fit_to_micro_batch`] before evaluating any of them, so a
-    /// chunk that cannot be decoded leaves the KV cache untouched.
+    /// Checks every chunk with [`FittedMtmdInputChunks::fit`] and its positions with
+    /// [`FittedMtmdInputChunks::eval_each`] before evaluating any of them, so a chunk that cannot
+    /// be decoded leaves the KV cache untouched.
     ///
     /// # Errors
     ///
-    /// Returns any error of [`MtmdContext::micro_batch_tokens_in`] or
-    /// [`Self::fit_to_micro_batch`], or [`MtmdError::EvalFailed`] if any encoding or decoding
-    /// operation fails.
+    /// Returns any error of [`MtmdContext::micro_batch_tokens_in`],
+    /// [`FittedMtmdInputChunks::fit`] or [`FittedMtmdInputChunks::eval_each`], or
+    /// [`MtmdError::EvalFailed`] if any encoding or decoding operation fails.
     pub fn eval_chunks(
         &self,
         llama_ctx: &mut LlamaContext,
@@ -273,42 +273,13 @@ impl<'context> MtmdInputChunks<'context> {
         let micro_batch_tokens = self
             .mtmd_context
             .micro_batch_tokens_in(llama_ctx, n_batch, seq_id)?;
-        let chunks = self.chunks();
+        let fitted_chunks = FittedMtmdInputChunks::fit(self.chunks(), micro_batch_tokens)?;
 
-        self.fit_to_micro_batch(micro_batch_tokens)?;
-
-        let last_chunk_index = chunks.len().checked_sub(1);
-
-        chunks
-            .iter()
-            .enumerate()
-            .try_fold(start_position, |position, (index, chunk)| unsafe {
-                chunk.eval_unchecked(
-                    llama_ctx,
-                    position,
-                    seq_id,
-                    n_batch,
-                    logits_last && Some(index) == last_chunk_index,
-                )
+        fitted_chunks
+            .eval_each(llama_ctx, start_position, seq_id, n_batch, logits_last)?
+            .try_fold(start_position, |_position_before_chunk, evaluated_chunk| {
+                evaluated_chunk.map(|EvaluatedMtmdInputChunk { next_position, .. }| next_position)
             })
-    }
-
-    /// Checks every chunk with [`MtmdInputChunkView::fit_to_micro_batch`] before any of them is
-    /// evaluated, and returns the chunk types it classified, in chunk order.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MtmdError::NonCausalChunkExceedsMicroBatch`] for the first chunk decoded
-    /// non-causally that has more tokens than `micro_batch_tokens`, or
-    /// [`MtmdError::EvalUnknownChunkType`] when a chunk type is unknown.
-    pub fn fit_to_micro_batch(
-        &self,
-        micro_batch_tokens: u32,
-    ) -> Result<Vec<MtmdInputChunkType>, MtmdError> {
-        self.chunks()
-            .into_iter()
-            .map(|chunk| chunk.fit_to_micro_batch(micro_batch_tokens))
-            .collect()
     }
 
     #[must_use]

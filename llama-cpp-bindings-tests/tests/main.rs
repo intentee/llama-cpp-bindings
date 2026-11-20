@@ -72,6 +72,7 @@ mod multimodal_bitmap_construction;
 mod multimodal_chunk_copy;
 mod multimodal_chunk_encoding;
 mod multimodal_chunk_evaluation;
+mod multimodal_chunk_list_creation;
 mod multimodal_chunk_tokenization;
 mod multimodal_projector_capabilities;
 mod multimodal_projector_loading;

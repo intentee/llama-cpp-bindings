@@ -120,7 +120,7 @@ impl LlamaModelParams {
             && !text.contains(&0)
         {
             return Err(ParamsError::OverrideTextNotNulTerminated {
-                capacity: text.len(),
+                key: key.to_owned(),
             });
         }
 
@@ -779,7 +779,7 @@ mod tests {
                 ParamOverrideValue::Str([b'x'.cast_signed(); KV_OVERRIDE_TEXT_CAPACITY])
             ),
             Err(ParamsError::OverrideTextNotNulTerminated {
-                capacity: KV_OVERRIDE_TEXT_CAPACITY,
+                key: c"general.name".to_owned(),
             })
         );
     }

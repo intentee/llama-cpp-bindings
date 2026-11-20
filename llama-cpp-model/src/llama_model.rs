@@ -20,6 +20,7 @@ use toktrie::TokRxInfo;
 use toktrie::TokTrie;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
+use llama_cpp_bindings_sys::bindings::llama_rs_adapter_lora_init_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_load_model_from_file_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_model_decision_type_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_tokenize_status;
@@ -110,6 +111,7 @@ unsafe fn load_model_from_file_status_to_result(
                 n_vocab: unsafe { llama_cpp_bindings_sys::bindings::llama_vocab_n_tokens(vocab) },
                 tok_env: OnceCell::new(),
                 chat_templates: OnceCell::new(),
+                lora_adapters: Vec::new(),
             })
         }
         llama_rs_load_model_from_file_status::LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_RETURNED_NULL => {
@@ -129,6 +131,38 @@ unsafe fn load_model_from_file_status_to_result(
             Err(unsafe { CppAllocatedString::from_raw(out_error) }
                 .into_reported_error("llama_rs_load_model_from_file", |message| {
                     ModelError::LoadReported { message }
+                }))
+        }
+    }
+}
+
+/// # Safety
+///
+/// On `LLAMA_RS_ADAPTER_LORA_INIT_OK` `out_adapter` must be the non-null adapter llama.cpp
+/// loaded, and on `LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION` `out_error` must be
+/// the non-null message the C++ side allocated; the message is freed here.
+unsafe fn adapter_lora_init_status_to_result(
+    status: llama_rs_adapter_lora_init_status,
+    out_adapter: *mut llama_cpp_bindings_sys::bindings::llama_adapter_lora,
+    out_error: *mut c_char,
+) -> Result<NonNull<llama_cpp_bindings_sys::bindings::llama_adapter_lora>, ModelError> {
+    match status {
+        llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_OK => {
+            Ok(unsafe { NonNull::new_unchecked(out_adapter) })
+        }
+        llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_RETURNED_NULL => {
+            Err(ModelError::LoraAdapterUnloadable)
+        }
+        llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(ModelError::LoraAdapterNotEnoughMemory)
+        }
+        llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(ModelError::LoraAdapterLlamaCppOutOfMemory)
+        }
+        llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_adapter_lora_init", |message| {
+                    ModelError::LoraAdapterReported { message }
                 }))
         }
     }
@@ -185,13 +219,6 @@ unsafe fn collect_decision_labels(
             )
         })
         .collect()
-}
-
-fn initialize_lora_adapter<'model>(
-    initialize: impl FnOnce() -> *mut llama_cpp_bindings_sys::bindings::llama_adapter_lora,
-) -> Result<LlamaLoraAdapter<'model>, ModelError> {
-    let adapter = NonNull::new(initialize()).ok_or(ModelError::LoraAdapterUnloadable)?;
-    Ok(unsafe { LlamaLoraAdapter::new(adapter) })
 }
 
 fn build_approximate_tok_env(model: &LlamaModel) -> Result<Arc<ApproximateTokEnv>, ModelError> {
@@ -360,6 +387,7 @@ pub struct LlamaModel {
     n_vocab: i32,
     tok_env: OnceCell<Arc<ApproximateTokEnv>>,
     chat_templates: OnceCell<ChatTemplates>,
+    lora_adapters: Vec<NonNull<llama_cpp_bindings_sys::bindings::llama_adapter_lora>>,
 }
 
 impl Debug for LlamaModel {
@@ -512,13 +540,16 @@ impl LlamaModel {
         unsafe { llama_cpp_bindings_sys::bindings::llama_model_is_recurrent(self.model.as_ptr()) }
     }
 
+    /// Loads the adapter at `path` into this model, which owns it from then on; llama.cpp frees
+    /// it together with the model.
+    ///
     /// # Errors
     ///
-    /// See [`ModelError`] for more information.
-    pub fn lora_adapter_init(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<LlamaLoraAdapter<'_>, ModelError> {
+    /// Returns [`ModelError::LoraAdapterPathInvalid`] when `path` cannot be handed to llama.cpp,
+    /// [`ModelError::LoraAdapterFileNotFound`] when nothing exists at `path`,
+    /// [`ModelError::LoraAdapterUnloadable`] when llama.cpp cannot load the adapter, or another
+    /// [`ModelError`] when llama.cpp runs out of memory or throws while loading it.
+    pub fn load_lora_adapter(&mut self, path: impl AsRef<Path>) -> Result<(), ModelError> {
         let path = path.as_ref();
 
         let cstr = path_c_string(path).map_err(ModelError::LoraAdapterPathInvalid)?;
@@ -526,12 +557,33 @@ impl LlamaModel {
         if !path.exists() {
             return Err(ModelError::LoraAdapterFileNotFound(path.to_path_buf()));
         }
-        initialize_lora_adapter(|| unsafe {
-            llama_cpp_bindings_sys::bindings::llama_adapter_lora_init(
+
+        let mut out_adapter: *mut llama_cpp_bindings_sys::bindings::llama_adapter_lora =
+            ptr::null_mut();
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_adapter_lora_init(
                 self.model.as_ptr(),
                 cstr.as_ptr(),
+                &raw mut out_adapter,
+                &raw mut out_error,
             )
-        })
+        };
+        let lora_adapter =
+            unsafe { adapter_lora_init_status_to_result(status, out_adapter, out_error) }?;
+
+        self.lora_adapters.push(lora_adapter);
+
+        Ok(())
+    }
+
+    /// The adapters loaded into this model, in the order [`Self::load_lora_adapter`] loaded them.
+    #[must_use]
+    pub fn lora_adapters(&self) -> Vec<LlamaLoraAdapter<'_>> {
+        self.lora_adapters
+            .iter()
+            .map(|lora_adapter| unsafe { LlamaLoraAdapter::new(*lora_adapter) })
+            .collect()
     }
 
     #[must_use]
@@ -954,21 +1006,22 @@ mod tests {
     use std::ffi::CStr;
     use std::ffi::CString;
     use std::ffi::c_char;
-    use std::mem::ManuallyDrop;
     use std::path::Path;
     use std::ptr;
+    use std::ptr::NonNull;
     use std::slice;
     use std::str;
 
+    use llama_cpp_bindings_sys::bindings::llama_rs_adapter_lora_init_status;
     use llama_cpp_bindings_sys::bindings::llama_rs_load_model_from_file_status;
     use llama_cpp_bindings_sys::bindings::llama_rs_model_decision_type_status;
     use llama_cpp_bindings_sys::bindings::llama_rs_tokenize_status;
 
+    use super::adapter_lora_init_status_to_result;
     use super::checked_token_count;
     use super::checked_tokenizer_length;
     use super::cstring_with_validated_len;
     use super::extract_meta_string;
-    use super::initialize_lora_adapter;
     use super::load_model_from_file_status_to_result;
     use super::model_decision_type_status_to_result;
     use super::tokenize_into_buffer;
@@ -1173,24 +1226,6 @@ mod tests {
     }
 
     #[test]
-    fn lora_adapter_initialization_maps_a_null_pointer_to_unloadable() {
-        let result = initialize_lora_adapter(ptr::null_mut);
-
-        assert_eq!(result.unwrap_err(), ModelError::LoraAdapterUnloadable);
-    }
-
-    #[test]
-    fn lora_adapter_initialization_owns_a_valid_pointer() {
-        let pointer = ptr::NonNull::dangling();
-        let adapter = ManuallyDrop::new(
-            initialize_lora_adapter(|| pointer.as_ptr())
-                .expect("a non-null adapter pointer must initialize"),
-        );
-
-        assert_eq!(adapter.as_ptr(), pointer.as_ptr());
-    }
-
-    #[test]
     fn load_model_from_file_llama_cpp_returned_null_for_missing_path_is_file_not_found() {
         let result = unsafe {
             load_model_from_file_status_to_result(
@@ -1256,6 +1291,73 @@ mod tests {
             )
         };
         assert_eq!(outcome.err(), Some(ModelError::LoadLlamaCppOutOfMemory));
+    }
+
+    #[test]
+    fn the_adapter_llama_cpp_loads_is_returned() {
+        let adapter = NonNull::dangling();
+
+        assert_eq!(
+            unsafe {
+                adapter_lora_init_status_to_result(
+                    llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_OK,
+                    adapter.as_ptr(),
+                    ptr::null_mut(),
+                )
+            },
+            Ok(adapter)
+        );
+    }
+
+    #[test]
+    fn an_adapter_llama_cpp_returns_no_handle_for_is_unloadable() {
+        assert_eq!(
+            unsafe {
+                adapter_lora_init_status_to_result(
+                    llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_RETURNED_NULL,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                )
+            },
+            Err(ModelError::LoraAdapterUnloadable)
+        );
+    }
+
+    #[test]
+    fn loading_an_adapter_reports_memory_exhaustion() {
+        assert_eq!(
+            [
+                llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_ERROR_STRING_ALLOCATION_FAILED,
+                llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            ]
+            .map(|status| unsafe {
+                adapter_lora_init_status_to_result(status, ptr::null_mut(), ptr::null_mut())
+            }),
+            [
+                Err(ModelError::LoraAdapterNotEnoughMemory),
+                Err(ModelError::LoraAdapterLlamaCppOutOfMemory),
+            ]
+        );
+    }
+
+    #[test]
+    fn loading_an_adapter_reports_an_exception_message() {
+        let out_error = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"adapter loading threw".as_ptr())
+        };
+
+        assert_eq!(
+            unsafe {
+                adapter_lora_init_status_to_result(
+                    llama_rs_adapter_lora_init_status::LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    ptr::null_mut(),
+                    out_error,
+                )
+            },
+            Err(ModelError::LoraAdapterReported {
+                message: "adapter loading threw".to_owned()
+            })
+        );
     }
 
     #[test]

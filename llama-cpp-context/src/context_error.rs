@@ -113,6 +113,8 @@ pub enum ContextError {
     LogitTokenNotInitialized(i32),
     #[error("logits data pointer is null")]
     LogitsNull,
+    #[error("the LoRA adapter at position {position} was loaded into another model")]
+    LoraAdapterBelongsToAnotherModel { position: usize },
     #[error("a token must belong to at least one sequence")]
     NoSequenceIds,
     #[error(transparent)]

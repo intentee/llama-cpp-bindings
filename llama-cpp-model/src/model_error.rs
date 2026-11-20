@@ -65,8 +65,14 @@ pub enum ModelError {
     LoadReported { message: String },
     #[error("adapter file not found: {0}")]
     LoraAdapterFileNotFound(PathBuf),
+    #[error("the llama.cpp library ran out of memory")]
+    LoraAdapterLlamaCppOutOfMemory,
+    #[error("not enough memory")]
+    LoraAdapterNotEnoughMemory,
     #[error("the LoRA adapter path cannot be handed to llama.cpp")]
     LoraAdapterPathInvalid(#[source] PathCStringError),
+    #[error("{message}")]
+    LoraAdapterReported { message: String },
     #[error("adapter could not be loaded")]
     LoraAdapterUnloadable,
     #[error("null byte in string")]

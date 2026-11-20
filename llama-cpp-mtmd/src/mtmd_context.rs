@@ -84,6 +84,9 @@ unsafe fn map_init_from_file_status(
 
 /// A multimodal projector loaded for a text model, which it keeps alive for as long as llama.cpp
 /// may use it.
+///
+/// It can move to another thread, but only one thread may use it at a time: llama.cpp encodes a
+/// chunk into an output buffer of the projector that its helpers read after the encode returns.
 #[derive(Debug)]
 pub struct MtmdContext {
     context: NonNull<llama_cpp_bindings_sys::bindings::mtmd_context>,
@@ -91,7 +94,6 @@ pub struct MtmdContext {
 }
 
 unsafe impl Send for MtmdContext {}
-unsafe impl Sync for MtmdContext {}
 
 impl MtmdContext {
     /// # Errors
@@ -162,7 +164,9 @@ impl MtmdContext {
     ///
     /// Returns [`MtmdError::ContextModelIsNotTheProjectorModel`] when `llama_ctx` was created for
     /// another model than this projector, before any other check, or any error of
-    /// [`MtmdEvalLimits::micro_batch_tokens`].
+    /// [`MtmdEvalLimits::micro_batch_tokens`], such as
+    /// [`MtmdError::BatchSizeExceedsSingleMicroBatch`] for a context that decodes every batch in a
+    /// single micro batch.
     pub fn micro_batch_tokens_in(
         &self,
         llama_ctx: &LlamaContext,

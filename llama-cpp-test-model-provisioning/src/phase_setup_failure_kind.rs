@@ -10,6 +10,7 @@ pub enum PhaseSetupFailureKind {
     MmprojPathNotUnicode,
     ModelLoad,
     MmprojLoad,
+    MmprojPoisoned,
 }
 
 impl Display for PhaseSetupFailureKind {
@@ -20,6 +21,7 @@ impl Display for PhaseSetupFailureKind {
             Self::MmprojPathNotUnicode => "MmprojPathNotUnicode",
             Self::ModelLoad => "ModelLoad",
             Self::MmprojLoad => "MmprojLoad",
+            Self::MmprojPoisoned => "MmprojPoisoned",
         };
 
         formatter.write_str(name)

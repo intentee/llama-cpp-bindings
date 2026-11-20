@@ -49,8 +49,9 @@ impl<'chunks, 'context> FittedMtmdInputChunk<'chunks, 'context> {
     ///
     /// Returns any error of [`crate::mtmd_context::MtmdContext::micro_batch_tokens_in`],
     /// [`MtmdError::EvaluatedMicroBatchSmallerThanFitted`] when decodes of `n_batch` in
-    /// `llama_ctx` are smaller than the micro batch the chunk was fitted to, both before
-    /// evaluating anything, or an [`MtmdError`] when llama.cpp fails to encode or decode the chunk.
+    /// `llama_ctx` are smaller than the micro batch the chunk was fitted to, or any error of
+    /// [`MtmdInputChunkView::position_after`], all before evaluating anything, or an
+    /// [`MtmdError`] when llama.cpp fails to encode or decode the chunk.
     pub fn eval_single(
         &self,
         llama_ctx: &mut LlamaContext,

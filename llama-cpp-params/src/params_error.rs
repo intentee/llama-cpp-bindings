@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::string::FromUtf8Error;
 
 use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
@@ -35,8 +36,8 @@ pub enum ParamsError {
     },
     #[error("Override slot is not empty")]
     OverrideSlotNotEmpty,
-    #[error("the string value holds no NUL within the {capacity} bytes llama.cpp reads")]
-    OverrideTextNotNulTerminated { capacity: usize },
+    #[error("the string value of override {key:?} holds no NUL within the bytes llama.cpp reads")]
+    OverrideTextNotNulTerminated { key: CString },
     #[error("attention type {0} is not a value llama.cpp defines")]
     UnknownAttentionType(llama_cpp_bindings_sys::bindings::llama_attention_type),
     #[error("parameter fitting returned an unknown status code: {code}")]

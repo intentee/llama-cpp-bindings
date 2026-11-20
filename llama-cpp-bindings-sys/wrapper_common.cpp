@@ -258,6 +258,29 @@ extern "C" auto llama_rs_load_model_from_file(
     }
 }
 
+extern "C" auto llama_rs_adapter_lora_init(
+    struct llama_model * model,
+    const char * path_lora,
+    struct llama_adapter_lora ** out_adapter,
+    char ** out_error) -> llama_rs_adapter_lora_init_status {
+    *out_adapter = nullptr;
+    *out_error = nullptr;
+    try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_ADAPTER_LORA_INIT_THROWS);
+        *out_adapter = llama_adapter_lora_init(model, path_lora);
+        if (*out_adapter == nullptr) {
+            return LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_RETURNED_NULL;
+        }
+        return LLAMA_RS_ADAPTER_LORA_INIT_OK;
+    } catch (...) {
+        return llama_rs_report_current_exception(
+            out_error,
+            LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+            LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+            LLAMA_RS_ADAPTER_LORA_INIT_ERROR_STRING_ALLOCATION_FAILED);
+    }
+}
+
 extern "C" auto llama_rs_new_context_with_model(
     struct llama_model * model,
     struct llama_context_params params,

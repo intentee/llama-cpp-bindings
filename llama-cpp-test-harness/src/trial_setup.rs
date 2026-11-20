@@ -36,7 +36,7 @@ fn test_outcome<'setup>(
 }
 
 /// What a trial runs against: the model its phase keeps loaded, alone or together with the
-/// multimodal projector the trial declares.
+/// multimodal projector the trial declares, which the trial holds locked while it runs.
 pub enum TrialSetup {
     ModelOnly(Arc<PhaseSetup>),
     WithProjector(Arc<ProjectorSetup>),
@@ -54,7 +54,7 @@ impl TrialSetup {
                 Ok(ProjectorState {
                     phase_state,
                     mtmd_context,
-                }) => test_outcome(registration, phase_state, Some(mtmd_context)),
+                }) => test_outcome(registration, phase_state, Some(&mtmd_context)),
                 Err(setup_failure) => TrialOutcome::PhaseSetupFailed(setup_failure),
             },
         }

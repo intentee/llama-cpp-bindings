@@ -210,7 +210,7 @@ fn text_chunk_records_prompt_tokens(
         (*context_params).into_llama_context_params(),
     )?;
     let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[])?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(&chunks, llama_ctx.n_ubatch())?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(chunks.chunks(), llama_ctx.n_ubatch())?;
 
     let text_chunk = fitted_chunks
         .fitted_chunks()
@@ -285,7 +285,7 @@ fn image_chunk_records_input_image_tokens_only(
         (*context_params).into_llama_context_params(),
     )?;
     let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(&chunks, llama_ctx.n_ubatch())?;
+    let fitted_chunks = FittedMtmdInputChunks::fit(chunks.chunks(), llama_ctx.n_ubatch())?;
 
     let image_chunk = fitted_chunks
         .fitted_chunks()

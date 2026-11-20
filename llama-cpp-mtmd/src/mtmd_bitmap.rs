@@ -144,7 +144,8 @@ unsafe fn bitmap_init_from_audio_status_to_result(
 
 const RGB_BYTES_PER_PIXEL: u64 = 3;
 
-/// Owns the bitmap and frees it on drop, so it cannot be cloned.
+/// Owns the bitmap and frees it on drop, so it cannot be cloned. Only [`Self::set_id`] writes to
+/// it, through `&mut self`, so threads can share it for reading.
 #[derive(Debug)]
 pub struct MtmdBitmap {
     bitmap: NonNull<llama_cpp_bindings_sys::bindings::mtmd_bitmap>,
@@ -301,7 +302,7 @@ impl MtmdBitmap {
     ///
     /// Returns an error if the ID string contains null bytes.
     ///
-    pub fn set_id(&self, id: &str) -> Result<(), NulError> {
+    pub fn set_id(&mut self, id: &str) -> Result<(), NulError> {
         let id_cstr = CString::new(id)?;
         unsafe {
             llama_cpp_bindings_sys::bindings::mtmd_bitmap_set_id(
@@ -412,7 +413,7 @@ mod tests {
     #[test]
     fn set_id_replaces_the_bitmap_id() {
         let image_data = vec![0u8; 12];
-        let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
+        let mut bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
         bitmap.set_id("test_image").unwrap();
 
         assert_eq!(bitmap.id(), Ok(Some("test_image".to_owned())));
@@ -455,7 +456,7 @@ mod tests {
     #[test]
     fn set_id_reports_a_nul_byte_in_the_id() {
         let image_data = vec![0u8; 12];
-        let bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
+        let mut bitmap = MtmdBitmap::from_image_data(2, 2, &image_data).unwrap();
         let result = bitmap.set_id("id\0null");
 
         assert_eq!(result, Err(CString::new("id\0null").unwrap_err()));

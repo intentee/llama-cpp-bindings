@@ -1,3 +1,4 @@
+pub mod evaluated_mtmd_input_chunk;
 pub mod fitted_mtmd_input_chunk;
 pub mod fitted_mtmd_input_chunks;
 pub mod mtmd_bitmap;

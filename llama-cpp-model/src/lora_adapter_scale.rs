@@ -1,7 +1,7 @@
 use crate::llama_lora_adapter::LlamaLoraAdapter;
 
 #[derive(Debug)]
-pub struct LoraAdapterScale<'adapter, 'model> {
-    pub adapter: &'adapter LlamaLoraAdapter<'model>,
+pub struct LoraAdapterScale<'model> {
+    pub adapter: LlamaLoraAdapter<'model>,
     pub scale: f32,
 }

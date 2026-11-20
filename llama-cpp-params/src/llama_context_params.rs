@@ -30,7 +30,7 @@ impl LlamaContextParams {
     ///
     /// `cb_eval` must be sound for ggml to call with the tensors it evaluates and the user data
     /// set by [`Self::with_cb_eval_user_data`], for the whole life of every context built from
-    /// these params.
+    /// these params, on whichever thread builds and uses that context.
     #[must_use]
     pub unsafe fn with_cb_eval(
         mut self,
@@ -45,7 +45,7 @@ impl LlamaContextParams {
     /// # Safety
     ///
     /// `cb_eval_user_data` must stay valid for that callback to use, for the whole life of every
-    /// context built from these params.
+    /// context built from these params, on whichever thread builds and uses that context.
     #[must_use]
     pub const unsafe fn with_cb_eval_user_data(mut self, cb_eval_user_data: *mut c_void) -> Self {
         self.context_params.cb_eval_user_data = cb_eval_user_data;
@@ -199,6 +199,12 @@ impl LlamaContextParams {
     pub const fn with_yarn_orig_ctx(mut self, yarn_orig_ctx: u32) -> Self {
         self.context_params.yarn_orig_ctx = yarn_orig_ctx;
         self
+    }
+
+    /// A copy of the llama.cpp context parameters, for a llama.cpp call that takes them by value.
+    #[must_use]
+    pub const fn as_ffi(&self) -> llama_cpp_bindings_sys::bindings::llama_context_params {
+        self.context_params
     }
 
     /// The llama.cpp context parameters, for a llama.cpp call that reads them or writes back into

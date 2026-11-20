@@ -13,6 +13,7 @@ use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
+use llama_cpp_mtmd::evaluated_mtmd_input_chunk::EvaluatedMtmdInputChunk;
 use llama_cpp_mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
 use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
@@ -120,14 +121,17 @@ impl<'model> SampledTokenClassifier<'model> {
         discarded
     }
 
-    /// Checks every chunk with [`FittedMtmdInputChunks::fit`] before evaluating any of
-    /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
+    /// Checks every chunk with [`FittedMtmdInputChunks::fit`] and its positions with
+    /// [`FittedMtmdInputChunks::eval_each`] before evaluating any of them, so a chunk that cannot
+    /// be decoded moves neither the KV cache nor the usage counters, then ingests the usage of
+    /// each chunk right after evaluating it.
     ///
     /// # Errors
     /// Returns [`LlamaCppError::MultimodalChunksEval`] when `llama_ctx` was created for another
     /// model than the projector of `chunks`, `params.n_batch` or `params.seq_id` does not fit the
-    /// context, a chunk cannot be decoded or reports a type unknown to this binding (all before
-    /// any chunk is evaluated), or when evaluating a chunk fails.
+    /// context, a chunk cannot be decoded, reports a type unknown to this binding or has
+    /// positions that overflow from `params.start_position` (all before any chunk is evaluated),
+    /// or when evaluating a chunk fails.
     pub fn eval_multimodal_chunks(
         &mut self,
         chunks: &MtmdInputChunks<'_>,
@@ -140,32 +144,32 @@ impl<'model> SampledTokenClassifier<'model> {
         }: EvalMultimodalChunksParams,
     ) -> Result<llama_pos, LlamaCppError> {
         let fitted_chunks = FittedMtmdInputChunks::fit(
-            chunks,
+            chunks.chunks(),
             chunks
                 .mtmd_context()
                 .micro_batch_tokens_in(llama_ctx, n_batch, seq_id)
                 .map_err(LlamaCppError::MultimodalChunksEval)?,
         )
         .map_err(LlamaCppError::MultimodalChunksEval)?;
-        let last_chunk_index = fitted_chunks.fitted_chunks().len().checked_sub(1);
-        let mut next_position = start_position;
 
-        for (index, fitted_chunk) in fitted_chunks.fitted_chunks().iter().enumerate() {
-            let logits_for_this_chunk = logits_last && Some(index) == last_chunk_index;
+        fitted_chunks
+            .eval_each(llama_ctx, start_position, seq_id, n_batch, logits_last)
+            .and_then(|mut evaluated_chunks| {
+                evaluated_chunks.try_fold(
+                    start_position,
+                    |_position_before_chunk, evaluated_chunk| {
+                        let EvaluatedMtmdInputChunk {
+                            fitted_chunk,
+                            next_position,
+                        } = evaluated_chunk?;
 
-            next_position = fitted_chunk
-                .eval_single(
-                    llama_ctx,
-                    next_position,
-                    seq_id,
-                    n_batch,
-                    logits_for_this_chunk,
+                        self.ingest_fitted_chunk(fitted_chunk);
+
+                        Ok(next_position)
+                    },
                 )
-                .map_err(LlamaCppError::MultimodalChunksEval)?;
-            self.ingest_fitted_chunk(fitted_chunk);
-        }
-
-        Ok(next_position)
+            })
+            .map_err(LlamaCppError::MultimodalChunksEval)
     }
 
     /// # Errors

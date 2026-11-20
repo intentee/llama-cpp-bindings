@@ -156,6 +156,20 @@ llama_rs_load_model_from_file_status llama_rs_load_model_from_file(
     struct llama_model ** out_model,
     char ** out_error);
 
+typedef enum llama_rs_adapter_lora_init_status {
+    LLAMA_RS_ADAPTER_LORA_INIT_OK = 0,
+    LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_RETURNED_NULL,
+    LLAMA_RS_ADAPTER_LORA_INIT_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_adapter_lora_init_status;
+
+llama_rs_adapter_lora_init_status llama_rs_adapter_lora_init(
+    struct llama_model * model,
+    const char * path_lora,
+    struct llama_adapter_lora ** out_adapter,
+    char ** out_error);
+
 typedef enum llama_rs_new_context_with_model_status {
     LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK = 0,
     LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_RETURNED_NULL,
