@@ -313,12 +313,6 @@ impl<'context> MtmdInputChunks<'context> {
         unsafe { llama_cpp_bindings_sys::bindings::mtmd_input_chunks_size(self.chunks.as_ptr()) }
     }
 
-    /// The projector that tokenized these chunks.
-    #[must_use]
-    pub const fn mtmd_context(&self) -> &'context MtmdContext {
-        self.mtmd_context
-    }
-
     #[must_use]
     pub fn total_positions(&self) -> i32 {
         unsafe { llama_cpp_bindings_sys::bindings::mtmd_helper_get_n_pos(self.chunks.as_ptr()) }

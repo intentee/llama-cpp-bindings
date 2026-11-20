@@ -263,6 +263,49 @@ fn eval_chunks_refuses_a_chunk_whose_decode_piece_exceeds_the_micro_batch_of_a_n
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
+fn eval_single_refuses_a_batch_whose_decode_piece_exceeds_the_micro_batch_of_a_non_causal_context_before_evaluating(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let chunks = tokenize_prompt_with_synthetic_image(
+        fixture,
+        &format!("Describe: <__media__>{}", " llama".repeat(200)),
+    )?;
+    let mut llama_ctx = LlamaContext::from_model(
+        fixture.model,
+        fixture.backend,
+        (*fixture.context_params)
+            .into_llama_context_params()
+            .with_attention_type(LlamaAttentionType::NonCausal),
+    )?;
+    let fitted_chunks = chunks.fit_in(&llama_ctx, i32::try_from(llama_ctx.n_ubatch())?, 0)?;
+    let last_fitted_chunk = fitted_chunks
+        .fitted_chunks()
+        .last()
+        .context("tokenization produced no chunks")?;
+    let n_batch = i32::try_from(llama_ctx.n_batch())?;
+
+    ensure!(
+        last_fitted_chunk.eval_single(&mut llama_ctx, 0, 0, n_batch, true)
+            == Err(MtmdError::ChunkPieceExceedsSingleMicroBatch {
+                chunk_tokens: last_fitted_chunk.chunk().n_tokens(),
+                piece_tokens: llama_ctx.n_batch(),
+                micro_batch: llama_ctx.n_ubatch(),
+            })
+    );
+    ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+    mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
+)]
 fn eval_chunks_refuses_chunks_whose_positions_overflow_before_evaluating(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
