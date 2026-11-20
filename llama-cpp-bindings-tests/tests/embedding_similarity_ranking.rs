@@ -3,7 +3,6 @@ use anyhow::ensure;
 
 use llama_cpp_bindings_tests::normalize::normalize;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -33,18 +32,9 @@ fn cosine_similarity(left_embedding: &[f32], right_embedding: &[f32]) -> f32 {
     embeddings = true,
 )]
 fn the_relevant_document_embeds_closer_to_the_query_than_an_unrelated_one(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let mut batch = LlamaBatch::new(context.limits());
 
     for (sequence_id, text) in (0..).zip([QUERY, RELEVANT_DOCUMENT, UNRELATED_DOCUMENT]) {

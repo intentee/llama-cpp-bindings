@@ -242,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn a_projector_whose_holder_panicked_is_poisoned_and_still_handed_to_the_next_holder() {
+    fn a_projector_whose_holder_unwound_is_poisoned_and_still_handed_to_the_next_holder() {
         with_phase_setup(QWEN_MODEL, |phase_setup| {
             let projector_setup = ProjectorSetup::new(QWEN_MMPROJ, phase_setup);
             let mut held_projector: Option<*const MtmdContext> = None;
@@ -254,19 +254,15 @@ mod tests {
 
                 held_projector = Some(ptr::from_ref(&*projector_state.mtmd_context));
 
-                assert!(
-                    held_projector.is_none(),
-                    "this holder fails on purpose while it holds the projector, so its panic \
-                     poisons the projector lock"
-                );
+                panic::resume_unwind(Box::new(()))
             }))
-            .expect_err("the holder must panic while it holds the projector");
+            .expect_err("the holder must unwind while it holds the projector");
 
             assert!(
                 projector_setup
                     .mtmd_context
                     .get()
-                    .expect("the projector was loaded before its holder panicked")
+                    .expect("the projector was loaded before its holder unwound")
                     .as_ref()
                     .expect("the projector loaded")
                     .is_poisoned()

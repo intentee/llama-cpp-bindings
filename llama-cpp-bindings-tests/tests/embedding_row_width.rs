@@ -88,18 +88,9 @@ fn rank_pooled_sequence_embeddings_hold_one_score_per_classifier_label(
     embeddings = true,
 )]
 fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;

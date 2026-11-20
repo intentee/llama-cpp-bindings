@@ -98,28 +98,26 @@ void llama_rs_string_free(char * ptr);
 
 typedef enum llama_rs_memory_seq_pos_max_status {
     LLAMA_RS_MEMORY_SEQ_POS_MAX_OK = 0,
-    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM,
     LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_memory_seq_pos_max_status;
 
 llama_rs_memory_seq_pos_max_status llama_rs_memory_seq_pos_max(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos * out_position,
     char ** out_error);
 
 typedef enum llama_rs_memory_seq_add_status {
     LLAMA_RS_MEMORY_SEQ_ADD_OK = 0,
-    LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM,
     LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_memory_seq_add_status;
 
 llama_rs_memory_seq_add_status llama_rs_memory_seq_add(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos pos_start,
     llama_pos pos_end,
@@ -128,14 +126,13 @@ llama_rs_memory_seq_add_status llama_rs_memory_seq_add(
 
 typedef enum llama_rs_memory_seq_div_status {
     LLAMA_RS_MEMORY_SEQ_DIV_OK = 0,
-    LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM,
     LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_memory_seq_div_status;
 
 llama_rs_memory_seq_div_status llama_rs_memory_seq_div(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos pos_start,
     llama_pos pos_end,

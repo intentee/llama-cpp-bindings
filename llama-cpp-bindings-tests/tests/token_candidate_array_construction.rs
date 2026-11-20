@@ -3,7 +3,6 @@ use anyhow::Result;
 use anyhow::ensure;
 
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::llama_token_data::LlamaTokenData;
@@ -21,18 +20,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(
         tokens
@@ -60,18 +50,9 @@ fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
     n_ubatch = 64,
 )]
 fn qwen35_refilled_candidate_array_matches_a_freshly_built_one(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let prompt_tokens = model.str_to_token("Hello", AddBos::Never, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(context.limits());
 

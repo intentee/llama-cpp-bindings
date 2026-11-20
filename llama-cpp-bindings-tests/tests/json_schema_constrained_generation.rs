@@ -8,7 +8,6 @@ use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_gbnf::json_schema_to_grammar::json_schema_to_grammar;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
@@ -22,18 +21,9 @@ const ARGMAX_TEMPERATURE: f32 = 0.0;
 const SAMPLING_SEED: u32 = 1234;
 
 fn json_schema_constrained_answer(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<Value> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let session =
         closed_reasoning_chat_session(model, "What is 2+2? Respond with a JSON object.", &[])?;
@@ -163,20 +153,11 @@ fn qwen36_answers_the_json_schema_with_an_empty_string(fixture: &LlamaFixture<'_
     n_ubatch = 128,
 )]
 fn an_llguidance_json_schema_constrains_the_answer_to_the_schema(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let prompt = "The weather in Paris is sunny and 22 degrees. Extract as JSON:\n";
 
-    let mut ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut ctx = fixture.build_context()?;
 
     let tokens_list = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
 

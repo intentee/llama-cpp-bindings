@@ -1,14 +1,13 @@
-mod sys_build_error;
-
 use std::io;
+use std::process::ExitCode;
 
 use llama_cpp_bindings_build::build_environment::BuildEnvironment;
-use llama_cpp_bindings_build::native_build::NativeBuild;
+use llama_cpp_bindings_build::build_script::BuildScript;
 
-use crate::sys_build_error::SysBuildError;
-
-fn main() -> Result<(), SysBuildError> {
-    NativeBuild::from_environment(&BuildEnvironment::of_process())
-        .and_then(|native_build| native_build.run(&mut io::stdout()))
-        .map_err(SysBuildError::NativeBuild)
+fn main() -> Result<ExitCode, io::Error> {
+    BuildScript {
+        directives: io::stdout(),
+        diagnostics: io::stderr(),
+    }
+    .run(&BuildEnvironment::of_process())
 }

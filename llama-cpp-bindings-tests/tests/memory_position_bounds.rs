@@ -112,6 +112,43 @@ fn memory_seq_cp_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Res
 }
 
 #[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn memory_seq_cp_refuses_copy_bounds_past_the_max_position(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let context = two_sequence_context(fixture)?;
+    let max_position = context.limits().max_position();
+    let past_max_position = max_position
+        .checked_add(1)
+        .context("`max_position + 1` must not overflow")?;
+    let past_max_bound = u32::try_from(past_max_position)?;
+
+    ensure!(
+        [
+            context.memory_seq_cp(0, 1, Some(past_max_bound), None),
+            context.memory_seq_cp(0, 1, None, Some(past_max_bound)),
+        ] == [
+            Err(ContextMemoryError::SeqCpStartPositionPastMax {
+                p0: past_max_position,
+                max_position,
+            }),
+            Err(ContextMemoryError::SeqCpEndPositionPastMax {
+                p1: past_max_position,
+                max_position,
+            }),
+        ]
+    );
+
+    Ok(())
+}
+
+#[llama_test(
     model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
@@ -427,7 +464,7 @@ fn memory_seq_add_refuses_a_shift_past_the_max_position_and_leaves_memory_untouc
     ensure!(
         context.memory_seq_add(0, None, None, i32::MAX)
             == Err(ContextMemoryError::SeqAddShiftsPositionPastMax {
-                highest_position: primed_position_max,
+                range_upper_bound: primed_position_max,
                 delta: i32::MAX,
                 max_position: context.limits().max_position(),
             })
@@ -445,7 +482,7 @@ fn memory_seq_add_refuses_a_shift_past_the_max_position_and_leaves_memory_untouc
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn memory_seq_add_reports_a_highest_position_it_cannot_read_before_shifting(
+fn memory_seq_add_reports_a_sequence_max_position_it_cannot_read_before_shifting(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;

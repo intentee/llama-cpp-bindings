@@ -5,7 +5,6 @@ use std::sync::atomic::AtomicBool;
 
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -20,18 +19,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn set_abort_flag_aborts_decode(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let abort_flag = Arc::new(AtomicBool::new(true));
     context.set_abort_flag(abort_flag);
 
@@ -55,18 +45,9 @@ fn set_abort_flag_aborts_decode(
     n_ubatch = 512,
 )]
 fn set_abort_flag_false_allows_decode(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let abort_flag = Arc::new(AtomicBool::new(false));
     context.set_abort_flag(abort_flag);
 
@@ -88,18 +69,9 @@ fn set_abort_flag_false_allows_decode(
     n_ubatch = 512,
 )]
 fn clear_abort_callback_allows_decode_with_flag_true(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let abort_flag = Arc::new(AtomicBool::new(true));
     context.set_abort_flag(abort_flag);
     context.clear_abort_callback();

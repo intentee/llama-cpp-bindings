@@ -3,7 +3,6 @@ use anyhow::Result;
 use anyhow::ensure;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_context_memory::context_memory::ContextMemory;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
@@ -21,19 +20,11 @@ use llama_cpp_test_harness_macros::llama_test;
     embeddings = true,
 )]
 fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )
-    .with_context(|| "unable to create context")?;
+    let mut ctx = fixture
+        .build_context()
+        .with_context(|| "unable to create context")?;
 
     let prompt = "Hello my name is";
     let tokens = model
@@ -67,18 +58,9 @@ fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
     embeddings = true,
 )]
 fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let inputs = [
         "alpha is here",
@@ -139,18 +121,9 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
     embeddings = true,
 )]
 fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let iterations = [
         [

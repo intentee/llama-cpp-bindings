@@ -11,7 +11,6 @@ include = [
     "wrapper*.h",
     "wrapper_*.cpp",
     "build.rs",
-    "sys_build_error.rs",
     "/src",
 
     "/GSL/include/**/*",
@@ -75,7 +74,6 @@ doctest = false
 
 [build-dependencies]
 llama-cpp-bindings-build = { workspace = true, features = [] }
-thiserror = { workspace = true }
 
 [features]
 cuda = ["llama-cpp-bindings-build/cuda"]

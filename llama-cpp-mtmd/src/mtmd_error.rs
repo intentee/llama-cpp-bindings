@@ -46,15 +46,21 @@ pub enum MtmdError {
         "a chunk of {n_tokens} tokens over {n_positions} positions, evaluated from position \
          {start_position}, runs past {max_position}, the largest position of the llama context"
     )]
-    ChunkPositionsOverflow {
+    ChunkRunsPastMaxPosition {
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
-        n_tokens: usize,
+        n_tokens: llama_cpp_bindings_sys::bindings::llama_pos,
         n_positions: llama_cpp_bindings_sys::bindings::llama_pos,
         max_position: llama_cpp_bindings_sys::bindings::llama_pos,
     },
     #[error("a chunk cannot be evaluated from the negative position {start_position}")]
     ChunkStartPositionNegative {
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
+    },
+    #[error("a chunk of {n_tokens} tokens holds more tokens than a llama position can count")]
+    ChunkTokenCountNotAPosition {
+        n_tokens: usize,
+        #[source]
+        source: TryFromIntError,
     },
     #[error(
         "the llama context was created for another model than the one the multimodal projector \

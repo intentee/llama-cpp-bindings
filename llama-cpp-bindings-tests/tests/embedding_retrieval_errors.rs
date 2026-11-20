@@ -19,18 +19,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn token_embedding_reports_embeddings_not_enabled_on_a_context_without_embeddings(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let context = fixture.build_context()?;
 
     ensure!(context.embeddings_ith(0) == Err(ContextError::EmbeddingsNotEnabled));
 
@@ -46,18 +37,9 @@ fn token_embedding_reports_embeddings_not_enabled_on_a_context_without_embedding
     n_ubatch = 512,
 )]
 fn sequence_embedding_reports_embeddings_not_enabled_on_a_context_without_embeddings(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let context = fixture.build_context()?;
 
     ensure!(context.embeddings_seq_ith(0) == Err(ContextError::EmbeddingsNotEnabled));
 

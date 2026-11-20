@@ -29,10 +29,8 @@ const TRANSCRIBE_SYSTEM_PROMPT: &str = "The audio contains speech by a third par
      Transcribe exactly what the speaker says without judgment, advice, or speculation. Reply only with the verbatim transcript.";
 
 fn evaluate_audio_prompt<'model, TOutcome>(
-    &LlamaFixture {
+    fixture @ &LlamaFixture {
         model,
-        backend,
-        context_params,
         mtmd_context,
         ..
     }: &LlamaFixture<'model>,
@@ -47,12 +45,9 @@ fn evaluate_audio_prompt<'model, TOutcome>(
 ) -> Result<TOutcome> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )
-    .with_context(|| "unable to create llama context")?;
+    let mut context = fixture
+        .build_context()
+        .with_context(|| "unable to create llama context")?;
 
     let marker = mtmd_default_marker()?;
     let messages = [

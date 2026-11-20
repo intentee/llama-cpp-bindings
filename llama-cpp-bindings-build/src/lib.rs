@@ -6,6 +6,7 @@ mod build_context;
 pub mod build_environment;
 pub mod build_error;
 pub mod build_feature;
+pub mod build_script;
 mod cargo_directive;
 mod cmake_build;
 mod cmake_cache;

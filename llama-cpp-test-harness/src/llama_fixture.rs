@@ -16,10 +16,10 @@ pub struct LlamaFixture<'fixture> {
     pub model_path: &'fixture Path,
 }
 
-impl LlamaFixture<'_> {
+impl<'fixture> LlamaFixture<'fixture> {
     /// # Errors
     /// Forwards [`LlamaContext::from_model`] errors verbatim.
-    pub fn build_context(&self) -> Result<LlamaContext<'_>, ContextError> {
+    pub fn build_context(&self) -> Result<LlamaContext<'fixture>, ContextError> {
         LlamaContext::from_model(
             self.model,
             self.backend,

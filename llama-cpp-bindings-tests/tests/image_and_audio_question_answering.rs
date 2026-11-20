@@ -13,7 +13,6 @@ use llama_cpp_chat::chat_session::ChatSession;
 use llama_cpp_chat::chat_session_options::ChatSessionOptions;
 use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_mtmd::mtmd_context::MtmdContext;
@@ -66,9 +65,8 @@ fn load_fixture_bitmap(mtmd_ctx: &MtmdContext, file_name: &str) -> Result<MtmdBi
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
 fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
-    &LlamaFixture {
+    fixture @ &LlamaFixture {
         model,
-        backend,
         context_params,
         mtmd_context,
         ..
@@ -118,12 +116,9 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
         required_n_ctx,
     );
 
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )
-    .with_context(|| "unable to create llama context")?;
+    let mut context = fixture
+        .build_context()
+        .with_context(|| "unable to create llama context")?;
 
     let n_batch = i32::try_from(context.n_batch())?;
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;

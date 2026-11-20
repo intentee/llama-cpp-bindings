@@ -7,7 +7,6 @@ use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_ch
 use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_model::sampled_token::SampledToken;
@@ -50,18 +49,9 @@ const YES_TOKEN_AND_END_OF_GENERATION: u64 = 2;
     n_ubatch = 128,
 )]
 fn grammar_sampler_constrains_the_first_token_of_the_answer_to_yes(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let prompt = "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
@@ -142,18 +132,9 @@ fn grammar_sampler_constrains_the_first_token_of_the_answer_to_yes(
     n_ubatch = 128,
 )]
 fn grammar_constrained_chat_answer_is_yes_content_that_ends_generation(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let session = closed_reasoning_chat_session(model, "Is the sky blue? yes or no", &[])?;
     let tokens = session.tokenize_prompt(model)?;
@@ -232,19 +213,10 @@ fn a_grammar_sampler_masks_tokens_that_cannot_start_the_grammar(
     n_ubatch = 64,
 )]
 fn qwen35_grammar_with_a_token_reference_constrains_the_first_token(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let think_token = single_token(model, "<think>")?;
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let prompt_tokens = model.str_to_token(
         "<|im_start|>user\nSay hi<|im_end|>\n<|im_start|>assistant\n",
         AddBos::Never,

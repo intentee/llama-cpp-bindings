@@ -1,7 +1,6 @@
 use anyhow::Result;
 use anyhow::ensure;
 
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -13,19 +12,8 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn context_debug_format_contains_struct_name(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
-) -> Result<()> {
-    let context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+fn context_debug_format_contains_struct_name(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let context = fixture.build_context()?;
     let debug_output = format!("{context:?}");
 
     ensure!(debug_output.contains("LlamaContext"));

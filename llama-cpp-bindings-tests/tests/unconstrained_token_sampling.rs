@@ -61,18 +61,9 @@ fn most_likely_token(context: &LlamaContext<'_>, token_index: i32) -> Result<Lla
     n_ubatch = 128,
 )]
 fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let prompt =
         "<|im_start|>user\nSay hello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
@@ -137,18 +128,9 @@ fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
     n_ubatch = 512,
 )]
 fn a_greedy_sampler_selects_the_most_likely_candidate_of_a_decoded_row(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let tokens = model.str_to_token("Hi", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
@@ -208,18 +190,9 @@ fn a_greedy_sampler_selects_the_most_likely_candidate_of_a_decoded_row(
     n_ubatch = 512,
 )]
 fn sampling_the_last_decoded_row_with_a_greedy_chain_yields_its_most_likely_token(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let tokens = model.str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;

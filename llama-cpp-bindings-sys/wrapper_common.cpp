@@ -128,7 +128,7 @@ extern "C" auto llama_rs_sampler_init_grammar_lazy_patterns(
 }
 
 extern "C" auto llama_rs_memory_seq_pos_max(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos * out_position,
     char ** out_error) -> llama_rs_memory_seq_pos_max_status {
@@ -136,10 +136,6 @@ extern "C" auto llama_rs_memory_seq_pos_max(
     *out_error = nullptr;
     try {
         llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_MEMORY_SEQ_POS_MAX_THROWS);
-        auto * mem = llama_get_memory(ctx);
-        if (mem == nullptr) {
-            return LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM;
-        }
 
         *out_position = llama_memory_seq_pos_max(mem, seq_id);
         return LLAMA_RS_MEMORY_SEQ_POS_MAX_OK;
@@ -153,7 +149,7 @@ extern "C" auto llama_rs_memory_seq_pos_max(
 }
 
 extern "C" auto llama_rs_memory_seq_add(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos pos_start,
     llama_pos pos_end,
@@ -161,10 +157,6 @@ extern "C" auto llama_rs_memory_seq_add(
     char ** out_error) -> llama_rs_memory_seq_add_status {
     *out_error = nullptr;
     try {
-        auto * mem = llama_get_memory(ctx);
-        if (mem == nullptr) {
-            return LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM;
-        }
         llama_memory_seq_add(mem, seq_id, pos_start, pos_end, shift);
         return LLAMA_RS_MEMORY_SEQ_ADD_OK;
     } catch (...) {
@@ -177,7 +169,7 @@ extern "C" auto llama_rs_memory_seq_add(
 }
 
 extern "C" auto llama_rs_memory_seq_div(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos pos_start,
     llama_pos pos_end,
@@ -185,10 +177,6 @@ extern "C" auto llama_rs_memory_seq_div(
     char ** out_error) -> llama_rs_memory_seq_div_status {
     *out_error = nullptr;
     try {
-        auto * mem = llama_get_memory(ctx);
-        if (mem == nullptr) {
-            return LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM;
-        }
         llama_memory_seq_div(mem, seq_id, pos_start, pos_end, divisor);
         return LLAMA_RS_MEMORY_SEQ_DIV_OK;
     } catch (...) {

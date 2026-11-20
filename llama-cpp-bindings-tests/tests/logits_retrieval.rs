@@ -4,7 +4,6 @@ use anyhow::ensure;
 
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
@@ -20,18 +19,9 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn a_logits_row_holds_one_logit_per_vocabulary_token(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
     let last_index = i32::try_from(
         tokens
@@ -58,19 +48,8 @@ fn a_logits_row_holds_one_logit_per_vocabulary_token(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn logits_of_a_token_no_decode_initialized_are_refused(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
-) -> Result<()> {
-    let context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+fn logits_of_a_token_no_decode_initialized_are_refused(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let context = fixture.build_context()?;
 
     let result = context.get_logits_ith(7);
 

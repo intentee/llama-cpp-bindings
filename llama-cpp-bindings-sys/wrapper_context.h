@@ -14,6 +14,8 @@ struct llama_model;
 
 bool llama_rs_model_causal_attn(const struct llama_model * model);
 
+uint32_t llama_rs_model_sliding_window(const struct llama_model * model);
+
 int32_t llama_rs_pooling_type(const struct llama_context * ctx);
 
 int32_t llama_rs_model_rope_type(const struct llama_model * model);

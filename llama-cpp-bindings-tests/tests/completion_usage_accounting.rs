@@ -10,7 +10,6 @@ use llama_cpp_chat::chat_session::ChatSession;
 use llama_cpp_chat::chat_session_options::ChatSessionOptions;
 use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
@@ -50,19 +49,11 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 128,
 )]
 fn raw_prompt_completion_usage_matches_the_classified_tokens(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )
-    .with_context(|| "unable to create context")?;
+    let mut ctx = fixture
+        .build_context()
+        .with_context(|| "unable to create context")?;
 
     let prompt = "Hello my name is";
     let max_generated_tokens: i32 = 64;
@@ -171,18 +162,9 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
     n_ubatch = 128,
 )]
 fn chat_completion_usage_matches_the_classified_tokens(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let messages = [user_message("Hello! How are you?")];
     let session = ChatSession::new(

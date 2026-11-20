@@ -5,7 +5,6 @@ use llama_cpp_bindings_tests::logits_left_by::logits_left_by;
 use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_bindings_tests::yes_or_no_regex::YES_OR_NO_REGEX;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::llama_token::LlamaToken;
@@ -200,18 +199,9 @@ fn a_lark_sampler_masks_tokens_that_cannot_start_the_grammar(
     n_ubatch = 128,
 )]
 fn llguidance_chain_samples_yes_as_the_first_answer_token(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let prompt = "Answer yes or no:";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;

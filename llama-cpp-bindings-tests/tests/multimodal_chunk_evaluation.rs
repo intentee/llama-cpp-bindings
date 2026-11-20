@@ -304,7 +304,7 @@ fn eval_single_refuses_a_batch_whose_decode_piece_exceeds_the_micro_batch_of_a_n
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn eval_chunks_refuses_chunks_whose_positions_overflow_before_evaluating(
+fn eval_chunks_refuses_chunks_that_run_past_the_max_position_before_evaluating(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
@@ -320,9 +320,9 @@ fn eval_chunks_refuses_chunks_whose_positions_overflow_before_evaluating(
     ensure!(first_chunk.position_after(&llama_ctx, start_position) == Ok(max_position));
     ensure!(
         chunks.eval_chunks(&mut llama_ctx, start_position, 0, n_batch, true)
-            == Err(MtmdError::ChunkPositionsOverflow {
+            == Err(MtmdError::ChunkRunsPastMaxPosition {
                 start_position: max_position,
-                n_tokens: second_chunk.n_tokens(),
+                n_tokens: i32::try_from(second_chunk.n_tokens())?,
                 n_positions: second_chunk.n_positions(),
                 max_position,
             })
@@ -676,7 +676,7 @@ fn chunk_eval_advances_past_every_position_of_the_chunk(fixture: &LlamaFixture<'
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn chunk_eval_refuses_a_chunk_whose_positions_overflow_before_evaluating(
+fn chunk_eval_refuses_a_chunk_that_runs_past_the_max_position_before_evaluating(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut llama_ctx = fixture.build_context()?;
@@ -686,9 +686,9 @@ fn chunk_eval_refuses_a_chunk_whose_positions_overflow_before_evaluating(
 
     ensure!(
         first_chunk.eval(&mut llama_ctx, i32::MAX, 0, n_batch, true)
-            == Err(MtmdError::ChunkPositionsOverflow {
+            == Err(MtmdError::ChunkRunsPastMaxPosition {
                 start_position: i32::MAX,
-                n_tokens: first_chunk.n_tokens(),
+                n_tokens: i32::try_from(first_chunk.n_tokens())?,
                 n_positions: first_chunk.n_positions(),
                 max_position: llama_ctx.limits().max_position(),
             })

@@ -15,7 +15,6 @@ use llama_cpp_chat::chat_session::ChatSession;
 use llama_cpp_chat::chat_session_options::ChatSessionOptions;
 use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_mtmd::mtmd_default_marker::mtmd_default_marker;
 use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
@@ -34,10 +33,8 @@ use llama_cpp_test_harness_macros::llama_test;
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
 fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    &LlamaFixture {
+    fixture @ &LlamaFixture {
         model,
-        backend,
-        context_params,
         mtmd_context,
         ..
     }: &LlamaFixture<'_>,
@@ -46,11 +43,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -124,10 +117,8 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     mmproj_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "mmproj-F16.gguf"),
 )]
 fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    &LlamaFixture {
+    fixture @ &LlamaFixture {
         model,
-        backend,
-        context_params,
         mtmd_context,
         ..
     }: &LlamaFixture<'_>,
@@ -136,11 +127,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -249,10 +236,8 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    &LlamaFixture {
+    fixture @ &LlamaFixture {
         model,
-        backend,
-        context_params,
         mtmd_context,
         ..
     }: &LlamaFixture<'_>,
@@ -261,11 +246,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
 
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path

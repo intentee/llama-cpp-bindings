@@ -16,7 +16,15 @@ CPPCHECK_COMMIT = f726f98ed2c3277780ee133ec5338f6352d7b43b
 
 CPPCHECK_SOURCE = https://github.com/danmar/cppcheck.git
 
-HEISENBERG_CONFIGURATION = x86_64-unknown-linux-gnu
+HEISENBERG = $(HEISENBERG_ROOT)/bin/heisenberg
+
+HEISENBERG_COMMIT = 278308567b84b60fec3090a8269b35ea7be1fbfd
+
+HEISENBERG_CONFIGURATION = $(shell rustc --print host-tuple)
+
+HEISENBERG_ROOT = lint-tools/heisenberg-$(HEISENBERG_COMMIT)
+
+HEISENBERG_SOURCE = https://github.com/intentee/heisenberg.git
 
 RUST_SYSROOT = $(shell rustc --print sysroot)
 
@@ -48,6 +56,10 @@ $(CPPCHECK): lint-tools/cppcheck-src/Makefile
 	$(MAKE) --directory=lint-tools/cppcheck-src cppcheck \
 		FILESDIR=$(CURDIR)/lint-tools/cppcheck-src
 
+$(HEISENBERG):
+	cargo install --quiet --locked --git $(HEISENBERG_SOURCE) --rev $(HEISENBERG_COMMIT) \
+		--root $(HEISENBERG_ROOT) heisenberg
+
 $(COMPILE_COMMANDS): $(WRAPPER_SOURCES_CRATE_FILES)
 	$(EMIT_WRAPPER_BUILD_INPUTS)
 
@@ -63,12 +75,12 @@ clippy:
 	cargo clippy --workspace --all-targets $(DEVICE_FEATURE) -- -D warnings
 
 .PHONY: coverage
-coverage: coverage-clean
+coverage: coverage-clean $(HEISENBERG)
 	cargo llvm-cov --no-report --no-fail-fast --workspace $(DEVICE_FEATURE)
 	cargo llvm-cov report --include-build-script --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --include-build-script --lcov --output-path target/lcov.info
 	cargo llvm-cov report --include-build-script
-	heisenberg coverage-check \
+	$(HEISENBERG) coverage-check \
 		--workspace $(CURDIR) \
 		--cargo-home $(CARGO_HOME) \
 		--sysroot $(RUST_SYSROOT) \

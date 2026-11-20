@@ -30,10 +30,10 @@ pub enum ContextMemoryError {
     #[error("sequence id {seq_id} names no sequence of a context with {n_seq_max} sequences")]
     SeqAddSequenceIdOutOfRange { seq_id: i32, n_seq_max: u32 },
     #[error(
-        "shifting position {highest_position} by {delta} moves it past {max_position}, the highest position llama.cpp can hold in this context"
+        "shifting the range of positions up to {range_upper_bound} by {delta} can move a position past {max_position}, the highest position llama.cpp can hold in this context"
     )]
     SeqAddShiftsPositionPastMax {
-        highest_position: i32,
+        range_upper_bound: i32,
         delta: i32,
         max_position: i32,
     },
@@ -41,12 +41,20 @@ pub enum ContextMemoryError {
     SeqAddStartPositionTooLarge(#[source] TryFromIntError),
     #[error(transparent)]
     SeqAddUnknownRopeType(ModelError),
+    #[error(
+        "copying up to position {p1} reaches past {max_position}, the highest position llama.cpp can hold in this context"
+    )]
+    SeqCpEndPositionPastMax { p1: i32, max_position: i32 },
     #[error("provided end position is too large for an i32")]
     SeqCpEndPositionTooLarge(#[source] TryFromIntError),
     #[error("the context has no memory module attached")]
     SeqCpMemoryHandleUnavailable,
     #[error("sequence id {seq_id} names no sequence of a context with {n_seq_max} sequences")]
     SeqCpSequenceIdOutOfRange { seq_id: i32, n_seq_max: u32 },
+    #[error(
+        "copying from position {p0} starts past {max_position}, the highest position llama.cpp can hold in this context"
+    )]
+    SeqCpStartPositionPastMax { p0: i32, max_position: i32 },
     #[error("provided start position is too large for an i32")]
     SeqCpStartPositionTooLarge(#[source] TryFromIntError),
     #[error("provided end position is too large for an i32")]

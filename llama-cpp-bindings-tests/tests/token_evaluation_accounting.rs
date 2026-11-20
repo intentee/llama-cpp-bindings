@@ -14,21 +14,6 @@ use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
-fn fixture_context<'model>(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'model>,
-) -> Result<LlamaContext<'model>> {
-    Ok(LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?)
-}
-
 fn greeting_batch(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
     context: &LlamaContext<'_>,
@@ -52,7 +37,7 @@ fn greeting_batch(
 fn a_decoded_batch_counts_every_token_llama_cpp_evaluated(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = fixture_context(fixture)?;
+    let mut context = fixture.build_context()?;
     let batch = greeting_batch(fixture, &context)?;
 
     context.decode(&batch)?;
@@ -71,7 +56,7 @@ fn a_decoded_batch_counts_every_token_llama_cpp_evaluated(
     n_ubatch = 512,
 )]
 fn an_aborted_decode_counts_no_evaluated_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture_context(fixture)?;
+    let mut context = fixture.build_context()?;
     let batch = greeting_batch(fixture, &context)?;
 
     context.set_abort_flag(Arc::new(AtomicBool::new(true)));
@@ -107,7 +92,7 @@ fn evaluated_media_chunks_count_every_token_the_mtmd_helper_decoded(
         },
         &[&bitmap],
     )?;
-    let mut context = fixture_context(fixture)?;
+    let mut context = fixture.build_context()?;
     let n_batch = i32::try_from(context.n_batch())?;
 
     chunks.eval_chunks(&mut context, 0, 0, n_batch, true)?;

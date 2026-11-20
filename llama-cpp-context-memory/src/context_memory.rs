@@ -16,7 +16,7 @@ fn open_ended_position(position: Option<u32>) -> Result<i32, TryFromIntError> {
     position.map_or(Ok(-1), i32::try_from)
 }
 
-fn highest_shifted_position(start: i32, end: i32, sequence_max: i32) -> Option<i32> {
+fn shifted_range_upper_bound(start: i32, end: i32, sequence_max: i32) -> Option<i32> {
     let highest_in_range = if end < 0 {
         sequence_max
     } else {
@@ -26,8 +26,8 @@ fn highest_shifted_position(start: i32, end: i32, sequence_max: i32) -> Option<i
     (highest_in_range >= start.max(0)).then_some(highest_in_range)
 }
 
-const fn shift_passes_max_position(highest_position: i32, delta: i32, max_position: i32) -> bool {
-    match highest_position.checked_add(delta) {
+const fn shift_passes_max_position(range_upper_bound: i32, delta: i32, max_position: i32) -> bool {
+    match range_upper_bound.checked_add(delta) {
         Some(shifted_position) => shifted_position > max_position,
         None => true,
     }
@@ -45,9 +45,6 @@ unsafe fn memory_seq_add_status_to_result(
 
     match status {
         llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_OK => Ok(()),
-        llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM => {
-            Err(ContextMemoryError::SeqAddMemoryHandleUnavailable)
-        }
         llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ContextMemoryError::SeqAddNotEnoughMemory)
         }
@@ -75,9 +72,6 @@ unsafe fn memory_seq_div_status_to_result(
 
     match status {
         llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_OK => Ok(()),
-        llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM => {
-            Err(ContextMemoryError::SeqDivMemoryHandleUnavailable)
-        }
         llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ContextMemoryError::SeqDivNotEnoughMemory)
         }
@@ -106,9 +100,6 @@ unsafe fn memory_seq_pos_max_status_to_result(
 
     match status {
         llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_OK => Ok(position),
-        llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM => {
-            Err(ContextMemoryError::SeqPosMaxMemoryHandleUnavailable)
-        }
         llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED => {
             Err(ContextMemoryError::SeqPosMaxNotEnoughMemory)
         }
@@ -132,7 +123,10 @@ pub trait ContextMemory {
 
     /// # Errors
     /// If the sequence id names no sequence of the context, either position exceeds
-    /// [`i32::MAX`], or the underlying memory operation reports a failure.
+    /// [`i32::MAX`], the model's rope type cannot shift positions, the context has no memory, the
+    /// highest position of the sequence cannot be read, the shift could move a position of the
+    /// range past [`llama_cpp_context::context_limits::ContextLimits::max_position`], or the
+    /// underlying memory operation reports a failure.
     fn memory_seq_add(
         &mut self,
         seq_id: i32,
@@ -143,7 +137,8 @@ pub trait ContextMemory {
 
     /// # Errors
     /// If either sequence id names no sequence of the context, either position exceeds
-    /// [`i32::MAX`], or the context has no memory module.
+    /// [`i32::MAX`] or [`llama_cpp_context::context_limits::ContextLimits::max_position`], or the
+    /// context has no memory module.
     fn memory_seq_cp(
         &self,
         src: i32,
@@ -226,20 +221,20 @@ impl ContextMemory for LlamaContext<'_> {
             return Err(ContextMemoryError::SeqAddIncompatibleRopeType);
         }
 
-        self.memory()
+        let mem = self
+            .memory()
             .ok_or(ContextMemoryError::SeqAddMemoryHandleUnavailable)?;
-
         let sequence_max = self
             .memory_seq_pos_max(seq_id)
             .map_err(Box::new)
             .map_err(ContextMemoryError::SeqAddHighestPositionUnreadable)?;
         let max_position = limits.max_position();
 
-        if let Some(highest_position) = highest_shifted_position(p0, p1, sequence_max)
-            && shift_passes_max_position(highest_position, delta, max_position)
+        if let Some(range_upper_bound) = shifted_range_upper_bound(p0, p1, sequence_max)
+            && shift_passes_max_position(range_upper_bound, delta, max_position)
         {
             return Err(ContextMemoryError::SeqAddShiftsPositionPastMax {
-                highest_position,
+                range_upper_bound,
                 delta,
                 max_position,
             });
@@ -248,7 +243,7 @@ impl ContextMemory for LlamaContext<'_> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_add(
-                self.as_ptr().cast_const(),
+                mem,
                 seq_id,
                 p0,
                 p1,
@@ -284,6 +279,16 @@ impl ContextMemory for LlamaContext<'_> {
 
         let p0 = open_ended_position(p0).map_err(ContextMemoryError::SeqCpStartPositionTooLarge)?;
         let p1 = open_ended_position(p1).map_err(ContextMemoryError::SeqCpEndPositionTooLarge)?;
+        let max_position = limits.max_position();
+
+        if p0 > max_position {
+            return Err(ContextMemoryError::SeqCpStartPositionPastMax { p0, max_position });
+        }
+
+        if p1 > max_position {
+            return Err(ContextMemoryError::SeqCpEndPositionPastMax { p1, max_position });
+        }
+
         let mem = self
             .memory()
             .ok_or(ContextMemoryError::SeqCpMemoryHandleUnavailable)?;
@@ -320,11 +325,14 @@ impl ContextMemory for LlamaContext<'_> {
             return Err(ContextMemoryError::SeqDivIncompatibleRopeType);
         }
 
+        let mem = self
+            .memory()
+            .ok_or(ContextMemoryError::SeqDivMemoryHandleUnavailable)?;
         let divisor = c_int::from(divisor.get());
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_div(
-                self.as_ptr().cast_const(),
+                mem,
                 seq_id,
                 p0,
                 p1,
@@ -362,11 +370,14 @@ impl ContextMemory for LlamaContext<'_> {
             });
         }
 
+        let mem = self
+            .memory()
+            .ok_or(ContextMemoryError::SeqPosMaxMemoryHandleUnavailable)?;
         let mut position = -1;
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_pos_max(
-                self.as_ptr().cast_const(),
+                mem,
                 seq_id,
                 &raw mut position,
                 &raw mut out_error,
@@ -421,12 +432,12 @@ mod tests {
     use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_div_status;
     use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_pos_max_status;
 
-    use super::highest_shifted_position;
     use super::memory_seq_add_status_to_result;
     use super::memory_seq_div_status_to_result;
     use super::memory_seq_pos_max_status_to_result;
     use super::open_ended_position;
     use super::shift_passes_max_position;
+    use super::shifted_range_upper_bound;
     use crate::context_memory_error::ContextMemoryError;
 
     #[test]
@@ -452,19 +463,6 @@ mod tests {
                 )
             },
             Ok(())
-        );
-    }
-
-    #[test]
-    fn add_null_mem_status_maps_to_memory_handle_unavailable() {
-        assert_eq!(
-            unsafe {
-                memory_seq_add_status_to_result(
-                    llama_rs_memory_seq_add_status::LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM,
-                    ptr::null_mut(),
-                )
-            },
-            Err(ContextMemoryError::SeqAddMemoryHandleUnavailable)
         );
     }
 
@@ -547,19 +545,6 @@ mod tests {
     }
 
     #[test]
-    fn div_null_mem_status_maps_to_memory_handle_unavailable() {
-        assert_eq!(
-            unsafe {
-                memory_seq_div_status_to_result(
-                    llama_rs_memory_seq_div_status::LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM,
-                    ptr::null_mut(),
-                )
-            },
-            Err(ContextMemoryError::SeqDivMemoryHandleUnavailable)
-        );
-    }
-
-    #[test]
     fn div_allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
             unsafe {
@@ -620,20 +605,6 @@ mod tests {
     }
 
     #[test]
-    fn seq_pos_max_null_memory_status_maps_to_memory_handle_unavailable() {
-        assert_eq!(
-            unsafe {
-                memory_seq_pos_max_status_to_result(
-                    llama_rs_memory_seq_pos_max_status::LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM,
-                    -1,
-                    ptr::null_mut(),
-                )
-            },
-            Err(ContextMemoryError::SeqPosMaxMemoryHandleUnavailable)
-        );
-    }
-
-    #[test]
     fn seq_pos_max_allocation_failed_status_maps_to_not_enough_memory() {
         assert_eq!(
             unsafe {
@@ -683,12 +654,12 @@ mod tests {
     }
 
     #[test]
-    fn the_highest_shifted_position_is_the_last_cached_one_inside_the_range() {
+    fn the_shifted_range_is_bounded_by_its_end_and_the_highest_cached_position() {
         assert_eq!(
             [
-                highest_shifted_position(0, -1, 9),
-                highest_shifted_position(0, 5, 9),
-                highest_shifted_position(-1, -1, 9),
+                shifted_range_upper_bound(0, -1, 9),
+                shifted_range_upper_bound(0, 5, 9),
+                shifted_range_upper_bound(-1, -1, 9),
             ],
             [Some(9), Some(4), Some(9)]
         );
@@ -698,9 +669,9 @@ mod tests {
     fn a_range_that_holds_no_cached_position_shifts_nothing() {
         assert_eq!(
             [
-                highest_shifted_position(0, -1, -1),
-                highest_shifted_position(10, -1, 9),
-                highest_shifted_position(0, 0, 9),
+                shifted_range_upper_bound(0, -1, -1),
+                shifted_range_upper_bound(10, -1, 9),
+                shifted_range_upper_bound(0, 0, 9),
             ],
             [None, None, None]
         );

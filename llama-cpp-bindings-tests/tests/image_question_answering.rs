@@ -9,7 +9,6 @@ use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
 use llama_cpp_mtmd::mtmd_capability::MtmdCapability;
 use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
@@ -28,22 +27,17 @@ use llama_cpp_test_harness_macros::llama_test;
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
 fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
-    &LlamaFixture {
+    fixture @ &LlamaFixture {
         model,
-        backend,
-        context_params,
         mtmd_context,
         ..
     }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
-    let mut ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )
-    .with_context(|| "unable to create llama context")?;
+    let mut ctx = fixture
+        .build_context()
+        .with_context(|| "unable to create llama context")?;
 
     ensure!(
         mtmd_ctx.capabilities().contains(MtmdCapability::Vision),

@@ -74,20 +74,20 @@ fn position_after_chunk(
         return Err(MtmdError::ChunkStartPositionNegative { start_position });
     }
 
+    let n_tokens = llama_cpp_bindings_sys::bindings::llama_pos::try_from(n_tokens)
+        .map_err(|source| MtmdError::ChunkTokenCountNotAPosition { n_tokens, source })?;
     let end_within_max_position = |count: llama_cpp_bindings_sys::bindings::llama_pos| {
         start_position
             .checked_add(count)
             .filter(|end_position| *end_position <= max_position)
     };
 
-    let tokens_end = i32::try_from(n_tokens)
-        .ok()
-        .and_then(end_within_max_position);
+    let tokens_end = end_within_max_position(n_tokens);
     let positions_end = end_within_max_position(n_positions);
 
     tokens_end
         .and(positions_end)
-        .ok_or(MtmdError::ChunkPositionsOverflow {
+        .ok_or(MtmdError::ChunkRunsPastMaxPosition {
             start_position,
             n_tokens,
             n_positions,
@@ -332,9 +332,10 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
     ///
     /// # Errors
     ///
-    /// Returns [`MtmdError::ChunkStartPositionNegative`] when `start_position` is negative, or
-    /// [`MtmdError::ChunkPositionsOverflow`] when `start_position` plus the chunk's tokens or
-    /// positions runs past that largest position.
+    /// Returns [`MtmdError::ChunkStartPositionNegative`] when `start_position` is negative,
+    /// [`MtmdError::ChunkTokenCountNotAPosition`] when the chunk holds more tokens than a position
+    /// can count, or [`MtmdError::ChunkRunsPastMaxPosition`] when `start_position` plus the
+    /// chunk's tokens or positions runs past that largest position.
     pub fn position_after(
         self,
         llama_ctx: &LlamaContext,
@@ -522,10 +523,10 @@ mod tests {
     }
 
     #[test]
-    fn a_chunk_whose_tokens_run_past_the_max_position_overflows() {
+    fn a_chunk_whose_tokens_run_past_the_max_position_is_refused() {
         assert_eq!(
             position_after_chunk(97, 4, 1, 100),
-            Err(MtmdError::ChunkPositionsOverflow {
+            Err(MtmdError::ChunkRunsPastMaxPosition {
                 start_position: 97,
                 n_tokens: 4,
                 n_positions: 1,
@@ -535,10 +536,10 @@ mod tests {
     }
 
     #[test]
-    fn a_chunk_whose_positions_run_past_the_max_position_overflows() {
+    fn a_chunk_whose_positions_run_past_the_max_position_is_refused() {
         assert_eq!(
             position_after_chunk(97, 1, 4, 100),
-            Err(MtmdError::ChunkPositionsOverflow {
+            Err(MtmdError::ChunkRunsPastMaxPosition {
                 start_position: 97,
                 n_tokens: 1,
                 n_positions: 4,
@@ -548,14 +549,25 @@ mod tests {
     }
 
     #[test]
-    fn a_chunk_whose_end_does_not_fit_a_position_overflows() {
+    fn a_chunk_whose_end_overflows_a_position_runs_past_the_max_position() {
         assert_eq!(
             position_after_chunk(i32::MAX, 1, 1, 100),
-            Err(MtmdError::ChunkPositionsOverflow {
+            Err(MtmdError::ChunkRunsPastMaxPosition {
                 start_position: i32::MAX,
                 n_tokens: 1,
                 n_positions: 1,
                 max_position: 100,
+            })
+        );
+    }
+
+    #[test]
+    fn a_chunk_whose_token_count_does_not_fit_a_position_is_refused() {
+        assert_eq!(
+            position_after_chunk(0, usize::MAX, 1, 100),
+            Err(MtmdError::ChunkTokenCountNotAPosition {
+                n_tokens: usize::MAX,
+                source: i32::try_from(usize::MAX).unwrap_err(),
             })
         );
     }

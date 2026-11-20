@@ -1,3 +1,4 @@
+use log::debug;
 use std::ffi::c_char;
 use std::ffi::c_void;
 use std::fmt;
@@ -266,9 +267,8 @@ impl<'model> LlamaContext<'model> {
                 },
                 vocabulary_size: model.n_vocab(),
                 sliding_window: unsafe {
-                    llama_cpp_bindings_sys::bindings::llama_model_n_swa(model.as_ptr())
-                }
-                .cast_unsigned(),
+                    llama_cpp_bindings_sys::bindings::llama_rs_model_sliding_window(model.as_ptr())
+                },
             },
             keeps_no_memory,
             embeddings,
@@ -579,7 +579,10 @@ impl<'model> LlamaContext<'model> {
                 scales_ptr,
             )
         };
-        check_lora_adapters_result(err_code)
+        check_lora_adapters_result(err_code)?;
+
+        debug!("Updated lora adapters");
+        Ok(())
     }
 
     /// # Errors

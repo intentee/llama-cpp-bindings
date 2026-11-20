@@ -6,7 +6,6 @@ use serde_json::json;
 use llama_cpp_bindings_tests::highest_score_index::highest_score_index;
 use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
@@ -23,12 +22,7 @@ const OPTION_LABELS: [&str; 3] = ["A", "B", "C"];
     n_ubatch = 512,
 )]
 fn openjev_gives_the_label_of_the_matching_option_the_highest_logit(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let prompt = model.chat_template(Some("systemone"))?.render(
         &json!({
@@ -46,11 +40,7 @@ fn openjev_gives_the_label_of_the_matching_option_the_highest_logit(
         .to_string(),
     )?;
     let tokens = model.str_to_token(&prompt, AddBos::Never, ParseSpecialTokens::Always)?;
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
     let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&tokens, 0, false)?;

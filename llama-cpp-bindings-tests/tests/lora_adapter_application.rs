@@ -1,8 +1,11 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
+use log::Level;
 
 use llama_cpp_bindings_tests::freshly_loaded_model::freshly_loaded_model;
+use llama_cpp_capturing_logger::captured_record::CapturedRecord;
+use llama_cpp_capturing_logger::capturing_logger::CapturingLogger;
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
@@ -12,6 +15,8 @@ use llama_cpp_model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 use llama_cpp_test_model_provisioning::download_model::download_model;
+
+const LLAMA_CONTEXT_LOG_TARGET: &str = "llama_cpp_context::llama_context";
 
 fn model_with_the_deepthink_reasoning_adapter(fixture: &LlamaFixture<'_>) -> Result<LlamaModel> {
     let adapter_path = download_model(
@@ -73,20 +78,21 @@ fn set_lora_adapters_accepts_a_downloaded_adapter_at_full_scale(
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn set_lora_adapters_accepts_an_empty_adapter_set(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+fn set_lora_adapters_accepts_an_empty_adapter_set_and_logs_the_update(
+    fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let context = fixture.build_context()?;
+
+    CapturingLogger::install();
+
     ensure!(context.set_lora_adapters(&[]) == Ok(()));
+    ensure!(
+        CapturingLogger::records_for(LLAMA_CONTEXT_LOG_TARGET).contains(&CapturedRecord {
+            level: Level::Debug,
+            target: LLAMA_CONTEXT_LOG_TARGET.to_owned(),
+            message: "Updated lora adapters".to_owned(),
+        })
+    );
 
     Ok(())
 }

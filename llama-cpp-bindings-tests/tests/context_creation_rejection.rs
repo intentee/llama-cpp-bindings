@@ -18,24 +18,14 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
 )]
 fn creating_a_context_reports_a_batch_llama_cpp_cannot_allocate(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let _fault = ArmedFault::at(
         llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_BATCH_EXT_INIT_THROWS,
     );
 
     ensure!(
-        LlamaContext::from_model(
-            model,
-            backend,
-            (*context_params).into_llama_context_params(),
-        )
-        .err()
+        fixture.build_context().err()
             == Some(ContextError::CreateReported {
                 message: injected_fault_message()?,
             })
