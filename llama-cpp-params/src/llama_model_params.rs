@@ -336,7 +336,7 @@ impl LlamaModelParams {
     /// Returns [`ParamsError::FitMarginsDeviceCountMismatch`] when `margins` does not hold one
     /// entry per device, or the variant naming how llama.cpp failed to fit the parameters.
     pub fn fit_params(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         model_path: &CStr,
         context_params: &mut LlamaContextParams,
         margins: &mut [usize],
@@ -355,11 +355,18 @@ impl LlamaModelParams {
             });
         }
 
-        self.tensor_split.clear();
-        self.tensor_split.resize(max_devices, 0.0);
+        let Self {
+            params,
+            buft_overrides,
+            tensor_split,
+            ..
+        } = self.get_mut();
 
-        self.buft_overrides.clear();
-        self.buft_overrides.resize(
+        tensor_split.clear();
+        tensor_split.resize(max_devices, 0.0);
+
+        buft_overrides.clear();
+        buft_overrides.resize(
             max_buft.saturating_add(1),
             llama_cpp_bindings_sys::bindings::llama_model_tensor_buft_override {
                 pattern: null(),
@@ -367,8 +374,8 @@ impl LlamaModelParams {
             },
         );
 
-        self.params.tensor_split = null::<f32>();
-        self.params.tensor_buft_overrides = null();
+        params.tensor_split = null::<f32>();
+        params.tensor_buft_overrides = null();
 
         let mut out_unrecognized_status_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
@@ -393,10 +400,10 @@ impl LlamaModelParams {
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_fit_params(
                 model_path.as_ptr(),
-                &raw mut self.params,
+                &raw mut *params,
                 context_params.as_mut_ffi(),
-                self.tensor_split.as_mut_ptr(),
-                self.buft_overrides.as_mut_ptr(),
+                tensor_split.as_mut_ptr(),
+                buft_overrides.as_mut_ptr(),
                 margins.as_mut_ptr(),
                 n_ctx_min,
                 extra_ptr,
@@ -408,8 +415,8 @@ impl LlamaModelParams {
 
         unsafe { fit_params_status_to_result(status, out_unrecognized_status_code, out_error) }?;
 
-        self.params.tensor_split = self.tensor_split.as_ptr();
-        self.params.tensor_buft_overrides = self.buft_overrides.as_ptr();
+        params.tensor_split = tensor_split.as_ptr();
+        params.tensor_buft_overrides = buft_overrides.as_ptr();
 
         Ok(FitResult {
             n_ctx: context_params.n_ctx().map_or(0, NonZeroU32::get),
