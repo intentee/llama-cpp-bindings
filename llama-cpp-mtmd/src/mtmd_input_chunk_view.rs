@@ -115,24 +115,28 @@ unsafe fn eval_chunk_single_status_to_result(
 }
 
 /// A chunk borrowed for `'chunks` from whatever keeps it alive, such as the chunk list llama.cpp
-/// tokenized it into.
+/// tokenized it into, together with the projector that tokenized it.
 #[derive(Clone, Copy, Debug)]
-pub struct MtmdInputChunkView<'chunks> {
+pub struct MtmdInputChunkView<'chunks, 'context> {
     chunk: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunk>,
     chunks: PhantomData<&'chunks llama_cpp_bindings_sys::bindings::mtmd_input_chunk>,
+    mtmd_context: &'context MtmdContext,
 }
 
-impl<'chunks> MtmdInputChunkView<'chunks> {
+impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
     /// # Safety
     ///
-    /// `chunk` must point to a chunk that stays valid for `'chunks`.
+    /// `chunk` must point to a chunk that stays valid for `'chunks`, and that `mtmd_context`
+    /// tokenized.
     #[must_use]
     pub const unsafe fn from_raw(
         chunk: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunk>,
+        mtmd_context: &'context MtmdContext,
     ) -> Self {
         Self {
             chunk,
             chunks: PhantomData,
+            mtmd_context,
         }
     }
 
@@ -153,10 +157,10 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
     }
 
     #[must_use]
-    pub fn decode_use_non_causal(self, mtmd_context: &MtmdContext) -> bool {
+    pub fn decode_use_non_causal(self) -> bool {
         unsafe {
             llama_cpp_bindings_sys::bindings::mtmd_decode_use_non_causal(
-                mtmd_context.as_ptr(),
+                self.mtmd_context.as_ptr(),
                 self.chunk.as_ptr(),
             )
         }
@@ -165,13 +169,13 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
     /// # Errors
     ///
     /// Returns an [`MtmdError`] when llama.cpp fails to encode the chunk.
-    pub fn encode(self, mtmd_context: &MtmdContext) -> Result<(), MtmdError> {
+    pub fn encode(self) -> Result<(), MtmdError> {
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_mtmd_encode_chunk(
-                mtmd_context.as_ptr(),
+                self.mtmd_context.as_ptr(),
                 self.chunk.as_ptr(),
                 &raw mut out_llama_cpp_return_code,
                 &raw mut out_error,
@@ -181,15 +185,47 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
         unsafe { map_encode_chunk_status(status, out_llama_cpp_return_code, out_error) }
     }
 
+    /// Checks that `n_batch`, `seq_id` and this chunk fit `llama_ctx`, then encodes the chunk when
+    /// it holds media and decodes it into `llama_ctx` from `start_position`, returning the
+    /// position after it.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error of [`MtmdContext::micro_batch_tokens_in`] or
+    /// [`Self::fit_to_micro_batch`] before evaluating anything, or an [`MtmdError`] when llama.cpp
+    /// fails to encode or decode the chunk.
+    pub fn eval(
+        self,
+        llama_ctx: &mut LlamaContext,
+        start_position: llama_cpp_bindings_sys::bindings::llama_pos,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
+        n_batch: i32,
+        logits_last: bool,
+    ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
+        let micro_batch_tokens = self
+            .mtmd_context
+            .micro_batch_tokens_in(llama_ctx, n_batch, seq_id)?;
+
+        self.fit_to_micro_batch(micro_batch_tokens)?;
+
+        unsafe { self.eval_unchecked(llama_ctx, start_position, seq_id, n_batch, logits_last) }
+    }
+
     /// Encodes the chunk when it holds media and decodes it into `llama_ctx` from `start_position`,
-    /// returning the position after it.
+    /// returning the position after it, without the checks of [`Self::eval`].
     ///
     /// # Errors
     ///
     /// Returns an [`MtmdError`] when llama.cpp fails to encode or decode the chunk.
-    pub fn eval(
+    ///
+    /// # Safety
+    ///
+    /// [`MtmdContext::micro_batch_tokens_in`] of this chunk's projector must accept `llama_ctx`,
+    /// `n_batch` and `seq_id`, and [`Self::fit_to_micro_batch`] must accept this chunk for the
+    /// micro batch it returns; llama.cpp aborts the process or reads past the projector's output
+    /// otherwise.
+    pub unsafe fn eval_unchecked(
         self,
-        mtmd_context: &MtmdContext,
         llama_ctx: &mut LlamaContext,
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
         seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
@@ -202,7 +238,7 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
 
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_mtmd_eval_chunk_single(
-                mtmd_context.as_ptr(),
+                self.mtmd_context.as_ptr(),
                 llama_ctx.as_ptr(),
                 self.chunk.as_ptr(),
                 start_position,
@@ -239,7 +275,6 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
     /// [`MtmdError::EvalUnknownChunkType`] when the chunk type is unknown.
     pub fn fit_to_micro_batch(
         self,
-        mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
     ) -> Result<MtmdInputChunkType, MtmdError> {
         let chunk_type = self
@@ -247,7 +282,7 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
             .map_err(Box::new)
             .map_err(MtmdError::EvalUnknownChunkType)?;
         let decodes_non_causally =
-            chunk_type != MtmdInputChunkType::Text && self.decode_use_non_causal(mtmd_ctx);
+            chunk_type != MtmdInputChunkType::Text && self.decode_use_non_causal();
 
         non_causal_chunk_micro_batch_error(
             decodes_non_causally,
@@ -266,6 +301,12 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
                 self.chunk.as_ptr(),
             ))
         }
+    }
+
+    /// The projector that tokenized this chunk.
+    #[must_use]
+    pub const fn mtmd_context(self) -> &'context MtmdContext {
+        self.mtmd_context
     }
 
     #[must_use]

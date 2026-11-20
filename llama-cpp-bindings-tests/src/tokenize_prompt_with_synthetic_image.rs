@@ -14,10 +14,10 @@ const SYNTHETIC_IMAGE_BYTES: usize = 64 * 64 * 3;
 ///
 /// Fails when the fixture declares no multimodal projector, or the image or prompt cannot be
 /// tokenized.
-pub fn tokenize_prompt_with_synthetic_image(
-    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+pub fn tokenize_prompt_with_synthetic_image<'fixture>(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'fixture>,
     prompt: &str,
-) -> Result<MtmdInputChunks> {
+) -> Result<MtmdInputChunks<'fixture>> {
     let image_data = vec![128u8; SYNTHETIC_IMAGE_BYTES];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)
         .context("a 64x64 RGB image must make a bitmap");

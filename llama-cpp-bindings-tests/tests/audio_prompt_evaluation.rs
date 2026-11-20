@@ -98,7 +98,6 @@ fn evaluate_audio_prompt<'model, TOutcome>(
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
-            mtmd_ctx,
             &mut context,
             EvalMultimodalChunksParams {
                 start_position: 0,

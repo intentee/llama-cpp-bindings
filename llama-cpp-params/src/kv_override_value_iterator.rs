@@ -12,8 +12,16 @@ pub struct KvOverrideValueIterator<'model_params> {
 }
 
 impl<'model_params> KvOverrideValueIterator<'model_params> {
+    /// Iterates the KV overrides that `model_params` points to.
+    ///
+    /// # Safety
+    ///
+    /// `model_params.kv_overrides` must be null, or point to overrides that stay valid for
+    /// `'model_params` and end with one whose key is empty. Every override before that one must
+    /// hold a NUL-terminated key and initialize the union field its tag names, as the overrides
+    /// of a `LlamaModelParams` do.
     #[must_use]
-    pub const fn new(
+    pub const unsafe fn new(
         model_params: &'model_params llama_cpp_bindings_sys::bindings::llama_model_params,
     ) -> Self {
         Self {
@@ -40,7 +48,7 @@ impl Iterator for KvOverrideValueIterator<'_> {
         }
 
         self.current = self.current.saturating_add(1);
-        let value = ParamOverrideValue::try_from(&current);
+        let value = unsafe { ParamOverrideValue::from_kv_override(&current) };
 
         Some(value.map(|value| KvOverrideEntry {
             key: unsafe { CStr::from_ptr(current.key.as_ptr()).to_owned() },

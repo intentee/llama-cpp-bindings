@@ -130,7 +130,6 @@ fn an_image_and_audio_prompt_is_answered_with_both_media_counted_as_input(
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
-            mtmd_ctx,
             &mut context,
             EvalMultimodalChunksParams {
                 start_position: 0,

@@ -82,10 +82,7 @@ mod tests {
         }
         .into_llama_context_params();
 
-        assert_eq!(
-            params.context_params.n_threads_batch,
-            default_params.context_params.n_threads_batch
-        );
+        assert_eq!(params.n_threads_batch(), default_params.n_threads_batch());
     }
 
     #[test]

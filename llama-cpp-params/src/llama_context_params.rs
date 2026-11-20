@@ -10,7 +10,7 @@ use crate::rope_scaling_type::RopeScalingType;
 
 #[derive(Debug, Clone, Copy)]
 pub struct LlamaContextParams {
-    pub context_params: llama_cpp_bindings_sys::bindings::llama_context_params,
+    context_params: llama_cpp_bindings_sys::bindings::llama_context_params,
 }
 
 unsafe impl Send for LlamaContextParams {}
@@ -23,8 +23,16 @@ impl LlamaContextParams {
         self
     }
 
+    /// Installs the callback ggml calls while it evaluates the graph of a context built from
+    /// these params.
+    ///
+    /// # Safety
+    ///
+    /// `cb_eval` must be sound for ggml to call with the tensors it evaluates and the user data
+    /// set by [`Self::with_cb_eval_user_data`], for the whole life of every context built from
+    /// these params.
     #[must_use]
-    pub fn with_cb_eval(
+    pub unsafe fn with_cb_eval(
         mut self,
         cb_eval: llama_cpp_bindings_sys::bindings::ggml_backend_sched_eval_callback,
     ) -> Self {
@@ -32,8 +40,14 @@ impl LlamaContextParams {
         self
     }
 
+    /// Sets the user data ggml hands to the callback installed by [`Self::with_cb_eval`].
+    ///
+    /// # Safety
+    ///
+    /// `cb_eval_user_data` must stay valid for that callback to use, for the whole life of every
+    /// context built from these params.
     #[must_use]
-    pub const fn with_cb_eval_user_data(mut self, cb_eval_user_data: *mut c_void) -> Self {
+    pub const unsafe fn with_cb_eval_user_data(mut self, cb_eval_user_data: *mut c_void) -> Self {
         self.context_params.cb_eval_user_data = cb_eval_user_data;
         self
     }
@@ -185,6 +199,17 @@ impl LlamaContextParams {
     pub const fn with_yarn_orig_ctx(mut self, yarn_orig_ctx: u32) -> Self {
         self.context_params.yarn_orig_ctx = yarn_orig_ctx;
         self
+    }
+
+    /// The llama.cpp context parameters, for a llama.cpp call that reads them or writes back into
+    /// them.
+    ///
+    /// The pointer is valid only until `self` is moved or used again.
+    #[must_use]
+    pub const fn as_mut_ffi(
+        &mut self,
+    ) -> *mut llama_cpp_bindings_sys::bindings::llama_context_params {
+        &raw mut self.context_params
     }
 
     /// # Errors
@@ -575,7 +600,8 @@ mod tests {
             ask
         }
 
-        let params = super::LlamaContextParams::default().with_cb_eval(Some(echo_whether_asked));
+        let params =
+            unsafe { super::LlamaContextParams::default().with_cb_eval(Some(echo_whether_asked)) };
 
         assert_eq!(
             params
@@ -590,7 +616,8 @@ mod tests {
     fn with_cb_eval_user_data_sets_pointer() {
         let mut value: i32 = 42;
         let user_data = (&raw mut value).cast::<c_void>();
-        let params = super::LlamaContextParams::default().with_cb_eval_user_data(user_data);
+        let params =
+            unsafe { super::LlamaContextParams::default().with_cb_eval_user_data(user_data) };
 
         assert_eq!(params.context_params.cb_eval_user_data, user_data);
     }

@@ -184,9 +184,9 @@ impl<'model> LlamaContext<'model> {
     pub fn from_model(
         model: &'model LlamaModel,
         _backend: &LlamaBackend,
-        params: LlamaContextParams,
+        mut params: LlamaContextParams,
     ) -> Result<Self, ContextError> {
-        let context_params = params.context_params;
+        let context_params = unsafe { params.as_mut_ffi().read() };
         let embeddings = params.embeddings();
 
         SequenceOutputCapacity {

@@ -12,7 +12,6 @@ use llama_cpp_context::llama_context::LlamaContext;
 use crate::mtmd_bitmap::MtmdBitmap;
 use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
-use crate::mtmd_eval_limits::MtmdEvalLimits;
 use crate::mtmd_ffi_input_part::MtmdFfiInputPart;
 use crate::mtmd_input_chunk_type::MtmdInputChunkType;
 use crate::mtmd_input_chunk_view::MtmdInputChunkView;
@@ -28,11 +27,11 @@ unsafe fn input_chunks_init_status_to_result(
     status: llama_rs_mtmd_input_chunks_init_status,
     out_chunks: *mut llama_cpp_bindings_sys::bindings::mtmd_input_chunks,
     out_error: *mut c_char,
-) -> Result<MtmdInputChunks, MtmdError> {
+) -> Result<NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunks>, MtmdError> {
     match status {
-        llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => Ok(MtmdInputChunks {
-            chunks: unsafe { NonNull::new_unchecked(out_chunks) },
-        }),
+        llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_OK => {
+            Ok(unsafe { NonNull::new_unchecked(out_chunks) })
+        }
         llama_rs_mtmd_input_chunks_init_status::LLAMA_RS_MTMD_INPUT_CHUNKS_INIT_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::InputChunksNotEnoughMemory)
         }
@@ -124,18 +123,23 @@ unsafe fn map_tokenize_from_parts_status(
     }
 }
 
+/// Chunks tokenized by one projector, which they borrow so that they are only ever fitted,
+/// encoded and evaluated with it.
 #[derive(Debug)]
-pub struct MtmdInputChunks {
+pub struct MtmdInputChunks<'context> {
     chunks: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunks>,
+    mtmd_context: &'context MtmdContext,
 }
 
-unsafe impl Send for MtmdInputChunks {}
+unsafe impl Send for MtmdInputChunks<'_> {}
 
-impl MtmdInputChunks {
+impl<'context> MtmdInputChunks<'context> {
+    /// An empty chunk list for the chunks `mtmd_context` tokenizes.
+    ///
     /// # Errors
     ///
     /// Returns an [`MtmdError`] when llama.cpp fails to create the chunk list.
-    pub fn new() -> Result<Self, MtmdError> {
+    pub fn new(mtmd_context: &'context MtmdContext) -> Result<Self, MtmdError> {
         let mut out_chunks: *mut llama_cpp_bindings_sys::bindings::mtmd_input_chunks =
             ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
@@ -146,7 +150,10 @@ impl MtmdInputChunks {
             )
         };
 
-        unsafe { input_chunks_init_status_to_result(status, out_chunks, out_error) }
+        Ok(Self {
+            chunks: unsafe { input_chunks_init_status_to_result(status, out_chunks, out_error) }?,
+            mtmd_context,
+        })
     }
 
     /// # Errors
@@ -154,7 +161,7 @@ impl MtmdInputChunks {
     /// Returns an [`MtmdError`] when the chunk list cannot be created, the text holds a nul byte,
     /// or llama.cpp fails to tokenize the text and bitmaps.
     pub fn tokenize(
-        mtmd_context: &MtmdContext,
+        mtmd_context: &'context MtmdContext,
         MtmdInputText {
             text,
             add_special,
@@ -162,7 +169,7 @@ impl MtmdInputChunks {
         }: MtmdInputText,
         bitmaps: &[&MtmdBitmap],
     ) -> Result<Self, MtmdError> {
-        let chunks = Self::new()
+        let chunks = Self::new(mtmd_context)
             .map_err(Box::new)
             .map_err(MtmdError::TokenizeInputChunks)?;
         let text_cstring = CString::new(text).map_err(MtmdError::InputTextContainsNul)?;
@@ -202,11 +209,11 @@ impl MtmdInputChunks {
     /// Returns an [`MtmdError`] when the chunk list cannot be created, a text part holds a nul
     /// byte, or llama.cpp fails to tokenize the parts.
     pub fn tokenize_from_parts(
-        mtmd_context: &MtmdContext,
+        mtmd_context: &'context MtmdContext,
         parts: &[MtmdInputPart<'_>],
         add_special: bool,
     ) -> Result<Self, MtmdError> {
-        let chunks = Self::new()
+        let chunks = Self::new(mtmd_context)
             .map_err(Box::new)
             .map_err(MtmdError::TokenizeInputChunks)?;
         let ffi_input_parts = parts
@@ -241,7 +248,7 @@ impl MtmdInputChunks {
     }
 
     #[must_use]
-    pub fn chunks(&self) -> Vec<MtmdInputChunkView<'_>> {
+    pub fn chunks(&self) -> Vec<MtmdInputChunkView<'_, 'context>> {
         (0..self.len())
             .map(|index| unsafe { self.chunk_within_count(index) })
             .collect()
@@ -252,33 +259,31 @@ impl MtmdInputChunks {
     ///
     /// # Errors
     ///
-    /// Returns any error of [`MtmdEvalLimits::batch_tokens`] or [`Self::fit_to_micro_batch`], or
-    /// [`MtmdError::EvalFailed`] if any encoding or decoding operation fails.
+    /// Returns any error of [`MtmdContext::micro_batch_tokens_in`] or
+    /// [`Self::fit_to_micro_batch`], or [`MtmdError::EvalFailed`] if any encoding or decoding
+    /// operation fails.
     pub fn eval_chunks(
         &self,
-        mtmd_ctx: &MtmdContext,
         llama_ctx: &mut LlamaContext,
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
         seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
-        let limits = MtmdEvalLimits::of(llama_ctx);
-        let micro_batch_tokens = limits
-            .context
-            .micro_batch_tokens(limits.batch_tokens(n_batch, seq_id)?);
+        let micro_batch_tokens = self
+            .mtmd_context
+            .micro_batch_tokens_in(llama_ctx, n_batch, seq_id)?;
         let chunks = self.chunks();
 
-        self.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens)?;
+        self.fit_to_micro_batch(micro_batch_tokens)?;
 
         let last_chunk_index = chunks.len().checked_sub(1);
 
         chunks
             .iter()
             .enumerate()
-            .try_fold(start_position, |position, (index, chunk)| {
-                chunk.eval(
-                    mtmd_ctx,
+            .try_fold(start_position, |position, (index, chunk)| unsafe {
+                chunk.eval_unchecked(
                     llama_ctx,
                     position,
                     seq_id,
@@ -298,17 +303,16 @@ impl MtmdInputChunks {
     /// [`MtmdError::EvalUnknownChunkType`] when a chunk type is unknown.
     pub fn fit_to_micro_batch(
         &self,
-        mtmd_ctx: &MtmdContext,
         micro_batch_tokens: u32,
     ) -> Result<Vec<MtmdInputChunkType>, MtmdError> {
         self.chunks()
             .into_iter()
-            .map(|chunk| chunk.fit_to_micro_batch(mtmd_ctx, micro_batch_tokens))
+            .map(|chunk| chunk.fit_to_micro_batch(micro_batch_tokens))
             .collect()
     }
 
     #[must_use]
-    pub fn get(&self, index: usize) -> Option<MtmdInputChunkView<'_>> {
+    pub fn get(&self, index: usize) -> Option<MtmdInputChunkView<'_, 'context>> {
         (index < self.len()).then(|| unsafe { self.chunk_within_count(index) })
     }
 
@@ -320,6 +324,12 @@ impl MtmdInputChunks {
     #[must_use]
     pub fn len(&self) -> usize {
         unsafe { llama_cpp_bindings_sys::bindings::mtmd_input_chunks_size(self.chunks.as_ptr()) }
+    }
+
+    /// The projector that tokenized these chunks.
+    #[must_use]
+    pub const fn mtmd_context(&self) -> &'context MtmdContext {
+        self.mtmd_context
     }
 
     #[must_use]
@@ -335,16 +345,21 @@ impl MtmdInputChunks {
     /// # Safety
     ///
     /// `index` must be below [`Self::len`], where llama.cpp always holds a chunk.
-    unsafe fn chunk_within_count(&self, index: usize) -> MtmdInputChunkView<'_> {
+    unsafe fn chunk_within_count(&self, index: usize) -> MtmdInputChunkView<'_, 'context> {
         let chunk = unsafe {
             llama_cpp_bindings_sys::bindings::mtmd_input_chunks_get(self.chunks.as_ptr(), index)
         };
 
-        unsafe { MtmdInputChunkView::from_raw(NonNull::new_unchecked(chunk.cast_mut())) }
+        unsafe {
+            MtmdInputChunkView::from_raw(
+                NonNull::new_unchecked(chunk.cast_mut()),
+                self.mtmd_context,
+            )
+        }
     }
 }
 
-impl Drop for MtmdInputChunks {
+impl Drop for MtmdInputChunks<'_> {
     fn drop(&mut self) {
         unsafe { llama_cpp_bindings_sys::bindings::mtmd_input_chunks_free(self.chunks.as_ptr()) }
     }
@@ -362,23 +377,6 @@ mod tests {
     use super::map_tokenize_from_parts_status;
     use super::map_tokenize_status;
     use crate::mtmd_error::MtmdError;
-    use crate::mtmd_input_chunks::MtmdInputChunks;
-
-    #[test]
-    fn new_creates_empty_chunks() {
-        let chunks = MtmdInputChunks::new().unwrap();
-
-        assert!(chunks.is_empty());
-        assert_eq!(chunks.len(), 0);
-    }
-
-    #[test]
-    fn get_out_of_bounds_returns_none() {
-        let chunks = MtmdInputChunks::new().unwrap();
-
-        assert!(chunks.get(0).is_none());
-        assert!(chunks.get(999).is_none());
-    }
 
     #[test]
     fn chunk_list_initialization_memory_failures_map_to_their_errors() {

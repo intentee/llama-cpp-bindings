@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_mtmd::mtmd_context::MtmdContext;
@@ -31,15 +32,22 @@ impl MmprojFile {
     /// # Errors
     ///
     /// Returns [`PhaseSetupError::MmprojLoad`] when llama.cpp cannot load the mmproj for `model`.
-    pub fn load_mtmd_context(&self, model: &LlamaModel) -> Result<MtmdContext, PhaseSetupError> {
+    pub fn load_mtmd_context(
+        &self,
+        model: &Arc<LlamaModel>,
+    ) -> Result<MtmdContext, PhaseSetupError> {
         let Self {
             unicode_mmproj_path,
         } = self;
 
-        MtmdContext::init_from_file(unicode_mmproj_path, model, &MtmdContextParams::default())
-            .map_err(|cause| PhaseSetupError::MmprojLoad {
-                mmproj_path: PathBuf::from(unicode_mmproj_path),
-                cause,
-            })
+        MtmdContext::init_from_file(
+            unicode_mmproj_path,
+            Arc::clone(model),
+            &MtmdContextParams::default(),
+        )
+        .map_err(|cause| PhaseSetupError::MmprojLoad {
+            mmproj_path: PathBuf::from(unicode_mmproj_path),
+            cause,
+        })
     }
 }

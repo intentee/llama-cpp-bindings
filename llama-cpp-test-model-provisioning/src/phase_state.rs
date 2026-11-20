@@ -6,7 +6,7 @@ use llama_cpp_model::llama_model::LlamaModel;
 
 #[derive(Debug)]
 pub struct PhaseState {
-    pub model: LlamaModel,
+    pub model: Arc<LlamaModel>,
     pub backend: Arc<LlamaBackend>,
     pub model_path: PathBuf,
 }

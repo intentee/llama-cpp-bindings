@@ -52,6 +52,22 @@ impl MtmdEvalLimits {
 
         Ok(batch_tokens)
     }
+
+    /// Returns how many tokens each decode of `n_batch` evaluates in the context, once
+    /// [`Self::batch_tokens`] accepts `n_batch` and `seq_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error of [`Self::batch_tokens`].
+    pub fn micro_batch_tokens(
+        &self,
+        n_batch: i32,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
+    ) -> Result<u32, MtmdError> {
+        Ok(self
+            .context
+            .micro_batch_tokens(self.batch_tokens(n_batch, seq_id)?))
+    }
 }
 
 #[cfg(test)]
@@ -104,6 +120,19 @@ mod tests {
                 requested: 513,
                 context_max: 512,
             })
+        );
+    }
+
+    #[test]
+    fn an_accepted_batch_decodes_in_the_context_micro_batch_it_exceeds() {
+        assert_eq!(LIMITS.micro_batch_tokens(512, 1), Ok(128));
+    }
+
+    #[test]
+    fn a_refused_batch_has_no_micro_batch() {
+        assert_eq!(
+            LIMITS.micro_batch_tokens(0, 0),
+            Err(MtmdError::NonPositiveBatchSize { requested: 0 })
         );
     }
 

@@ -90,12 +90,12 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
     let mut margins = vec![0usize; max_devices()];
 
     let unfittable_extra_n_ctx = NonZeroU32::MIN;
-    let mut extra_params = pin!(LlamaModelParams::default());
+    let mut extra_params = LlamaModelParams::default();
     let mut extra_context_params =
         LlamaContextParams::default().with_n_ctx(Some(unfittable_extra_n_ctx));
     let mut extra = FitExtraModel {
         model_path: &model_path_c,
-        model_params: &mut extra_params.params,
+        model_params: &mut extra_params,
         context_params: &mut extra_context_params,
         shares_model: true,
     };
@@ -115,7 +115,7 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
         extra_context_params.n_ctx() != Some(unfittable_extra_n_ctx),
         "the llama.cpp fit must overwrite the extra model's context size"
     );
-    ensure!(extra_context_params.context_params.n_ctx == context_params.context_params.n_ctx);
+    ensure!(extra_context_params.n_ctx() == context_params.n_ctx());
 
     Ok(())
 }

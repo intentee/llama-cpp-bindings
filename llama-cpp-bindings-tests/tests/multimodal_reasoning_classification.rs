@@ -70,7 +70,6 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
-        mtmd_ctx,
         &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
@@ -186,7 +185,6 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
-        mtmd_ctx,
         &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
@@ -287,7 +285,6 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
-        mtmd_ctx,
         &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,

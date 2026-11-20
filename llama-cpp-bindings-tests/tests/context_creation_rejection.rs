@@ -81,7 +81,7 @@ fn context_params_with_an_attention_type_llama_cpp_does_not_define_are_refused(
     }: &LlamaFixture<'_>,
 ) {
     let mut params = (*context_params).into_llama_context_params();
-    params.context_params.attention_type = 99;
+    unsafe { (*params.as_mut_ffi()).attention_type = 99 };
 
     assert_eq!(
         LlamaContext::from_model(model, backend, params).err(),

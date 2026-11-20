@@ -132,7 +132,7 @@ fn parsed_message_of(
     };
 
     unsafe { chat_reading_parse_status_to_result(status, out_handle, out_error) }
-        .and_then(take_parsed_chat_message)
+        .and_then(|parsed_chat| unsafe { take_parsed_chat_message(parsed_chat) })
         .map(ChatMessageParseOutcome::Recognized)
 }
 
@@ -156,7 +156,13 @@ impl ChatReading {
     ///
     /// Returns [`ChatError`] when the expected format's name is not UTF-8; the reading is
     /// released either way.
-    pub fn take(
+    ///
+    /// # Safety
+    ///
+    /// `reading` must point to a reading that `llama_rs_chat_session_read` created and that
+    /// nothing else uses or frees: this takes ownership of it, and the returned [`ChatReading`]
+    /// frees it when dropped, or this frees it before returning an error.
+    pub unsafe fn take(
         reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
         output: &ChatOutput,
         completeness: ChatOutputCompleteness,

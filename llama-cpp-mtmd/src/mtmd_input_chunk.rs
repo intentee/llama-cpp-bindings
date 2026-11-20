@@ -5,6 +5,7 @@ use std::ptr::NonNull;
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_input_chunk_copy_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 
+use crate::mtmd_context::MtmdContext;
 use crate::mtmd_error::MtmdError;
 use crate::mtmd_input_chunk_view::MtmdInputChunkView;
 
@@ -17,11 +18,11 @@ unsafe fn input_chunk_copy_status_to_result(
     status: llama_rs_mtmd_input_chunk_copy_status,
     out_chunk: *mut llama_cpp_bindings_sys::bindings::mtmd_input_chunk,
     out_error: *mut c_char,
-) -> Result<MtmdInputChunk, MtmdError> {
+) -> Result<NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunk>, MtmdError> {
     match status {
-        llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK => Ok(MtmdInputChunk {
-            chunk: unsafe { NonNull::new_unchecked(out_chunk) },
-        }),
+        llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_OK => {
+            Ok(unsafe { NonNull::new_unchecked(out_chunk) })
+        }
         llama_rs_mtmd_input_chunk_copy_status::LLAMA_RS_MTMD_INPUT_CHUNK_COPY_ERROR_STRING_ALLOCATION_FAILED => {
             Err(MtmdError::ChunkCopyNotEnoughMemory)
         }
@@ -38,17 +39,18 @@ unsafe fn input_chunk_copy_status_to_result(
 }
 
 /// A chunk this binding owns and frees when dropped, so it outlives the chunk list it was copied
-/// from.
+/// from, while it stays tied to the projector that tokenized it.
 #[derive(Debug)]
-pub struct MtmdInputChunk {
+pub struct MtmdInputChunk<'context> {
     chunk: NonNull<llama_cpp_bindings_sys::bindings::mtmd_input_chunk>,
+    mtmd_context: &'context MtmdContext,
 }
 
-impl MtmdInputChunk {
+impl<'context> MtmdInputChunk<'context> {
     /// # Errors
     ///
     /// Returns an [`MtmdError`] when llama.cpp fails to copy the chunk.
-    pub fn copy(chunk: MtmdInputChunkView<'_>) -> Result<Self, MtmdError> {
+    pub fn copy(chunk: MtmdInputChunkView<'_, 'context>) -> Result<Self, MtmdError> {
         let mut out_chunk: *mut llama_cpp_bindings_sys::bindings::mtmd_input_chunk =
             ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
@@ -60,16 +62,19 @@ impl MtmdInputChunk {
             )
         };
 
-        unsafe { input_chunk_copy_status_to_result(status, out_chunk, out_error) }
+        Ok(Self {
+            chunk: unsafe { input_chunk_copy_status_to_result(status, out_chunk, out_error) }?,
+            mtmd_context: chunk.mtmd_context(),
+        })
     }
 
     #[must_use]
-    pub const fn view(&self) -> MtmdInputChunkView<'_> {
-        unsafe { MtmdInputChunkView::from_raw(self.chunk) }
+    pub const fn view(&self) -> MtmdInputChunkView<'_, 'context> {
+        unsafe { MtmdInputChunkView::from_raw(self.chunk, self.mtmd_context) }
     }
 }
 
-impl Drop for MtmdInputChunk {
+impl Drop for MtmdInputChunk<'_> {
     fn drop(&mut self) {
         unsafe { llama_cpp_bindings_sys::bindings::mtmd_input_chunk_free(self.chunk.as_ptr()) }
     }

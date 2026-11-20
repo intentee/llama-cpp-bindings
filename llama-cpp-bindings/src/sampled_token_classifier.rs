@@ -15,8 +15,6 @@ use llama_cpp_model::sampled_token::SampledToken;
 use llama_cpp_model::sampled_token_section::SampledTokenSection;
 use llama_cpp_mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
 use llama_cpp_mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
-use llama_cpp_mtmd::mtmd_context::MtmdContext;
-use llama_cpp_mtmd::mtmd_eval_limits::MtmdEvalLimits;
 use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
 use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
@@ -126,13 +124,13 @@ impl<'model> SampledTokenClassifier<'model> {
     /// them, so a chunk that cannot be decoded moves neither the KV cache nor the usage counters.
     ///
     /// # Errors
-    /// Returns [`LlamaCppError::MultimodalChunksEval`] when `params.n_batch` or `params.seq_id`
-    /// does not fit the context, a chunk cannot be decoded or reports a type unknown to this
-    /// binding (all before any chunk is evaluated), or when evaluating a chunk fails.
+    /// Returns [`LlamaCppError::MultimodalChunksEval`] when `llama_ctx` was created for another
+    /// model than the projector of `chunks`, `params.n_batch` or `params.seq_id` does not fit the
+    /// context, a chunk cannot be decoded or reports a type unknown to this binding (all before
+    /// any chunk is evaluated), or when evaluating a chunk fails.
     pub fn eval_multimodal_chunks(
         &mut self,
-        chunks: &MtmdInputChunks,
-        mtmd_ctx: &MtmdContext,
+        chunks: &MtmdInputChunks<'_>,
         llama_ctx: &mut LlamaContext,
         EvalMultimodalChunksParams {
             start_position,
@@ -141,15 +139,12 @@ impl<'model> SampledTokenClassifier<'model> {
             logits_last,
         }: EvalMultimodalChunksParams,
     ) -> Result<llama_pos, LlamaCppError> {
-        let limits = MtmdEvalLimits::of(llama_ctx);
         let fitted_chunks = FittedMtmdInputChunks::fit(
             chunks,
-            mtmd_ctx,
-            limits.context.micro_batch_tokens(
-                limits
-                    .batch_tokens(n_batch, seq_id)
-                    .map_err(LlamaCppError::MultimodalChunksEval)?,
-            ),
+            chunks
+                .mtmd_context()
+                .micro_batch_tokens_in(llama_ctx, n_batch, seq_id)
+                .map_err(LlamaCppError::MultimodalChunksEval)?,
         )
         .map_err(LlamaCppError::MultimodalChunksEval)?;
         let last_chunk_index = fitted_chunks.fitted_chunks().len().checked_sub(1);
@@ -160,7 +155,6 @@ impl<'model> SampledTokenClassifier<'model> {
 
             next_position = fitted_chunk
                 .eval_single(
-                    mtmd_ctx,
                     llama_ctx,
                     next_position,
                     seq_id,
@@ -276,7 +270,7 @@ impl<'model> SampledTokenClassifier<'model> {
         Ok(GenerationProgress::Continues)
     }
 
-    pub fn ingest_fitted_chunk(&mut self, fitted_chunk: &FittedMtmdInputChunk<'_>) {
+    pub fn ingest_fitted_chunk(&mut self, fitted_chunk: &FittedMtmdInputChunk<'_, '_>) {
         let n_tokens = fitted_chunk.chunk().n_tokens() as u64;
 
         match fitted_chunk.chunk_type() {

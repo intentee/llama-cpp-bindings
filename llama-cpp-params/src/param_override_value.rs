@@ -12,6 +12,41 @@ pub enum ParamOverrideValue {
 }
 
 impl ParamOverrideValue {
+    /// Reads the value of a llama.cpp KV override from the union field its tag names.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParamsError::UnknownKvOverrideTag`] when the tag names no type llama.cpp
+    /// defines.
+    ///
+    /// # Safety
+    ///
+    /// The union field that the tag names must be initialized, as it is in an override built
+    /// from [`Self::tag`] and [`Self::value`].
+    pub const unsafe fn from_kv_override(
+        llama_cpp_bindings_sys::bindings::llama_model_kv_override {
+            key: _,
+            tag,
+            __bindgen_anon_1,
+        }: &llama_cpp_bindings_sys::bindings::llama_model_kv_override,
+    ) -> Result<Self, ParamsError> {
+        match *tag {
+            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_INT => {
+                Ok(Self::Int(unsafe { __bindgen_anon_1.val_i64 }))
+            }
+            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_FLOAT => {
+                Ok(Self::Float(unsafe { __bindgen_anon_1.val_f64 }))
+            }
+            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_BOOL => {
+                Ok(Self::Bool(unsafe { __bindgen_anon_1.val_bool }))
+            }
+            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_STR => {
+                Ok(Self::Str(unsafe { __bindgen_anon_1.val_str }))
+            }
+            unknown_tag => Err(ParamsError::UnknownKvOverrideTag(unknown_tag)),
+        }
+    }
+
     #[must_use]
     pub const fn tag(&self) -> llama_cpp_bindings_sys::bindings::llama_model_kv_override_type {
         match self {
@@ -47,34 +82,6 @@ impl ParamOverrideValue {
                     val_str: *c_string,
                 }
             }
-        }
-    }
-}
-
-impl TryFrom<&llama_cpp_bindings_sys::bindings::llama_model_kv_override> for ParamOverrideValue {
-    type Error = ParamsError;
-
-    fn try_from(
-        llama_cpp_bindings_sys::bindings::llama_model_kv_override {
-            key: _,
-            tag,
-            __bindgen_anon_1,
-        }: &llama_cpp_bindings_sys::bindings::llama_model_kv_override,
-    ) -> Result<Self, Self::Error> {
-        match *tag {
-            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_INT => {
-                Ok(Self::Int(unsafe { __bindgen_anon_1.val_i64 }))
-            }
-            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_FLOAT => {
-                Ok(Self::Float(unsafe { __bindgen_anon_1.val_f64 }))
-            }
-            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_BOOL => {
-                Ok(Self::Bool(unsafe { __bindgen_anon_1.val_bool }))
-            }
-            llama_cpp_bindings_sys::bindings::LLAMA_KV_OVERRIDE_TYPE_STR => {
-                Ok(Self::Str(unsafe { __bindgen_anon_1.val_str }))
-            }
-            unknown_tag => Err(ParamsError::UnknownKvOverrideTag(unknown_tag)),
         }
     }
 }
@@ -145,7 +152,7 @@ mod tests {
             ..EMPTY_KV_OVERRIDE
         };
 
-        let value = ParamOverrideValue::try_from(&ffi_override).unwrap();
+        let value = unsafe { ParamOverrideValue::from_kv_override(&ffi_override) }.unwrap();
 
         assert_eq!(value, ParamOverrideValue::Int(123));
     }
@@ -161,7 +168,7 @@ mod tests {
             ..EMPTY_KV_OVERRIDE
         };
 
-        let value = ParamOverrideValue::try_from(&ffi_override).unwrap();
+        let value = unsafe { ParamOverrideValue::from_kv_override(&ffi_override) }.unwrap();
 
         assert_eq!(value, ParamOverrideValue::Float(1.5));
     }
@@ -177,7 +184,7 @@ mod tests {
             ..EMPTY_KV_OVERRIDE
         };
 
-        let value = ParamOverrideValue::try_from(&ffi_override).unwrap();
+        let value = unsafe { ParamOverrideValue::from_kv_override(&ffi_override) }.unwrap();
 
         assert_eq!(value, ParamOverrideValue::Bool(false));
     }
@@ -211,7 +218,7 @@ mod tests {
             ..EMPTY_KV_OVERRIDE
         };
 
-        let value = ParamOverrideValue::try_from(&ffi_override).unwrap();
+        let value = unsafe { ParamOverrideValue::from_kv_override(&ffi_override) }.unwrap();
 
         assert_eq!(value, ParamOverrideValue::Str(str_data));
     }
@@ -225,7 +232,7 @@ mod tests {
         };
 
         assert_eq!(
-            ParamOverrideValue::try_from(&ffi_override),
+            unsafe { ParamOverrideValue::from_kv_override(&ffi_override) },
             Err(ParamsError::UnknownKvOverrideTag(9999))
         );
     }

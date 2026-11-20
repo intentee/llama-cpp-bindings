@@ -16,7 +16,7 @@ impl ChunkTokenBreakdown {
     ///
     /// Fails when a chunk below the chunk count is missing or reports a type unknown to the
     /// bindings.
-    pub fn from_chunks(chunks: &MtmdInputChunks) -> Result<Self> {
+    pub fn from_chunks(chunks: &MtmdInputChunks<'_>) -> Result<Self> {
         let empty = Self {
             text: 0,
             image: 0,
@@ -31,7 +31,7 @@ impl ChunkTokenBreakdown {
         })
     }
 
-    fn with_chunk(mut self, chunk: MtmdInputChunkView<'_>) -> Result<Self> {
+    fn with_chunk(mut self, chunk: MtmdInputChunkView<'_, '_>) -> Result<Self> {
         let n_tokens = chunk.n_tokens() as u64;
 
         chunk

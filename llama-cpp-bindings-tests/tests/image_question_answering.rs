@@ -46,9 +46,7 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
     .with_context(|| "unable to create llama context")?;
 
     ensure!(
-        mtmd_ctx
-            .capabilities(model)
-            .contains(MtmdCapability::Vision),
+        mtmd_ctx.capabilities().contains(MtmdCapability::Vision),
         "model should support vision input"
     );
 
@@ -85,7 +83,6 @@ fn a_question_about_an_image_is_answered_with_its_image_tokens_counted_as_input(
     let n_past = classifier
         .eval_multimodal_chunks(
             &chunks,
-            mtmd_ctx,
             &mut ctx,
             EvalMultimodalChunksParams {
                 start_position: 0,

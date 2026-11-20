@@ -426,7 +426,7 @@ impl ChatSession {
         };
 
         unsafe { chat_session_read_status_to_result(status, out_reading, out_error) }
-            .and_then(|reading| ChatReading::take(reading, output, completeness))
+            .and_then(|reading| unsafe { ChatReading::take(reading, output, completeness) })
     }
 
     /// # Errors

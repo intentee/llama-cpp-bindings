@@ -34,7 +34,7 @@ impl ModelFile {
         })?;
 
         Ok(PhaseState {
-            model,
+            model: Arc::new(model),
             backend: Arc::clone(backend),
             model_path: model_path.clone(),
         })

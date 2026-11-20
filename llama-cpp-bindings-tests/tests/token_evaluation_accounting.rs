@@ -110,7 +110,7 @@ fn evaluated_media_chunks_count_every_token_the_mtmd_helper_decoded(
     let mut context = fixture_context(fixture)?;
     let n_batch = i32::try_from(context.n_batch())?;
 
-    chunks.eval_chunks(mtmd_ctx, &mut context, 0, 0, n_batch, true)?;
+    chunks.eval_chunks(&mut context, 0, 0, n_batch, true)?;
 
     ensure!(context.evaluated_tokens() == chunks.total_tokens() as u64);
 

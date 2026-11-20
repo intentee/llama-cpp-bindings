@@ -83,7 +83,13 @@ fn collect_parsed_chat_message(
 /// # Errors
 ///
 /// Returns [`ChatError`] when an accessor fails or reports text that is not UTF-8.
-pub fn take_parsed_chat_message(
+///
+/// # Safety
+///
+/// `handle` must point to a parsed message that `llama_rs_chat_reading_parse` created and that
+/// nothing else uses or frees: this takes ownership of it and frees it before returning, whether
+/// reading the message succeeds or fails.
+pub unsafe fn take_parsed_chat_message(
     handle: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_parsed_chat>,
 ) -> Result<ParsedChatMessage, ChatError> {
     let message = collect_parsed_chat_message(handle.as_ptr());

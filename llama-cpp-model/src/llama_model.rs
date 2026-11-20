@@ -1,8 +1,10 @@
 use encoding_rs::CoderResult;
 use once_cell::sync::OnceCell;
 use std::cmp;
+use std::ffi::CStr;
+use std::ffi::CString;
+use std::ffi::c_char;
 use std::ffi::c_int;
-use std::ffi::{CStr, CString, c_char};
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -380,7 +382,7 @@ impl LlamaModel {
     pub fn load_from_file(
         _: &LlamaBackend,
         path: impl AsRef<Path>,
-        LlamaModelParams { params, .. }: &LlamaModelParams,
+        params: &LlamaModelParams,
     ) -> Result<Self, ModelError> {
         let path = path.as_ref();
         let cstr = path_c_string(path).map_err(ModelError::LoadPathInvalid)?;
@@ -393,7 +395,7 @@ impl LlamaModel {
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_load_model_from_file(
                 cstr.as_ptr(),
-                *params,
+                params.as_ffi(),
                 &raw mut out_model,
                 &raw mut out_error,
             )

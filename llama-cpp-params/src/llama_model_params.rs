@@ -1,6 +1,10 @@
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::CStr;
+use std::ffi::CString;
+use std::ffi::c_char;
 use std::fmt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::num::NonZeroU32;
 use std::pin::Pin;
 use std::ptr;
 use std::ptr::null;
@@ -59,7 +63,7 @@ unsafe fn fit_params_status_to_result(
 }
 
 pub struct LlamaModelParams {
-    pub params: llama_cpp_bindings_sys::bindings::llama_model_params,
+    params: llama_cpp_bindings_sys::bindings::llama_model_params,
     kv_overrides: Vec<llama_cpp_bindings_sys::bindings::llama_model_kv_override>,
     buft_overrides: Vec<llama_cpp_bindings_sys::bindings::llama_model_tensor_buft_override>,
     buft_override_patterns: Vec<CString>,
@@ -87,7 +91,8 @@ impl Debug for LlamaModelParams {
 impl LlamaModelParams {
     /// # Errors
     /// Returns [`ParamsError`] if the internal override vector has no available slot,
-    /// the slot is not empty, or the key is longer than llama.cpp holds.
+    /// the slot is not empty, the key is longer than llama.cpp holds, or a string value holds
+    /// no NUL.
     pub fn append_kv_override(
         mut self: Pin<&mut Self>,
         key: &CStr,
@@ -111,6 +116,14 @@ impl LlamaModelParams {
             });
         }
 
+        if let ParamOverrideValue::Str(text) = value
+            && !text.contains(&0)
+        {
+            return Err(ParamsError::OverrideTextNotNulTerminated {
+                capacity: text.len(),
+            });
+        }
+
         for (slot, &byte) in kv_override.key.iter_mut().zip(key_with_nul) {
             *slot = c_char::from_ne_bytes([byte]);
         }
@@ -125,7 +138,7 @@ impl LlamaModelParams {
 
     #[must_use]
     pub const fn kv_overrides(&self) -> KvOverrides<'_> {
-        KvOverrides::new(&self.params)
+        unsafe { KvOverrides::new(&self.params) }
     }
 
     fn push_kv_override_terminator(mut self: Pin<&mut Self>) {
@@ -254,6 +267,16 @@ impl LlamaModelParams {
         self
     }
 
+    /// A copy of the llama.cpp model parameters, for a llama.cpp call that takes them by value.
+    ///
+    /// The copy points into buffers this value owns, such as its devices and overrides, so it is
+    /// valid only while `self` stays borrowed: hand it to llama.cpp within the call and never
+    /// keep it.
+    #[must_use]
+    pub const fn as_ffi(&self) -> llama_cpp_bindings_sys::bindings::llama_model_params {
+        self.params
+    }
+
     #[must_use]
     pub fn devices(&self) -> Vec<usize> {
         self.devices
@@ -315,10 +338,10 @@ impl LlamaModelParams {
     pub fn fit_params(
         mut self: Pin<&mut Self>,
         model_path: &CStr,
-        LlamaContextParams { context_params, .. }: &mut LlamaContextParams,
+        context_params: &mut LlamaContextParams,
         margins: &mut [usize],
         n_ctx_min: u32,
-        mut extra: Option<&mut FitExtraModel<'_>>,
+        extra: Option<&mut FitExtraModel<'_, Self>>,
         log_level: llama_cpp_bindings_sys::bindings::ggml_log_level,
     ) -> Result<FitResult, ParamsError> {
         let max_devices = unsafe { llama_cpp_bindings_sys::bindings::llama_max_devices() };
@@ -350,7 +373,19 @@ impl LlamaModelParams {
         let mut out_unrecognized_status_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
 
-        let mut extra_ffi = extra.as_mut().map(|extra_model| extra_model.as_ffi());
+        let mut extra_ffi = extra.map(
+            |FitExtraModel {
+                 model_path: extra_model_path,
+                 model_params: extra_model_params,
+                 context_params: extra_context_params,
+                 shares_model,
+             }| llama_cpp_bindings_sys::bindings::llama_rs_fit_extra_model {
+                path_model: extra_model_path.as_ptr(),
+                mparams: &raw mut extra_model_params.params,
+                cparams: extra_context_params.as_mut_ffi(),
+                shares_model: *shares_model,
+            },
+        );
         let extra_ptr = extra_ffi
             .as_mut()
             .map_or_else(null, |extra_model| &raw const *extra_model);
@@ -359,7 +394,7 @@ impl LlamaModelParams {
             llama_cpp_bindings_sys::bindings::llama_rs_fit_params(
                 model_path.as_ptr(),
                 &raw mut self.params,
-                &raw mut *context_params,
+                context_params.as_mut_ffi(),
                 self.tensor_split.as_mut_ptr(),
                 self.buft_overrides.as_mut_ptr(),
                 margins.as_mut_ptr(),
@@ -377,7 +412,7 @@ impl LlamaModelParams {
         self.params.tensor_buft_overrides = self.buft_overrides.as_ptr();
 
         Ok(FitResult {
-            n_ctx: context_params.n_ctx,
+            n_ctx: context_params.n_ctx().map_or(0, NonZeroU32::get),
         })
     }
 }
@@ -722,6 +757,21 @@ mod tests {
                 .append_kv_override(&key, ParamOverrideValue::Int(1)),
             Err(ParamsError::OverrideKeyTooLong {
                 length_with_nul: KV_OVERRIDE_TEXT_CAPACITY + 1,
+                capacity: KV_OVERRIDE_TEXT_CAPACITY,
+            })
+        );
+    }
+
+    #[test]
+    fn a_string_override_value_without_a_nul_is_refused() {
+        let mut params = pin!(LlamaModelParams::default());
+
+        assert_eq!(
+            params.as_mut().append_kv_override(
+                c"general.name",
+                ParamOverrideValue::Str([b'x'.cast_signed(); KV_OVERRIDE_TEXT_CAPACITY])
+            ),
+            Err(ParamsError::OverrideTextNotNulTerminated {
                 capacity: KV_OVERRIDE_TEXT_CAPACITY,
             })
         );

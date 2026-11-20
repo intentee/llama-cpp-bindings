@@ -48,7 +48,7 @@ fn qwen_image_chunks_decode_causally(
             .get(chunk_index)
             .context(format!("missing chunk at index {chunk_index}"))?;
         if chunk.chunk_type() == Ok(MtmdInputChunkType::Image) {
-            ensure!(!chunk.decode_use_non_causal(mtmd_ctx));
+            ensure!(!chunk.decode_use_non_causal());
 
             return Ok(());
         }
@@ -75,16 +75,12 @@ fn qwen_image_chunks_decode_causally(
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn qwen_mmproj_reports_vision_only_chat_capabilities(
-    &LlamaFixture {
-        model,
-        mtmd_context,
-        ..
-    }: &LlamaFixture<'_>,
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     ensure!(
-        mtmd_ctx.capabilities(model)
+        mtmd_ctx.capabilities()
             == (MtmdCapability::Chat | MtmdCapability::Vision | MtmdCapability::TextGeneration)
     );
 
@@ -176,16 +172,12 @@ fn a_vision_only_projector_has_no_audio_sample_rate(
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
 fn audio_mmproj_reports_audio_support_at_sixteen_kilohertz(
-    &LlamaFixture {
-        model,
-        mtmd_context,
-        ..
-    }: &LlamaFixture<'_>,
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     ensure!(
-        mtmd_ctx.capabilities(model).contains(MtmdCapability::Audio),
+        mtmd_ctx.capabilities().contains(MtmdCapability::Audio),
         "an audio mmproj must report audio support"
     );
     ensure!(mtmd_ctx.get_audio_sample_rate() == Some(AUDIO_SAMPLE_RATE_HZ));
@@ -203,16 +195,12 @@ fn audio_mmproj_reports_audio_support_at_sixteen_kilohertz(
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
 fn gemma4_mmproj_reports_chat_vision_audio_audio_stream_and_text_generation_capabilities(
-    &LlamaFixture {
-        model,
-        mtmd_context,
-        ..
-    }: &LlamaFixture<'_>,
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     ensure!(
-        mtmd_ctx.capabilities(model)
+        mtmd_ctx.capabilities()
             == (MtmdCapability::Chat
                 | MtmdCapability::Vision
                 | MtmdCapability::Audio

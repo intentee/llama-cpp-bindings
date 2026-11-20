@@ -32,6 +32,11 @@ pub enum MtmdError {
     ChunkCopyNotEnoughMemory,
     #[error("{message}")]
     ChunkCopyReported { message: String },
+    #[error(
+        "the llama context was created for another model than the one the multimodal projector \
+         was loaded for"
+    )]
+    ContextModelIsNotTheProjectorModel,
     #[error("llama.cpp mtmd_default_marker returned bytes that are not valid UTF-8")]
     DefaultMarkerNotUtf8(#[source] Utf8Error),
     #[error("the llama.cpp library ran out of memory")]

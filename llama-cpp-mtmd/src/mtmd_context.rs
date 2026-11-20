@@ -4,14 +4,17 @@ use std::ffi::c_char;
 use std::path::PathBuf;
 use std::ptr;
 use std::ptr::NonNull;
+use std::sync::Arc;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_init_from_file_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_model::llama_model::LlamaModel;
 
 use crate::mtmd_capability::MtmdCapability;
 use crate::mtmd_context_params::MtmdContextParams;
 use crate::mtmd_error::MtmdError;
+use crate::mtmd_eval_limits::MtmdEvalLimits;
 
 fn capability_flags(
     llama_cpp_bindings_sys::bindings::mtmd_helper_cap {
@@ -54,11 +57,11 @@ unsafe fn map_init_from_file_status(
     out_ctx: *mut llama_cpp_bindings_sys::bindings::mtmd_context,
     out_error: *mut c_char,
     mmproj_path: &str,
-) -> Result<MtmdContext, MtmdError> {
+) -> Result<NonNull<llama_cpp_bindings_sys::bindings::mtmd_context>, MtmdError> {
     match status {
-        llama_rs_mtmd_init_from_file_status::LLAMA_RS_MTMD_INIT_FROM_FILE_OK => Ok(MtmdContext {
-            context: unsafe { NonNull::new_unchecked(out_ctx) },
-        }),
+        llama_rs_mtmd_init_from_file_status::LLAMA_RS_MTMD_INIT_FROM_FILE_OK => {
+            Ok(unsafe { NonNull::new_unchecked(out_ctx) })
+        }
         llama_rs_mtmd_init_from_file_status::LLAMA_RS_MTMD_INIT_FROM_FILE_LLAMA_CPP_RETURNED_NULL => {
             Err(MtmdError::MmprojUnloadable {
                 path: PathBuf::from(mmproj_path),
@@ -79,9 +82,12 @@ unsafe fn map_init_from_file_status(
     }
 }
 
+/// A multimodal projector loaded for a text model, which it keeps alive for as long as llama.cpp
+/// may use it.
 #[derive(Debug)]
 pub struct MtmdContext {
     context: NonNull<llama_cpp_bindings_sys::bindings::mtmd_context>,
+    model: Arc<LlamaModel>,
 }
 
 unsafe impl Send for MtmdContext {}
@@ -94,7 +100,7 @@ impl MtmdContext {
     /// or when llama.cpp fails to load the projector.
     pub fn init_from_file(
         mmproj_path: &str,
-        model: &LlamaModel,
+        model: Arc<LlamaModel>,
         params: &MtmdContextParams,
     ) -> Result<Self, MtmdError> {
         let path_cstr = CString::new(mmproj_path).map_err(MtmdError::MmprojPathContainsNul)?;
@@ -115,7 +121,10 @@ impl MtmdContext {
             )
         };
 
-        unsafe { map_init_from_file_status(status, out_ctx, out_error, mmproj_path) }
+        let context =
+            unsafe { map_init_from_file_status(status, out_ctx, out_error, mmproj_path) }?;
+
+        Ok(Self { context, model })
     }
 
     #[must_use]
@@ -124,10 +133,10 @@ impl MtmdContext {
     }
 
     #[must_use]
-    pub fn capabilities(&self, model: &LlamaModel) -> BitFlags<MtmdCapability> {
+    pub fn capabilities(&self) -> BitFlags<MtmdCapability> {
         capability_flags(unsafe {
             llama_cpp_bindings_sys::bindings::mtmd_helper_get_capabilities(
-                model.as_ptr(),
+                self.model.as_ptr(),
                 self.context.as_ptr(),
             )
         })
@@ -144,6 +153,33 @@ impl MtmdContext {
             llama_cpp_bindings_sys::bindings::mtmd_get_audio_sample_rate(self.context.as_ptr())
         };
         (rate > 0).then_some(rate.unsigned_abs())
+    }
+
+    /// Returns how many tokens each decode of `n_batch` evaluates when the chunks this projector
+    /// tokenized are evaluated in `llama_ctx`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MtmdError::ContextModelIsNotTheProjectorModel`] when `llama_ctx` was created for
+    /// another model than this projector, before any other check, or any error of
+    /// [`MtmdEvalLimits::micro_batch_tokens`].
+    pub fn micro_batch_tokens_in(
+        &self,
+        llama_ctx: &LlamaContext,
+        n_batch: i32,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
+    ) -> Result<u32, MtmdError> {
+        if !ptr::eq(llama_ctx.model(), self.model.as_ref()) {
+            return Err(MtmdError::ContextModelIsNotTheProjectorModel);
+        }
+
+        MtmdEvalLimits::of(llama_ctx).micro_batch_tokens(n_batch, seq_id)
+    }
+
+    /// The text model this projector was loaded for.
+    #[must_use]
+    pub const fn model(&self) -> &Arc<LlamaModel> {
+        &self.model
     }
 }
 

@@ -45,7 +45,7 @@ fn encode_chunk_encodes_an_image_chunk(
         .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
         .context("a prompt with an image must tokenize into an image chunk")?;
 
-    ensure!(image_chunk.encode(mtmd_ctx) == Ok(()));
+    ensure!(image_chunk.encode() == Ok(()));
 
     Ok(())
 }
