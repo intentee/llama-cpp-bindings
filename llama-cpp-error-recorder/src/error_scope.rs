@@ -35,9 +35,10 @@ impl Drop for ErrorScope {
 
 #[cfg(test)]
 mod tests {
+    use log::Level;
+
     use llama_cpp_capturing_logger::captured_record::CapturedRecord;
     use llama_cpp_capturing_logger::capturing_logger::CapturingLogger;
-    use log::Level;
 
     use super::ErrorScope;
     use crate::record::record;

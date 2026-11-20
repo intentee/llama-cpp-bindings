@@ -65,9 +65,9 @@ clippy:
 .PHONY: coverage
 coverage: coverage-clean
 	cargo llvm-cov --no-report --no-fail-fast --workspace $(DEVICE_FEATURE)
-	cargo llvm-cov report --json --output-path target/llvm-cov.json
-	cargo llvm-cov report --lcov --output-path target/lcov.info
-	cargo llvm-cov report
+	cargo llvm-cov report --include-build-script --json --output-path target/llvm-cov.json
+	cargo llvm-cov report --include-build-script --lcov --output-path target/lcov.info
+	cargo llvm-cov report --include-build-script
 	heisenberg coverage-check \
 		--workspace $(CURDIR) \
 		--cargo-home $(CARGO_HOME) \

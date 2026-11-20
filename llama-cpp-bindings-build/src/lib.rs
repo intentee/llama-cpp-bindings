@@ -5,7 +5,6 @@ mod bindings_generation;
 mod build_context;
 pub mod build_environment;
 pub mod build_error;
-pub mod build_failure;
 pub mod build_feature;
 mod cargo_directive;
 mod cmake_build;
