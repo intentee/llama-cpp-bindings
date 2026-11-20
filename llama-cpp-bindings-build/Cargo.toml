@@ -15,13 +15,11 @@ cc = { workspace = true }
 cmake = { workspace = true }
 enumflags2 = { workspace = true }
 find_cuda_helper = { workspace = true }
+llama-cpp-error-chain = { workspace = true }
 llama-cpp-wrapper-sources = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-
-[dev-dependencies]
-llama-cpp-error-chain = { workspace = true }
 
 [features]
 cuda = []

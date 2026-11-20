@@ -1,4 +1,3 @@
-use log::debug;
 use std::ffi::c_char;
 use std::ffi::c_void;
 use std::fmt;
@@ -580,10 +579,7 @@ impl<'model> LlamaContext<'model> {
                 scales_ptr,
             )
         };
-        check_lora_adapters_result(err_code)?;
-
-        debug!("Updated lora adapters");
-        Ok(())
+        check_lora_adapters_result(err_code)
     }
 
     /// # Errors

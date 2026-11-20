@@ -1220,7 +1220,6 @@ name = "llama-cpp-bindings-sys"
 version = "0.29.0"
 dependencies = [
  "llama-cpp-bindings-build",
- "llama-cpp-error-chain",
 ]
 
 [[package]]
@@ -1290,7 +1289,6 @@ dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-model",
  "llama-cpp-params",
- "log",
  "thiserror",
 ]
 
@@ -1324,6 +1322,7 @@ version = "0.29.0"
 name = "llama-cpp-error-recorder"
 version = "0.29.0"
 dependencies = [
+ "llama-cpp-capturing-logger",
  "log",
  "thiserror",
 ]

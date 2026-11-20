@@ -135,6 +135,7 @@ extern "C" auto llama_rs_memory_seq_pos_max(
     *out_position = -1;
     *out_error = nullptr;
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_MEMORY_SEQ_POS_MAX_THROWS);
         auto * mem = llama_get_memory(ctx);
         if (mem == nullptr) {
             return LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM;

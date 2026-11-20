@@ -14,7 +14,6 @@ llama-cpp-backend = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-model = { workspace = true }
 llama-cpp-params = { workspace = true }
-log = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]

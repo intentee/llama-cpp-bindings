@@ -35,6 +35,10 @@ impl Drop for ErrorScope {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_capturing_logger::captured_record::CapturedRecord;
+    use llama_cpp_capturing_logger::capturing_logger::CapturingLogger;
+    use log::Level;
+
     use super::ErrorScope;
     use crate::record::record;
     use crate::recorded_error::RecordedError;
@@ -111,5 +115,43 @@ mod tests {
         let scope = ErrorScope::enter();
 
         assert!(scope.take().is_none());
+    }
+
+    #[test]
+    fn recording_without_an_active_scope_logs_the_dropped_error() {
+        CapturingLogger::install();
+
+        record("an orphaned failure".to_string());
+
+        assert!(
+            CapturingLogger::records_for("llama_cpp_error_recorder::frame_stack").contains(
+                &CapturedRecord {
+                    level: Level::Error,
+                    target: "llama_cpp_error_recorder::frame_stack".to_owned(),
+                    message: "an FFI callback failed outside any error scope: an orphaned failure"
+                        .to_owned(),
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn recording_after_the_root_cause_logs_the_dropped_error() {
+        CapturingLogger::install();
+
+        let _scope = ErrorScope::enter();
+        record("the root cause".to_string());
+        record("a later failure".to_string());
+
+        assert!(
+            CapturingLogger::records_for("llama_cpp_error_recorder::frame_stack").contains(
+                &CapturedRecord {
+                    level: Level::Error,
+                    target: "llama_cpp_error_recorder::frame_stack".to_owned(),
+                    message: "an FFI callback failed again after the root cause was recorded: a later failure"
+                        .to_owned(),
+                }
+            )
+        );
     }
 }

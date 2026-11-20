@@ -13,5 +13,8 @@ doctest = false
 log = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+llama-cpp-capturing-logger = { workspace = true }
+
 [lints]
 workspace = true
