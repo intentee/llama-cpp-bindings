@@ -1,24 +1,24 @@
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs;
+use std::fs::DirEntry;
+use std::io;
 use std::path::Path;
 
-use llama_cpp_wrapper_sources::wrapper_headers::WRAPPER_HEADERS;
-use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
+use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
+use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
 
 const SYS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../llama-cpp-bindings-sys");
 
-fn sys_root_files_with_extension(extension: &str) -> BTreeSet<String> {
-    fs::read_dir(Path::new(SYS_DIR))
-        .expect("the sys crate directory must be readable")
-        .map(|entry| {
-            entry
-                .expect("a sys crate directory entry must be readable")
-                .path()
-        })
+fn sys_root_files_with_extension(extension: &str) -> io::Result<BTreeSet<String>> {
+    let entries = fs::read_dir(Path::new(SYS_DIR))?.collect::<io::Result<Vec<DirEntry>>>()?;
+
+    Ok(entries
+        .iter()
+        .map(DirEntry::path)
         .filter(|path| path.is_file() && path.extension() == Some(OsStr::new(extension)))
         .filter_map(|path| path.file_name()?.to_str().map(str::to_owned))
-        .collect()
+        .collect())
 }
 
 fn listed(files: &[&str]) -> BTreeSet<String> {
@@ -28,12 +28,15 @@ fn listed(files: &[&str]) -> BTreeSet<String> {
 #[test]
 fn every_cpp_source_in_the_sys_crate_root_is_a_listed_wrapper_source() {
     assert_eq!(
-        sys_root_files_with_extension("cpp"),
+        sys_root_files_with_extension("cpp").expect("the sys crate directory must be readable"),
         listed(WRAPPER_SOURCES)
     );
 }
 
 #[test]
 fn every_header_in_the_sys_crate_root_is_a_listed_wrapper_header() {
-    assert_eq!(sys_root_files_with_extension("h"), listed(WRAPPER_HEADERS));
+    assert_eq!(
+        sys_root_files_with_extension("h").expect("the sys crate directory must be readable"),
+        listed(WRAPPER_HEADERS)
+    );
 }

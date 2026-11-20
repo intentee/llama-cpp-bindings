@@ -1,0 +1,55 @@
+use std::ffi::CString;
+
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::ensure;
+
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
+use llama_cpp_sampler::sampler_error::SamplerError;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 2048,
+    n_ubatch = 512,
+)]
+fn building_a_dry_sampler_with_sequence_breakers_succeeds(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let breakers: Vec<&[u8]> = vec![b"\n", b"\t"];
+
+    LlamaSampler::dry(model, 1.5, 2.0, 128, 2, &breakers)?;
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 2048,
+    n_ubatch = 512,
+)]
+fn dry_sampler_refuses_a_sequence_breaker_with_a_nul_byte(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let breakers: Vec<&[u8]> = vec![b"hello\0world"];
+    let result = LlamaSampler::dry(model, 1.5, 2.0, 128, 2, breakers);
+
+    ensure!(
+        result.err()
+            == Some(SamplerError::DrySequenceBreakerContainsNul {
+                index: 0,
+                source: CString::new(&b"hello\0world"[..])
+                    .err()
+                    .context("the operation must fail")?,
+            })
+    );
+
+    Ok(())
+}

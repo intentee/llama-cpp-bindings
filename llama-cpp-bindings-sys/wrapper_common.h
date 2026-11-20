@@ -19,9 +19,6 @@ extern "C" {
 
 typedef enum llama_rs_json_schema_to_grammar_status {
     LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_OK = 0,
-    LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_SCHEMA_JSON_ARG,
-    LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_GRAMMAR_ARG,
-    LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_NULL_OUT_ERROR_ARG,
     LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_JSON_SCHEMA_TO_GRAMMAR_INVALID_SCHEMA,
@@ -36,8 +33,6 @@ llama_rs_json_schema_to_grammar_status llama_rs_json_schema_to_grammar(
 
 typedef enum llama_rs_sampler_init_grammar_status {
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_OK = 0,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_SAMPLER_ARG,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_NULL_OUT_ERROR_ARG,
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_RETURNED_NULL,
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_LLAMA_CPP_OUT_OF_MEMORY,
@@ -53,8 +48,6 @@ llama_rs_sampler_init_grammar_status llama_rs_sampler_init_grammar(
 
 typedef enum llama_rs_sampler_init_grammar_lazy_patterns_status {
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_OK = 0,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_SAMPLER_ARG,
-    LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_NULL_OUT_ERROR_ARG,
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_RETURNED_NULL,
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_SAMPLER_INIT_GRAMMAR_LAZY_PATTERNS_LLAMA_CPP_OUT_OF_MEMORY,
@@ -75,8 +68,6 @@ llama_rs_sampler_init_grammar_lazy_patterns_status llama_rs_sampler_init_grammar
 
 typedef enum llama_rs_sampler_accept_status {
     LLAMA_RS_SAMPLER_ACCEPT_OK = 0,
-    LLAMA_RS_SAMPLER_ACCEPT_NULL_SAMPLER_ARG,
-    LLAMA_RS_SAMPLER_ACCEPT_NULL_OUT_ERROR_ARG,
     LLAMA_RS_SAMPLER_ACCEPT_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_SAMPLER_ACCEPT_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -89,10 +80,6 @@ llama_rs_sampler_accept_status llama_rs_sampler_accept(
 
 typedef enum llama_rs_sampler_sample_status {
     LLAMA_RS_SAMPLER_SAMPLE_OK = 0,
-    LLAMA_RS_SAMPLER_SAMPLE_NULL_SAMPLER_ARG,
-    LLAMA_RS_SAMPLER_SAMPLE_NULL_CTX_ARG,
-    LLAMA_RS_SAMPLER_SAMPLE_NULL_OUT_TOKEN_ARG,
-    LLAMA_RS_SAMPLER_SAMPLE_NULL_OUT_ERROR_ARG,
     LLAMA_RS_SAMPLER_SAMPLE_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_SAMPLER_SAMPLE_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -111,32 +98,26 @@ void llama_rs_string_free(char * ptr);
 
 typedef enum llama_rs_memory_seq_pos_max_status {
     LLAMA_RS_MEMORY_SEQ_POS_MAX_OK = 0,
-    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_CTX_ARG,
-    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_POSITION_ARG,
-    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_OUT_ERROR_ARG,
-    LLAMA_RS_MEMORY_SEQ_POS_MAX_NULL_MEM,
     LLAMA_RS_MEMORY_SEQ_POS_MAX_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_MEMORY_SEQ_POS_MAX_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_memory_seq_pos_max_status;
 
 llama_rs_memory_seq_pos_max_status llama_rs_memory_seq_pos_max(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos * out_position,
     char ** out_error);
 
 typedef enum llama_rs_memory_seq_add_status {
     LLAMA_RS_MEMORY_SEQ_ADD_OK = 0,
-    LLAMA_RS_MEMORY_SEQ_ADD_NULL_CTX_ARG,
-    LLAMA_RS_MEMORY_SEQ_ADD_NULL_MEM,
     LLAMA_RS_MEMORY_SEQ_ADD_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_MEMORY_SEQ_ADD_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_memory_seq_add_status;
 
 llama_rs_memory_seq_add_status llama_rs_memory_seq_add(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos pos_start,
     llama_pos pos_end,
@@ -145,15 +126,13 @@ llama_rs_memory_seq_add_status llama_rs_memory_seq_add(
 
 typedef enum llama_rs_memory_seq_div_status {
     LLAMA_RS_MEMORY_SEQ_DIV_OK = 0,
-    LLAMA_RS_MEMORY_SEQ_DIV_NULL_CTX_ARG,
-    LLAMA_RS_MEMORY_SEQ_DIV_NULL_MEM,
     LLAMA_RS_MEMORY_SEQ_DIV_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_MEMORY_SEQ_DIV_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_memory_seq_div_status;
 
 llama_rs_memory_seq_div_status llama_rs_memory_seq_div(
-    const struct llama_context * ctx,
+    llama_memory_t mem,
     llama_seq_id seq_id,
     llama_pos pos_start,
     llama_pos pos_end,
@@ -162,9 +141,6 @@ llama_rs_memory_seq_div_status llama_rs_memory_seq_div(
 
 typedef enum llama_rs_load_model_from_file_status {
     LLAMA_RS_LOAD_MODEL_FROM_FILE_OK = 0,
-    LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_PATH_ARG,
-    LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_MODEL_ARG,
-    LLAMA_RS_LOAD_MODEL_FROM_FILE_NULL_OUT_ERROR_ARG,
     LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_RETURNED_NULL,
     LLAMA_RS_LOAD_MODEL_FROM_FILE_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_LOAD_MODEL_FROM_FILE_LLAMA_CPP_OUT_OF_MEMORY,
@@ -177,11 +153,22 @@ llama_rs_load_model_from_file_status llama_rs_load_model_from_file(
     struct llama_model ** out_model,
     char ** out_error);
 
+typedef enum llama_rs_adapter_lora_init_status {
+    LLAMA_RS_ADAPTER_LORA_INIT_OK = 0,
+    LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_RETURNED_NULL,
+    LLAMA_RS_ADAPTER_LORA_INIT_ERROR_STRING_ALLOCATION_FAILED,
+    LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_OUT_OF_MEMORY,
+    LLAMA_RS_ADAPTER_LORA_INIT_LLAMA_CPP_THREW_CXX_EXCEPTION,
+} llama_rs_adapter_lora_init_status;
+
+llama_rs_adapter_lora_init_status llama_rs_adapter_lora_init(
+    struct llama_model * model,
+    const char * path_lora,
+    struct llama_adapter_lora ** out_adapter,
+    char ** out_error);
+
 typedef enum llama_rs_new_context_with_model_status {
     LLAMA_RS_NEW_CONTEXT_WITH_MODEL_OK = 0,
-    LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_MODEL_ARG,
-    LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_CTX_ARG,
-    LLAMA_RS_NEW_CONTEXT_WITH_MODEL_NULL_OUT_ERROR_ARG,
     LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_RETURNED_NULL,
     LLAMA_RS_NEW_CONTEXT_WITH_MODEL_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_NEW_CONTEXT_WITH_MODEL_LLAMA_CPP_OUT_OF_MEMORY,
@@ -196,11 +183,6 @@ llama_rs_new_context_with_model_status llama_rs_new_context_with_model(
 
 typedef enum llama_rs_process_status {
     LLAMA_RS_PROCESS_OK = 0,
-    LLAMA_RS_PROCESS_NULL_CTX_ARG,
-    LLAMA_RS_PROCESS_NULL_BATCH_ARG,
-    LLAMA_RS_PROCESS_NULL_OUT_LLAMA_CPP_RETURN_CODE_ARG,
-    LLAMA_RS_PROCESS_NULL_OUT_ERROR_ARG,
-    LLAMA_RS_PROCESS_LLAMA_CPP_RETURNED_NONZERO_CODE,
     LLAMA_RS_PROCESS_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_PROCESS_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_PROCESS_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -215,10 +197,6 @@ llama_rs_process_status llama_rs_process(
 
 typedef enum llama_rs_tokenize_status {
     LLAMA_RS_TOKENIZE_OK = 0,
-    LLAMA_RS_TOKENIZE_NULL_VOCAB_ARG,
-    LLAMA_RS_TOKENIZE_NULL_TEXT_ARG,
-    LLAMA_RS_TOKENIZE_NULL_OUT_RETURNED_COUNT_ARG,
-    LLAMA_RS_TOKENIZE_NULL_OUT_ERROR_ARG,
     LLAMA_RS_TOKENIZE_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_TOKENIZE_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_TOKENIZE_LLAMA_CPP_THREW_CXX_EXCEPTION,
@@ -237,9 +215,6 @@ llama_rs_tokenize_status llama_rs_tokenize(
 
 typedef enum llama_rs_sampler_apply_status {
     LLAMA_RS_SAMPLER_APPLY_OK = 0,
-    LLAMA_RS_SAMPLER_APPLY_NULL_SAMPLER_ARG,
-    LLAMA_RS_SAMPLER_APPLY_NULL_DATA_ARRAY_ARG,
-    LLAMA_RS_SAMPLER_APPLY_NULL_OUT_ERROR_ARG,
     LLAMA_RS_SAMPLER_APPLY_ERROR_STRING_ALLOCATION_FAILED,
     LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_OUT_OF_MEMORY,
     LLAMA_RS_SAMPLER_APPLY_LLAMA_CPP_THREW_CXX_EXCEPTION,

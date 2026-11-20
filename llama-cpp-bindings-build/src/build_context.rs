@@ -1,5 +1,8 @@
 use std::path::PathBuf;
 
+use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
+use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
+
 use crate::build_environment::BuildEnvironment;
 use crate::build_error::BuildError;
 use crate::build_feature::BuildFeature;
@@ -55,18 +58,13 @@ impl BuildContext {
     }
 
     #[must_use]
-    pub fn cmake_dir(&self) -> PathBuf {
-        self.out_dir.join("cmake")
-    }
-
-    #[must_use]
     pub fn cmake_build_dir(&self) -> PathBuf {
         self.cmake_dir().join("build")
     }
 
     #[must_use]
-    pub fn llama_src(&self) -> PathBuf {
-        self.sys_dir.join("llama.cpp")
+    pub fn cmake_dir(&self) -> PathBuf {
+        self.out_dir.join("cmake")
     }
 
     #[must_use]
@@ -81,6 +79,31 @@ impl BuildContext {
         .map(CargoDirective::Debug)
         .to_vec()
     }
+
+    #[must_use]
+    pub fn llama_src(&self) -> PathBuf {
+        self.sys_dir.join("llama.cpp")
+    }
+
+    /// The files and variables whose change makes cargo run the native build again.
+    #[must_use]
+    pub fn rebuild_triggers(&self) -> Vec<CargoDirective> {
+        [
+            CargoDirective::RerunIfChanged(self.sys_dir.join("build.rs")),
+            CargoDirective::RerunIfEnvChanged("CUDAARCHS".to_owned()),
+        ]
+        .into_iter()
+        .chain(
+            WRAPPER_HEADERS
+                .iter()
+                .chain(WRAPPER_SOURCES)
+                .map(|wrapper_file| {
+                    CargoDirective::RerunIfChanged(self.sys_dir.join(wrapper_file))
+                }),
+        )
+        .chain([CargoDirective::RerunIfChanged(self.llama_src())])
+        .collect()
+    }
 }
 
 #[cfg(test)]
@@ -90,13 +113,17 @@ pub mod tests {
 
     use enumflags2::BitFlags;
 
+    use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
+    use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
+
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::BuildContext;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
     use crate::build_environment::BuildEnvironment;
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_environment::tests::environment_of;
     use crate::build_environment::tests::variable;
-    use crate::build_environment::tests::with_non_unicode;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::host_os::HostOs;
@@ -132,14 +159,17 @@ pub mod tests {
         environment_of(features, &[&cargo_variables()[..], overrides].concat())
     }
 
-    pub fn context_of(environment: &BuildEnvironment) -> BuildContext {
-        BuildContext::from_environment(environment, HostOs::Linux).unwrap()
+    impl BuildContext {
+        #[must_use]
+        pub fn of_linux_host(environment: &BuildEnvironment) -> Self {
+            Self::from_environment(environment, HostOs::Linux).unwrap()
+        }
     }
 
     #[test]
     fn the_context_is_read_from_the_build_variables_and_the_dynamic_link_feature() {
         assert_eq!(
-            context_of(&cargo_environment(
+            BuildContext::of_linux_host(&cargo_environment(
                 BitFlags::from(BuildFeature::DynamicLink),
                 &[variable("BUILD_DEBUG", "")]
             )),
@@ -167,7 +197,7 @@ pub mod tests {
 
             BuildContext::from_environment(&environment, HostOs::Linux)
                 .err()
-                .map(|error| error.to_string())
+                .map(|error| error_chain(&error))
         };
         let required = cargo_variables().map(|EnvironmentVariable { name, .. }| name);
 
@@ -183,11 +213,11 @@ pub mod tests {
     fn a_build_debug_request_that_is_not_unicode_is_refused() {
         assert_eq!(
             BuildContext::from_environment(
-                &with_non_unicode(cargo_environment(BitFlags::empty(), &[]), "BUILD_DEBUG"),
+                &cargo_environment(BitFlags::empty(), &[]).with_non_unicode("BUILD_DEBUG"),
                 HostOs::Linux,
             )
             .err()
-            .map(|error| error.to_string()),
+            .map(|error| error_chain(&error)),
             Some(
                 "environment variable BUILD_DEBUG could not be read: environment variable was \
                  not valid unicode: \"\\xFF\""
@@ -199,7 +229,8 @@ pub mod tests {
     #[test]
     fn debug_messages_describe_where_the_build_happens() {
         assert_eq!(
-            context_of(&cargo_environment(BitFlags::empty(), &[])).debug_messages(),
+            BuildContext::of_linux_host(&cargo_environment(BitFlags::empty(), &[]))
+                .debug_messages(),
             [
                 "TARGET: x86_64-unknown-linux-gnu",
                 "CARGO_MANIFEST_DIR: /sys",
@@ -208,6 +239,35 @@ pub mod tests {
                 "BUILD_SHARED: false",
             ]
             .map(|message| CargoDirective::Debug(message.to_owned()))
+        );
+    }
+
+    #[test]
+    fn the_build_script_cuda_architectures_every_wrapper_file_and_llama_cpp_trigger_a_rebuild() {
+        let triggers = BuildContext::of_linux_host(&cargo_environment(BitFlags::empty(), &[]))
+            .rebuild_triggers();
+
+        assert_eq!(
+            triggers,
+            [
+                vec![
+                    CargoDirective::RerunIfChanged(PathBuf::from("/sys/build.rs")),
+                    CargoDirective::RerunIfEnvChanged("CUDAARCHS".to_owned()),
+                ],
+                WRAPPER_HEADERS
+                    .iter()
+                    .chain(WRAPPER_SOURCES)
+                    .map(|wrapper_file| {
+                        CargoDirective::RerunIfChanged(PathBuf::from(format!(
+                            "/sys/{wrapper_file}"
+                        )))
+                    })
+                    .collect(),
+                vec![CargoDirective::RerunIfChanged(PathBuf::from(
+                    "/sys/llama.cpp"
+                ))],
+            ]
+            .concat()
         );
     }
 }

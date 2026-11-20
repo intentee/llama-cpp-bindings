@@ -1,0 +1,84 @@
+use enumflags2::BitFlags;
+use std::ops::{Deref, DerefMut};
+
+use crate::llama_token_attr::LlamaTokenAttr;
+use crate::model_error::ModelError;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LlamaTokenAttrs(pub BitFlags<LlamaTokenAttr>);
+
+impl Deref for LlamaTokenAttrs {
+    type Target = BitFlags<LlamaTokenAttr>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for LlamaTokenAttrs {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl TryFrom<llama_cpp_bindings_sys::bindings::llama_token_attr> for LlamaTokenAttrs {
+    type Error = ModelError;
+
+    fn try_from(
+        value: llama_cpp_bindings_sys::bindings::llama_token_attr,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self(BitFlags::from_bits(value).map_err(
+            |bit_flag_error| ModelError::UnknownTokenAttributes(bit_flag_error.invalid_bits()),
+        )?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use enumflags2::BitFlags;
+
+    use super::LlamaTokenAttr;
+    use super::LlamaTokenAttrs;
+    use super::ModelError;
+
+    #[test]
+    fn a_known_attribute_bit_converts_to_its_flag() {
+        assert_eq!(
+            LlamaTokenAttrs::try_from(llama_cpp_bindings_sys::bindings::LLAMA_TOKEN_ATTR_NORMAL),
+            Ok(LlamaTokenAttrs(BitFlags::from_flag(LlamaTokenAttr::Normal)))
+        );
+    }
+
+    #[test]
+    fn try_from_zero_produces_empty_flags() {
+        assert_eq!(
+            LlamaTokenAttrs::try_from(0),
+            Ok(LlamaTokenAttrs(BitFlags::empty()))
+        );
+    }
+
+    #[test]
+    fn unknown_attribute_bits_are_reported() {
+        assert_eq!(
+            LlamaTokenAttrs::try_from(!0),
+            Err(ModelError::UnknownTokenAttributes(!0x3FF))
+        );
+    }
+
+    #[test]
+    fn deref_exposes_bitflags_methods() {
+        let attrs = LlamaTokenAttrs(BitFlags::from_flag(LlamaTokenAttr::Control));
+
+        assert!(attrs.contains(LlamaTokenAttr::Control));
+        assert!(!attrs.contains(LlamaTokenAttr::Normal));
+    }
+
+    #[test]
+    fn deref_mut_allows_modification() {
+        let mut attrs = LlamaTokenAttrs(BitFlags::empty());
+
+        attrs.insert(LlamaTokenAttr::Byte);
+
+        assert!(attrs.contains(LlamaTokenAttr::Byte));
+    }
+}

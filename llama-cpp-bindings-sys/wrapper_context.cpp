@@ -11,6 +11,10 @@ extern "C" auto llama_rs_model_causal_attn(const struct llama_model * model) -> 
     return model->hparams.causal_attn;
 }
 
+extern "C" auto llama_rs_model_sliding_window(const struct llama_model * model) -> uint32_t {
+    return model->hparams.n_swa;
+}
+
 extern "C" auto llama_rs_pooling_type(const struct llama_context * ctx) -> int32_t {
     if (llama_rs_fault_injected(LLAMA_RS_FAULT_POINT_POOLING_TYPE_UNKNOWN)) {
         return LLAMA_POOLING_TYPE_RANK + 1;

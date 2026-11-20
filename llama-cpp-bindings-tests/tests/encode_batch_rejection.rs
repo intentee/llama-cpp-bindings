@@ -1,13 +1,12 @@
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::batch_transfer_error::BatchTransferError;
-use llama_cpp_bindings::error::encode_error::EncodeError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -27,16 +26,16 @@ fn encoding_more_tokens_than_the_micro_batch_is_refused(fixture: &LlamaFixture<'
         AddBos::Never,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     let n_tokens = batch.n_tokens();
 
-    assert_eq!(
-        context.encode(&batch),
-        Err(EncodeError::BatchExceedsMicroBatch {
-            n_tokens,
-            n_ubatch: context.n_ubatch(),
-        })
+    ensure!(
+        context.encode(&batch)
+            == Err(ContextError::EncodeBatchExceedsMicroBatch {
+                n_tokens,
+                n_ubatch: context.n_ubatch(),
+            })
     );
 
     Ok(())
@@ -58,17 +57,19 @@ fn encoding_reports_an_exception_thrown_while_transferring_the_batch(
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     let _fault = ArmedFault::at(
-        llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS,
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_BATCH_EXT_ASSIGN_ENTRIES_THROWS,
     );
 
-    assert_eq!(
-        context.encode(&batch),
-        Err(EncodeError::BatchTransfer(BatchTransferError::Reported {
-            message: injected_fault_message(),
-        }))
+    ensure!(
+        context.encode(&batch)
+            == Err(ContextError::EncodeBatchTransfer(Box::new(
+                ContextError::BatchTransferReported {
+                    message: injected_fault_message()?,
+                }
+            )))
     );
 
     Ok(())

@@ -1,4 +1,3 @@
-#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 pub mod chat_answer;
 pub mod chat_answer_generation;
 pub mod chunk_token_breakdown;
@@ -8,11 +7,15 @@ pub mod closed_reasoning_chat_session;
 pub mod context_after_decoding_text;
 pub mod evaluated_multimodal_usage;
 pub mod fixtures_dir;
+pub mod freshly_loaded_model;
 pub mod get_weather_tools;
+pub mod highest_score_index;
 pub mod ingested_generation;
 pub mod logits_left_by;
 pub mod media_question_chat_session;
+pub mod non_causal_context;
 pub mod normalize;
+pub mod not_utf8;
 pub mod paris_weather_tool_call;
 pub mod prime_memory;
 pub mod prime_memory_with;
@@ -24,4 +27,6 @@ pub mod tokenize_prompt_with_synthetic_image;
 pub mod two_sequence_context;
 pub mod user_message;
 pub mod user_turn_chat_session;
+pub mod visible_text_in;
 pub mod weather_chat_session;
+pub mod yes_or_no_regex;

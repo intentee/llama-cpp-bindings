@@ -6,21 +6,30 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+doctest = false
+
 [dependencies]
 anyhow = { workspace = true }
 inventory = { workspace = true }
 libtest-mimic = { workspace = true }
-llama-cpp-bindings = { workspace = true }
-llama-cpp-test-harness-macros = { workspace = true }
+llama-cpp-backend = { workspace = true, default-features = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-mtmd = { workspace = true }
+llama-cpp-params = { workspace = true }
 llama-cpp-test-model-provisioning = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+llama-cpp-test-harness-macros = { workspace = true }
+
 [features]
-cuda = ["llama-cpp-bindings/cuda"]
-cuda-no-vmm = ["llama-cpp-bindings/cuda-no-vmm"]
-metal = ["llama-cpp-bindings/metal"]
-vulkan = ["llama-cpp-bindings/vulkan"]
-rocm = ["llama-cpp-bindings/rocm"]
+cuda = ["llama-cpp-backend/cuda"]
+cuda-no-vmm = ["llama-cpp-backend/cuda-no-vmm"]
+metal = ["llama-cpp-backend/metal"]
+vulkan = ["llama-cpp-backend/vulkan"]
+rocm = ["llama-cpp-backend/rocm"]
 
 [[test]]
 name = "duplicate_trial_names"

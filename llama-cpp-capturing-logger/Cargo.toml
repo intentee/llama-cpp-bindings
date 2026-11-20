@@ -1,0 +1,17 @@
+[package]
+name = "llama-cpp-capturing-logger"
+description = "Installs a process-wide logger that keeps every record so tests can assert on what llama.cpp log routing emitted"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+log = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -13,17 +13,13 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn a_greedy_chain_accepts_many_borrowed_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_greedy_chain_accepts_many_borrowed_tokens(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut sampler = LlamaSampler::chain([LlamaSampler::greedy()?])?;
     let tokens = vec![
-        fixture
-            .model
-            .token_bos()
-            .context("model declares a BOS token")?,
-        fixture
-            .model
-            .token_eos()
-            .context("model declares an EOS token")?,
+        model.token_bos().context("model declares a BOS token")?,
+        model.token_eos().context("model declares an EOS token")?,
     ];
 
     sampler.accept_many(&tokens)?;
@@ -39,15 +35,12 @@ fn a_greedy_chain_accepts_many_borrowed_tokens(fixture: &LlamaFixture<'_>) -> Re
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn a_greedy_chain_accepts_the_bos_token(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn a_greedy_chain_accepts_the_bos_token(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut sampler = LlamaSampler::chain([LlamaSampler::greedy()?])?;
 
-    sampler.accept(
-        fixture
-            .model
-            .token_bos()
-            .context("model declares a BOS token")?,
-    )?;
+    sampler.accept(model.token_bos().context("model declares a BOS token")?)?;
 
     Ok(())
 }

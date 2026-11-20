@@ -1,0 +1,30 @@
+[package]
+name = "llama-cpp-sampler"
+description = "Sampling the next token from a llama.cpp context: sampler chains, the samplers llama.cpp ships, and grammar-constrained sampling with GBNF and llguidance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+autotests = false
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-error-recorder = { workspace = true }
+llama-cpp-gbnf = { workspace = true }
+llama-cpp-model = { workspace = true }
+llguidance = { workspace = true }
+thiserror = { workspace = true }
+toktrie = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-fault-injection = { workspace = true }
+
+[[test]]
+name = "sampler_chain_without_backend"
+
+[lints]
+workspace = true

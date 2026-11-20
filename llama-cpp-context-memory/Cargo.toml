@@ -1,0 +1,19 @@
+[package]
+name = "llama-cpp-context-memory"
+description = "Editing the KV memory of a llama.cpp context: shifting, dividing, copying, keeping and removing the positions of its sequences"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-context = { workspace = true }
+llama-cpp-model = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

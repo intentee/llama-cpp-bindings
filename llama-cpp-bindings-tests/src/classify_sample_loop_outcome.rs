@@ -1,7 +1,11 @@
-use llama_cpp_bindings::chat_output::ChatOutput;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
+use llama_cpp_chat::chat_output::ChatOutput;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
+
+const fn increment(observed: &mut u64) {
+    *observed = observed.saturating_add(1);
+}
 
 #[derive(Debug, Default)]
 pub struct ClassifySampleLoopOutcome {
@@ -19,29 +23,38 @@ impl ClassifySampleLoopOutcome {
     pub const fn record_end_of_generation(&mut self, section: SampledTokenSection) {
         self.eog_seen = true;
 
-        match section {
-            SampledTokenSection::Content => self.observed_content += 1,
-            SampledTokenSection::Reasoning => self.observed_reasoning += 1,
-            SampledTokenSection::ToolCall => self.observed_tool_call += 1,
-            SampledTokenSection::Pending => self.observed_undeterminable += 1,
-        }
+        let observed = match section {
+            SampledTokenSection::Content => &mut self.observed_content,
+            SampledTokenSection::Reasoning => &mut self.observed_reasoning,
+            SampledTokenSection::ToolCall => &mut self.observed_tool_call,
+            SampledTokenSection::Pending => &mut self.observed_undeterminable,
+        };
+
+        increment(observed);
     }
 
-    pub fn record_outcome(&mut self, ingest: &IngestOutcome) {
-        self.generated
-            .push(ingest.sampled_token.token(), ingest.piece.raw());
+    pub fn record_outcome(
+        &mut self,
+        IngestOutcome {
+            sampled_token,
+            piece,
+        }: &IngestOutcome,
+    ) {
+        self.generated.push(sampled_token.token(), piece.raw());
 
-        match ingest.sampled_token {
+        match sampled_token {
             SampledToken::Content(_) => {
-                self.observed_content += 1;
-                self.content_stream.push_str(ingest.piece.visible());
+                self.content_stream.push_str(piece.visible());
+
+                increment(&mut self.observed_content);
             }
             SampledToken::Reasoning(_) => {
-                self.observed_reasoning += 1;
-                self.reasoning_stream.push_str(ingest.piece.visible());
+                self.reasoning_stream.push_str(piece.visible());
+
+                increment(&mut self.observed_reasoning);
             }
-            SampledToken::ToolCall(_) => self.observed_tool_call += 1,
-            SampledToken::Undeterminable(_) => self.observed_undeterminable += 1,
+            SampledToken::ToolCall(_) => increment(&mut self.observed_tool_call),
+            SampledToken::Undeterminable(_) => increment(&mut self.observed_undeterminable),
         }
     }
 }
@@ -49,10 +62,10 @@ impl ClassifySampleLoopOutcome {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-    use llama_cpp_bindings::sampled_token::SampledToken;
-    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-    use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token_piece::TokenPiece;
+    use llama_cpp_model::llama_token::LlamaToken;
+    use llama_cpp_model::sampled_token::SampledToken;
+    use llama_cpp_model::sampled_token_section::SampledTokenSection;
 
     use super::ClassifySampleLoopOutcome;
 

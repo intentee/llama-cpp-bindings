@@ -1162,27 +1162,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
+name = "llama-cpp-backend"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-capturing-logger",
+ "llama-cpp-log-decoder",
+ "llama-cpp-path-c-string",
+ "log",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-backend-tests"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-backend",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-capturing-logger",
+ "log",
+ "serial_test",
+]
+
+[[package]]
 name = "llama-cpp-bindings"
 version = "0.29.0"
 dependencies = [
- "anyhow",
  "encoding_rs",
- "enumflags2",
  "llama-cpp-bindings-sys",
- "llama-cpp-bindings-types",
- "llama-cpp-error-recorder",
- "llama-cpp-fault-injection",
- "llama-cpp-ffi-status",
- "llama-cpp-gbnf",
- "llama-cpp-log-decoder",
- "llama-cpp-wrapper-error-fixture",
- "llguidance",
- "log",
- "once_cell",
- "serde_json",
- "serial_test",
+ "llama-cpp-chat",
+ "llama-cpp-context",
+ "llama-cpp-model",
+ "llama-cpp-mtmd",
+ "llama-cpp-sampler",
+ "llama-cpp-token-usage",
  "thiserror",
- "toktrie",
 ]
 
 [[package]]
@@ -1194,6 +1208,7 @@ dependencies = [
  "cmake",
  "enumflags2",
  "find_cuda_helper",
+ "llama-cpp-error-chain",
  "llama-cpp-wrapper-sources",
  "serde",
  "serde_json",
@@ -1213,16 +1228,29 @@ version = "0.29.0"
 dependencies = [
  "anyhow",
  "encoding_rs",
+ "enumflags2",
  "inventory",
+ "llama-cpp-backend",
  "llama-cpp-bindings",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
+ "llama-cpp-capturing-logger",
+ "llama-cpp-chat",
+ "llama-cpp-context",
+ "llama-cpp-context-memory",
+ "llama-cpp-context-state",
  "llama-cpp-fault-injection",
- "llama-cpp-ffi-status",
  "llama-cpp-gbnf",
+ "llama-cpp-model",
+ "llama-cpp-mtmd",
+ "llama-cpp-params",
+ "llama-cpp-path-c-string",
+ "llama-cpp-sampler",
  "llama-cpp-test-harness",
  "llama-cpp-test-harness-macros",
  "llama-cpp-test-model-provisioning",
+ "llama-cpp-token-usage",
+ "log",
  "serde_json",
  "toktrie",
 ]
@@ -1237,10 +1265,69 @@ dependencies = [
 ]
 
 [[package]]
-name = "llama-cpp-error-recorder"
+name = "llama-cpp-capturing-logger"
 version = "0.29.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "llama-cpp-chat"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-bindings-types",
+ "llama-cpp-model",
+ "llama-cpp-sampler",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-context"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-backend",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-model",
+ "llama-cpp-params",
+ "log",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-context-memory"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-context",
+ "llama-cpp-model",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-context-state"
+version = "0.29.0"
+dependencies = [
+ "enumflags2",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-context",
+ "llama-cpp-model",
+ "llama-cpp-path-c-string",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-error-chain"
+version = "0.29.0"
+
+[[package]]
+name = "llama-cpp-error-recorder"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-capturing-logger",
+ "log",
+ "thiserror",
 ]
 
 [[package]]
@@ -1251,20 +1338,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "llama-cpp-ffi-status"
-version = "0.29.0"
-dependencies = [
- "llama-cpp-bindings-sys",
- "llama-cpp-wrapper-error-fixture",
- "thiserror",
-]
-
-[[package]]
 name = "llama-cpp-gbnf"
 version = "0.29.0"
 dependencies = [
  "llama-cpp-bindings-sys",
- "llama-cpp-ffi-status",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-gguf"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-error-chain",
+ "llama-cpp-path-c-string",
  "thiserror",
 ]
 
@@ -1273,13 +1360,77 @@ name = "llama-cpp-log-decoder"
 version = "0.29.0"
 
 [[package]]
+name = "llama-cpp-model"
+version = "0.29.0"
+dependencies = [
+ "encoding_rs",
+ "enumflags2",
+ "llama-cpp-backend",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-gguf",
+ "llama-cpp-params",
+ "llama-cpp-path-c-string",
+ "once_cell",
+ "thiserror",
+ "toktrie",
+]
+
+[[package]]
+name = "llama-cpp-mtmd"
+version = "0.29.0"
+dependencies = [
+ "enumflags2",
+ "llama-cpp-backend",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-context",
+ "llama-cpp-fault-injection",
+ "llama-cpp-model",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-params"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-backend",
+ "llama-cpp-bindings-sys",
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-path-c-string"
+version = "0.29.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-sampler"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-context",
+ "llama-cpp-error-recorder",
+ "llama-cpp-fault-injection",
+ "llama-cpp-gbnf",
+ "llama-cpp-model",
+ "llguidance",
+ "thiserror",
+ "toktrie",
+]
+
+[[package]]
 name = "llama-cpp-test-harness"
 version = "0.29.0"
 dependencies = [
  "anyhow",
  "inventory",
  "libtest-mimic",
- "llama-cpp-bindings",
+ "llama-cpp-backend",
+ "llama-cpp-context",
+ "llama-cpp-model",
+ "llama-cpp-mtmd",
+ "llama-cpp-params",
  "llama-cpp-test-harness-macros",
  "llama-cpp-test-model-provisioning",
  "thiserror",
@@ -1299,21 +1450,26 @@ name = "llama-cpp-test-model-provisioning"
 version = "0.29.0"
 dependencies = [
  "hf-hub",
- "llama-cpp-bindings",
+ "llama-cpp-backend",
+ "llama-cpp-model",
+ "llama-cpp-mtmd",
+ "llama-cpp-params",
  "thiserror",
 ]
 
 [[package]]
-name = "llama-cpp-wrapper-error-fixture"
+name = "llama-cpp-token-usage"
 version = "0.29.0"
 dependencies = [
- "llama-cpp-bindings-sys",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
 name = "llama-cpp-wrapper-sources"
 version = "0.29.0"
 dependencies = [
+ "llama-cpp-error-chain",
  "serde",
  "serde_json",
  "thiserror",

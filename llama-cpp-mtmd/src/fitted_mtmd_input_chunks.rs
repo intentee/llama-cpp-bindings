@@ -1,0 +1,104 @@
+use std::num::NonZeroU32;
+use std::ops::ControlFlow;
+
+use llama_cpp_context::llama_context::LlamaContext;
+
+use crate::evaluated_mtmd_input_chunk::EvaluatedMtmdInputChunk;
+use crate::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
+use crate::mtmd_error::MtmdError;
+use crate::mtmd_input_chunk_view::MtmdInputChunkView;
+
+#[derive(Debug)]
+pub struct FittedMtmdInputChunks<'chunks, 'context> {
+    fitted: Vec<FittedMtmdInputChunk<'chunks, 'context>>,
+}
+
+impl<'chunks, 'context> FittedMtmdInputChunks<'chunks, 'context> {
+    /// Checks every chunk once with [`FittedMtmdInputChunk::fit`], in chunk order, so the chunks
+    /// can be ingested without classifying them again.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error of [`FittedMtmdInputChunk::fit`] in chunk order.
+    pub fn fit(
+        chunks: Vec<MtmdInputChunkView<'chunks, 'context>>,
+        llama_ctx: &LlamaContext,
+        batch_tokens: NonZeroU32,
+    ) -> Result<Self, MtmdError> {
+        let fitted = chunks
+            .into_iter()
+            .map(|chunk| FittedMtmdInputChunk::fit(chunk, llama_ctx, batch_tokens))
+            .collect::<Result<Vec<FittedMtmdInputChunk<'chunks, 'context>>, MtmdError>>()?;
+
+        Ok(Self { fitted })
+    }
+
+    /// Evaluates the chunks in order with [`FittedMtmdInputChunk::eval_single`], one chunk each
+    /// time the returned iterator advances, from `start_position` on and with logits for the last
+    /// token of the last chunk when `logits_last` asks for them. The iterator yields each
+    /// evaluated chunk with the position after it, or the error evaluating it, after which it
+    /// yields nothing more.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error of [`MtmdInputChunkView::position_after`] for the first chunk whose
+    /// positions are invalid when the chunks are evaluated from `start_position`, before
+    /// evaluating any of them. Each chunk yields any error of
+    /// [`FittedMtmdInputChunk::eval_single`].
+    pub fn eval_each<'fitted>(
+        &'fitted self,
+        llama_ctx: &'fitted mut LlamaContext<'_>,
+        start_position: llama_cpp_bindings_sys::bindings::llama_pos,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
+        n_batch: i32,
+        logits_last: bool,
+    ) -> Result<
+        impl Iterator<Item = Result<EvaluatedMtmdInputChunk<'fitted, 'chunks, 'context>, MtmdError>>,
+        MtmdError,
+    > {
+        self.fitted
+            .iter()
+            .try_fold(start_position, |position, fitted_chunk| {
+                fitted_chunk.chunk().position_after(llama_ctx, position)
+            })?;
+
+        let last_chunk_index = self.fitted.len().checked_sub(1);
+
+        Ok(self.fitted.iter().enumerate().scan(
+            ControlFlow::Continue(start_position),
+            move |progress, (index, fitted_chunk)| {
+                let ControlFlow::Continue(position) = *progress else {
+                    return None;
+                };
+
+                match fitted_chunk.eval_single(
+                    llama_ctx,
+                    position,
+                    seq_id,
+                    n_batch,
+                    logits_last && Some(index) == last_chunk_index,
+                ) {
+                    Ok(next_position) => {
+                        *progress = ControlFlow::Continue(next_position);
+
+                        Some(Ok(EvaluatedMtmdInputChunk {
+                            fitted_chunk,
+                            next_position,
+                        }))
+                    }
+                    Err(evaluation_error) => {
+                        *progress = ControlFlow::Break(());
+
+                        Some(Err(evaluation_error))
+                    }
+                }
+            },
+        ))
+    }
+
+    /// Every chunk in order, each with the type it was fitted as.
+    #[must_use]
+    pub const fn fitted_chunks(&self) -> &[FittedMtmdInputChunk<'chunks, 'context>] {
+        self.fitted.as_slice()
+    }
+}

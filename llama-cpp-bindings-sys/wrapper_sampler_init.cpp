@@ -14,18 +14,8 @@ auto init_sampler(
     struct llama_sampler ** out_sampler,
     char ** out_error,
     TInitializeSampler initialize_sampler) -> llama_rs_sampler_init_status {
-    if (out_sampler != nullptr) {
-        *out_sampler = nullptr;
-    }
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (out_sampler == nullptr) {
-        return LLAMA_RS_SAMPLER_INIT_NULL_OUT_SAMPLER_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_SAMPLER_INIT_NULL_OUT_ERROR_ARG;
-    }
+    *out_sampler = nullptr;
+    *out_error = nullptr;
     try {
         *out_sampler = initialize_sampler();
         if (*out_sampler == nullptr) {
@@ -49,7 +39,10 @@ extern "C" auto llama_rs_sampler_init(
     llama_sampler_context_t ctx,
     struct llama_sampler ** out_sampler,
     char ** out_error) -> llama_rs_sampler_init_status {
-    return init_sampler(out_sampler, out_error, [iface, ctx]() -> struct llama_sampler * { return llama_sampler_init(iface, ctx); });
+    return init_sampler(out_sampler, out_error, [iface, ctx]() -> struct llama_sampler * {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_SAMPLER_INIT_THROWS);
+        return llama_sampler_init(iface, ctx);
+    });
 }
 
 extern "C" auto llama_rs_sampler_chain_init(
@@ -237,18 +230,7 @@ extern "C" auto llama_rs_sampler_chain_add(
     struct llama_sampler * chain,
     struct llama_sampler * sampler,
     char ** out_error) -> llama_rs_sampler_chain_add_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (chain == nullptr) {
-        return LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_CHAIN_ARG;
-    }
-    if (sampler == nullptr) {
-        return LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_SAMPLER_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_SAMPLER_CHAIN_ADD_NULL_OUT_ERROR_ARG;
-    }
+    *out_error = nullptr;
     try {
         llama_sampler_chain_add(chain, sampler);
 

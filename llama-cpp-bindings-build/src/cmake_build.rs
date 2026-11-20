@@ -7,7 +7,8 @@ use crate::build_error::BuildError;
 use crate::cmake_cache::CmakeCache;
 use crate::cmake_define::CmakeDefine;
 use crate::cmake_file_api::CmakeFileApi;
-use crate::native_profile::NATIVE_PROFILE;
+use crate::constants::CACHE_QUERY_SCRIPT;
+use crate::constants::NATIVE_PROFILE;
 
 /// Configures the `CMake` project in `source_dir` and builds and installs it into `out_dir`,
 /// reading back through `file_api` the cache `CMake` configured it with.
@@ -47,7 +48,7 @@ impl CmakeBuild {
 
         config
             .configure_arg("-C")
-            .configure_arg(CmakeFileApi::CACHE_QUERY_SCRIPT)
+            .configure_arg(CACHE_QUERY_SCRIPT)
             .target(&self.target_triple)
             .host(&self.host_triple)
             .out_dir(&self.out_dir)

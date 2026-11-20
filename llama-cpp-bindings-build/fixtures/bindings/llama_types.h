@@ -1,7 +1,6 @@
 #pragma once
 
 struct llama_context_params {
-    float defrag_thold;
     unsigned int n_ctx;
 };
 

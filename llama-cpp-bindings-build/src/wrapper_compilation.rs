@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use llama_cpp_wrapper_sources::cpp_standard::CPP_STANDARD;
-use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
+use llama_cpp_wrapper_sources::constants::CPP_STANDARD;
+use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
+use llama_cpp_wrapper_sources::constants::WRAPPER_INCLUDE_DIRS;
+use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
 use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
-use llama_cpp_wrapper_sources::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
-use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
 
 use crate::build_context::BuildContext;
 use crate::build_environment::BuildEnvironment;
@@ -32,30 +32,42 @@ pub struct WrapperCompilation {
 
 impl WrapperCompilation {
     #[must_use]
-    pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Self {
+    pub fn of(
+        BuildContext {
+            sys_dir,
+            target_os,
+            target_triple,
+            host_triple,
+            opt_level,
+            debug_info,
+            out_dir,
+            ..
+        }: &BuildContext,
+        environment: &BuildEnvironment,
+    ) -> Self {
         Self {
             sources: WRAPPER_SOURCES
                 .iter()
-                .map(|source| context.sys_dir.join(source))
+                .map(|source| sys_dir.join(source))
                 .collect(),
             include_dirs: WRAPPER_INCLUDE_DIRS
                 .iter()
-                .map(|include_dir| context.sys_dir.join(include_dir))
+                .map(|include_dir| sys_dir.join(include_dir))
                 .collect(),
-            flags: system_include_flags(&context.sys_dir),
+            flags: system_include_flags(sys_dir),
             cpp_standard: CPP_STANDARD,
             defines: if environment.has(BuildFeature::FaultInjection) {
                 vec![FAULT_INJECTION_DEFINE]
             } else {
                 Vec::new()
             },
-            cpp_stdlib_linked_separately: matches!(context.target_os, TargetOs::Android(_))
+            cpp_stdlib_linked_separately: matches!(target_os, TargetOs::Android(_))
                 && environment.has(BuildFeature::StaticStdcxx),
-            target_triple: context.target_triple.clone(),
-            host_triple: context.host_triple.clone(),
-            opt_level: context.opt_level.clone(),
-            debug_info: context.debug_info.clone(),
-            out_dir: context.out_dir.clone(),
+            target_triple: target_triple.clone(),
+            host_triple: host_triple.clone(),
+            opt_level: opt_level.clone(),
+            debug_info: debug_info.clone(),
+            out_dir: out_dir.clone(),
         }
     }
 
@@ -101,14 +113,14 @@ mod tests {
 
     use enumflags2::BitFlags;
 
-    use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
+    use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
+    use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
     use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
-    use llama_cpp_wrapper_sources::wrapper_sources::WRAPPER_SOURCES;
 
     use super::WrapperCompilation;
+    use crate::build_context::BuildContext;
     use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
-    use crate::build_context::tests::context_of;
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_feature::BuildFeature;
 
@@ -118,7 +130,7 @@ mod tests {
     ) -> WrapperCompilation {
         let environment = cargo_environment(features, overrides);
 
-        WrapperCompilation::of(&context_of(&environment), &environment)
+        WrapperCompilation::of(&BuildContext::of_linux_host(&environment), &environment)
     }
 
     fn linux_compilation() -> WrapperCompilation {

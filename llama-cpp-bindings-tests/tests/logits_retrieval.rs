@@ -1,12 +1,12 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::logits_error::LogitsError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -18,23 +18,24 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn a_logits_row_holds_one_logit_per_vocabulary_token(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
+fn a_logits_row_holds_one_logit_per_vocabulary_token(
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let last_index = i32::try_from(
+        tokens
+            .len()
+            .checked_sub(1)
+            .context("`tokens.len() - 1` must not overflow")?,
     )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let last_index = i32::try_from(tokens.len() - 1)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     let logits = context.get_logits_ith(last_index)?;
 
-    assert_eq!(logits.len(), usize::try_from(fixture.model.n_vocab())?);
+    ensure!(logits.len() == usize::try_from(model.n_vocab())?);
 
     Ok(())
 }
@@ -47,18 +48,12 @@ fn a_logits_row_holds_one_logit_per_vocabulary_token(fixture: &LlamaFixture<'_>)
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn get_logits_ith_returns_token_not_initialized_for_unknown_index(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+fn logits_of_a_token_no_decode_initialized_are_refused(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let context = fixture.build_context()?;
 
     let result = context.get_logits_ith(7);
 
-    assert_eq!(result, Err(LogitsError::TokenNotInitialized(7)));
+    ensure!(result == Err(ContextError::LogitTokenNotInitialized(7)));
 
     Ok(())
 }
@@ -78,16 +73,14 @@ fn reading_a_logits_row_reports_a_row_llama_cpp_does_not_return(
     let tokens = fixture
         .model
         .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_GET_LOGITS_ITH_RETURNS_NULL);
-
-    assert_eq!(
-        context.get_logits_ith(-1).err(),
-        Some(LogitsError::NullLogits)
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_GET_LOGITS_ITH_RETURNS_NULL,
     );
+
+    ensure!(context.get_logits_ith(-1).err() == Some(ContextError::LogitsNull));
 
     Ok(())
 }

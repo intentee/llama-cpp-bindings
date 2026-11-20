@@ -69,14 +69,6 @@ impl CmakeConfiguration {
         Ok(configuration)
     }
 
-    fn configure_platform(&mut self, context: &BuildContext, environment: &BuildEnvironment) {
-        match &context.target_os {
-            TargetOs::Apple => self.defines.push(CmakeDefine::new("GGML_BLAS", "OFF")),
-            TargetOs::Android(android_ndk) => self.configure_android(android_ndk, environment),
-            TargetOs::Linux => {}
-        }
-    }
-
     fn configure_android(&mut self, android_ndk: &AndroidNdk, environment: &BuildEnvironment) {
         self.directives.extend([
             CargoDirective::RerunIfEnvChanged("ANDROID_NDK_HOME".to_owned()),
@@ -105,15 +97,32 @@ impl CmakeConfiguration {
         }));
     }
 
-    fn configure_gpu_backends(
+    fn configure_dynamic_backends(
         &mut self,
         context: &BuildContext,
+        environment: &BuildEnvironment,
+    ) {
+        if environment.has(BuildFeature::DynamicBackends) {
+            let backends_dir = context.cmake_dir().join("backends");
+
+            self.defines.extend([
+                CmakeDefine::new("GGML_BACKEND_DL", "ON"),
+                CmakeDefine::new("GGML_CPU_ALL_VARIANTS", "ON"),
+                CmakeDefine::new("GGML_BACKEND_DIR", backends_dir.clone()),
+            ]);
+            self.required_directories.push(backends_dir);
+        }
+    }
+
+    fn configure_gpu_backends(
+        &mut self,
+        BuildContext { target_os, .. }: &BuildContext,
         environment: &BuildEnvironment,
     ) -> Result<(), BuildError> {
         if environment.has(BuildFeature::Vulkan) {
             self.defines.push(CmakeDefine::new("GGML_VULKAN", "ON"));
 
-            if context.target_os == TargetOs::Linux {
+            if *target_os == TargetOs::Linux {
                 self.link_vulkan(environment)?;
             }
         }
@@ -138,11 +147,39 @@ impl CmakeConfiguration {
             self.defines.push(CmakeDefine::new("GGML_HIP", "ON"));
         }
 
-        if context.target_os == TargetOs::Apple {
+        if *target_os == TargetOs::Apple {
             self.defines.push(CmakeDefine::switch(
                 "GGML_METAL",
                 environment.has(BuildFeature::Metal),
             ));
+        }
+
+        Ok(())
+    }
+
+    fn configure_platform(
+        &mut self,
+        BuildContext { target_os, .. }: &BuildContext,
+        environment: &BuildEnvironment,
+    ) {
+        match target_os {
+            TargetOs::Apple => self.defines.push(CmakeDefine::new("GGML_BLAS", "OFF")),
+            TargetOs::Android(android_ndk) => self.configure_android(android_ndk, environment),
+            TargetOs::Linux => {}
+        }
+    }
+
+    fn configure_system_ggml(&mut self, environment: &BuildEnvironment) -> Result<(), BuildError> {
+        if environment.has(BuildFeature::SystemGgml) {
+            self.directives
+                .push(CargoDirective::RerunIfEnvChanged("GGML_DIR".to_owned()));
+
+            let ggml_dir = environment.required("GGML_DIR")?;
+
+            self.defines.extend([
+                CmakeDefine::new("LLAMA_USE_SYSTEM_GGML", "ON"),
+                CmakeDefine::new("GGML_DIR", ggml_dir),
+            ]);
         }
 
         Ok(())
@@ -166,39 +203,6 @@ impl CmakeConfiguration {
 
         Ok(())
     }
-
-    fn configure_system_ggml(&mut self, environment: &BuildEnvironment) -> Result<(), BuildError> {
-        if environment.has(BuildFeature::SystemGgml) {
-            self.directives
-                .push(CargoDirective::RerunIfEnvChanged("GGML_DIR".to_owned()));
-
-            let ggml_dir = environment.required("GGML_DIR")?;
-
-            self.defines.extend([
-                CmakeDefine::new("LLAMA_USE_SYSTEM_GGML", "ON"),
-                CmakeDefine::new("GGML_DIR", ggml_dir),
-            ]);
-        }
-
-        Ok(())
-    }
-
-    fn configure_dynamic_backends(
-        &mut self,
-        context: &BuildContext,
-        environment: &BuildEnvironment,
-    ) {
-        if environment.has(BuildFeature::DynamicBackends) {
-            let backends_dir = context.cmake_dir().join("backends");
-
-            self.defines.extend([
-                CmakeDefine::new("GGML_BACKEND_DL", "ON"),
-                CmakeDefine::new("GGML_CPU_ALL_VARIANTS", "ON"),
-                CmakeDefine::new("GGML_BACKEND_DIR", backends_dir.clone()),
-            ]);
-            self.required_directories.push(backends_dir);
-        }
-    }
 }
 
 #[cfg(test)]
@@ -207,14 +211,15 @@ mod tests {
 
     use enumflags2::BitFlags;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::CmakeConfiguration;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
+    use crate::build_context::BuildContext;
     use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
-    use crate::build_context::tests::context_of;
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_environment::tests::variable;
-    use crate::build_environment::tests::with_non_unicode;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_define::CmakeDefine;
@@ -228,7 +233,7 @@ mod tests {
     ) -> CmakeConfiguration {
         let environment = cargo_environment(features, overrides);
 
-        CmakeConfiguration::of(&context_of(&environment), &environment).unwrap()
+        CmakeConfiguration::of(&BuildContext::of_linux_host(&environment), &environment).unwrap()
     }
 
     fn after_the_base_switches(
@@ -236,11 +241,12 @@ mod tests {
         overrides: &[EnvironmentVariable],
     ) -> CmakeConfiguration {
         let environment = cargo_environment(features, overrides);
-        let context = context_of(&environment);
+        let context = BuildContext::of_linux_host(&environment);
         let cpu_defines = CpuTuning::of(&context, &environment).unwrap().defines;
         let mut configuration = CmakeConfiguration::of(&context, &environment).unwrap();
 
-        configuration.defines.drain(..9 + cpu_defines.len());
+        configuration.defines.drain(..9);
+        configuration.defines.drain(..cpu_defines.len());
 
         configuration
     }
@@ -489,14 +495,14 @@ mod tests {
 
     #[test]
     fn the_configuration_refuses_non_unicode_variables_and_a_missing_ggml_dir() {
-        let context = context_of(&cargo_environment(BitFlags::empty(), &[]));
+        let context = BuildContext::of_linux_host(&cargo_environment(BitFlags::empty(), &[]));
         let refusal = |features: BitFlags<BuildFeature>, name: &str| {
             CmakeConfiguration::of(
                 &context,
-                &with_non_unicode(cargo_environment(features, &[]), name),
+                &cargo_environment(features, &[]).with_non_unicode(name),
             )
             .err()
-            .map(|error| error.to_string())
+            .map(|error| error_chain(&error))
         };
         let not_unicode = |name: &str| {
             Some(format!(
@@ -515,7 +521,7 @@ mod tests {
                     &cargo_environment(BitFlags::from(BuildFeature::SystemGgml), &[])
                 )
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             ],
             [
                 not_unicode("CARGO_ENCODED_RUSTFLAGS"),

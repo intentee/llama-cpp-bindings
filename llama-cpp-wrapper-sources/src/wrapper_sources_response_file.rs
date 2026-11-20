@@ -33,6 +33,8 @@ impl WrapperSourcesResponseFile {
 mod tests {
     use std::path::PathBuf;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::WrapperSourcesResponseFile;
 
     #[test]
@@ -43,7 +45,7 @@ mod tests {
         };
 
         assert_eq!(
-            response_file.write().err().map(|error| error.to_string()),
+            response_file.write().err().map(|error| error_chain(&error)),
             Some(
                 "wrapper source list could not be written to \
                  /nonexistent-directory/wrapper_sources.rsp: No such file or directory (os error 2)"

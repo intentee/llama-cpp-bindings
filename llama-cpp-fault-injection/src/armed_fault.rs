@@ -1,5 +1,9 @@
 use std::marker::PhantomData;
 
+use llama_cpp_bindings_sys::bindings::llama_rs_fault_injection_arm;
+use llama_cpp_bindings_sys::bindings::llama_rs_fault_injection_disarm;
+use llama_cpp_bindings_sys::bindings::llama_rs_fault_point;
+
 /// Makes one C++ wrapper fault point fail on the current thread until the guard is dropped.
 ///
 /// The fault point is armed per thread, so the guard cannot leave the thread that armed it.
@@ -9,28 +13,25 @@ pub struct ArmedFault {
 }
 
 impl ArmedFault {
-    /// Fails every time the wrappers reach `point`.
-    #[must_use]
-    pub fn at(point: llama_cpp_bindings_sys::llama_rs_fault_point) -> Self {
-        Self::after_passing(point, 0)
-    }
-
     /// Lets the wrappers pass `point` `passing_hits` times, then fails every later time.
     #[must_use]
-    pub fn after_passing(
-        point: llama_cpp_bindings_sys::llama_rs_fault_point,
-        passing_hits: usize,
-    ) -> Self {
-        unsafe { llama_cpp_bindings_sys::llama_rs_fault_injection_arm(point, passing_hits) };
+    pub fn after_passing(point: llama_rs_fault_point, passing_hits: usize) -> Self {
+        unsafe { llama_rs_fault_injection_arm(point, passing_hits) };
 
         Self {
             armed_on_this_thread: PhantomData,
         }
     }
+
+    /// Fails every time the wrappers reach `point`.
+    #[must_use]
+    pub fn at(point: llama_rs_fault_point) -> Self {
+        Self::after_passing(point, 0)
+    }
 }
 
 impl Drop for ArmedFault {
     fn drop(&mut self) {
-        unsafe { llama_cpp_bindings_sys::llama_rs_fault_injection_disarm() };
+        unsafe { llama_rs_fault_injection_disarm() };
     }
 }

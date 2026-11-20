@@ -2,29 +2,28 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 
-use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
-use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::chunk_token_breakdown::ChunkTokenBreakdown;
 use llama_cpp_bindings_tests::evaluated_multimodal_usage::EvaluatedMultimodalUsage;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_default_marker::mtmd_default_marker;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
 fn build_multimodal_chunks_and_eval_into_usage(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture {
+        model,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<EvaluatedMultimodalUsage> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -41,16 +40,14 @@ fn build_multimodal_chunks_and_eval_into_usage(
         parse_special: true,
     };
 
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
-    let expected = ChunkTokenBreakdown::from_chunks(&chunks);
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
+    let expected = ChunkTokenBreakdown::from_chunks(&chunks)?;
 
-    let context_params = (*fixture.context_params).into_llama_context_params();
-    let mut context = LlamaContext::from_model(model, fixture.backend, context_params)?;
+    let mut context = fixture.build_context()?;
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     classifier.eval_multimodal_chunks(
         &chunks,
-        mtmd_ctx,
         &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
@@ -81,11 +78,11 @@ fn prompt_tokens_match_text_chunk_total(fixture: &LlamaFixture<'_>) -> Result<()
         chunk_breakdown: expected,
     } = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
-    if usage.prompt_tokens != expected.text {
+    if usage.prompt != expected.text {
         bail!(
             "prompt_tokens must equal sum of text-chunk n_tokens; expected {}, got {}",
             expected.text,
-            usage.prompt_tokens
+            usage.prompt
         );
     }
 
@@ -107,11 +104,11 @@ fn input_image_tokens_match_image_chunk_total(fixture: &LlamaFixture<'_>) -> Res
         chunk_breakdown: expected,
     } = build_multimodal_chunks_and_eval_into_usage(fixture)?;
 
-    if usage.input_image_tokens != expected.image {
+    if usage.input_image != expected.image {
         bail!(
             "input_image_tokens must equal sum of image-chunk n_tokens; expected {}, got {}",
             expected.image,
-            usage.input_image_tokens
+            usage.input_image
         );
     }
 
@@ -139,10 +136,10 @@ fn input_audio_tokens_are_zero_for_image_only_input(fixture: &LlamaFixture<'_>) 
             expected.audio
         );
     }
-    if usage.input_audio_tokens != 0 {
+    if usage.input_audio != 0 {
         bail!(
             "input_audio_tokens must be zero when no audio chunks are evaluated; got {}",
-            usage.input_audio_tokens
+            usage.input_audio
         );
     }
 
@@ -183,30 +180,27 @@ fn completion_tokens_are_zero_after_eval_before_generation(
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
+fn text_chunk_records_prompt_tokens(
+    fixture @ &LlamaFixture {
+        model,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let input_text = MtmdInputText {
         text: "hello world".to_owned(),
         add_special: false,
         parse_special: false,
     };
-    let llama_ctx = LlamaContext::from_model(
-        model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(
-        mtmd_ctx.tokenize(input_text, &[])?,
-        mtmd_ctx,
-        llama_ctx.n_ubatch(),
-    )?;
+    let llama_ctx = fixture.build_context()?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[])?;
+    let fitted_chunks = chunks.fit_in(&llama_ctx, i32::try_from(llama_ctx.n_batch())?, 0)?;
 
-    let text_chunk = (0..fitted_chunks.len())
-        .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
+    let text_chunk = fitted_chunks
+        .fitted_chunks()
+        .iter()
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Text)
         .context("text-only tokenization should produce at least one text chunk")?;
 
@@ -214,25 +208,25 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 
-    classifier.ingest_fitted_chunk(&text_chunk);
+    classifier.ingest_fitted_chunk(text_chunk);
 
     let usage = classifier.usage();
-    if usage.prompt_tokens != n_tokens {
+    if usage.prompt != n_tokens {
         bail!(
             "text chunk must record n_tokens as prompt_tokens; expected {n_tokens}, got {}",
-            usage.prompt_tokens
+            usage.prompt
         );
     }
-    if usage.input_image_tokens != 0 {
+    if usage.input_image != 0 {
         bail!(
             "text chunk must not bump input_image_tokens; got {}",
-            usage.input_image_tokens
+            usage.input_image
         );
     }
-    if usage.input_audio_tokens != 0 {
+    if usage.input_audio != 0 {
         bail!(
             "text chunk must not bump input_audio_tokens; got {}",
-            usage.input_audio_tokens
+            usage.input_audio
         );
     }
 
@@ -248,11 +242,14 @@ fn text_chunk_records_prompt_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
     n_ubatch = 512,
     mmproj_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "mmproj-F16.gguf"),
 )]
-fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
+fn image_chunk_records_input_image_tokens_only(
+    fixture @ &LlamaFixture {
+        model,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -266,19 +263,13 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
         add_special: false,
         parse_special: true,
     };
-    let llama_ctx = LlamaContext::from_model(
-        model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-    let fitted_chunks = FittedMtmdInputChunks::fit(
-        mtmd_ctx.tokenize(input_text, &[&bitmap])?,
-        mtmd_ctx,
-        llama_ctx.n_ubatch(),
-    )?;
+    let llama_ctx = fixture.build_context()?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
+    let fitted_chunks = chunks.fit_in(&llama_ctx, i32::try_from(llama_ctx.n_batch())?, 0)?;
 
-    let image_chunk = (0..fitted_chunks.len())
-        .filter_map(|index| FittedMtmdInputChunk::at(&fitted_chunks, index))
+    let image_chunk = fitted_chunks
+        .fitted_chunks()
+        .iter()
         .find(|chunk| chunk.chunk_type() == MtmdInputChunkType::Image)
         .context("multimodal tokenization should produce an image chunk")?;
 
@@ -289,25 +280,25 @@ fn image_chunk_records_input_image_tokens_only(fixture: &LlamaFixture<'_>) -> Re
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
 
-    classifier.ingest_fitted_chunk(&image_chunk);
+    classifier.ingest_fitted_chunk(image_chunk);
 
     let usage = classifier.usage();
-    if usage.input_image_tokens != n_tokens {
+    if usage.input_image != n_tokens {
         bail!(
             "image chunk must record n_tokens as input_image_tokens; expected {n_tokens}, got {}",
-            usage.input_image_tokens
+            usage.input_image
         );
     }
-    if usage.prompt_tokens != 0 {
+    if usage.prompt != 0 {
         bail!(
             "image chunk must not bump prompt_tokens; got {}",
-            usage.prompt_tokens
+            usage.prompt
         );
     }
-    if usage.input_audio_tokens != 0 {
+    if usage.input_audio != 0 {
         bail!(
             "image chunk must not bump input_audio_tokens; got {}",
-            usage.input_audio_tokens
+            usage.input_audio
         );
     }
 

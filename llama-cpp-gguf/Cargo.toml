@@ -1,0 +1,21 @@
+[package]
+name = "llama-cpp-gguf"
+description = "Reads and rewrites the metadata and tensors of GGUF files through llama.cpp's gguf API"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-path-c-string = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-error-chain = { workspace = true }
+
+[lints]
+workspace = true

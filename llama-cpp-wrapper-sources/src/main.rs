@@ -1,36 +1,19 @@
 use std::env;
-use std::path::PathBuf;
+use std::process::ExitCode;
 
-use llama_cpp_wrapper_sources::compile_commands_file::CompileCommandsFile;
-use llama_cpp_wrapper_sources::wrapper_sources_error::WrapperSourcesError;
-use llama_cpp_wrapper_sources::wrapper_sources_response_file::WrapperSourcesResponseFile;
+use llama_cpp_error_chain::error_chain::error_chain;
+use llama_cpp_wrapper_sources::wrapper_build_inputs::WrapperBuildInputs;
 
-fn main() -> Result<(), WrapperSourcesError> {
-    let mut arguments = env::args().skip(1);
+fn main() -> ExitCode {
+    let emitted = WrapperBuildInputs::from_arguments(env::args().skip(1))
+        .and_then(|build_inputs| build_inputs.write());
 
-    let sys_dir = arguments
-        .next()
-        .ok_or(WrapperSourcesError::MissingArgument { name: "sys-dir" })?;
-    let database_path = arguments
-        .next()
-        .ok_or(WrapperSourcesError::MissingArgument {
-            name: "compile-commands-path",
-        })?;
-    let response_file_path = arguments
-        .next()
-        .ok_or(WrapperSourcesError::MissingArgument {
-            name: "response-file-path",
-        })?;
+    match emitted {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Error: {}", error_chain(&error));
 
-    CompileCommandsFile {
-        output_path: PathBuf::from(database_path),
-        sys_dir: PathBuf::from(&sys_dir),
+            ExitCode::FAILURE
+        }
     }
-    .write()?;
-
-    WrapperSourcesResponseFile {
-        output_path: PathBuf::from(response_file_path),
-        sys_dir: PathBuf::from(&sys_dir),
-    }
-    .write()
 }

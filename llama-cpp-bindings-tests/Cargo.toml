@@ -7,32 +7,50 @@ license.workspace = true
 publish = false
 autotests = false
 
+[lib]
+doctest = false
+
 [dependencies]
 anyhow = { workspace = true }
 encoding_rs = { workspace = true }
+enumflags2 = { workspace = true }
 inventory = { workspace = true }
+llama-cpp-backend = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
-llama-cpp-fault-injection = { workspace = true }
-llama-cpp-ffi-status = { workspace = true }
+llama-cpp-chat = { workspace = true }
+llama-cpp-context = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-mtmd = { workspace = true }
+llama-cpp-params = { workspace = true }
+llama-cpp-path-c-string = { workspace = true }
+llama-cpp-sampler = { workspace = true }
 llama-cpp-test-harness = { workspace = true }
-llama-cpp-test-harness-macros = { workspace = true }
 llama-cpp-test-model-provisioning = { workspace = true }
+llama-cpp-token-usage = { workspace = true }
 serde_json = { workspace = true }
 toktrie = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-capturing-logger = { workspace = true }
+llama-cpp-context-memory = { workspace = true }
+llama-cpp-context-state = { workspace = true }
+llama-cpp-fault-injection = { workspace = true }
+llama-cpp-test-harness-macros = { workspace = true }
+log = { workspace = true }
 
 [[test]]
 name = "main"
 harness = false
 
 [features]
-cuda = ["llama-cpp-bindings/cuda"]
-cuda-no-vmm = ["llama-cpp-bindings/cuda-no-vmm"]
-metal = ["llama-cpp-bindings/metal"]
-vulkan = ["llama-cpp-bindings/vulkan"]
-rocm = ["llama-cpp-bindings/rocm"]
+cuda = ["llama-cpp-backend/cuda"]
+cuda-no-vmm = ["llama-cpp-backend/cuda-no-vmm"]
+metal = ["llama-cpp-backend/metal"]
+vulkan = ["llama-cpp-backend/vulkan"]
+rocm = ["llama-cpp-backend/rocm"]
 
 [lints]
 workspace = true

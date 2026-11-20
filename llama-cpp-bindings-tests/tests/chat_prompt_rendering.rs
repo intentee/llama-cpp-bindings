@@ -1,14 +1,15 @@
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_types::chat_message::ChatMessage;
 use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
 use llama_cpp_bindings_types::chat_message_tool_call::ChatMessageToolCall;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -63,10 +64,12 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_session_renders_the_user_message_into_the_prompt(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let prompt = user_turn_chat_session(fixture.model, "hello", &[], true)?.prompt()?;
+fn chat_session_renders_the_user_message_into_the_prompt(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let prompt = user_turn_chat_session(model, "hello", &[], true)?.prompt()?;
 
-    assert!(
+    ensure!(
         prompt.contains("hello"),
         "the model's built-in chat template must render the user message content through the \
          engine; got: {prompt:?}"
@@ -106,11 +109,13 @@ fn chat_session_renders_the_user_message_into_the_prompt(fixture: &LlamaFixture<
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_session_renders_long_messages_in_full(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn chat_session_renders_long_messages_in_full(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let long_content = "a".repeat(2000);
-    let prompt = user_turn_chat_session(fixture.model, &long_content, &[], true)?.prompt()?;
+    let prompt = user_turn_chat_session(model, &long_content, &[], true)?.prompt()?;
 
-    assert!(
+    ensure!(
         prompt.contains(&long_content),
         "a long user message must be rendered in full by the engine without truncation"
     );
@@ -126,14 +131,11 @@ fn chat_session_renders_long_messages_in_full(fixture: &LlamaFixture<'_>) -> Res
     n_ubatch = 64,
 )]
 fn qwen35_generation_prompt_opens_the_assistant_turn_with_thinking(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], true)?;
+    let session = user_turn_chat_session(model, "hello", &[], true)?;
 
-    assert_eq!(
-        session.generation_prompt()?,
-        "<|im_start|>assistant\n<think>\n"
-    );
+    ensure!(session.generation_prompt()? == "<|im_start|>assistant\n<think>\n");
 
     Ok(())
 }
@@ -147,11 +149,11 @@ fn qwen35_generation_prompt_opens_the_assistant_turn_with_thinking(
     n_ubatch = 64,
 )]
 fn qwen35_omitted_assistant_turn_renders_only_the_messages(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = ChatSession::new(
-        fixture.model,
-        fixture.model.chat_templates()?,
+        model,
+        model.chat_templates()?,
         &[user_message("hello")],
         &[],
         &ChatSessionOptions {
@@ -162,7 +164,7 @@ fn qwen35_omitted_assistant_turn_renders_only_the_messages(
         },
     )?;
 
-    assert_eq!(session.prompt()?, "<|im_start|>user\nhello<|im_end|>\n");
+    ensure!(session.prompt()? == "<|im_start|>user\nhello<|im_end|>\n");
 
     Ok(())
 }
@@ -176,11 +178,11 @@ fn qwen35_omitted_assistant_turn_renders_only_the_messages(
     n_ubatch = 64,
 )]
 fn qwen35_renders_a_tool_call_history_with_its_reasoning_and_tool_response(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = ChatSession::new(
-        fixture.model,
-        fixture.model.chat_templates()?,
+        model,
+        model.chat_templates()?,
         &[
             user_message("What is the weather in Paris?"),
             ChatMessage::AssistantToolCalls {
@@ -206,15 +208,15 @@ fn qwen35_renders_a_tool_call_history_with_its_reasoning_and_tool_response(
         },
     )?;
 
-    assert_eq!(
-        session.prompt()?,
-        concat!(
-            "<|im_start|>user\nWhat is the weather in Paris?<|im_end|>\n",
-            "<|im_start|>assistant\n<think>\nI need the weather tool.\n</think>\n\n",
-            "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n",
-            "</function>\n</tool_call><|im_end|>\n",
-            "<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n",
-        )
+    ensure!(
+        session.prompt()?
+            == concat!(
+                "<|im_start|>user\nWhat is the weather in Paris?<|im_end|>\n",
+                "<|im_start|>assistant\n<think>\nI need the weather tool.\n</think>\n\n",
+                "<tool_call>\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n",
+                "</function>\n</tool_call><|im_end|>\n",
+                "<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n",
+            )
     );
 
     Ok(())

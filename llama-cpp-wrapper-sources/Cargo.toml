@@ -5,11 +5,19 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+autotests = false
+
+[lib]
+doctest = false
 
 [dependencies]
+llama-cpp-error-chain = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+
+[[test]]
+name = "main"
 
 [lints]
 workspace = true

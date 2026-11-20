@@ -1,17 +1,20 @@
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::token::LlamaToken;
+use anyhow::Context as _;
+use anyhow::Result;
 
-/// # Panics
-/// Panics when `text` cannot be tokenized or does not tokenize into exactly one token.
-#[must_use]
-pub fn single_token(model: &LlamaModel, text: &str) -> LlamaToken {
-    let [token]: [LlamaToken; 1] = model
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+
+/// # Errors
+/// Fails when `text` cannot be tokenized or does not tokenize into exactly one token.
+pub fn single_token(model: &LlamaModel, text: &str) -> Result<LlamaToken> {
+    model
         .str_to_token(text, AddBos::Never, ParseSpecialTokens::Always)
-        .expect("the text must tokenize")
-        .try_into()
-        .expect("the text must tokenize into exactly one token");
-
-    token
+        .context("the text must tokenize")
+        .and_then(|tokens| {
+            <[LlamaToken; 1]>::try_from(tokens.as_slice())
+                .context("the text must tokenize into exactly one token")
+        })
+        .map(|[token]| token)
 }

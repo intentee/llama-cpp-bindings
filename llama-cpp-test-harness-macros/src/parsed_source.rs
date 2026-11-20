@@ -19,14 +19,20 @@ fn require_string_argument(expression: &Expr, field: &str, position: &str) -> sy
     }
 }
 
-fn parse_huggingface_source(call: &ExprCall, field: &str) -> syn::Result<ParsedSource> {
-    let args: Vec<&Expr> = call.args.iter().collect();
+fn parse_huggingface_source(
+    ExprCall {
+        args: call_arguments,
+        ..
+    }: &ExprCall,
+    field: &str,
+) -> syn::Result<ParsedSource> {
+    let args: Vec<&Expr> = call_arguments.iter().collect();
     let [repo_expr, file_expr] = args.as_slice() else {
         return Err(syn::Error::new_spanned(
-            &call.args,
+            call_arguments,
             format!(
                 "`HuggingFace` expects exactly 2 string arguments (repo, file); got {got}",
-                got = call.args.len()
+                got = call_arguments.len()
             ),
         ));
     };
@@ -35,14 +41,20 @@ fn parse_huggingface_source(call: &ExprCall, field: &str) -> syn::Result<ParsedS
     Ok(ParsedSource::HuggingFace { repo, file })
 }
 
-fn parse_local_path_source(call: &ExprCall, field: &str) -> syn::Result<ParsedSource> {
-    let args: Vec<&Expr> = call.args.iter().collect();
+fn parse_local_path_source(
+    ExprCall {
+        args: call_arguments,
+        ..
+    }: &ExprCall,
+    field: &str,
+) -> syn::Result<ParsedSource> {
+    let args: Vec<&Expr> = call_arguments.iter().collect();
     let [path_expr] = args.as_slice() else {
         return Err(syn::Error::new_spanned(
-            &call.args,
+            call_arguments,
             format!(
                 "`LocalPath` expects exactly 1 string argument (path); got {got}",
-                got = call.args.len()
+                got = call_arguments.len()
             ),
         ));
     };
@@ -57,16 +69,6 @@ pub enum ParsedSource {
 }
 
 impl ParsedSource {
-    pub fn display_suffix(&self) -> String {
-        match self {
-            Self::HuggingFace { file, .. } => file.clone(),
-            Self::LocalPath(path) => Path::new(path)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .map_or_else(|| path.clone(), str::to_owned),
-        }
-    }
-
     pub fn parse(expression: &Expr, field: &str) -> syn::Result<Self> {
         let Expr::Call(call) = expression else {
             return Err(syn::Error::new_spanned(
@@ -95,6 +97,16 @@ impl ParsedSource {
                 variant_ident,
                 format!("unknown source variant `{other}`; expected `HuggingFace` or `LocalPath`"),
             )),
+        }
+    }
+
+    pub fn display_suffix(&self) -> String {
+        match self {
+            Self::HuggingFace { file, .. } => file.clone(),
+            Self::LocalPath(path) => Path::new(path)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map_or_else(|| path.clone(), str::to_owned),
         }
     }
 }

@@ -6,15 +6,22 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 bindgen = { workspace = true }
 cc = { workspace = true }
 cmake = { workspace = true }
 enumflags2 = { workspace = true }
 find_cuda_helper = { workspace = true }
+llama-cpp-error-chain = { workspace = true }
 llama-cpp-wrapper-sources = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[build-dependencies]
 thiserror = { workspace = true }
 
 [features]

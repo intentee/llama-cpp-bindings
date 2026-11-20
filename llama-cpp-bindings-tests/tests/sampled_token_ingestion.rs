@@ -1,30 +1,24 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
-
-use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::error::ingest_error::IngestError;
-use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
-use llama_cpp_bindings::error::sample_error::SampleError;
-use llama_cpp_bindings::error::token_outside_vocabulary::TokenOutsideVocabulary;
-use llama_cpp_bindings::error::token_to_string_error::TokenToStringError;
+use anyhow::ensure;
 use llama_cpp_bindings::generation_progress::GenerationProgress;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token::SampledToken;
+use llama_cpp_bindings::llama_cpp_error::LlamaCppError;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
-use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings::token_piece::TokenPiece;
-use llama_cpp_bindings_tests::ingested_generation::ingested_generation;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
-use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
+use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::model_error::ModelError;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_model::sampled_token_section::SampledTokenSection;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -60,11 +54,13 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn chat_session_classifier_starts_in_the_pending_section(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
-    let classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+fn chat_session_classifier_starts_in_the_pending_section(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let session = user_turn_chat_session(model, "hello", &[], false)?;
+    let classifier = SampledTokenClassifier::for_chat_session(model, session)?;
 
-    assert_eq!(classifier.current_section(), SampledTokenSection::Pending);
+    ensure!(classifier.current_section() == SampledTokenSection::Pending);
     Ok(())
 }
 
@@ -101,9 +97,8 @@ fn chat_session_classifier_starts_in_the_pending_section(fixture: &LlamaFixture<
     n_ubatch = 64,
 )]
 fn undeterminable_classifier_releases_each_token_with_its_visible_and_raw_piece(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let [ordinary_token] =
         model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?[..]
@@ -115,14 +110,14 @@ fn undeterminable_classifier_releases_each_token_with_its_visible_and_raw_piece(
     classifier.ingest(ordinary_token, &mut outcomes)?;
     classifier.finish(&mut outcomes)?;
 
-    assert_eq!(
-        outcomes,
-        [IngestOutcome {
-            sampled_token: SampledToken::Undeterminable(ordinary_token),
-            piece: TokenPiece::Visible("hello".to_owned()),
-        }]
+    ensure!(
+        outcomes
+            == [IngestOutcome {
+                sampled_token: SampledToken::Undeterminable(ordinary_token),
+                piece: TokenPiece::Visible("hello".to_owned()),
+            }]
     );
-    assert_eq!(classifier.usage().undeterminable_tokens, 1);
+    ensure!(classifier.usage().undeterminable == 1);
     Ok(())
 }
 
@@ -134,10 +129,11 @@ fn undeterminable_classifier_releases_each_token_with_its_visible_and_raw_piece(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn finishing_a_chat_answer_settles_its_pending_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
+fn finishing_a_chat_answer_settles_its_pending_tokens(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let session = user_turn_chat_session(model, "hello", &[], false)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let [ordinary_token] =
         model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?[..]
     else {
@@ -148,14 +144,14 @@ fn finishing_a_chat_answer_settles_its_pending_tokens(fixture: &LlamaFixture<'_>
     classifier.ingest(ordinary_token, &mut outcomes)?;
     classifier.finish(&mut outcomes)?;
 
-    assert_eq!(
-        outcomes,
-        [IngestOutcome {
-            sampled_token: SampledToken::Content(ordinary_token),
-            piece: TokenPiece::Visible("hello".to_owned()),
-        }]
+    ensure!(
+        outcomes
+            == [IngestOutcome {
+                sampled_token: SampledToken::Content(ordinary_token),
+                piece: TokenPiece::Visible("hello".to_owned()),
+            }]
     );
-    assert_eq!(classifier.usage().content_tokens, 1);
+    ensure!(classifier.usage().content == 1);
     Ok(())
 }
 
@@ -192,9 +188,8 @@ fn finishing_a_chat_answer_settles_its_pending_tokens(fixture: &LlamaFixture<'_>
     n_ubatch = 64,
 )]
 fn ingest_counts_every_token_through_the_end_of_generation(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let [ordinary_token] =
         model.str_to_token("hello", AddBos::Never, ParseSpecialTokens::Always)?[..]
@@ -205,15 +200,14 @@ fn ingest_counts_every_token_through_the_end_of_generation(
 
     classifier.ingest(ordinary_token, &mut outcomes)?;
 
-    assert_eq!(
+    ensure!(
         classifier.ingest(
             model.token_eos().context("model declares an EOS token")?,
             &mut outcomes
-        )?,
-        GenerationProgress::Ended
+        )? == GenerationProgress::Ended
     );
 
-    assert_eq!(classifier.usage().undeterminable_tokens, 2);
+    ensure!(classifier.usage().undeterminable == 2);
     Ok(())
 }
 
@@ -226,37 +220,32 @@ fn ingest_counts_every_token_through_the_end_of_generation(
     n_ubatch = 64,
 )]
 fn ingesting_a_token_outside_the_vocabulary_reports_it_in_every_classifier(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
     let token = LlamaToken::new(model.n_vocab());
     let session = user_turn_chat_session(model, "hello", &[], false)?;
     let mut outcomes = Vec::new();
-    let expected = Err(IngestError::Detokenize(
-        TokenToStringError::TokenOutsideVocabulary(TokenOutsideVocabulary {
+    let expected = Err(LlamaCppError::Detokenize(
+        ModelError::PieceTokenOutsideVocabulary {
             token,
             n_vocab: model.n_vocab(),
-        }),
+        },
     ));
 
-    assert_eq!(
-        SampledTokenClassifier::undeterminable(model).ingest(token, &mut outcomes),
-        expected
+    ensure!(SampledTokenClassifier::undeterminable(model).ingest(token, &mut outcomes) == expected);
+    ensure!(
+        SampledTokenClassifier::for_chat_session(model, session)?.ingest(token, &mut outcomes)
+            == expected
     );
-    assert_eq!(
-        SampledTokenClassifier::for_chat_session(fixture.model, session)?
-            .ingest(token, &mut outcomes),
-        expected
-    );
-    assert_eq!(outcomes, []);
+    ensure!(outcomes == []);
 
     Ok(())
 }
 
-fn failed_classification() -> IngestError {
-    IngestError::Classify(ParseChatMessageError::Reported {
-        message: injected_fault_message(),
-    })
+fn failed_classification() -> Result<LlamaCppError> {
+    Ok(LlamaCppError::Classify(ChatError::ParseReported {
+        message: injected_fault_message()?,
+    }))
 }
 
 #[llama_test(
@@ -268,19 +257,20 @@ fn failed_classification() -> IngestError {
     n_ubatch = 64,
 )]
 fn ingesting_a_generated_token_reports_a_classification_llama_cpp_fails(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "Hello!", &[], false)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
-    let generated = fixture
-        .model
-        .str_to_token("Hi", AddBos::Never, ParseSpecialTokens::Never)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
+    let session = user_turn_chat_session(model, "Hello!", &[], false)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
+    let generated = model.str_to_token("Hi", AddBos::Never, ParseSpecialTokens::Never)?;
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
+    );
 
-    assert_eq!(
-        classifier.ingest(generated[0], &mut Vec::new()),
-        Err(failed_classification())
+    ensure!(
+        classifier.ingest(
+            *generated.first().context("generated has no element 0")?,
+            &mut Vec::new()
+        ) == Err(failed_classification()?)
     );
 
     Ok(())
@@ -295,21 +285,18 @@ fn ingesting_a_generated_token_reports_a_classification_llama_cpp_fails(
     n_ubatch = 64,
 )]
 fn ending_the_generation_reports_a_classification_llama_cpp_fails(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "Hello!", &[], false)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
-    let end_of_sequence = fixture
-        .model
+    let session = user_turn_chat_session(model, "Hello!", &[], false)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
+    let end_of_sequence = model
         .token_eos()
         .context("the model declares an EOS token")?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
-
-    assert_eq!(
-        classifier.ingest(end_of_sequence, &mut Vec::new()),
-        Err(failed_classification())
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
     );
+
+    ensure!(classifier.ingest(end_of_sequence, &mut Vec::new()) == Err(failed_classification()?));
 
     Ok(())
 }
@@ -327,95 +314,30 @@ fn sampling_reports_a_classification_llama_cpp_fails(fixture: &LlamaFixture<'_>)
     let prompt_tokens = session.tokenize_prompt(fixture.model)?;
     let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
     let mut context = fixture.build_context()?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     classifier.feed_prompt_sequence_to_batch(&mut batch, &prompt_tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
+    );
 
-    assert_eq!(
+    ensure!(
         classifier
             .sample(
                 &mut LlamaSampler::greedy()?,
                 &context,
-                batch.n_tokens() - 1,
+                batch
+                    .n_tokens()
+                    .checked_sub(1)
+                    .context("`batch.n_tokens() - 1` must not overflow")?,
                 &mut Vec::new(),
             )
-            .err(),
-        Some(SampleError::Ingest(failed_classification()))
-    );
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn an_undeterminable_classifier_has_no_reading_of_the_answer(fixture: &LlamaFixture<'_>) {
-    let model = fixture.model;
-    let mut classifier = SampledTokenClassifier::undeterminable(model);
-
-    ingested_generation(&mut classifier, model, "hello");
-
-    assert!(classifier.latest_reading().is_none());
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn a_chat_answer_classifier_parses_the_answer_it_read_last(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
-
-    ingested_generation(&mut classifier, fixture.model, "Hello there.");
-
-    assert_eq!(
-        classifier
-            .latest_reading()
-            .context("the classifier must have read the answer")?
-            .parse(),
-        Ok(&ChatMessageParseOutcome::Recognized(
-            ParsedChatMessage::new("Hello there.".to_owned(), String::new(), Vec::new())
-        ))
-    );
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 128,
-    n_ubatch = 64,
-)]
-fn a_chat_answer_classifier_reports_a_failed_reading_of_its_empty_answer(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "hello", &[], false)?;
-    let _fault =
-        ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS);
-
-    assert_eq!(
-        SampledTokenClassifier::for_chat_session(fixture.model, session).err(),
-        Some(ParseChatMessageError::Reported {
-            message: injected_fault_message(),
-        })
+            .err()
+            == Some(LlamaCppError::SampleIngest(Box::new(
+                failed_classification()?
+            )))
     );
 
     Ok(())

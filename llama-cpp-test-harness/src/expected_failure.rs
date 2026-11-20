@@ -30,7 +30,7 @@ impl ExpectedFailure {
 impl Display for ExpectedFailure {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PhaseSetup(kind) => write!(formatter, "{kind}"),
+            Self::PhaseSetup(kind) => write!(formatter, "{kind:?}"),
             Self::Test => formatter.write_str("TestFailure"),
         }
     }

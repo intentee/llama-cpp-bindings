@@ -3,10 +3,10 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::compile_command::CompileCommand;
-use crate::cpp_standard::CPP_STANDARD;
-use crate::fault_injection_define::FAULT_INJECTION_DEFINE;
+use crate::constants::CPP_STANDARD;
+use crate::constants::FAULT_INJECTION_DEFINE;
+use crate::constants::WRAPPER_INCLUDE_DIRS;
 use crate::system_include_flags::system_include_flags;
-use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
 use crate::wrapper_source_paths::wrapper_source_paths;
 use crate::wrapper_sources_error::WrapperSourcesError;
 
@@ -76,9 +76,11 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::CompileCommandsFile;
+    use crate::constants::WRAPPER_INCLUDE_DIRS;
     use crate::system_include_flags::system_include_flags;
-    use crate::wrapper_include_dirs::WRAPPER_INCLUDE_DIRS;
     use crate::wrapper_source_paths::wrapper_source_paths;
 
     fn database_for(output_path: &str) -> CompileCommandsFile {
@@ -106,15 +108,12 @@ mod tests {
         let commands = database_for("/unused").commands();
 
         assert_eq!(
-            commands
-                .first()
-                .map(|command| command
-                    .arguments
-                    .iter()
-                    .filter(|argument| argument.starts_with("-I"))
-                    .cloned()
-                    .collect::<Vec<String>>())
-                .unwrap_or_default(),
+            commands.first().map_or_default(|command| command
+                .arguments
+                .iter()
+                .filter(|argument| argument.starts_with("-I"))
+                .cloned()
+                .collect::<Vec<String>>()),
             WRAPPER_INCLUDE_DIRS
                 .iter()
                 .map(|include_dir| {
@@ -155,15 +154,12 @@ mod tests {
         let commands = database_for("/unused").commands();
 
         assert_eq!(
-            commands
-                .first()
-                .map(|command| command
-                    .arguments
-                    .iter()
-                    .take(3)
-                    .cloned()
-                    .collect::<Vec<String>>())
-                .unwrap_or_default(),
+            commands.first().map_or_default(|command| command
+                .arguments
+                .iter()
+                .take(3)
+                .cloned()
+                .collect::<Vec<String>>()),
             vec![
                 "c++".to_owned(),
                 "-std=c++17".to_owned(),
@@ -178,7 +174,7 @@ mod tests {
             database_for("/nonexistent-directory/compile_commands.json")
                 .write()
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "compilation database file /nonexistent-directory/compile_commands.json could \
                  not be created: No such file or directory (os error 2)"
@@ -194,7 +190,7 @@ mod tests {
             database_for("/dev/full")
                 .write()
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "compilation database could not be written to /dev/full: No space left on \
                  device (os error 28)"

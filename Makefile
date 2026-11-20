@@ -4,6 +4,8 @@ TEST_DEVICE ?=
 
 DEVICE_FEATURE = $(if $(TEST_DEVICE),--features $(TEST_DEVICE),)
 
+CARGO_HOME ?= $(HOME)/.cargo
+
 CLANG_TIDY ?= clang-tidy
 
 COMPILE_COMMANDS = target/compile_commands.json
@@ -13,6 +15,18 @@ CPPCHECK = lint-tools/cppcheck-src/cppcheck
 CPPCHECK_COMMIT = f726f98ed2c3277780ee133ec5338f6352d7b43b
 
 CPPCHECK_SOURCE = https://github.com/danmar/cppcheck.git
+
+HEISENBERG = $(HEISENBERG_ROOT)/bin/heisenberg
+
+HEISENBERG_COMMIT = 278308567b84b60fec3090a8269b35ea7be1fbfd
+
+HEISENBERG_CONFIGURATION = $(shell rustc --print host-tuple)
+
+HEISENBERG_ROOT = lint-tools/heisenberg-$(HEISENBERG_COMMIT)
+
+HEISENBERG_SOURCE = https://github.com/intentee/heisenberg.git
+
+RUST_SYSROOT = $(shell rustc --print sysroot)
 
 WRAPPER_SOURCES_RESPONSE_FILE = target/wrapper_sources.rsp
 
@@ -42,12 +56,9 @@ $(CPPCHECK): lint-tools/cppcheck-src/Makefile
 	$(MAKE) --directory=lint-tools/cppcheck-src cppcheck \
 		FILESDIR=$(CURDIR)/lint-tools/cppcheck-src
 
-node_modules: package-lock.json
-	npm ci
-	touch node_modules
-
-package-lock.json: package.json
-	npm install --package-lock-only
+$(HEISENBERG):
+	cargo install --quiet --locked --git $(HEISENBERG_SOURCE) --rev $(HEISENBERG_COMMIT) \
+		--root $(HEISENBERG_ROOT) heisenberg
 
 $(COMPILE_COMMANDS): $(WRAPPER_SOURCES_CRATE_FILES)
 	$(EMIT_WRAPPER_BUILD_INPUTS)
@@ -64,27 +75,17 @@ clippy:
 	cargo clippy --workspace --all-targets $(DEVICE_FEATURE) -- -D warnings
 
 .PHONY: coverage
-coverage: node_modules
-	cargo llvm-cov clean --workspace
+coverage: coverage-clean $(HEISENBERG)
 	cargo llvm-cov --no-report --no-fail-fast --workspace $(DEVICE_FEATURE)
-	cargo llvm-cov report --json --output-path target/llvm-cov.json
-	cargo llvm-cov report --lcov --output-path target/lcov.info
-	cargo llvm-cov report
-	./node_modules/.bin/rust-coverage-check target/llvm-cov.json \
-		--workspace-root $(CURDIR) \
-		--gated llama-cpp-bindings=100 \
-		--gated llama-cpp-bindings-build=100 \
-		--gated llama-cpp-bindings-tests=100 \
-		--gated llama-cpp-bindings-types=100 \
-		--gated llama-cpp-error-recorder=100 \
-		--gated llama-cpp-fault-injection=100 \
-		--gated llama-cpp-ffi-status=100 \
-		--gated llama-cpp-gbnf=100 \
-		--gated llama-cpp-log-decoder=100 \
-		--gated llama-cpp-test-harness=100 \
-		--gated llama-cpp-test-harness-macros=100 \
-		--gated llama-cpp-test-model-provisioning=100 \
-		--gated llama-cpp-wrapper-sources=100
+	cargo llvm-cov report --include-build-script --json --output-path target/llvm-cov.json
+	cargo llvm-cov report --include-build-script --lcov --output-path target/lcov.info
+	cargo llvm-cov report --include-build-script
+	$(HEISENBERG) coverage-check \
+		--workspace $(CURDIR) \
+		--cargo-home $(CARGO_HOME) \
+		--sysroot $(RUST_SYSROOT) \
+		--coverage-export $(CURDIR)/target/llvm-cov.json \
+		--configuration $(HEISENBERG_CONFIGURATION)
 
 .PHONY: coverage-clean
 coverage-clean:
@@ -132,6 +133,11 @@ test.llms: clippy test.harness test.unit
 
 .PHONY: test.unit
 test.unit: clippy
-	cargo test -p llama-cpp-bindings -p llama-cpp-bindings-build -p llama-cpp-bindings-types \
-		-p llama-cpp-error-recorder -p llama-cpp-ffi-status -p llama-cpp-gbnf \
-		-p llama-cpp-log-decoder -p llama-cpp-wrapper-sources $(DEVICE_FEATURE)
+	cargo test -p llama-cpp-backend -p llama-cpp-backend-tests -p llama-cpp-bindings \
+		-p llama-cpp-bindings-build -p llama-cpp-bindings-sys -p llama-cpp-bindings-types -p llama-cpp-capturing-logger \
+		-p llama-cpp-chat -p llama-cpp-context -p llama-cpp-context-memory -p llama-cpp-context-state \
+		-p llama-cpp-error-chain -p llama-cpp-error-recorder -p llama-cpp-gbnf -p llama-cpp-gguf \
+		-p llama-cpp-log-decoder -p llama-cpp-model -p llama-cpp-mtmd -p llama-cpp-params \
+		-p llama-cpp-path-c-string -p llama-cpp-sampler -p llama-cpp-token-usage \
+		-p llama-cpp-wrapper-sources \
+		$(DEVICE_FEATURE)

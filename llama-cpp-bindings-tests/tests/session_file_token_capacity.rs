@@ -1,14 +1,13 @@
+use anyhow::Result;
+use anyhow::ensure;
 use std::env;
 use std::fs;
 
-use anyhow::Result;
-
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::context::load_seq_state_error::LoadSeqStateError;
-use llama_cpp_bindings::context::load_session_error::LoadSessionError;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context_state::context_state::ContextState;
+use llama_cpp_context_state::context_state_error::ContextStateError;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -54,16 +53,16 @@ fn state_load_file_with_too_small_a_token_capacity_reports_failed_to_load(
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     let session_path = env::temp_dir().join("llama_test_session_insuf.bin");
     context.state_save_file(&session_path, &tokens)?;
 
-    assert_eq!(
-        context.state_load_file(&session_path, 1).err(),
-        Some(LoadSessionError::FailedToLoad)
+    ensure!(
+        context.state_load_file(&session_path, 1).err()
+            == Some(ContextStateError::SessionFileNotLoaded)
     );
     fs::remove_file(&session_path)?;
 
@@ -112,16 +111,16 @@ fn state_seq_load_file_with_too_small_a_token_capacity_reports_failed_to_load(
         AddBos::Always,
         ParseSpecialTokens::Always,
     )?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
     let session_path = env::temp_dir().join("llama_test_seq_state_insuf.bin");
     context.state_seq_save_file(&session_path, 0, &tokens)?;
 
-    assert_eq!(
-        context.state_seq_load_file(&session_path, 0, 1).err(),
-        Some(LoadSeqStateError::FailedToLoad)
+    ensure!(
+        context.state_seq_load_file(&session_path, 0, 1).err()
+            == Some(ContextStateError::SeqStateFileNotLoaded)
     );
     fs::remove_file(&session_path)?;
 

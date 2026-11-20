@@ -1,0 +1,41 @@
+[package]
+name = "llama-cpp-model"
+description = "A loaded llama.cpp model and what it holds: its file's metadata, vocabulary and tokenization, chat templates, decision head and LoRA adapters"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+encoding_rs = { workspace = true }
+enumflags2 = { workspace = true }
+llama-cpp-backend = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-params = { workspace = true }
+llama-cpp-path-c-string = { workspace = true }
+once_cell = { workspace = true }
+thiserror = { workspace = true }
+toktrie = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-gguf = { workspace = true }
+
+[features]
+cuda = ["llama-cpp-backend/cuda"]
+cuda-no-vmm = ["llama-cpp-backend/cuda-no-vmm"]
+metal = ["llama-cpp-backend/metal"]
+dynamic-link = ["llama-cpp-backend/dynamic-link"]
+dynamic-backends = ["llama-cpp-backend/dynamic-backends"]
+vulkan = ["llama-cpp-backend/vulkan"]
+openmp = ["llama-cpp-backend/openmp"]
+rocm = ["llama-cpp-backend/rocm"]
+android-shared-stdcxx = ["llama-cpp-backend/android-shared-stdcxx"]
+android-static-stdcxx = ["llama-cpp-backend/android-static-stdcxx"]
+system-ggml = ["llama-cpp-backend/system-ggml"]
+system-ggml-static = ["llama-cpp-backend/system-ggml-static"]
+
+[lints]
+workspace = true

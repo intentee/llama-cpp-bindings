@@ -2,25 +2,24 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_default_marker::mtmd_default_marker;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
 use llama_cpp_bindings_tests::prompt_question::PROMPT_QUESTION;
 use llama_cpp_bindings_tests::system_message::system_message;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_default_marker::mtmd_default_marker;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -34,21 +33,17 @@ use llama_cpp_test_harness_macros::llama_test;
     mmproj_source = HuggingFace("unsloth/gemma-4-E4B-it-GGUF", "mmproj-F16.gguf"),
 )]
 fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture {
+        model,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const MAX_GENERATED_TOKENS: i32 = 200;
 
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -63,12 +58,11 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         parse_special: true,
     };
 
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
-        mtmd_ctx,
         &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
@@ -87,7 +81,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -96,7 +90,7 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run();
+    .run()?;
 
     let usage = classifier.usage();
 
@@ -106,10 +100,8 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
              when the prompt opens a `<|channel>thought` block; outcome={outcome:?}"
         );
     }
-    if usage.reasoning_tokens == 0 {
-        bail!(
-            "Gemma 4 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
-        );
+    if usage.reasoning == 0 {
+        bail!("Gemma 4 multimodal + thinking: usage.reasoning must be non-zero; usage={usage:?}");
     }
 
     Ok(())
@@ -125,21 +117,17 @@ fn gemma4_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     mmproj_source = HuggingFace("unsloth/Ministral-3-14B-Reasoning-2512-GGUF", "mmproj-F16.gguf"),
 )]
 fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture {
+        model,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const MAX_GENERATED_TOKENS: i32 = 512;
 
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -179,12 +167,11 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         parse_special: true,
     };
 
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
-        mtmd_ctx,
         &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
@@ -195,7 +182,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     )?;
 
     let mut sampler = LlamaSampler::greedy()?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -204,7 +191,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run();
+    .run()?;
 
     let usage = classifier.usage();
 
@@ -214,10 +201,8 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
              when the model opens a `[THINK]` block; outcome={outcome:?}"
         );
     }
-    if usage.reasoning_tokens == 0 {
-        bail!(
-            "Mistral 3 multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
-        );
+    if usage.reasoning == 0 {
+        bail!("Mistral 3 multimodal + thinking: usage.reasoning must be non-zero; usage={usage:?}");
     }
 
     Ok(())
@@ -251,21 +236,17 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture {
+        model,
+        mtmd_context,
+        ..
+    }: &LlamaFixture<'_>,
 ) -> Result<()> {
     const MAX_GENERATED_TOKENS: i32 = 200;
 
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
 
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let image_path = fixtures_dir().join("llamas.jpg");
     let image_path_str = image_path
@@ -280,12 +261,11 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         parse_special: true,
     };
 
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
 
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let n_past = classifier.eval_multimodal_chunks(
         &chunks,
-        mtmd_ctx,
         &mut context,
         EvalMultimodalChunksParams {
             start_position: 0,
@@ -304,7 +284,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         LlamaSampler::dist(0x00C0_FFEE)?,
     ])?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     let outcome = ClassifySampleLoop {
         classifier: &mut classifier,
         sampler: &mut sampler,
@@ -313,7 +293,7 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
         initial_position: n_past,
         max_generated_tokens: MAX_GENERATED_TOKENS,
     }
-    .run();
+    .run()?;
 
     let usage = classifier.usage();
 
@@ -323,10 +303,8 @@ fn qwen_classifier_emits_reasoning_for_multimodal_thinking_prompt(
              when the prompt opens a `<think>` block; outcome={outcome:?}"
         );
     }
-    if usage.reasoning_tokens == 0 {
-        bail!(
-            "Qwen multimodal + thinking: usage.reasoning_tokens must be non-zero; usage={usage:?}"
-        );
+    if usage.reasoning == 0 {
+        bail!("Qwen multimodal + thinking: usage.reasoning must be non-zero; usage={usage:?}");
     }
 
     Ok(())

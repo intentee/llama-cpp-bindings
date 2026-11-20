@@ -9,9 +9,9 @@ use crate::cmake_build::CmakeBuild;
 use crate::cmake_configuration::CmakeConfiguration;
 use crate::cmake_file_api::CmakeFileApi;
 use crate::emit_directives::emit_directives;
-use crate::link_directives::link_directives;
+use crate::host_os::HostOs;
+use crate::link_directives::LinkDirectives;
 use crate::openmp_linking::OpenmpLinking;
-use crate::rebuild_triggers::rebuild_triggers;
 use crate::wrapper_compilation::WrapperCompilation;
 
 /// Every step of the native build, decided before any of them runs.
@@ -26,9 +26,22 @@ pub struct NativeBuild {
 }
 
 impl NativeBuild {
+    /// Plans the native build of the build script run `environment` describes, on the host the
+    /// build script runs on.
+    ///
     /// # Errors
     ///
-    /// Returns the [`BuildError`] of [`CmakeConfiguration::of`] or [`link_directives`].
+    /// Returns the [`BuildError`] of [`BuildContext::from_environment`] or [`Self::of`].
+    pub fn from_environment(environment: &BuildEnvironment) -> Result<Self, BuildError> {
+        Self::of(
+            &BuildContext::from_environment(environment, HostOs::current())?,
+            environment,
+        )
+    }
+
+    /// # Errors
+    ///
+    /// Returns the [`BuildError`] of [`CmakeConfiguration::of`] or [`LinkDirectives::of`].
     pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Result<Self, BuildError> {
         let CmakeConfiguration {
             defines,
@@ -52,9 +65,9 @@ impl NativeBuild {
             },
             directives: [
                 context.debug_messages(),
-                rebuild_triggers(context),
+                context.rebuild_triggers(),
                 cmake_directives,
-                link_directives(context, environment)?,
+                LinkDirectives::of(context, environment)?.directives,
             ]
             .concat(),
             openmp: OpenmpLinking::of(context, environment),
@@ -88,13 +101,22 @@ impl NativeBuild {
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::ffi::OsStr;
     use std::fs;
     use std::path::Path;
     use std::path::PathBuf;
     use std::process;
 
+    use enumflags2::BitFlags;
+
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::NativeBuild;
     use crate::bindings_generation::BindingsGeneration;
+    use crate::build_context::tests::cargo_environment;
+    use crate::build_environment::BuildEnvironment;
+    use crate::build_environment::tests::variable;
+    use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_build::CmakeBuild;
     use crate::cmake_define::CmakeDefine;
@@ -106,14 +128,7 @@ mod tests {
     use crate::target_os::TargetOs;
     use crate::wrapper_compilation::WrapperCompilation;
 
-    #[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu"))]
-    const HOST_TRIPLE: &str = "x86_64-unknown-linux-gnu";
-    #[cfg(all(target_arch = "aarch64", target_os = "linux", target_env = "gnu"))]
-    const HOST_TRIPLE: &str = "aarch64-unknown-linux-gnu";
-    #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
-    const HOST_TRIPLE: &str = "x86_64-apple-darwin";
-    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-    const HOST_TRIPLE: &str = "aarch64-apple-darwin";
+    const HOST_TRIPLE: &str = include_str!(concat!(env!("OUT_DIR"), "/host_triple"));
 
     const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
 
@@ -189,6 +204,21 @@ mod tests {
         root
     }
 
+    const FIXTURE_CMAKE_PROJECT: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/cmake_project");
+
+    fn failure(environment: &BuildEnvironment) -> [Option<String>; 2] {
+        let mut output = Vec::new();
+
+        [
+            NativeBuild::from_environment(environment)
+                .and_then(|native_build| native_build.run(&mut output))
+                .err()
+                .map(|error| error_chain(&error)),
+            String::from_utf8(output).ok(),
+        ]
+    }
+
     #[test]
     fn a_successful_build_writes_every_artifact_whoever_links_the_cxx_runtime_then_the_directives()
     {
@@ -258,7 +288,7 @@ mod tests {
             native_build
                 .run(&mut output)
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(
                 "native wrapper compilation failed: IOError: File exists (os error 17)".to_owned()
             )
@@ -282,7 +312,7 @@ mod tests {
             native_build
                 .run(&mut output)
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(format!(
                 "filesystem operation failed for {MANIFEST}/backends: Not a directory (os error \
                  20)"
@@ -304,7 +334,7 @@ mod tests {
             native_build
                 .run(&mut output)
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(format!(
                 "ggml needs the OpenMP runtime [{:?}], which Apple's linker cannot link by its \
                  exact file name",
@@ -313,5 +343,59 @@ mod tests {
         );
         assert_eq!(output, Vec::<u8>::new());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_failure_at_any_stage_is_reported_and_nothing_is_emitted() {
+        let mut without_target = cargo_environment(BitFlags::empty(), &[]);
+
+        without_target.variables.remove(OsStr::new("TARGET"));
+
+        assert_eq!(
+            [
+                failure(&without_target),
+                failure(&cargo_environment(
+                    BitFlags::from(BuildFeature::SystemGgml),
+                    &[]
+                )),
+                failure(&cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])),
+                failure(&cargo_environment(
+                    BitFlags::empty(),
+                    &[variable("CARGO_MANIFEST_DIR", FIXTURE_CMAKE_PROJECT)]
+                )),
+            ],
+            [
+                [
+                    Some(
+                        "environment variable TARGET could not be read: environment variable not \
+                         found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
+                [
+                    Some(
+                        "environment variable GGML_DIR could not be read: environment variable \
+                         not found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
+                [
+                    Some(
+                        "environment variable ROCM_PATH could not be read: environment variable \
+                         not found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
+                [
+                    Some(format!(
+                        "bindgen failed: header '{FIXTURE_CMAKE_PROJECT}/wrapper.h' does not exist."
+                    )),
+                    Some(String::new())
+                ],
+            ]
+        );
     }
 }
