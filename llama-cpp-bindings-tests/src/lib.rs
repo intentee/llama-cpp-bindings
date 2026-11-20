@@ -13,6 +13,7 @@ pub mod highest_score_index;
 pub mod ingested_generation;
 pub mod logits_left_by;
 pub mod media_question_chat_session;
+pub mod non_causal_context;
 pub mod normalize;
 pub mod not_utf8;
 pub mod paris_weather_tool_call;

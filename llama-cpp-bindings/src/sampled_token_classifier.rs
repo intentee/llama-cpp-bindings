@@ -128,9 +128,10 @@ impl<'model> SampledTokenClassifier<'model> {
     /// # Errors
     /// Returns [`LlamaCppError::MultimodalChunksEval`] when `llama_ctx` was created for another
     /// model than the projector of `chunks`, `params.n_batch` or `params.seq_id` does not fit the
-    /// context, a chunk cannot be decoded, reports a type unknown to this binding or has
-    /// positions that overflow from `params.start_position` (all before any chunk is evaluated),
-    /// or when evaluating a chunk fails.
+    /// context, a chunk does not fit the decodes of `params.n_batch` in the context or reports a
+    /// type unknown to this binding, `params.start_position` is negative, or a chunk has positions
+    /// that overflow from `params.start_position` (all before any chunk is evaluated), or when
+    /// evaluating a chunk fails, after which no further chunk is evaluated.
     pub fn eval_multimodal_chunks(
         &mut self,
         chunks: &MtmdInputChunks<'_>,

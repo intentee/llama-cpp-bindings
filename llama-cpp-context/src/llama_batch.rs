@@ -94,8 +94,8 @@ impl LlamaBatch {
     /// # Errors
     ///
     /// Returns [`ContextError`] when the batch already holds as many tokens as one decode of the
-    /// context takes, the token is outside the vocabulary, `seq_ids` is empty or names a sequence
-    /// the context does not have, or the token count would overflow.
+    /// context takes, the token is outside the vocabulary, `pos` is negative, `seq_ids` is empty
+    /// or names a sequence the context does not have, or the token count would overflow.
     pub fn add(
         &mut self,
         sampled_token: SampledToken,
@@ -116,6 +116,10 @@ impl LlamaBatch {
                 token,
                 n_vocab: self.limits.vocabulary_size,
             });
+        }
+
+        if pos < 0 {
+            return Err(ContextError::TokenPositionNegative { pos });
         }
 
         if seq_ids.is_empty() {
@@ -429,6 +433,17 @@ mod tests {
                 n_vocab: 100,
             })
         );
+    }
+
+    #[test]
+    fn a_token_at_a_negative_position_is_refused_and_not_added() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        assert_eq!(
+            batch.add(content(1), -1, &[0], false),
+            Err(ContextError::TokenPositionNegative { pos: -1 })
+        );
+        assert_eq!(batch, LlamaBatch::new(LIMITS));
     }
 
     #[test]

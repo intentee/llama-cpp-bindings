@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
+use llama_cpp_bindings_tests::non_causal_context::non_causal_context;
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context::context_limits::ContextLimits;
 use llama_cpp_context::llama_batch::LlamaBatch;
@@ -12,7 +13,6 @@ use llama_cpp_model::add_bos::AddBos;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_model::sampled_token::SampledToken;
-use llama_cpp_params::llama_attention_type::LlamaAttentionType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -53,21 +53,10 @@ fn decoding_an_empty_batch_is_refused_as_invalid(
     n_ubatch = 64,
 )]
 fn decoding_more_tokens_than_the_micro_batch_with_non_causal_attention_is_refused(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params)
-            .into_llama_context_params()
-            .with_attention_type(LlamaAttentionType::NonCausal),
-    )?;
-    let tokens = model.str_to_token(
+    let mut context = non_causal_context(fixture)?;
+    let tokens = fixture.model.str_to_token(
         &"hello ".repeat(100),
         AddBos::Always,
         ParseSpecialTokens::Always,

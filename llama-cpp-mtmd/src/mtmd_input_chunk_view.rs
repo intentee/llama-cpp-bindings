@@ -246,71 +246,6 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
         unsafe { self.eval_unchecked(llama_ctx, start_position, seq_id, n_batch, logits_last) }
     }
 
-    /// Encodes the chunk when it holds media and decodes it into `llama_ctx` from `start_position`,
-    /// returning the position after it, without fitting the chunk or checking `llama_ctx`,
-    /// `n_batch` and `seq_id` the way [`Self::eval`] does.
-    ///
-    /// # Errors
-    ///
-    /// Returns any error of [`Self::position_after`] before evaluating anything, or an
-    /// [`MtmdError`] when llama.cpp fails to encode or decode the chunk.
-    ///
-    /// # Safety
-    ///
-    /// llama.cpp aborts the process, or reads past the output of this chunk's projector, unless
-    /// every one of these holds; [`MtmdContext::batch_tokens_in`] checks the first three, and
-    /// [`Self::fit_to_micro_batch`], for the `n_batch` it accepted, the last three:
-    ///
-    /// - `llama_ctx` was created for the model this chunk's projector was loaded for;
-    /// - `n_batch` is positive and at most the batch size of `llama_ctx`;
-    /// - `seq_id` names a sequence of `llama_ctx`;
-    /// - llama.cpp reports a chunk type this binding recognizes;
-    /// - [`LlamaContext::decode_fits_micro_batch`] accepts a decode of the smaller of `n_batch`
-    ///   and the chunk's tokens, the largest piece the mtmd helper decodes the chunk in;
-    /// - a media chunk that llama.cpp decodes non-causally has at most as many tokens as the
-    ///   smaller of `n_batch` and the micro batch of `llama_ctx`.
-    pub unsafe fn eval_unchecked(
-        self,
-        llama_ctx: &mut LlamaContext,
-        start_position: llama_cpp_bindings_sys::bindings::llama_pos,
-        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
-        n_batch: i32,
-        logits_last: bool,
-    ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
-        self.position_after(start_position)?;
-
-        let mut final_position: llama_cpp_bindings_sys::bindings::llama_pos = start_position;
-        let mut out_llama_cpp_return_code: i32 = 0;
-        let mut out_error: *mut c_char = ptr::null_mut();
-
-        let status = unsafe {
-            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_eval_chunk_single(
-                self.mtmd_context.as_ptr(),
-                llama_ctx.as_ptr(),
-                self.chunk.as_ptr(),
-                start_position,
-                seq_id,
-                n_batch,
-                logits_last,
-                &raw mut final_position,
-                &raw mut out_llama_cpp_return_code,
-                &raw mut out_error,
-            )
-        };
-
-        let next_position = unsafe {
-            eval_chunk_single_status_to_result(
-                status,
-                final_position,
-                out_llama_cpp_return_code,
-                out_error,
-            )
-        }?;
-        llama_ctx.record_helper_decode(self.n_tokens() as u64, logits_last);
-
-        Ok(next_position)
-    }
-
     /// Checks that `llama_ctx` can decode this chunk in decodes of up to `batch_tokens` tokens and
     /// returns the chunk type it classified. The mtmd helper decodes every chunk in pieces of up
     /// to `batch_tokens` tokens, each of which has to fit a single micro batch while `llama_ctx`
@@ -417,6 +352,71 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
         };
 
         unsafe { tokens_from_raw_ptr(tokens_ptr, n_tokens) }
+    }
+
+    /// Encodes the chunk when it holds media and decodes it into `llama_ctx` from `start_position`,
+    /// returning the position after it, without fitting the chunk or checking `llama_ctx`,
+    /// `n_batch` and `seq_id` the way [`Self::eval`] does.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error of [`Self::position_after`] before evaluating anything, or an
+    /// [`MtmdError`] when llama.cpp fails to encode or decode the chunk.
+    ///
+    /// # Safety
+    ///
+    /// llama.cpp aborts the process, or reads past the output of this chunk's projector, unless
+    /// every one of these holds; [`MtmdContext::batch_tokens_in`] checks the first three, and
+    /// [`Self::fit_to_micro_batch`], for the `n_batch` it accepted, the last three:
+    ///
+    /// - `llama_ctx` was created for the model this chunk's projector was loaded for;
+    /// - `n_batch` is positive and at most the batch size of `llama_ctx`;
+    /// - `seq_id` names a sequence of `llama_ctx`;
+    /// - llama.cpp reports a chunk type this binding recognizes;
+    /// - [`LlamaContext::decode_fits_micro_batch`] accepts a decode of the smaller of `n_batch`
+    ///   and the chunk's tokens, the largest piece the mtmd helper decodes the chunk in;
+    /// - a media chunk that llama.cpp decodes non-causally has at most as many tokens as the
+    ///   smaller of `n_batch` and the micro batch of `llama_ctx`.
+    unsafe fn eval_unchecked(
+        self,
+        llama_ctx: &mut LlamaContext,
+        start_position: llama_cpp_bindings_sys::bindings::llama_pos,
+        seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
+        n_batch: i32,
+        logits_last: bool,
+    ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
+        self.position_after(start_position)?;
+
+        let mut final_position: llama_cpp_bindings_sys::bindings::llama_pos = start_position;
+        let mut out_llama_cpp_return_code: i32 = 0;
+        let mut out_error: *mut c_char = ptr::null_mut();
+
+        let status = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_mtmd_eval_chunk_single(
+                self.mtmd_context.as_ptr(),
+                llama_ctx.as_ptr(),
+                self.chunk.as_ptr(),
+                start_position,
+                seq_id,
+                n_batch,
+                logits_last,
+                &raw mut final_position,
+                &raw mut out_llama_cpp_return_code,
+                &raw mut out_error,
+            )
+        };
+
+        let next_position = unsafe {
+            eval_chunk_single_status_to_result(
+                status,
+                final_position,
+                out_llama_cpp_return_code,
+                out_error,
+            )
+        }?;
+        llama_ctx.record_helper_decode(self.n_tokens() as u64, logits_last);
+
+        Ok(next_position)
     }
 }
 

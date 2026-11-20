@@ -3,6 +3,7 @@ use std::num::NonZeroI32;
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::bindings::llama_pos;
 use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
 use llama_cpp_model::llama_token::LlamaToken;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
@@ -158,6 +159,11 @@ pub enum ContextError {
     TokenIndexOutsideBatch { token_index: i32, n_tokens: i32 },
     #[error("token {token} is outside the vocabulary of {n_vocab} tokens")]
     TokenOutsideVocabulary { token: LlamaToken, n_vocab: i32 },
+    #[error(
+        "a token cannot be added at the negative position {pos}: llama.cpp marks empty KV cache \
+         cells with -1 and holds no other negative position"
+    )]
+    TokenPositionNegative { pos: llama_pos },
     #[error("n_vocab does not fit into usize")]
     VocabSizeOverflow(#[source] TryFromIntError),
 }

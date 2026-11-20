@@ -37,5 +37,9 @@ harness = false
 name = "phase_conclusions"
 harness = false
 
+[[test]]
+name = "poisoned_projector_recovery"
+harness = false
+
 [lints]
 workspace = true

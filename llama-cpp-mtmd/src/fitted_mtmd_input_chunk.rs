@@ -44,18 +44,17 @@ impl<'chunks, 'context> FittedMtmdInputChunk<'chunks, 'context> {
         self.chunk_type
     }
 
-    /// Evaluates the chunk like [`MtmdInputChunkView::eval`], in decodes at least as large as the
-    /// micro batch it was fitted to. The chunk is fitted to `llama_ctx` and `n_batch` again,
-    /// because whether the decodes of its pieces fit depends on both.
+    /// Evaluates the chunk with [`MtmdInputChunkView::eval`] once decodes of `n_batch` in
+    /// `llama_ctx` are at least as large as the micro batch the chunk was fitted to.
+    /// [`MtmdInputChunkView::eval`] fits the chunk to `llama_ctx` and `n_batch` again, because
+    /// whether the decodes of its pieces fit depends on both.
     ///
     /// # Errors
     ///
-    /// Returns any error of [`crate::mtmd_context::MtmdContext::batch_tokens_in`],
+    /// Returns any error of [`crate::mtmd_context::MtmdContext::batch_tokens_in`], then
     /// [`MtmdError::EvaluatedMicroBatchSmallerThanFitted`] when decodes of `n_batch` in
-    /// `llama_ctx` are smaller than the micro batch the chunk was fitted to, or any error of
-    /// [`MtmdInputChunkView::fit_to_micro_batch`] or [`MtmdInputChunkView::position_after`], all
-    /// before evaluating anything, or an [`MtmdError`] when llama.cpp fails to encode or decode
-    /// the chunk.
+    /// `llama_ctx` are smaller than the micro batch the chunk was fitted to, both before
+    /// evaluating anything, then any error of [`MtmdInputChunkView::eval`].
     pub fn eval_single(
         &self,
         llama_ctx: &mut LlamaContext,
@@ -77,11 +76,7 @@ impl<'chunks, 'context> FittedMtmdInputChunk<'chunks, 'context> {
             });
         }
 
-        self.chunk.fit_to_micro_batch(llama_ctx, batch_tokens)?;
-
-        unsafe {
-            self.chunk
-                .eval_unchecked(llama_ctx, start_position, seq_id, n_batch, logits_last)
-        }
+        self.chunk
+            .eval(llama_ctx, start_position, seq_id, n_batch, logits_last)
     }
 }

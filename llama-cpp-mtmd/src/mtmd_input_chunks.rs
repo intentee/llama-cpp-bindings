@@ -259,8 +259,10 @@ impl<'context> MtmdInputChunks<'context> {
     ///
     /// # Errors
     ///
-    /// Returns any error of [`Self::fit_in`] or [`FittedMtmdInputChunks::eval_each`], or
-    /// [`MtmdError::EvalFailed`] if any encoding or decoding operation fails.
+    /// Returns any error of [`Self::fit_in`], then any error of
+    /// [`FittedMtmdInputChunks::eval_each`]: an invalid position of a chunk, found before any
+    /// chunk is evaluated, or the error of the first chunk that fails to evaluate, after which no
+    /// further chunk is evaluated.
     pub fn eval_chunks(
         &self,
         llama_ctx: &mut LlamaContext,

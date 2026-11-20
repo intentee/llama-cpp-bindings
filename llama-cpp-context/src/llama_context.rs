@@ -326,10 +326,11 @@ impl<'model> LlamaContext<'model> {
         )
     }
 
-    /// Whether llama.cpp can decode a batch of `n_tokens` tokens on this context: any batch while
-    /// the context splits batches into micro batches, and only a batch of at most
+    /// Whether the micro batch of this context admits a decode of `n_tokens` tokens: it admits
+    /// every size while the context splits batches into micro batches, and only up to
     /// [`Self::n_ubatch`] tokens while it decodes every batch in a single micro batch, as it does
-    /// while the context attends non-causally or keeps no memory.
+    /// while the context attends non-causally or keeps no memory. It does not check `n_tokens`
+    /// against [`Self::n_batch`], which every decode has to stay within as well.
     #[must_use]
     pub fn decode_fits_micro_batch(&self, n_tokens: u32) -> bool {
         !self.decodes_batches_in_one_micro_batch() || self.fits_micro_batch(n_tokens)
