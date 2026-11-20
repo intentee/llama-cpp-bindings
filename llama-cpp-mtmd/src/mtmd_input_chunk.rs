@@ -62,9 +62,11 @@ impl<'context> MtmdInputChunk<'context> {
             )
         };
 
-        Ok(Self {
-            chunk: unsafe { input_chunk_copy_status_to_result(status, out_chunk, out_error) }?,
-            mtmd_context: chunk.mtmd_context(),
+        unsafe { input_chunk_copy_status_to_result(status, out_chunk, out_error) }.map(|copied| {
+            Self {
+                chunk: copied,
+                mtmd_context: chunk.mtmd_context(),
+            }
         })
     }
 
