@@ -201,7 +201,7 @@ impl ContextMemory for LlamaContext<'_> {
         let p1 = open_ended_position(p1).map_err(ContextMemoryError::SeqAddEndPositionTooLarge)?;
 
         let rope_type = self
-            .model
+            .model()
             .rope_type()
             .map_err(ContextMemoryError::SeqAddUnknownRopeType)?;
 
@@ -212,7 +212,7 @@ impl ContextMemory for LlamaContext<'_> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_add(
-                self.context.as_ptr().cast_const(),
+                self.as_ptr().cast_const(),
                 seq_id,
                 p0,
                 p1,
@@ -276,7 +276,7 @@ impl ContextMemory for LlamaContext<'_> {
         let p1 = open_ended_position(p1).map_err(ContextMemoryError::SeqDivEndPositionTooLarge)?;
 
         let rope_type = self
-            .model
+            .model()
             .rope_type()
             .map_err(ContextMemoryError::SeqDivUnknownRopeType)?;
 
@@ -288,7 +288,7 @@ impl ContextMemory for LlamaContext<'_> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_div(
-                self.context.as_ptr().cast_const(),
+                self.as_ptr().cast_const(),
                 seq_id,
                 p0,
                 p1,
@@ -330,7 +330,7 @@ impl ContextMemory for LlamaContext<'_> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_pos_max(
-                self.context.as_ptr().cast_const(),
+                self.as_ptr().cast_const(),
                 seq_id,
                 &raw mut position,
                 &raw mut out_error,

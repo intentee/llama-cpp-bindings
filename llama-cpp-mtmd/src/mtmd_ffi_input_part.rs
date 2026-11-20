@@ -16,7 +16,7 @@ impl MtmdFfiInputPart<'_> {
         match self {
             Self::Bitmap(bitmap) => llama_cpp_bindings_sys::bindings::mtmd_input_part {
                 text: ptr::null(),
-                bitmap: bitmap.bitmap.as_ptr().cast_const(),
+                bitmap: bitmap.as_ptr().cast_const(),
             },
             Self::Text(input_text) => llama_cpp_bindings_sys::bindings::mtmd_input_part {
                 text: ptr::from_ref(input_text),

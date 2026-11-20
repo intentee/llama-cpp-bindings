@@ -156,8 +156,8 @@ unsafe extern "C" fn abort_callback_trampoline(data: *mut c_void) -> bool {
 }
 
 pub struct LlamaContext<'model> {
-    pub context: NonNull<llama_cpp_bindings_sys::bindings::llama_context>,
-    pub model: &'model LlamaModel,
+    context: NonNull<llama_cpp_bindings_sys::bindings::llama_context>,
+    model: &'model LlamaModel,
     abort_flag: Option<Arc<AtomicBool>>,
     decoded_outputs: DecodedOutputs,
     batch_ext: NonNull<llama_cpp_bindings_sys::bindings::llama_batch_ext>,
@@ -192,11 +192,11 @@ impl<'model> LlamaContext<'model> {
         SequenceOutputCapacity {
             attention_type: params.attention_type()?,
             model_causal_attention: unsafe {
-                llama_cpp_bindings_sys::bindings::llama_rs_model_causal_attn(model.model.as_ptr())
+                llama_cpp_bindings_sys::bindings::llama_rs_model_causal_attn(model.as_ptr())
             },
             model_has_encoder: model.has_encoder(),
             model_n_ctx_train: unsafe {
-                llama_cpp_bindings_sys::bindings::llama_model_n_ctx_train(model.model.as_ptr())
+                llama_cpp_bindings_sys::bindings::llama_model_n_ctx_train(model.as_ptr())
             }
             .cast_unsigned(),
             n_batch: context_params.n_batch,
@@ -210,7 +210,7 @@ impl<'model> LlamaContext<'model> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_new_context_with_model(
-                model.model.as_ptr(),
+                model.as_ptr(),
                 context_params,
                 &raw mut out_ctx,
                 &raw mut out_error,
@@ -271,6 +271,11 @@ impl<'model> LlamaContext<'model> {
             embeddings,
             evaluated_tokens: 0,
         })
+    }
+
+    #[must_use]
+    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::bindings::llama_context {
+        self.context.as_ptr()
     }
 
     /// # Errors
@@ -458,6 +463,11 @@ impl<'model> LlamaContext<'model> {
     #[must_use]
     pub fn memory(&self) -> Option<llama_cpp_bindings_sys::bindings::llama_memory_t> {
         memory_of(self.context)
+    }
+
+    #[must_use]
+    pub const fn model(&self) -> &'model LlamaModel {
+        self.model
     }
 
     #[must_use]

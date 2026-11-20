@@ -353,7 +353,7 @@ where
 }
 
 pub struct LlamaModel {
-    pub model: NonNull<llama_cpp_bindings_sys::bindings::llama_model>,
+    model: NonNull<llama_cpp_bindings_sys::bindings::llama_model>,
     vocab: *const llama_cpp_bindings_sys::bindings::llama_vocab,
     n_vocab: i32,
     tok_env: OnceCell<Arc<ApproximateTokEnv>>,
@@ -404,6 +404,11 @@ impl LlamaModel {
     #[must_use]
     pub fn adds_bos_token(&self) -> bool {
         unsafe { llama_cpp_bindings_sys::bindings::llama_vocab_get_add_bos(self.vocab_ptr()) }
+    }
+
+    #[must_use]
+    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::bindings::llama_model {
+        self.model.as_ptr()
     }
 
     /// # Errors

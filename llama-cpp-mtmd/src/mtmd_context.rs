@@ -81,7 +81,7 @@ unsafe fn map_init_from_file_status(
 
 #[derive(Debug)]
 pub struct MtmdContext {
-    pub context: NonNull<llama_cpp_bindings_sys::bindings::mtmd_context>,
+    context: NonNull<llama_cpp_bindings_sys::bindings::mtmd_context>,
 }
 
 unsafe impl Send for MtmdContext {}
@@ -94,7 +94,7 @@ impl MtmdContext {
     /// or when llama.cpp fails to load the projector.
     pub fn init_from_file(
         mmproj_path: &str,
-        LlamaModel { model, .. }: &LlamaModel,
+        model: &LlamaModel,
         params: &MtmdContextParams,
     ) -> Result<Self, MtmdError> {
         let path_cstr = CString::new(mmproj_path).map_err(MtmdError::MmprojPathContainsNul)?;
@@ -119,7 +119,12 @@ impl MtmdContext {
     }
 
     #[must_use]
-    pub fn capabilities(&self, LlamaModel { model, .. }: &LlamaModel) -> BitFlags<MtmdCapability> {
+    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::bindings::mtmd_context {
+        self.context.as_ptr()
+    }
+
+    #[must_use]
+    pub fn capabilities(&self, model: &LlamaModel) -> BitFlags<MtmdCapability> {
         capability_flags(unsafe {
             llama_cpp_bindings_sys::bindings::mtmd_helper_get_capabilities(
                 model.as_ptr(),

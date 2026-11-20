@@ -818,7 +818,7 @@ impl LlamaSampler {
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_sampler_sample(
                 self.sampler.as_ptr(),
-                ctx.context.as_ptr(),
+                ctx.as_ptr(),
                 idx,
                 &raw mut token,
                 &raw mut error_ptr,

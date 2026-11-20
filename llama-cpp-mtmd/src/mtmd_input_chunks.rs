@@ -165,7 +165,7 @@ impl MtmdInputChunks {
     /// Returns an [`MtmdError`] when the chunk list cannot be created, the text holds a nul byte,
     /// or llama.cpp fails to tokenize the text and bitmaps.
     pub fn tokenize(
-        MtmdContext { context, .. }: &MtmdContext,
+        mtmd_context: &MtmdContext,
         MtmdInputText {
             text,
             add_special,
@@ -186,7 +186,7 @@ impl MtmdInputChunks {
 
         let bitmap_ptrs: Vec<*const llama_cpp_bindings_sys::bindings::mtmd_bitmap> = bitmaps
             .iter()
-            .map(|MtmdBitmap { bitmap, .. }| bitmap.as_ptr().cast_const())
+            .map(|bitmap| bitmap.as_ptr().cast_const())
             .collect();
 
         let mut out_undocumented_return_code: i32 = 0;
@@ -194,7 +194,7 @@ impl MtmdInputChunks {
 
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize(
-                context.as_ptr(),
+                mtmd_context.as_ptr(),
                 chunks.chunks.as_ptr(),
                 &raw const input_text,
                 bitmap_ptrs.as_ptr(),
@@ -213,7 +213,7 @@ impl MtmdInputChunks {
     /// Returns an [`MtmdError`] when the chunk list cannot be created, a text part holds a nul
     /// byte, or llama.cpp fails to tokenize the parts.
     pub fn tokenize_from_parts(
-        MtmdContext { context, .. }: &MtmdContext,
+        mtmd_context: &MtmdContext,
         parts: &[MtmdInputPart<'_>],
         add_special: bool,
     ) -> Result<Self, MtmdError> {
@@ -237,7 +237,7 @@ impl MtmdInputChunks {
 
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_mtmd_tokenize_from_parts(
-                context.as_ptr(),
+                mtmd_context.as_ptr(),
                 chunks.chunks.as_ptr(),
                 ffi_part_pointers.as_ptr(),
                 ffi_part_pointers.len(),

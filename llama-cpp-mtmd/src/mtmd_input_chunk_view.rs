@@ -153,10 +153,10 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
     }
 
     #[must_use]
-    pub fn decode_use_non_causal(self, MtmdContext { context, .. }: &MtmdContext) -> bool {
+    pub fn decode_use_non_causal(self, mtmd_context: &MtmdContext) -> bool {
         unsafe {
             llama_cpp_bindings_sys::bindings::mtmd_decode_use_non_causal(
-                context.as_ptr(),
+                mtmd_context.as_ptr(),
                 self.chunk.as_ptr(),
             )
         }
@@ -165,13 +165,13 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
     /// # Errors
     ///
     /// Returns an [`MtmdError`] when llama.cpp fails to encode the chunk.
-    pub fn encode(self, MtmdContext { context, .. }: &MtmdContext) -> Result<(), MtmdError> {
+    pub fn encode(self, mtmd_context: &MtmdContext) -> Result<(), MtmdError> {
         let mut out_llama_cpp_return_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_mtmd_encode_chunk(
-                context.as_ptr(),
+                mtmd_context.as_ptr(),
                 self.chunk.as_ptr(),
                 &raw mut out_llama_cpp_return_code,
                 &raw mut out_error,
@@ -189,10 +189,7 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
     /// Returns an [`MtmdError`] when llama.cpp fails to encode or decode the chunk.
     pub fn eval(
         self,
-        MtmdContext {
-            context: mtmd_context,
-            ..
-        }: &MtmdContext,
+        mtmd_context: &MtmdContext,
         llama_ctx: &mut LlamaContext,
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
         seq_id: llama_cpp_bindings_sys::bindings::llama_seq_id,
@@ -206,7 +203,7 @@ impl<'chunks> MtmdInputChunkView<'chunks> {
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_mtmd_eval_chunk_single(
                 mtmd_context.as_ptr(),
-                llama_ctx.context.as_ptr(),
+                llama_ctx.as_ptr(),
                 self.chunk.as_ptr(),
                 start_position,
                 seq_id,

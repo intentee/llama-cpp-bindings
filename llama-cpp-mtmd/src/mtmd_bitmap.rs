@@ -147,7 +147,7 @@ const RGB_BYTES_PER_PIXEL: u64 = 3;
 /// Owns the bitmap and frees it on drop, so it cannot be cloned.
 #[derive(Debug)]
 pub struct MtmdBitmap {
-    pub bitmap: NonNull<llama_cpp_bindings_sys::bindings::mtmd_bitmap>,
+    bitmap: NonNull<llama_cpp_bindings_sys::bindings::mtmd_bitmap>,
 }
 
 unsafe impl Send for MtmdBitmap {}
@@ -175,16 +175,13 @@ impl MtmdBitmap {
     /// # Errors
     ///
     /// Returns an [`MtmdError`] when llama.cpp fails to decode the buffer into a bitmap.
-    pub fn from_buffer(
-        MtmdContext { context, .. }: &MtmdContext,
-        data: &[u8],
-    ) -> Result<Self, MtmdError> {
+    pub fn from_buffer(mtmd_context: &MtmdContext, data: &[u8]) -> Result<Self, MtmdError> {
         let mut out_bitmap: *mut llama_cpp_bindings_sys::bindings::mtmd_bitmap = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_mtmd_bitmap_init_from_buf(
-                context.as_ptr(),
+                mtmd_context.as_ptr(),
                 data.as_ptr(),
                 data.len(),
                 &raw mut out_bitmap,
@@ -199,17 +196,14 @@ impl MtmdBitmap {
     ///
     /// Returns an [`MtmdError`] when the path cannot be passed to llama.cpp, or when llama.cpp
     /// fails to read the file into a bitmap.
-    pub fn from_file(
-        MtmdContext { context, .. }: &MtmdContext,
-        path: &str,
-    ) -> Result<Self, MtmdError> {
+    pub fn from_file(mtmd_context: &MtmdContext, path: &str) -> Result<Self, MtmdError> {
         let path_cstr = CString::new(path).map_err(MtmdError::BitmapPathContainsNul)?;
         let mut out_bitmap: *mut llama_cpp_bindings_sys::bindings::mtmd_bitmap = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();
 
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_mtmd_bitmap_init_from_file(
-                context.as_ptr(),
+                mtmd_context.as_ptr(),
                 path_cstr.as_ptr(),
                 &raw mut out_bitmap,
                 &raw mut out_error,
@@ -254,6 +248,11 @@ impl MtmdBitmap {
         };
 
         unsafe { bitmap_init_status_to_result(status, out_bitmap, out_error) }
+    }
+
+    #[must_use]
+    pub const fn as_ptr(&self) -> *mut llama_cpp_bindings_sys::bindings::mtmd_bitmap {
+        self.bitmap.as_ptr()
     }
 
     /// The bitmap's bytes, or none for a placeholder bitmap, whose data mtmd reports as null.

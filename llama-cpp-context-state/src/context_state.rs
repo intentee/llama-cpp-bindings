@@ -194,7 +194,7 @@ impl ContextState for LlamaContext<'_> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_state_get_data(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 dest.as_mut_ptr(),
                 dest.len(),
                 &raw mut byte_count,
@@ -208,7 +208,7 @@ impl ContextState for LlamaContext<'_> {
     }
 
     fn state_get_size(&self) -> usize {
-        unsafe { llama_cpp_bindings_sys::bindings::llama_state_get_size(self.context.as_ptr()) }
+        unsafe { llama_cpp_bindings_sys::bindings::llama_state_get_size(self.as_ptr()) }
     }
 
     fn state_load_file(
@@ -227,7 +227,7 @@ impl ContextState for LlamaContext<'_> {
 
         let success = unsafe {
             llama_cpp_bindings_sys::bindings::llama_state_load_file(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 cstr.as_ptr(),
                 tokens_out,
                 max_tokens,
@@ -247,7 +247,7 @@ impl ContextState for LlamaContext<'_> {
 
         if unsafe {
             llama_cpp_bindings_sys::bindings::llama_state_save_file(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 cstr.as_ptr(),
                 tokens
                     .as_ptr()
@@ -271,7 +271,7 @@ impl ContextState for LlamaContext<'_> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_state_seq_get_data(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 dest.as_mut_ptr(),
                 dest.len(),
                 seq_id,
@@ -294,7 +294,7 @@ impl ContextState for LlamaContext<'_> {
     fn state_seq_get_size_ext(&self, seq_id: i32, flags: BitFlags<LlamaStateSeqFlag>) -> usize {
         unsafe {
             llama_cpp_bindings_sys::bindings::llama_state_seq_get_size_ext(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 seq_id,
                 flags.bits(),
             )
@@ -318,7 +318,7 @@ impl ContextState for LlamaContext<'_> {
 
         let bytes_read = unsafe {
             llama_cpp_bindings_sys::bindings::llama_state_seq_load_file(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 cstr.as_ptr(),
                 dest_seq_id,
                 tokens_out,
@@ -341,7 +341,7 @@ impl ContextState for LlamaContext<'_> {
 
         let bytes_written = unsafe {
             llama_cpp_bindings_sys::bindings::llama_state_seq_save_file(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 cstr.as_ptr(),
                 seq_id,
                 tokens
@@ -368,7 +368,7 @@ impl ContextState for LlamaContext<'_> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_state_seq_set_data(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 src.as_ptr(),
                 src.len(),
                 dest_seq_id,
@@ -394,7 +394,7 @@ impl ContextState for LlamaContext<'_> {
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_state_set_data(
-                self.context.as_ptr(),
+                self.as_ptr(),
                 src.as_ptr(),
                 src.len(),
                 &raw mut byte_count,
