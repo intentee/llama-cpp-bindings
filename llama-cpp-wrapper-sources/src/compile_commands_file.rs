@@ -108,15 +108,12 @@ mod tests {
         let commands = database_for("/unused").commands();
 
         assert_eq!(
-            commands
-                .first()
-                .map(|command| command
-                    .arguments
-                    .iter()
-                    .filter(|argument| argument.starts_with("-I"))
-                    .cloned()
-                    .collect::<Vec<String>>())
-                .unwrap_or_default(),
+            commands.first().map_or_default(|command| command
+                .arguments
+                .iter()
+                .filter(|argument| argument.starts_with("-I"))
+                .cloned()
+                .collect::<Vec<String>>()),
             WRAPPER_INCLUDE_DIRS
                 .iter()
                 .map(|include_dir| {
@@ -157,15 +154,12 @@ mod tests {
         let commands = database_for("/unused").commands();
 
         assert_eq!(
-            commands
-                .first()
-                .map(|command| command
-                    .arguments
-                    .iter()
-                    .take(3)
-                    .cloned()
-                    .collect::<Vec<String>>())
-                .unwrap_or_default(),
+            commands.first().map_or_default(|command| command
+                .arguments
+                .iter()
+                .take(3)
+                .cloned()
+                .collect::<Vec<String>>()),
             vec![
                 "c++".to_owned(),
                 "-std=c++17".to_owned(),

@@ -53,6 +53,7 @@ fn feed_prompt_to_batch_increments_pending_prompt_tokens(
         micro_batch: 8,
         max_sequences: 1,
         vocabulary_size: model.n_vocab(),
+        sliding_window: 0,
     });
 
     classifier.feed_prompt_to_batch(
@@ -117,6 +118,7 @@ fn feed_prompt_sequence_to_batch_stages_all_tokens(
         micro_batch: 8,
         max_sequences: 1,
         vocabulary_size: model.n_vocab(),
+        sliding_window: 0,
     });
 
     let tokens = vec![
@@ -173,6 +175,7 @@ fn commit_prompt_tokens_promotes_pending_count_to_usage_and_clears(
         micro_batch: 8,
         max_sequences: 1,
         vocabulary_size: model.n_vocab(),
+        sliding_window: 0,
     });
 
     classifier.feed_prompt_to_batch(
@@ -240,6 +243,7 @@ fn discard_pending_prompt_tokens_clears_count_without_recording_usage(
         micro_batch: 8,
         max_sequences: 1,
         vocabulary_size: model.n_vocab(),
+        sliding_window: 0,
     });
 
     classifier.feed_prompt_to_batch(
@@ -302,6 +306,7 @@ fn a_prompt_token_refused_by_a_full_batch_is_not_counted(
         micro_batch: 0,
         max_sequences: 1,
         vocabulary_size: model.n_vocab(),
+        sliding_window: 0,
     });
 
     assert_eq!(
@@ -330,6 +335,7 @@ fn a_prompt_sequence_refused_by_a_full_batch_is_not_counted(
         micro_batch: 0,
         max_sequences: 1,
         vocabulary_size: model.n_vocab(),
+        sliding_window: 0,
     });
 
     assert_eq!(

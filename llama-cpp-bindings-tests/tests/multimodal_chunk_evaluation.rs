@@ -77,18 +77,10 @@ const EVALUATED_IMAGE_DIMENSIONS: [ImageDimensions; 10] = [
     },
 ];
 
-fn eval_synthetic_bitmap(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        mtmd_context,
-        ..
-    }: &LlamaFixture<'_>,
-    width: u32,
-    height: u32,
-) -> Result<()> {
-    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
+fn eval_synthetic_bitmap(fixture: &LlamaFixture<'_>, width: u32, height: u32) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .context("mmproj_file declared in attribute")?;
     let image_data =
         vec![
             128u8;
@@ -111,21 +103,17 @@ fn eval_synthetic_bitmap(
             .checked_add(256)
             .context("`n_positions + 256` must not overflow")?,
     )?;
-    if context_params.n_ctx < required_n_ctx {
+    if fixture.context_params.n_ctx < required_n_ctx {
         bail!(
             "fixture n_ctx ({}) below required ({}) for {}x{} image",
-            context_params.n_ctx,
+            fixture.context_params.n_ctx,
             required_n_ctx,
             width,
             height,
         );
     }
 
-    let mut llama_ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
 
     ensure!(
@@ -184,20 +172,12 @@ fn tokenize_question_about_llamas<'context>(
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn eval_chunks_refuses_a_batch_larger_than_the_context_batch(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        mtmd_context,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
-    let mut llama_ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .context("mmproj_file declared in attribute")?;
+    let mut llama_ctx = fixture.build_context()?;
 
     let chunks = MtmdInputChunks::new(mtmd_ctx)?;
     let huge_batch = i32::try_from(
@@ -330,19 +310,21 @@ fn eval_chunks_refuses_chunks_whose_positions_overflow_before_evaluating(
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
     let first_chunk = chunks.get(0).context("tokenization produced no chunks")?;
     let second_chunk = chunks.get(1).context("the image follows the first chunk")?;
-    let start_position = i32::MAX
-        .checked_sub(first_chunk.n_positions())
-        .context("`i32::MAX - first_chunk.n_positions()` must not overflow")?;
     let mut llama_ctx = fixture.build_context()?;
+    let max_position = llama_ctx.limits().max_position();
+    let start_position = max_position
+        .checked_sub(first_chunk.n_positions())
+        .context("`max_position - first_chunk.n_positions()` must not overflow")?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
 
-    ensure!(first_chunk.position_after(start_position) == Ok(i32::MAX));
+    ensure!(first_chunk.position_after(&llama_ctx, start_position) == Ok(max_position));
     ensure!(
         chunks.eval_chunks(&mut llama_ctx, start_position, 0, n_batch, true)
             == Err(MtmdError::ChunkPositionsOverflow {
-                start_position: i32::MAX,
+                start_position: max_position,
                 n_tokens: second_chunk.n_tokens(),
                 n_positions: second_chunk.n_positions(),
+                max_position,
             })
     );
     ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
@@ -439,11 +421,7 @@ fn eval_each_yields_nothing_after_the_first_chunk_that_fails(
 )]
 fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
-    let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
 
     ensure!(
         chunks.eval_chunks(&mut llama_ctx, 0, 0, 0, true)
@@ -472,21 +450,11 @@ fn eval_chunks_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn fitting_no_chunks_leaves_nothing_to_evaluate(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        mtmd_context,
-        ..
-    }: &LlamaFixture<'_>,
-) -> Result<()> {
-    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
-    let llama_ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+fn fitting_no_chunks_leaves_nothing_to_evaluate(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .context("mmproj_file declared in attribute")?;
+    let llama_ctx = fixture.build_context()?;
     let chunks = MtmdInputChunks::new(mtmd_ctx)?;
     let fitted_chunks = chunks.fit_in(&llama_ctx, i32::try_from(llama_ctx.n_batch())?, 0)?;
 
@@ -514,11 +482,7 @@ fn fitting_no_chunks_leaves_nothing_to_evaluate(
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn eval_single_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
     let fitted_chunks = chunks.fit_in(&llama_ctx, i32::try_from(llama_ctx.n_batch())?, 0)?;
     let first_chunk = fitted_chunks
@@ -654,11 +618,7 @@ fn eval_chunks_rejects_a_context_created_for_another_model_before_evaluating(
 fn eval_single_rejects_a_micro_batch_smaller_than_the_fitted_one_before_evaluating(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
     let fitted_micro_batch_tokens = llama_ctx.n_ubatch();
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
     let fitted_chunks = chunks.fit_in(&llama_ctx, i32::try_from(llama_ctx.n_batch())?, 0)?;
@@ -730,6 +690,7 @@ fn chunk_eval_refuses_a_chunk_whose_positions_overflow_before_evaluating(
                 start_position: i32::MAX,
                 n_tokens: first_chunk.n_tokens(),
                 n_positions: first_chunk.n_positions(),
+                max_position: llama_ctx.limits().max_position(),
             })
     );
     ensure!(llama_ctx.memory_seq_pos_max(0)? == -1);
@@ -780,11 +741,7 @@ fn chunk_eval_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
 )]
 fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>) -> Result<()> {
     let chunks = tokenize_prompt_with_synthetic_image(fixture, "Describe: <__media__>")?;
-    let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
     let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
 
     ensure!(matches!(
@@ -827,15 +784,11 @@ fn classifier_rejects_a_zero_batch_before_evaluating(fixture: &LlamaFixture<'_>)
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
 fn eval_chunks_advances_past_every_position_of_a_standard_image(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        mtmd_context,
-        ..
-    }: &LlamaFixture<'_>,
+    fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
+    let mtmd_ctx = fixture
+        .mtmd_context
+        .context("mmproj_file declared in attribute")?;
 
     let fixtures = fixtures_dir();
     let image_path = fixtures.join("llamas.jpg");
@@ -856,17 +809,13 @@ fn eval_chunks_advances_past_every_position_of_a_standard_image(
             .context("`n_positions + 256` must not overflow")?,
     )?;
     ensure!(
-        context_params.n_ctx >= required_n_ctx,
+        fixture.context_params.n_ctx >= required_n_ctx,
         "fixture n_ctx ({}) below required ({}); update the attribute literal",
-        context_params.n_ctx,
+        fixture.context_params.n_ctx,
         required_n_ctx,
     );
 
-    let mut llama_ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
 
     ensure!(chunks.eval_chunks(&mut llama_ctx, 0, 0, n_batch, false) == Ok(n_positions));
@@ -967,11 +916,7 @@ fn gemma3_eval_chunks_rejects_a_non_causal_image_larger_than_the_micro_batch_bef
         .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let image_tokens = ChunkTokenBreakdown::from_chunks(&chunks)?.image;
-    let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
 
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
     let micro_batch_tokens = llama_ctx.n_ubatch();
@@ -1050,11 +995,7 @@ fn gemma3_fitting_rejects_a_non_causal_image_larger_than_the_micro_batch(
         .into_iter()
         .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
         .context("the prompt must contain an image chunk")?;
-    let llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let llama_ctx = fixture.build_context()?;
     let batch_tokens =
         NonZeroU32::new(llama_ctx.n_batch()).context("the context batch must be positive")?;
 
@@ -1087,11 +1028,7 @@ fn gemma3_classifier_leaves_the_prompt_untouched_when_a_non_causal_image_exceeds
         .mtmd_context
         .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
-    let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
     let mut classifier = SampledTokenClassifier::undeterminable(fixture.model);
 
     let n_batch = i32::try_from(llama_ctx.n_batch())?;
@@ -1138,11 +1075,7 @@ fn classifier_reports_an_image_the_context_has_no_room_left_for(
         .context("mmproj_file declared in attribute")?;
     let chunks = tokenize_question_about_llamas(fixture, mtmd_ctx)?;
     let breakdown = ChunkTokenBreakdown::from_chunks(&chunks)?;
-    let mut llama_ctx = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut llama_ctx = fixture.build_context()?;
 
     prime_memory_with(fixture, &mut llama_ctx, &"hello ".repeat(230))?;
 

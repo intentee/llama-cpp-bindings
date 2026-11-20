@@ -6,7 +6,6 @@ use llama_cpp_bindings_tests::non_causal_context::non_causal_context;
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context::context_limits::ContextLimits;
 use llama_cpp_context::llama_batch::LlamaBatch;
-use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
 use llama_cpp_model::add_bos::AddBos;
@@ -24,19 +23,8 @@ use llama_cpp_test_harness_macros::llama_test;
     n_batch = 2048,
     n_ubatch = 512,
 )]
-fn decoding_an_empty_batch_is_refused_as_invalid(
-    &LlamaFixture {
-        model,
-        backend,
-        context_params,
-        ..
-    }: &LlamaFixture<'_>,
-) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*context_params).into_llama_context_params(),
-    )?;
+fn decoding_an_empty_batch_is_refused_as_invalid(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let mut context = fixture.build_context()?;
     let batch = LlamaBatch::new(context.limits());
 
     ensure!(context.decode(&batch) == Err(ContextError::DecodeBatchInvalid));

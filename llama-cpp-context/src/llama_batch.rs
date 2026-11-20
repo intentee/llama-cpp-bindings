@@ -94,8 +94,9 @@ impl LlamaBatch {
     /// # Errors
     ///
     /// Returns [`ContextError`] when the batch already holds as many tokens as one decode of the
-    /// context takes, the token is outside the vocabulary, `pos` is negative, `seq_ids` is empty
-    /// or names a sequence the context does not have, or the token count would overflow.
+    /// context takes, the token is outside the vocabulary, `pos` is negative or above
+    /// [`ContextLimits::max_position`], `seq_ids` is empty or names a sequence the context does
+    /// not have, or the token count would overflow.
     pub fn add(
         &mut self,
         sampled_token: SampledToken,
@@ -120,6 +121,12 @@ impl LlamaBatch {
 
         if pos < 0 {
             return Err(ContextError::TokenPositionNegative { pos });
+        }
+
+        let max_position = self.limits.max_position();
+
+        if pos > max_position {
+            return Err(ContextError::TokenPositionAboveMax { pos, max_position });
         }
 
         if seq_ids.is_empty() {
@@ -286,6 +293,7 @@ mod tests {
         micro_batch: 4,
         max_sequences: 2,
         vocabulary_size: 100,
+        sliding_window: 0,
     };
 
     fn content(token_id: i32) -> SampledToken {
@@ -442,6 +450,27 @@ mod tests {
         assert_eq!(
             batch.add(content(1), -1, &[0], false),
             Err(ContextError::TokenPositionNegative { pos: -1 })
+        );
+        assert_eq!(batch, LlamaBatch::new(LIMITS));
+    }
+
+    #[test]
+    fn a_token_at_the_max_position_is_accepted() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        assert_eq!(batch.add(content(1), i32::MAX - 32, &[0], false), Ok(()));
+    }
+
+    #[test]
+    fn a_token_past_the_max_position_is_refused_and_not_added() {
+        let mut batch = LlamaBatch::new(LIMITS);
+
+        assert_eq!(
+            batch.add(content(1), i32::MAX - 31, &[0], false),
+            Err(ContextError::TokenPositionAboveMax {
+                pos: i32::MAX - 31,
+                max_position: i32::MAX - 32,
+            })
         );
         assert_eq!(batch, LlamaBatch::new(LIMITS));
     }

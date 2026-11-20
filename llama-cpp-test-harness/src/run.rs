@@ -13,7 +13,6 @@ fn aggregate_exit_code(conclusions: &[Conclusion]) -> ExitCode {
     }
 }
 
-#[must_use]
 pub fn run() -> ExitCode {
     match run_to_conclusions(Arguments::from_args()) {
         Ok(conclusions) => aggregate_exit_code(&conclusions),

@@ -4,6 +4,8 @@ TEST_DEVICE ?=
 
 DEVICE_FEATURE = $(if $(TEST_DEVICE),--features $(TEST_DEVICE),)
 
+CARGO_HOME ?= $(HOME)/.cargo
+
 CLANG_TIDY ?= clang-tidy
 
 COMPILE_COMMANDS = target/compile_commands.json
@@ -13,6 +15,10 @@ CPPCHECK = lint-tools/cppcheck-src/cppcheck
 CPPCHECK_COMMIT = f726f98ed2c3277780ee133ec5338f6352d7b43b
 
 CPPCHECK_SOURCE = https://github.com/danmar/cppcheck.git
+
+HEISENBERG_CONFIGURATION = x86_64-unknown-linux-gnu
+
+RUST_SYSROOT = $(shell rustc --print sysroot)
 
 WRAPPER_SOURCES_RESPONSE_FILE = target/wrapper_sources.rsp
 
@@ -42,13 +48,6 @@ $(CPPCHECK): lint-tools/cppcheck-src/Makefile
 	$(MAKE) --directory=lint-tools/cppcheck-src cppcheck \
 		FILESDIR=$(CURDIR)/lint-tools/cppcheck-src
 
-node_modules: package-lock.json
-	npm ci
-	touch node_modules
-
-package-lock.json: package.json
-	npm install --package-lock-only
-
 $(COMPILE_COMMANDS): $(WRAPPER_SOURCES_CRATE_FILES)
 	$(EMIT_WRAPPER_BUILD_INPUTS)
 
@@ -64,42 +63,18 @@ clippy:
 	cargo clippy --workspace --all-targets $(DEVICE_FEATURE) -- -D warnings
 
 .PHONY: coverage
-coverage: node_modules
+coverage:
 	cargo llvm-cov clean --workspace
 	cargo llvm-cov --no-report --no-fail-fast --workspace $(DEVICE_FEATURE)
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
-	./node_modules/.bin/rust-coverage-check target/llvm-cov.json \
-		--workspace-root $(CURDIR) \
-		--gated llama-cpp-backend=100 \
-		--gated llama-cpp-backend-tests=100 \
-		--gated llama-cpp-bindings=100 \
-		--gated llama-cpp-bindings-build=100 \
-		--gated llama-cpp-bindings-sys=100 \
-		--gated llama-cpp-bindings-tests=100 \
-		--gated llama-cpp-bindings-types=100 \
-		--gated llama-cpp-capturing-logger=100 \
-		--gated llama-cpp-chat=100 \
-		--gated llama-cpp-context=100 \
-		--gated llama-cpp-context-memory=100 \
-		--gated llama-cpp-context-state=100 \
-		--gated llama-cpp-error-chain=100 \
-		--gated llama-cpp-error-recorder=100 \
-		--gated llama-cpp-fault-injection=100 \
-		--gated llama-cpp-gbnf=100 \
-		--gated llama-cpp-gguf=100 \
-		--gated llama-cpp-log-decoder=100 \
-		--gated llama-cpp-model=100 \
-		--gated llama-cpp-mtmd=100 \
-		--gated llama-cpp-params=100 \
-		--gated llama-cpp-path-c-string=100 \
-		--gated llama-cpp-sampler=100 \
-		--gated llama-cpp-test-harness=100 \
-		--gated llama-cpp-test-harness-macros=100 \
-		--gated llama-cpp-test-model-provisioning=100 \
-		--gated llama-cpp-token-usage=100 \
-		--gated llama-cpp-wrapper-sources=100
+	heisenberg coverage-check \
+		--workspace $(CURDIR) \
+		--cargo-home $(CARGO_HOME) \
+		--sysroot $(RUST_SYSROOT) \
+		--coverage-export $(CURDIR)/target/llvm-cov.json \
+		--configuration $(HEISENBERG_CONFIGURATION)
 
 .PHONY: coverage-clean
 coverage-clean:

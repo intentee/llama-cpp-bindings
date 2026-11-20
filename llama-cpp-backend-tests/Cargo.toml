@@ -12,10 +12,12 @@ autotests = false
 doctest = false
 
 [dependencies]
-llama-cpp-backend = { workspace = true, default-features = true }
 llama-cpp-bindings-sys = { workspace = true }
-llama-cpp-capturing-logger = { workspace = true }
 log = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-backend = { workspace = true, default-features = true }
+llama-cpp-capturing-logger = { workspace = true }
 serial_test = { workspace = true }
 
 [[test]]

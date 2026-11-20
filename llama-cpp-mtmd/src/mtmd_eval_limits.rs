@@ -69,6 +69,7 @@ mod tests {
             micro_batch: 128,
             max_sequences: 2,
             vocabulary_size: 100,
+            sliding_window: 0,
         },
     };
 

@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
 
+use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_bindings_tests::two_sequence_context::two_sequence_context;
 use llama_cpp_context_memory::context_memory::ContextMemory;
 use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
@@ -400,6 +401,36 @@ fn memory_seq_div_rejects_p1_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Re
                     .context("u32::MAX does not fit into i32")?
             )
     );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 512,
+    n_ubatch = 128,
+)]
+fn memory_seq_add_refuses_a_shift_past_the_max_position_and_leaves_memory_untouched(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+
+    prime_memory(fixture, &mut context)?;
+
+    let primed_position_max = context.memory_seq_pos_max(0)?;
+
+    ensure!(
+        context.memory_seq_add(0, None, None, i32::MAX)
+            == Err(ContextMemoryError::SeqAddShiftsPositionPastMax {
+                highest_position: primed_position_max,
+                delta: i32::MAX,
+                max_position: context.limits().max_position(),
+            })
+    );
+    ensure!(context.memory_seq_pos_max(0)? == primed_position_max);
 
     Ok(())
 }

@@ -266,6 +266,10 @@ impl<'model> LlamaContext<'model> {
                     llama_cpp_bindings_sys::bindings::llama_n_seq_max(context.as_ptr())
                 },
                 vocabulary_size: model.n_vocab(),
+                sliding_window: unsafe {
+                    llama_cpp_bindings_sys::bindings::llama_model_n_swa(model.as_ptr())
+                }
+                .cast_unsigned(),
             },
             keeps_no_memory,
             embeddings,

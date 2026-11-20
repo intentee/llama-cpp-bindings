@@ -68,28 +68,31 @@ fn position_after_chunk(
     start_position: llama_cpp_bindings_sys::bindings::llama_pos,
     n_tokens: usize,
     n_positions: llama_cpp_bindings_sys::bindings::llama_pos,
+    max_position: llama_cpp_bindings_sys::bindings::llama_pos,
 ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
     if start_position < 0 {
         return Err(MtmdError::ChunkStartPositionNegative { start_position });
     }
 
-    let positions_overflow = || MtmdError::ChunkPositionsOverflow {
-        start_position,
-        n_tokens,
-        n_positions,
+    let end_within_max_position = |count: llama_cpp_bindings_sys::bindings::llama_pos| {
+        start_position
+            .checked_add(count)
+            .filter(|end_position| *end_position <= max_position)
     };
-    let tokens_overflow = i32::try_from(n_tokens)
+
+    let tokens_end = i32::try_from(n_tokens)
         .ok()
-        .and_then(|tokens| start_position.checked_add(tokens))
-        .is_none();
+        .and_then(end_within_max_position);
+    let positions_end = end_within_max_position(n_positions);
 
-    if tokens_overflow {
-        return Err(positions_overflow());
-    }
-
-    start_position
-        .checked_add(n_positions)
-        .ok_or_else(positions_overflow)
+    tokens_end
+        .and(positions_end)
+        .ok_or(MtmdError::ChunkPositionsOverflow {
+            start_position,
+            n_tokens,
+            n_positions,
+            max_position,
+        })
 }
 
 /// # Safety
@@ -322,19 +325,27 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
         }
     }
 
-    /// The position after this chunk once it is evaluated from `start_position`, checked so that
-    /// every position llama.cpp computes while evaluating the chunk is a valid one.
+    /// The position after this chunk once it is evaluated into `llama_ctx` from `start_position`,
+    /// checked so that every position the mtmd helper gives the chunk's tokens, and the position
+    /// after them, is at most the largest position the [`LlamaContext::limits`] of `llama_ctx`
+    /// allow.
     ///
     /// # Errors
     ///
     /// Returns [`MtmdError::ChunkStartPositionNegative`] when `start_position` is negative, or
     /// [`MtmdError::ChunkPositionsOverflow`] when `start_position` plus the chunk's tokens or
-    /// positions does not fit a `llama_pos`.
+    /// positions runs past that largest position.
     pub fn position_after(
         self,
+        llama_ctx: &LlamaContext,
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
     ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
-        position_after_chunk(start_position, self.n_tokens(), self.n_positions())
+        position_after_chunk(
+            start_position,
+            self.n_tokens(),
+            self.n_positions(),
+            llama_ctx.limits().max_position(),
+        )
     }
 
     #[must_use]
@@ -385,7 +396,7 @@ impl<'chunks, 'context> MtmdInputChunkView<'chunks, 'context> {
         n_batch: i32,
         logits_last: bool,
     ) -> Result<llama_cpp_bindings_sys::bindings::llama_pos, MtmdError> {
-        self.position_after(start_position)?;
+        self.position_after(llama_ctx, start_position)?;
 
         let mut final_position: llama_cpp_bindings_sys::bindings::llama_pos = start_position;
         let mut out_llama_cpp_return_code: i32 = 0;
@@ -498,38 +509,53 @@ mod tests {
     }
 
     #[test]
-    fn a_chunk_whose_tokens_end_at_the_last_position_advances_past_its_positions() {
-        assert_eq!(position_after_chunk(i32::MAX - 4, 4, 2), Ok(i32::MAX - 2));
+    fn a_chunk_whose_tokens_end_at_the_max_position_advances_past_its_positions() {
+        assert_eq!(position_after_chunk(96, 4, 2, 100), Ok(98));
     }
 
     #[test]
     fn a_chunk_evaluated_from_a_negative_position_is_refused() {
         assert_eq!(
-            position_after_chunk(-1, 1, 1),
+            position_after_chunk(-1, 1, 1, 100),
             Err(MtmdError::ChunkStartPositionNegative { start_position: -1 })
         );
     }
 
     #[test]
-    fn a_chunk_whose_tokens_run_past_the_last_position_overflows() {
+    fn a_chunk_whose_tokens_run_past_the_max_position_overflows() {
         assert_eq!(
-            position_after_chunk(i32::MAX - 3, 4, 1),
+            position_after_chunk(97, 4, 1, 100),
             Err(MtmdError::ChunkPositionsOverflow {
-                start_position: i32::MAX - 3,
+                start_position: 97,
                 n_tokens: 4,
                 n_positions: 1,
+                max_position: 100,
             })
         );
     }
 
     #[test]
-    fn a_chunk_whose_positions_run_past_the_last_position_overflows() {
+    fn a_chunk_whose_positions_run_past_the_max_position_overflows() {
         assert_eq!(
-            position_after_chunk(i32::MAX - 3, 1, 4),
+            position_after_chunk(97, 1, 4, 100),
             Err(MtmdError::ChunkPositionsOverflow {
-                start_position: i32::MAX - 3,
+                start_position: 97,
                 n_tokens: 1,
                 n_positions: 4,
+                max_position: 100,
+            })
+        );
+    }
+
+    #[test]
+    fn a_chunk_whose_end_does_not_fit_a_position_overflows() {
+        assert_eq!(
+            position_after_chunk(i32::MAX, 1, 1, 100),
+            Err(MtmdError::ChunkPositionsOverflow {
+                start_position: i32::MAX,
+                n_tokens: 1,
+                n_positions: 1,
+                max_position: 100,
             })
         );
     }

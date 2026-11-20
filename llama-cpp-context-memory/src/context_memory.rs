@@ -16,6 +16,23 @@ fn open_ended_position(position: Option<u32>) -> Result<i32, TryFromIntError> {
     position.map_or(Ok(-1), i32::try_from)
 }
 
+fn highest_shifted_position(start: i32, end: i32, sequence_max: i32) -> Option<i32> {
+    let highest_in_range = if end < 0 {
+        sequence_max
+    } else {
+        sequence_max.min(end.saturating_sub(1))
+    };
+
+    (highest_in_range >= start.max(0)).then_some(highest_in_range)
+}
+
+const fn shift_passes_max_position(highest_position: i32, delta: i32, max_position: i32) -> bool {
+    match highest_position.checked_add(delta) {
+        Some(shifted_position) => shifted_position > max_position,
+        None => true,
+    }
+}
+
 /// # Safety
 ///
 /// On the `LLAMA_CPP_THREW_CXX_EXCEPTION` status `out_error` must be the non-null message the C++
@@ -209,6 +226,25 @@ impl ContextMemory for LlamaContext<'_> {
             return Err(ContextMemoryError::SeqAddIncompatibleRopeType);
         }
 
+        self.memory()
+            .ok_or(ContextMemoryError::SeqAddMemoryHandleUnavailable)?;
+
+        let sequence_max = self
+            .memory_seq_pos_max(seq_id)
+            .map_err(Box::new)
+            .map_err(ContextMemoryError::SeqAddHighestPositionUnreadable)?;
+        let max_position = limits.max_position();
+
+        if let Some(highest_position) = highest_shifted_position(p0, p1, sequence_max)
+            && shift_passes_max_position(highest_position, delta, max_position)
+        {
+            return Err(ContextMemoryError::SeqAddShiftsPositionPastMax {
+                highest_position,
+                delta,
+                max_position,
+            });
+        }
+
         let mut out_error: *mut c_char = ptr::null_mut();
         let status = unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_add(
@@ -385,10 +421,12 @@ mod tests {
     use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_div_status;
     use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_pos_max_status;
 
+    use super::highest_shifted_position;
     use super::memory_seq_add_status_to_result;
     use super::memory_seq_div_status_to_result;
     use super::memory_seq_pos_max_status_to_result;
     use super::open_ended_position;
+    use super::shift_passes_max_position;
     use crate::context_memory_error::ContextMemoryError;
 
     #[test]
@@ -641,6 +679,43 @@ mod tests {
         assert_eq!(
             outcome.err(),
             Some(ContextMemoryError::SeqPosMaxLlamaCppOutOfMemory)
+        );
+    }
+
+    #[test]
+    fn the_highest_shifted_position_is_the_last_cached_one_inside_the_range() {
+        assert_eq!(
+            [
+                highest_shifted_position(0, -1, 9),
+                highest_shifted_position(0, 5, 9),
+                highest_shifted_position(-1, -1, 9),
+            ],
+            [Some(9), Some(4), Some(9)]
+        );
+    }
+
+    #[test]
+    fn a_range_that_holds_no_cached_position_shifts_nothing() {
+        assert_eq!(
+            [
+                highest_shifted_position(0, -1, -1),
+                highest_shifted_position(10, -1, 9),
+                highest_shifted_position(0, 0, 9),
+            ],
+            [None, None, None]
+        );
+    }
+
+    #[test]
+    fn a_shift_passes_the_max_position_when_it_moves_a_position_beyond_it_or_overflows() {
+        assert_eq!(
+            [
+                shift_passes_max_position(90, 10, 100),
+                shift_passes_max_position(91, 10, 100),
+                shift_passes_max_position(9, i32::MAX, 100),
+                shift_passes_max_position(9, -9, 100),
+            ],
+            [false, true, true, false]
         );
     }
 }

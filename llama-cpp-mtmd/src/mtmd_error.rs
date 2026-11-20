@@ -44,12 +44,13 @@ pub enum MtmdError {
     },
     #[error(
         "a chunk of {n_tokens} tokens over {n_positions} positions, evaluated from position \
-         {start_position}, runs past the last position llama.cpp can hold"
+         {start_position}, runs past {max_position}, the largest position of the llama context"
     )]
     ChunkPositionsOverflow {
         start_position: llama_cpp_bindings_sys::bindings::llama_pos,
         n_tokens: usize,
         n_positions: llama_cpp_bindings_sys::bindings::llama_pos,
+        max_position: llama_cpp_bindings_sys::bindings::llama_pos,
     },
     #[error("a chunk cannot be evaluated from the negative position {start_position}")]
     ChunkStartPositionNegative {

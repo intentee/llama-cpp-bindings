@@ -59,7 +59,7 @@ impl<'chunks, 'context> FittedMtmdInputChunks<'chunks, 'context> {
         self.fitted
             .iter()
             .try_fold(start_position, |position, fitted_chunk| {
-                fitted_chunk.chunk().position_after(position)
+                fitted_chunk.chunk().position_after(llama_ctx, position)
             })?;
 
         let last_chunk_index = self.fitted.len().checked_sub(1);

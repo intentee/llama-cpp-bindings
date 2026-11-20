@@ -160,6 +160,14 @@ pub enum ContextError {
     #[error("token {token} is outside the vocabulary of {n_vocab} tokens")]
     TokenOutsideVocabulary { token: LlamaToken, n_vocab: i32 },
     #[error(
+        "a token cannot be added at position {pos}: llama.cpp overflows the arithmetic it does on \
+         the positions of a context above {max_position}"
+    )]
+    TokenPositionAboveMax {
+        pos: llama_pos,
+        max_position: llama_pos,
+    },
+    #[error(
         "a token cannot be added at the negative position {pos}: llama.cpp marks empty KV cache \
          cells with -1 and holds no other negative position"
     )]

@@ -84,6 +84,8 @@ impl ProjectorSetup {
 mod tests {
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
+    use std::panic;
+    use std::panic::AssertUnwindSafe;
     use std::path::PathBuf;
     use std::ptr;
     use std::sync::Arc;
@@ -91,6 +93,7 @@ mod tests {
     use std::sync::PoisonError;
 
     use llama_cpp_backend::llama_backend::LlamaBackend;
+    use llama_cpp_mtmd::mtmd_context::MtmdContext;
     use llama_cpp_params::llama_load_mode::LlamaLoadMode;
 
     use super::ProjectorSetup;
@@ -116,6 +119,16 @@ mod tests {
     const MISSING_MMPROJ: GgufSource = GgufSource::HuggingFace {
         repo: "intentee-test-harness/does-not-exist",
         file: "no-such-mmproj.gguf",
+    };
+
+    const QWEN_MODEL: GgufSource = GgufSource::HuggingFace {
+        repo: "unsloth/Qwen3.5-0.8B-GGUF",
+        file: "Qwen3.5-0.8B-Q4_K_M.gguf",
+    };
+
+    const QWEN_MMPROJ: GgufSource = GgufSource::HuggingFace {
+        repo: "unsloth/Qwen3.5-0.8B-GGUF",
+        file: "mmproj-F16.gguf",
     };
 
     fn with_phase_setup<TResult, TUse: FnOnce(Arc<PhaseSetup>) -> TResult>(
@@ -225,6 +238,48 @@ mod tests {
                 .expect_err("a projector whose model failed to load must fail to set up");
 
             assert!(ptr::eq(model_load_failure, projector_failure));
+        });
+    }
+
+    #[test]
+    fn a_projector_whose_holder_panicked_is_poisoned_and_still_handed_to_the_next_holder() {
+        with_phase_setup(QWEN_MODEL, |phase_setup| {
+            let projector_setup = ProjectorSetup::new(QWEN_MMPROJ, phase_setup);
+            let mut held_projector: Option<*const MtmdContext> = None;
+
+            panic::catch_unwind(AssertUnwindSafe(|| {
+                let projector_state = projector_setup
+                    .load_projector_state()
+                    .expect("the Qwen3.5 projector must load");
+
+                held_projector = Some(ptr::from_ref(&*projector_state.mtmd_context));
+
+                assert!(
+                    held_projector.is_none(),
+                    "this holder fails on purpose while it holds the projector, so its panic \
+                     poisons the projector lock"
+                );
+            }))
+            .expect_err("the holder must panic while it holds the projector");
+
+            assert!(
+                projector_setup
+                    .mtmd_context
+                    .get()
+                    .expect("the projector was loaded before its holder panicked")
+                    .as_ref()
+                    .expect("the projector loaded")
+                    .is_poisoned()
+            );
+
+            let next_projector_state = projector_setup
+                .load_projector_state()
+                .expect("the next holder must receive the poisoned projector");
+
+            assert_eq!(
+                Some(ptr::from_ref(&*next_projector_state.mtmd_context)),
+                held_projector
+            );
         });
     }
 }

@@ -15,6 +15,8 @@ pub enum ContextMemoryError {
     },
     #[error("provided end position is too large for an i32")]
     SeqAddEndPositionTooLarge(#[source] TryFromIntError),
+    #[error("the highest position of the sequence to shift could not be read")]
+    SeqAddHighestPositionUnreadable(#[source] Box<Self>),
     #[error("model rope type is incompatible with sequence position arithmetic")]
     SeqAddIncompatibleRopeType,
     #[error("the llama.cpp library ran out of memory")]
@@ -27,6 +29,14 @@ pub enum ContextMemoryError {
     SeqAddReported { message: String },
     #[error("sequence id {seq_id} names no sequence of a context with {n_seq_max} sequences")]
     SeqAddSequenceIdOutOfRange { seq_id: i32, n_seq_max: u32 },
+    #[error(
+        "shifting position {highest_position} by {delta} moves it past {max_position}, the highest position llama.cpp can hold in this context"
+    )]
+    SeqAddShiftsPositionPastMax {
+        highest_position: i32,
+        delta: i32,
+        max_position: i32,
+    },
     #[error("provided start position is too large for an i32")]
     SeqAddStartPositionTooLarge(#[source] TryFromIntError),
     #[error(transparent)]
