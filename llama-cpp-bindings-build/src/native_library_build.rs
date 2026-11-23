@@ -96,8 +96,6 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use enumflags2::BitFlags;
-
     use super::NativeLibraryBuild;
     use crate::build_context::BuildContext;
     use crate::build_context::tests::FIXTURES;
@@ -159,7 +157,7 @@ mod tests {
 
     #[test]
     fn llama_cpp_is_built_from_the_package_and_its_directory_is_handed_to_dependents() {
-        let environment = cargo_environment(BitFlags::empty(), &[]);
+        let environment = cargo_environment(&[], &[]);
         let native_library_build =
             NativeLibraryBuild::of(&BuildContext::of_linux_host(&environment), &environment)
                 .unwrap();
@@ -284,17 +282,16 @@ mod tests {
 
     #[test]
     fn a_failure_at_any_planning_stage_is_reported_and_nothing_is_emitted() {
-        let mut without_target = cargo_environment(BitFlags::empty(), &[]);
+        let mut without_target = cargo_environment(&[], &[]);
 
         without_target.variables.remove(OsStr::new("TARGET"));
 
         assert_eq!(
             [
                 without_target.build_failure::<NativeLibraryBuild>(),
-                cargo_environment(BitFlags::from(BuildFeature::SystemGgml), &[])
+                cargo_environment(&[BuildFeature::SystemGgml], &[])
                     .build_failure::<NativeLibraryBuild>(),
-                cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])
-                    .build_failure::<NativeLibraryBuild>(),
+                cargo_environment(&[BuildFeature::Rocm], &[]).build_failure::<NativeLibraryBuild>(),
             ],
             [
                 [

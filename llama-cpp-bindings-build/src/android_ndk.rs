@@ -186,8 +186,6 @@ pub mod tests {
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
 
-    use enumflags2::BitFlags;
-
     use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::AndroidNdk;
@@ -212,10 +210,7 @@ pub mod tests {
     }
 
     fn ndk_at(root: &Path) -> BuildEnvironment {
-        environment_of(
-            BitFlags::empty(),
-            &[variable("ANDROID_NDK_HOME", OsString::from(root))],
-        )
+        environment_of(&[], &[variable("ANDROID_NDK_HOME", OsString::from(root))])
     }
 
     fn detection_failure(
@@ -240,7 +235,7 @@ pub mod tests {
     fn an_installed_ndk_is_detected_with_the_platform_api_level() {
         let detected = AndroidNdk::detect(
             &environment_of(
-                BitFlags::empty(),
+                &[],
                 &[
                     variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
                     variable("ANDROID_PLATFORM", OsString::from("android-30")),
@@ -304,7 +299,7 @@ pub mod tests {
         assert_eq!(
             [
                 api_level_of(&environment_of(
-                    BitFlags::empty(),
+                    &[],
                     &[
                         variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
                         variable("ANDROID_PLATFORM", OsString::from("33")),
@@ -324,7 +319,7 @@ pub mod tests {
         assert_eq!(
             [
                 detection_failure(
-                    &environment_of(BitFlags::empty(), &[]),
+                    &environment_of(&[], &[]),
                     "aarch64",
                     HostOs::Linux
                 ),
@@ -332,7 +327,7 @@ pub mod tests {
                 detection_failure(&ndk_at(fixture_ndk), "riscv64", HostOs::Linux),
                 detection_failure(
                     &environment_of(
-                        BitFlags::empty(),
+                        &[],
                         &[
                             variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
                             variable("ANDROID_PLATFORM", OsString::from_vec(vec![0xff])),

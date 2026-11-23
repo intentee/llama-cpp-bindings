@@ -78,8 +78,6 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use enumflags2::BitFlags;
-
     use llama_cpp_wrapper_sources::wrapper_header_paths::wrapper_header_paths;
     use llama_cpp_wrapper_sources::wrapper_source_paths::wrapper_source_paths;
 
@@ -132,7 +130,7 @@ mod tests {
 
     #[test]
     fn the_bindings_are_generated_against_the_native_llama_cpp_and_rebuilt_with_the_wrappers() {
-        let environment = cargo_environment(BitFlags::empty(), &[native_llama_cpp_dir()]);
+        let environment = cargo_environment(&[], &[native_llama_cpp_dir()]);
         let context = BuildContext::of_linux_host(&environment);
 
         assert_eq!(
@@ -219,9 +217,9 @@ mod tests {
     fn a_missing_native_llama_cpp_dir_or_wrapper_header_is_reported_and_nothing_is_emitted() {
         assert_eq!(
             [
-                cargo_environment(BitFlags::empty(), &[]).build_failure::<BindingsBuild>(),
+                cargo_environment(&[], &[]).build_failure::<BindingsBuild>(),
                 cargo_environment(
-                    BitFlags::empty(),
+                    &[],
                     &[
                         native_llama_cpp_dir(),
                         variable("CARGO_MANIFEST_DIR", FIXTURE_CMAKE_PROJECT)

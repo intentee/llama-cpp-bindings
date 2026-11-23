@@ -209,8 +209,6 @@ impl CmakeConfiguration {
 mod tests {
     use std::path::PathBuf;
 
-    use enumflags2::BitFlags;
-
     use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::CmakeConfiguration;
@@ -228,7 +226,7 @@ mod tests {
     use crate::native_library::NativeLibrary;
 
     fn configured(
-        features: BitFlags<BuildFeature>,
+        features: &[BuildFeature],
         overrides: &[EnvironmentVariable],
     ) -> CmakeConfiguration {
         let environment = cargo_environment(features, overrides);
@@ -237,7 +235,7 @@ mod tests {
     }
 
     fn after_the_base_switches(
-        features: BitFlags<BuildFeature>,
+        features: &[BuildFeature],
         overrides: &[EnvironmentVariable],
     ) -> CmakeConfiguration {
         let environment = cargo_environment(features, overrides);
@@ -265,7 +263,7 @@ mod tests {
     #[test]
     fn a_plain_linux_build_turns_off_everything_but_the_libraries_the_bindings_use() {
         assert_eq!(
-            configured(BitFlags::empty(), &[]),
+            configured(&[], &[]),
             CmakeConfiguration {
                 defines: vec![
                     CmakeDefine::new("LLAMA_BUILD_TESTS", "OFF"),
@@ -305,7 +303,7 @@ mod tests {
     fn apple_targets_build_without_blas_and_leave_vulkan_linking_to_the_platform() {
         assert_eq!(
             after_the_base_switches(
-                BuildFeature::Metal | BuildFeature::Vulkan,
+                &[BuildFeature::Metal, BuildFeature::Vulkan],
                 &[variable("CARGO_CFG_TARGET_OS", "macos")]
             ),
             CmakeConfiguration {
@@ -324,8 +322,11 @@ mod tests {
 
     #[test]
     fn android_targets_build_with_the_ndk_toolchain_their_stl_and_no_openmp() {
-        let android_with = |features: BitFlags<BuildFeature>| {
-            after_the_base_switches(features | BuildFeature::Openmp, &android_overrides())
+        let android_with = |features: &[BuildFeature]| {
+            after_the_base_switches(
+                &[features, &[BuildFeature::Openmp]].concat(),
+                &android_overrides(),
+            )
         };
         let android_defines = |stl: Vec<CmakeDefine>| {
             [
@@ -360,9 +361,9 @@ mod tests {
 
         assert_eq!(
             [
-                android_with(BitFlags::from(BuildFeature::StaticStdcxx)),
-                android_with(BitFlags::from(BuildFeature::SharedStdcxx)),
-                android_with(BitFlags::empty()),
+                android_with(&[BuildFeature::StaticStdcxx]),
+                android_with(&[BuildFeature::SharedStdcxx]),
+                android_with(&[]),
             ],
             [
                 android_configuration(vec![CmakeDefine::new("ANDROID_STL", "c++_static")]),
@@ -376,10 +377,12 @@ mod tests {
     fn gpu_backends_turn_on_their_ggml_switches_and_take_their_sdk_and_architectures_when_set() {
         let gpu_configuration = |overrides: &[EnvironmentVariable]| {
             after_the_base_switches(
-                BuildFeature::Vulkan
-                    | BuildFeature::Cuda
-                    | BuildFeature::CudaNoVmm
-                    | BuildFeature::Rocm,
+                &[
+                    BuildFeature::Vulkan,
+                    BuildFeature::Cuda,
+                    BuildFeature::CudaNoVmm,
+                    BuildFeature::Rocm,
+                ],
                 overrides,
             )
         };
@@ -439,7 +442,7 @@ mod tests {
     #[test]
     fn openmp_is_turned_on_for_linux() {
         assert_eq!(
-            after_the_base_switches(BitFlags::from(BuildFeature::Openmp), &[]).defines,
+            after_the_base_switches(&[BuildFeature::Openmp], &[]).defines,
             [
                 CmakeDefine::new("BUILD_SHARED_LIBS", "OFF"),
                 CmakeDefine::new("GGML_OPENMP", "ON"),
@@ -451,7 +454,7 @@ mod tests {
     fn system_ggml_builds_llama_cpp_against_the_ggml_in_ggml_dir() {
         assert_eq!(
             after_the_base_switches(
-                BitFlags::from(BuildFeature::SystemGgml),
+                &[BuildFeature::SystemGgml],
                 &[variable("GGML_DIR", "/ggml/lib/cmake/ggml")]
             ),
             CmakeConfiguration {
@@ -474,7 +477,7 @@ mod tests {
     fn dynamic_backends_are_built_as_shared_libraries_installed_into_a_published_backends_dir() {
         assert_eq!(
             after_the_base_switches(
-                BuildFeature::DynamicBackends | BuildFeature::DynamicLink,
+                &[BuildFeature::DynamicBackends, BuildFeature::DynamicLink],
                 &[]
             ),
             CmakeConfiguration {
@@ -495,8 +498,8 @@ mod tests {
 
     #[test]
     fn the_configuration_refuses_non_unicode_variables_and_a_missing_ggml_dir() {
-        let context = BuildContext::of_linux_host(&cargo_environment(BitFlags::empty(), &[]));
-        let refusal = |features: BitFlags<BuildFeature>, name: &str| {
+        let context = BuildContext::of_linux_host(&cargo_environment(&[], &[]));
+        let refusal = |features: &[BuildFeature], name: &str| {
             CmakeConfiguration::of(
                 &context,
                 &cargo_environment(features, &[]).with_non_unicode(name),
@@ -513,12 +516,12 @@ mod tests {
 
         assert_eq!(
             [
-                refusal(BitFlags::empty(), "CARGO_ENCODED_RUSTFLAGS"),
-                refusal(BitFlags::from(BuildFeature::Vulkan), "VULKAN_SDK"),
-                refusal(BitFlags::from(BuildFeature::Cuda), "CUDAARCHS"),
+                refusal(&[], "CARGO_ENCODED_RUSTFLAGS"),
+                refusal(&[BuildFeature::Vulkan], "VULKAN_SDK"),
+                refusal(&[BuildFeature::Cuda], "CUDAARCHS"),
                 CmakeConfiguration::of(
                     &context,
-                    &cargo_environment(BitFlags::from(BuildFeature::SystemGgml), &[])
+                    &cargo_environment(&[BuildFeature::SystemGgml], &[])
                 )
                 .err()
                 .map(|error| error_chain(&error)),

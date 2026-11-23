@@ -21,7 +21,6 @@ mod cmake_reply_index;
 mod constants;
 mod cpu_tuning;
 mod emit_directives;
-mod enabled_build_features;
 mod host_os;
 mod link_directives;
 mod link_kind;

@@ -1,3 +1,4 @@
+use find_cuda_helper::find_cuda_lib_dirs;
 use std::collections::BTreeMap;
 use std::env;
 use std::env::VarError;
@@ -5,20 +6,16 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use enumflags2::BitFlags;
-use find_cuda_helper::find_cuda_lib_dirs;
-
 use crate::build_error::BuildError;
 use crate::build_feature::BuildFeature;
-use crate::enabled_build_features::enabled_build_features;
 
-/// Everything a build script reads from outside: the environment variables, the cargo features of
-/// the package the build script belongs to, and the CUDA library directories installed on the
-/// host.
+/// Everything a build script reads from outside.
+///
+/// The environment variables also name the cargo features of the package the build script belongs
+/// to; the CUDA library directories are the ones installed on the host.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BuildEnvironment {
     pub variables: BTreeMap<OsString, OsString>,
-    pub features: BitFlags<BuildFeature>,
     pub cuda_library_dirs: Vec<PathBuf>,
 }
 
@@ -26,18 +23,16 @@ impl BuildEnvironment {
     /// The environment of the running build script.
     #[must_use]
     pub fn of_process() -> Self {
-        let variables = env::vars_os().collect();
-
         Self {
-            features: enabled_build_features(&variables),
-            variables,
+            variables: env::vars_os().collect(),
             cuda_library_dirs: find_cuda_lib_dirs(),
         }
     }
 
     #[must_use]
     pub fn has(&self, feature: BuildFeature) -> bool {
-        self.features.contains(feature)
+        self.variables
+            .contains_key(OsStr::new(feature.cargo_variable()))
     }
 
     /// # Errors
@@ -75,18 +70,15 @@ impl BuildEnvironment {
 
 #[cfg(test)]
 pub mod tests {
+    use find_cuda_helper::find_cuda_lib_dirs;
     use std::collections::BTreeMap;
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
-
-    use enumflags2::BitFlags;
-    use find_cuda_helper::find_cuda_lib_dirs;
 
     use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::BuildEnvironment;
     use crate::build_feature::BuildFeature;
-    use crate::enabled_build_features::enabled_build_features;
 
     #[derive(Clone, Debug)]
     pub struct EnvironmentVariable {
@@ -107,19 +99,20 @@ pub mod tests {
 
     #[must_use]
     pub fn environment_of(
-        features: BitFlags<BuildFeature>,
+        features: &[BuildFeature],
         variables: &[EnvironmentVariable],
     ) -> BuildEnvironment {
         let mut environment = BuildEnvironment {
             variables: BTreeMap::new(),
-            features,
             cuda_library_dirs: Vec::new(),
         };
 
-        for EnvironmentVariable { name, value } in variables {
-            environment
-                .variables
-                .insert(OsString::from(name), value.clone());
+        for EnvironmentVariable { name, value } in features
+            .iter()
+            .map(|feature| variable(feature.cargo_variable(), "1"))
+            .chain(variables.iter().cloned())
+        {
+            environment.variables.insert(OsString::from(name), value);
         }
 
         environment
@@ -143,17 +136,13 @@ pub mod tests {
             environment.var("CARGO_MANIFEST_DIR"),
             Ok(env!("CARGO_MANIFEST_DIR").to_owned())
         );
-        assert_eq!(
-            environment.features,
-            enabled_build_features(&environment.variables)
-        );
         assert_eq!(environment.cuda_library_dirs, find_cuda_lib_dirs());
     }
 
     #[test]
     fn a_unicode_variable_is_read() {
         let environment = environment_of(
-            BitFlags::empty(),
+            &[],
             &[variable(
                 "TARGET",
                 OsString::from("x86_64-unknown-linux-gnu"),
@@ -171,7 +160,7 @@ pub mod tests {
 
     #[test]
     fn a_missing_variable_fails_when_required_and_is_none_when_optional() {
-        let environment = environment_of(BitFlags::empty(), &[]);
+        let environment = environment_of(&[], &[]);
 
         assert_eq!(environment.optional("HOST").ok(), Some(None));
         assert_eq!(
@@ -188,7 +177,7 @@ pub mod tests {
 
     #[test]
     fn a_variable_that_is_not_unicode_is_refused_even_when_optional() {
-        let environment = environment_of(BitFlags::empty(), &[]).with_non_unicode("TARGET");
+        let environment = environment_of(&[], &[]).with_non_unicode("TARGET");
 
         assert_eq!(
             environment
@@ -205,7 +194,7 @@ pub mod tests {
 
     #[test]
     fn features_are_reported_by_membership() {
-        let environment = environment_of(BitFlags::from(BuildFeature::Cuda), &[]);
+        let environment = environment_of(&[BuildFeature::Cuda], &[]);
 
         assert_eq!(
             [

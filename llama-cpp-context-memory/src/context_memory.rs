@@ -4,6 +4,7 @@ use std::num::NonZeroU8;
 use std::num::TryFromIntError;
 use std::ptr;
 
+use llama_cpp_bindings_sys::bindings::llama_rs_memory_kind_of;
 use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_add_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_div_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_memory_seq_pos_max_status;
@@ -297,7 +298,7 @@ impl ContextMemory for LlamaContext<'_> {
             .ok_or(ContextMemoryError::SeqCpMemoryHandleUnavailable)?;
 
         MemoryLayout {
-            kind: unsafe { llama_cpp_bindings_sys::bindings::llama_rs_memory_kind_of(mem) },
+            kind: unsafe { llama_rs_memory_kind_of(mem) },
             kv_unified: self.kv_unified(),
             cache_size: self.n_ctx_seq(),
         }

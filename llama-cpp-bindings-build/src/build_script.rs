@@ -58,15 +58,13 @@ mod tests {
     use std::ffi::OsStr;
     use std::process::ExitCode;
 
-    use enumflags2::BitFlags;
-
     use super::BuildScript;
     use crate::build_context::tests::cargo_environment;
     use crate::native_library_build::NativeLibraryBuild;
 
     #[test]
     fn a_failed_build_reports_its_error_chain_emits_no_directive_and_fails() {
-        let mut without_target = cargo_environment(BitFlags::empty(), &[]);
+        let mut without_target = cargo_environment(&[], &[]);
         let mut build_script = BuildScript {
             directives: Vec::new(),
             diagnostics: Vec::new(),
@@ -75,8 +73,10 @@ mod tests {
         without_target.variables.remove(OsStr::new("TARGET"));
 
         assert_eq!(
-            build_script.run::<NativeLibraryBuild>(&without_target).ok(),
-            Some(ExitCode::FAILURE)
+            build_script
+                .run::<NativeLibraryBuild>(&without_target)
+                .unwrap(),
+            ExitCode::FAILURE
         );
         assert_eq!(
             [build_script.directives, build_script.diagnostics],

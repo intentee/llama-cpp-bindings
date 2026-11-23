@@ -283,8 +283,6 @@ mod tests {
     use std::path::PathBuf;
     use std::process;
 
-    use enumflags2::BitFlags;
-
     use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::LinkDirectives;
@@ -327,7 +325,7 @@ mod tests {
     }
 
     fn platform_libraries(
-        features: BitFlags<BuildFeature>,
+        features: &[BuildFeature],
         overrides: &[EnvironmentVariable],
     ) -> Vec<NativeLibrary> {
         let libraries = libraries(&linked(&cargo_environment(features, overrides)));
@@ -398,7 +396,7 @@ mod tests {
         .collect::<Vec<CargoDirective>>();
 
         assert_eq!(
-            linked(&cargo_environment(BitFlags::empty(), &[])),
+            linked(&cargo_environment(&[], &[])),
             [
                 cmake_search_paths(),
                 private_dependency_search_paths(),
@@ -417,10 +415,12 @@ mod tests {
     {
         assert_eq!(
             libraries(&linked(&cargo_environment(
-                BuildFeature::DynamicLink
-                    | BuildFeature::DynamicBackends
-                    | BuildFeature::Cuda
-                    | BuildFeature::Rocm,
+                &[
+                    BuildFeature::DynamicLink,
+                    BuildFeature::DynamicBackends,
+                    BuildFeature::Cuda,
+                    BuildFeature::Rocm
+                ],
                 &[]
             ))),
             [
@@ -443,10 +443,12 @@ mod tests {
         let environment = BuildEnvironment {
             cuda_library_dirs: vec![PathBuf::from("/cuda/lib64")],
             ..cargo_environment(
-                BuildFeature::Cuda
-                    | BuildFeature::Metal
-                    | BuildFeature::Vulkan
-                    | BuildFeature::Rocm,
+                &[
+                    BuildFeature::Cuda,
+                    BuildFeature::Metal,
+                    BuildFeature::Vulkan,
+                    BuildFeature::Rocm,
+                ],
                 &[variable("ROCM_PATH", rocm_root.to_str().unwrap())],
             )
         };
@@ -503,7 +505,7 @@ mod tests {
     fn cuda_without_virtual_memory_management_does_not_link_the_driver() {
         assert_eq!(
             libraries(&linked(&cargo_environment(
-                BuildFeature::Cuda | BuildFeature::CudaNoVmm,
+                &[BuildFeature::Cuda, BuildFeature::CudaNoVmm],
                 &[]
             ))),
             [
@@ -528,9 +530,9 @@ mod tests {
 
     #[test]
     fn system_ggml_links_the_installed_ggml_instead_of_any_built_backend() {
-        let system_ggml_linked = |features: BitFlags<BuildFeature>| {
+        let system_ggml_linked = |features: &[BuildFeature]| {
             linked(&cargo_environment(
-                features | BuildFeature::SystemGgml | BuildFeature::Cuda,
+                &[features, &[BuildFeature::SystemGgml, BuildFeature::Cuda]].concat(),
                 &[variable("GGML_LIBRARY_DIR", FIXTURES)],
             ))
         };
@@ -551,14 +553,12 @@ mod tests {
             ]
             .concat()
         };
-        let shared_ggml = system_ggml_linked(BitFlags::empty());
+        let shared_ggml = system_ggml_linked(&[]);
 
         assert_eq!(
             [
                 libraries(&shared_ggml),
-                libraries(&system_ggml_linked(BitFlags::from(
-                    BuildFeature::SystemGgmlStatic
-                ))),
+                libraries(&system_ggml_linked(&[BuildFeature::SystemGgmlStatic])),
             ],
             [
                 linked_with_ggml_as(LinkKind::Dylib),
@@ -588,22 +588,13 @@ mod tests {
         assert_eq!(
             [
                 platform_libraries(
-                    BitFlags::from(BuildFeature::Metal),
+                    &[BuildFeature::Metal],
                     &[variable("CARGO_CFG_TARGET_OS", "macos")]
                 ),
-                platform_libraries(
-                    BitFlags::empty(),
-                    &[variable("CARGO_CFG_TARGET_OS", "macos")]
-                ),
-                platform_libraries(
-                    BitFlags::from(BuildFeature::StaticStdcxx),
-                    &android_overrides()
-                ),
-                platform_libraries(
-                    BitFlags::from(BuildFeature::SharedStdcxx),
-                    &android_overrides()
-                ),
-                platform_libraries(BitFlags::empty(), &android_overrides()),
+                platform_libraries(&[], &[variable("CARGO_CFG_TARGET_OS", "macos")]),
+                platform_libraries(&[BuildFeature::StaticStdcxx], &android_overrides()),
+                platform_libraries(&[BuildFeature::SharedStdcxx], &android_overrides()),
+                platform_libraries(&[], &android_overrides()),
             ],
             [
                 vec![
@@ -633,7 +624,7 @@ mod tests {
             "llama-cpp-bindings-build-missing-{}",
             process::id()
         ));
-        let refusal = |features: BitFlags<BuildFeature>, overrides: &[EnvironmentVariable]| {
+        let refusal = |features: &[BuildFeature], overrides: &[EnvironmentVariable]| {
             let environment = cargo_environment(features, overrides);
 
             LinkDirectives::of(&BuildContext::of_linux_host(&environment), &environment)
@@ -643,17 +634,17 @@ mod tests {
 
         assert_eq!(
             [
-                refusal(BitFlags::from(BuildFeature::SystemGgml), &[]),
+                refusal(&[BuildFeature::SystemGgml], &[]),
                 refusal(
-                    BitFlags::from(BuildFeature::SystemGgml),
+                    &[BuildFeature::SystemGgml],
                     &[variable(
                         "GGML_LIBRARY_DIR",
                         missing_directory.to_str().unwrap()
                     )]
                 ),
-                refusal(BitFlags::from(BuildFeature::Rocm), &[]),
+                refusal(&[BuildFeature::Rocm], &[]),
                 refusal(
-                    BitFlags::from(BuildFeature::Rocm),
+                    &[BuildFeature::Rocm],
                     &[variable("ROCM_PATH", env!("CARGO_MANIFEST_DIR"))]
                 ),
             ],

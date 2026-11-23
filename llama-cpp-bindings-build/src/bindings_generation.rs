@@ -183,8 +183,6 @@ mod tests {
     use std::path::PathBuf;
     use std::process;
 
-    use enumflags2::BitFlags;
-
     use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
 
     use llama_cpp_error_chain::error_chain::error_chain;
@@ -199,10 +197,7 @@ mod tests {
 
     const FIXTURE_BINDINGS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/bindings");
 
-    fn planned(
-        features: BitFlags<BuildFeature>,
-        overrides: &[EnvironmentVariable],
-    ) -> BindingsGeneration {
+    fn planned(features: &[BuildFeature], overrides: &[EnvironmentVariable]) -> BindingsGeneration {
         let environment = cargo_environment(features, overrides);
 
         BindingsGeneration::of(
@@ -234,7 +229,7 @@ mod tests {
     #[test]
     fn the_wrapper_header_is_parsed_against_the_llama_cpp_headers() {
         assert_eq!(
-            planned(BitFlags::empty(), &[]),
+            planned(&[], &[]),
             BindingsGeneration {
                 header: PathBuf::from("/sys/wrapper.h"),
                 clang_args: llama_cpp_includes(),
@@ -246,7 +241,7 @@ mod tests {
     #[test]
     fn fault_injection_adds_its_define_to_the_clang_arguments() {
         assert_eq!(
-            planned(BitFlags::from(BuildFeature::FaultInjection), &[]).clang_args,
+            planned(&[BuildFeature::FaultInjection], &[]).clang_args,
             [
                 llama_cpp_includes(),
                 vec![format!("-D{FAULT_INJECTION_DEFINE}")],
@@ -260,7 +255,7 @@ mod tests {
         let toolchain = format!("{FIXTURE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64");
 
         assert_eq!(
-            planned(BitFlags::empty(), &android_overrides()).clang_args,
+            planned(&[], &android_overrides()).clang_args,
             [
                 llama_cpp_includes(),
                 vec![

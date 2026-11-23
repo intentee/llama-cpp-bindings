@@ -1,22 +1,18 @@
-use enumflags2::bitflags;
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[bitflags]
-#[repr(u16)]
 pub enum BuildFeature {
-    Cuda = 1 << 0,
-    CudaNoVmm = 1 << 1,
-    DynamicBackends = 1 << 2,
-    DynamicLink = 1 << 3,
-    FaultInjection = 1 << 4,
-    Metal = 1 << 5,
-    Openmp = 1 << 6,
-    Rocm = 1 << 7,
-    SharedStdcxx = 1 << 8,
-    StaticStdcxx = 1 << 9,
-    SystemGgml = 1 << 10,
-    SystemGgmlStatic = 1 << 11,
-    Vulkan = 1 << 12,
+    Cuda,
+    CudaNoVmm,
+    DynamicBackends,
+    DynamicLink,
+    FaultInjection,
+    Metal,
+    Openmp,
+    Rocm,
+    SharedStdcxx,
+    StaticStdcxx,
+    SystemGgml,
+    SystemGgmlStatic,
+    Vulkan,
 }
 
 impl BuildFeature {
@@ -43,17 +39,27 @@ impl BuildFeature {
 
 #[cfg(test)]
 mod tests {
-    use enumflags2::BitFlags;
-
     use super::BuildFeature;
 
     #[test]
     fn every_feature_is_read_from_the_variable_cargo_names_after_it() {
         assert_eq!(
-            BitFlags::<BuildFeature>::all()
-                .iter()
-                .map(BuildFeature::cargo_variable)
-                .collect::<Vec<&str>>(),
+            [
+                BuildFeature::Cuda,
+                BuildFeature::CudaNoVmm,
+                BuildFeature::DynamicBackends,
+                BuildFeature::DynamicLink,
+                BuildFeature::FaultInjection,
+                BuildFeature::Metal,
+                BuildFeature::Openmp,
+                BuildFeature::Rocm,
+                BuildFeature::SharedStdcxx,
+                BuildFeature::StaticStdcxx,
+                BuildFeature::SystemGgml,
+                BuildFeature::SystemGgmlStatic,
+                BuildFeature::Vulkan,
+            ]
+            .map(BuildFeature::cargo_variable),
             [
                 "CARGO_FEATURE_CUDA",
                 "CARGO_FEATURE_CUDA_NO_VMM",

@@ -85,8 +85,6 @@ impl OpenmpRuntimeSource {
 mod tests {
     use std::path::PathBuf;
 
-    use enumflags2::BitFlags;
-
     use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::OpenmpRuntimeSource;
@@ -130,10 +128,10 @@ mod tests {
     fn only_a_statically_linked_ggml_leaves_its_runtime_to_the_bindings() {
         assert_eq!(
             [
-                BitFlags::from(BuildFeature::DynamicLink),
-                BitFlags::from(BuildFeature::SystemGgml),
-                BuildFeature::SystemGgml | BuildFeature::SystemGgmlStatic,
-                BitFlags::empty(),
+                &[BuildFeature::DynamicLink][..],
+                &[BuildFeature::SystemGgml],
+                &[BuildFeature::SystemGgml, BuildFeature::SystemGgmlStatic],
+                &[],
             ]
             .map(|features| {
                 let environment = cargo_environment(features, &[]);

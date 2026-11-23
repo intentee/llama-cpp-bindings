@@ -14,6 +14,7 @@ use std::sync::atomic::Ordering;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_bindings_sys::bindings::llama_rs_batch_ext_init_status;
+use llama_cpp_bindings_sys::bindings::llama_rs_context_kv_unified;
 use llama_cpp_bindings_sys::bindings::llama_rs_new_context_with_model_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_process_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
@@ -469,9 +470,7 @@ impl<'model> LlamaContext<'model> {
     /// Whether the sequences of this context share one KV stream instead of each keeping its own.
     #[must_use]
     pub fn kv_unified(&self) -> bool {
-        unsafe {
-            llama_cpp_bindings_sys::bindings::llama_rs_context_kv_unified(self.context.as_ptr())
-        }
+        unsafe { llama_rs_context_kv_unified(self.context.as_ptr()) }
     }
 
     /// The limits a batch must respect to be decoded or encoded on this context.

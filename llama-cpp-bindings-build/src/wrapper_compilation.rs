@@ -111,8 +111,6 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use enumflags2::BitFlags;
-
     use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
     use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
     use llama_cpp_wrapper_sources::wrapper_source_paths::wrapper_source_paths;
@@ -124,10 +122,7 @@ mod tests {
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_feature::BuildFeature;
 
-    fn planned(
-        features: BitFlags<BuildFeature>,
-        overrides: &[EnvironmentVariable],
-    ) -> WrapperCompilation {
+    fn planned(features: &[BuildFeature], overrides: &[EnvironmentVariable]) -> WrapperCompilation {
         let environment = cargo_environment(features, overrides);
 
         WrapperCompilation::of(
@@ -155,13 +150,13 @@ mod tests {
 
     #[test]
     fn the_wrappers_compile_as_cxx17_with_the_vendored_headers_as_system_includes() {
-        assert_eq!(planned(BitFlags::empty(), &[]), linux_compilation());
+        assert_eq!(planned(&[], &[]), linux_compilation());
     }
 
     #[test]
     fn fault_injection_defines_its_switch() {
         assert_eq!(
-            planned(BitFlags::from(BuildFeature::FaultInjection), &[]),
+            planned(&[BuildFeature::FaultInjection], &[]),
             WrapperCompilation {
                 defines: vec![FAULT_INJECTION_DEFINE],
                 ..linux_compilation()
@@ -172,10 +167,7 @@ mod tests {
     #[test]
     fn a_static_android_stl_is_linked_separately() {
         assert_eq!(
-            planned(
-                BitFlags::from(BuildFeature::StaticStdcxx),
-                &android_overrides()
-            ),
+            planned(&[BuildFeature::StaticStdcxx], &android_overrides()),
             WrapperCompilation {
                 cpp_stdlib_linked_separately: true,
                 target_triple: "aarch64-linux-android".to_owned(),

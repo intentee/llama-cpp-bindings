@@ -42,6 +42,10 @@ pub mod tests {
     use crate::build_environment::BuildEnvironment;
 
     /// The error chain of running the planned `build`, with what it wrote for cargo.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the build writes directives that are not UTF-8.
     #[must_use]
     pub fn run_failure<TBuild: PlannedBuild>(build: TBuild) -> [Option<String>; 2] {
         let mut output = Vec::new();
@@ -51,7 +55,7 @@ pub mod tests {
                 .run(&mut output)
                 .err()
                 .map(|error| error_chain(&error)),
-            String::from_utf8(output).ok(),
+            Some(String::from_utf8(output).unwrap()),
         ]
     }
 

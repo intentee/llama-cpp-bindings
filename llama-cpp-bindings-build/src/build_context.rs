@@ -92,8 +92,6 @@ pub mod tests {
     use std::path::PathBuf;
     use std::process;
 
-    use enumflags2::BitFlags;
-
     use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::BuildContext;
@@ -147,7 +145,7 @@ pub mod tests {
 
     /// The variables cargo sets for a build script building for x86-64 Linux, with `overrides`.
     pub fn cargo_environment(
-        features: BitFlags<BuildFeature>,
+        features: &[BuildFeature],
         overrides: &[EnvironmentVariable],
     ) -> BuildEnvironment {
         environment_of(features, &[&cargo_variables()[..], overrides].concat())
@@ -164,7 +162,7 @@ pub mod tests {
     fn the_context_is_read_from_the_build_variables_and_the_dynamic_link_feature() {
         assert_eq!(
             BuildContext::of_linux_host(&cargo_environment(
-                BitFlags::from(BuildFeature::DynamicLink),
+                &[BuildFeature::DynamicLink],
                 &[variable("BUILD_DEBUG", "")]
             )),
             BuildContext {
@@ -185,7 +183,7 @@ pub mod tests {
     #[test]
     fn every_variable_cargo_sets_for_build_scripts_is_required() {
         let without = |name: &str| {
-            let mut environment = cargo_environment(BitFlags::empty(), &[]);
+            let mut environment = cargo_environment(&[], &[]);
 
             environment.variables.remove(OsStr::new(name));
 
@@ -207,7 +205,7 @@ pub mod tests {
     fn a_build_debug_request_that_is_not_unicode_is_refused() {
         assert_eq!(
             BuildContext::from_environment(
-                &cargo_environment(BitFlags::empty(), &[]).with_non_unicode("BUILD_DEBUG"),
+                &cargo_environment(&[], &[]).with_non_unicode("BUILD_DEBUG"),
                 HostOs::Linux,
             )
             .err()
@@ -223,8 +221,7 @@ pub mod tests {
     #[test]
     fn debug_messages_describe_where_the_build_happens() {
         assert_eq!(
-            BuildContext::of_linux_host(&cargo_environment(BitFlags::empty(), &[]))
-                .debug_messages(),
+            BuildContext::of_linux_host(&cargo_environment(&[], &[])).debug_messages(),
             [
                 "TARGET: x86_64-unknown-linux-gnu",
                 "CARGO_MANIFEST_DIR: /sys",

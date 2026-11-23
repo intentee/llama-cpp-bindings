@@ -162,7 +162,6 @@ impl CpuTuning {
 
 #[cfg(test)]
 mod tests {
-    use enumflags2::BitFlags;
 
     use llama_cpp_error_chain::error_chain::error_chain;
 
@@ -183,7 +182,7 @@ mod tests {
 
     use crate::cmake_define::CmakeDefine;
 
-    fn tuned(features: BitFlags<BuildFeature>, overrides: &[EnvironmentVariable]) -> CpuTuning {
+    fn tuned(features: &[BuildFeature], overrides: &[EnvironmentVariable]) -> CpuTuning {
         let environment = cargo_environment(features, overrides);
 
         CpuTuning::of(&BuildContext::of_linux_host(&environment), &environment).unwrap()
@@ -258,7 +257,7 @@ mod tests {
     fn a_native_target_cpu_lets_ggml_detect_the_cpu() {
         assert_eq!(
             tuned(
-                BitFlags::empty(),
+                &[],
                 &[
                     variable("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
                     variable("CARGO_CFG_TARGET_FEATURE", "avx2"),
@@ -277,7 +276,7 @@ mod tests {
     fn a_baseline_x86_build_turns_every_instruction_set_ggml_would_assume_off() {
         assert_eq!(
             tuned(
-                BitFlags::empty(),
+                &[],
                 &[variable("CARGO_CFG_TARGET_FEATURE", "fxsr,sse,sse2")]
             ),
             CpuTuning {
@@ -297,7 +296,7 @@ mod tests {
     fn a_named_target_cpu_switches_on_exactly_the_instruction_sets_its_target_features_enable() {
         assert_eq!(
             tuned(
-                BitFlags::empty(),
+                &[],
                 &[
                     variable("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=znver4"),
                     variable(
@@ -326,7 +325,7 @@ mod tests {
     fn an_aarch64_build_leaves_the_architecture_to_the_compiler_baseline() {
         assert_eq!(
             tuned(
-                BitFlags::empty(),
+                &[],
                 &[
                     variable("CARGO_CFG_TARGET_ARCH", "aarch64"),
                     variable("TARGET", "aarch64-unknown-linux-gnu"),
@@ -345,7 +344,7 @@ mod tests {
     fn dynamic_backends_build_every_cpu_variant_without_tuning() {
         assert_eq!(
             tuned(
-                BuildFeature::DynamicBackends | BuildFeature::DynamicLink,
+                &[BuildFeature::DynamicBackends, BuildFeature::DynamicLink],
                 &[
                     variable("CARGO_CFG_TARGET_ARCH", "aarch64"),
                     variable("TARGET", "aarch64-unknown-linux-gnu"),
@@ -363,13 +362,13 @@ mod tests {
 
     #[test]
     fn rustflags_or_target_features_that_are_not_unicode_are_refused() {
-        let context = BuildContext::of_linux_host(&cargo_environment(BitFlags::empty(), &[]));
+        let context = BuildContext::of_linux_host(&cargo_environment(&[], &[]));
 
         assert_eq!(
             ["CARGO_ENCODED_RUSTFLAGS", "CARGO_CFG_TARGET_FEATURE"].map(|name| {
                 CpuTuning::of(
                     &context,
-                    &cargo_environment(BitFlags::empty(), &[]).with_non_unicode(name),
+                    &cargo_environment(&[], &[]).with_non_unicode(name),
                 )
                 .err()
                 .map(|error| error_chain(&error))
