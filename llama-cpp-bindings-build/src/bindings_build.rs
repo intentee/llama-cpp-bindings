@@ -249,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn a_failure_at_any_planning_stage_is_reported_and_nothing_is_emitted() {
+    fn a_missing_native_llama_cpp_dir_or_wrapper_header_is_reported_and_nothing_is_emitted() {
         assert_eq!(
             [
                 failure(&cargo_environment(BitFlags::empty(), &[])),
