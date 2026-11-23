@@ -31,7 +31,7 @@ const END_OF_GENERATION_TOKENS: u64 = 1;
 
 fn llama_cpp_deepseek_r1_template() -> Result<LlamaChatTemplate> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../llama-cpp-bindings-sys/llama.cpp/models/templates/llama-cpp-deepseek-r1.jinja");
+        .join("../llama-cpp-native/llama.cpp/models/templates/llama-cpp-deepseek-r1.jinja");
 
     Ok(LlamaChatTemplate::new(&fs::read_to_string(path)?)?)
 }
