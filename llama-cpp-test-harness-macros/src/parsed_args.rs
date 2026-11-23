@@ -295,6 +295,7 @@ mod tests {
     use super::ParsedArgs;
     use crate::parsed_load_mode::ParsedLoadMode;
     use crate::parsed_source::ParsedSource;
+    use crate::parsed_source::tests::UNKNOWN_VARIANT_MESSAGE;
 
     const ALL_REQUIRED: &str = "\
         model_source = HuggingFace(\"foo\", \"bar.gguf\"), \
@@ -903,10 +904,7 @@ mod tests {
             .expect_err("mmproj_source unknown variant must fail")
             .to_string();
 
-        assert_eq!(
-            message,
-            "unknown source variant `Mystery`; expected `HuggingFace`, `HuggingFaceShards` or `LocalPath`"
-        );
+        assert_eq!(message, UNKNOWN_VARIANT_MESSAGE);
     }
 
     #[test]
@@ -922,10 +920,7 @@ mod tests {
             .expect_err("model_source unknown variant must fail")
             .to_string();
 
-        assert_eq!(
-            message,
-            "unknown source variant `Mystery`; expected `HuggingFace`, `HuggingFaceShards` or `LocalPath`"
-        );
+        assert_eq!(message, UNKNOWN_VARIANT_MESSAGE);
     }
 
     #[test]

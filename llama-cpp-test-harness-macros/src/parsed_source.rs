@@ -2,10 +2,11 @@ use std::path::Path;
 
 use syn::Expr;
 use syn::ExprArray;
-use syn::ExprCall;
 use syn::ExprLit;
 use syn::ExprPath;
 use syn::Lit;
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
 
 fn require_string_argument(expression: &Expr, field: &str, position: &str) -> syn::Result<String> {
     match expression {
@@ -20,45 +21,41 @@ fn require_string_argument(expression: &Expr, field: &str, position: &str) -> sy
     }
 }
 
+fn exact_arguments<'call, const ARGUMENT_COUNT: usize>(
+    call_arguments: &'call Punctuated<Expr, Comma>,
+    signature: &str,
+) -> syn::Result<[&'call Expr; ARGUMENT_COUNT]> {
+    <[&Expr; ARGUMENT_COUNT]>::try_from(call_arguments.iter().collect::<Vec<&Expr>>()).map_err(
+        |given_arguments| {
+            syn::Error::new_spanned(
+                call_arguments,
+                format!("{signature}; got {got}", got = given_arguments.len()),
+            )
+        },
+    )
+}
+
 fn parse_huggingface_source(
-    ExprCall {
-        args: call_arguments,
-        ..
-    }: &ExprCall,
+    call_arguments: &Punctuated<Expr, Comma>,
     field: &str,
 ) -> syn::Result<ParsedSource> {
-    let args: Vec<&Expr> = call_arguments.iter().collect();
-    let [repo_expr, file_expr] = args.as_slice() else {
-        return Err(syn::Error::new_spanned(
-            call_arguments,
-            format!(
-                "`HuggingFace` expects exactly 2 string arguments (repo, file); got {got}",
-                got = call_arguments.len()
-            ),
-        ));
-    };
+    let [repo_expr, file_expr] = exact_arguments(
+        call_arguments,
+        "`HuggingFace` expects exactly 2 string arguments (repo, file)",
+    )?;
     let repo = require_string_argument(repo_expr, field, "HuggingFace.repo")?;
     let file = require_string_argument(file_expr, field, "HuggingFace.file")?;
     Ok(ParsedSource::HuggingFace { repo, file })
 }
 
 fn parse_huggingface_shards_source(
-    ExprCall {
-        args: call_arguments,
-        ..
-    }: &ExprCall,
+    call_arguments: &Punctuated<Expr, Comma>,
     field: &str,
 ) -> syn::Result<ParsedSource> {
-    let args: Vec<&Expr> = call_arguments.iter().collect();
-    let [repo_expr, commit_expr, shards_expr] = args.as_slice() else {
-        return Err(syn::Error::new_spanned(
-            call_arguments,
-            format!(
-                "`HuggingFaceShards` expects exactly 3 arguments (repo, commit, [shards]); got {got}",
-                got = call_arguments.len()
-            ),
-        ));
-    };
+    let [repo_expr, commit_expr, shards_expr] = exact_arguments(
+        call_arguments,
+        "`HuggingFaceShards` expects exactly 3 arguments (repo, commit, [shards])",
+    )?;
     let repo = require_string_argument(repo_expr, field, "HuggingFaceShards.repo")?;
     let commit = require_string_argument(commit_expr, field, "HuggingFaceShards.commit")?;
     let Expr::Array(ExprArray {
@@ -94,22 +91,13 @@ fn parse_huggingface_shards_source(
 }
 
 fn parse_local_path_source(
-    ExprCall {
-        args: call_arguments,
-        ..
-    }: &ExprCall,
+    call_arguments: &Punctuated<Expr, Comma>,
     field: &str,
 ) -> syn::Result<ParsedSource> {
-    let args: Vec<&Expr> = call_arguments.iter().collect();
-    let [path_expr] = args.as_slice() else {
-        return Err(syn::Error::new_spanned(
-            call_arguments,
-            format!(
-                "`LocalPath` expects exactly 1 string argument (path); got {got}",
-                got = call_arguments.len()
-            ),
-        ));
-    };
+    let [path_expr] = exact_arguments(
+        call_arguments,
+        "`LocalPath` expects exactly 1 string argument (path)",
+    )?;
     let path = require_string_argument(path_expr, field, "LocalPath.path")?;
     Ok(ParsedSource::LocalPath(path))
 }
@@ -156,9 +144,9 @@ impl ParsedSource {
             )
         })?;
         match variant_ident.to_string().as_str() {
-            "HuggingFace" => parse_huggingface_source(call, field),
-            "HuggingFaceShards" => parse_huggingface_shards_source(call, field),
-            "LocalPath" => parse_local_path_source(call, field),
+            "HuggingFace" => parse_huggingface_source(&call.args, field),
+            "HuggingFaceShards" => parse_huggingface_shards_source(&call.args, field),
+            "LocalPath" => parse_local_path_source(&call.args, field),
             other => Err(syn::Error::new_spanned(
                 variant_ident,
                 format!(
@@ -191,6 +179,14 @@ pub mod tests {
             parse_str(source).expect("the test source must be an expression");
         ParsedSource::parse(&expression, "model_source")
     }
+
+    fn rejection(source: &str) -> String {
+        parse(source)
+            .expect_err("the source must be rejected")
+            .to_string()
+    }
+
+    pub const UNKNOWN_VARIANT_MESSAGE: &str = "unknown source variant `Mystery`; expected `HuggingFace`, `HuggingFaceShards` or `LocalPath`";
 
     /// A model split into three shards, as `HuggingFaceShards` declares it.
     #[must_use]
@@ -229,9 +225,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_shards_with_a_single_shard_is_rejected() {
-        let message = parse("HuggingFaceShards(\"org/name\", \"abc123\", [\"m.gguf\"])")
-            .expect_err("a single shard must fail")
-            .to_string();
+        let message = rejection("HuggingFaceShards(\"org/name\", \"abc123\", [\"m.gguf\"])");
 
         assert_eq!(
             message,
@@ -241,9 +235,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_shards_without_an_array_of_shards_is_rejected() {
-        let message = parse("HuggingFaceShards(\"org/name\", \"abc123\", \"m.gguf\")")
-            .expect_err("a non-array shards argument must fail")
-            .to_string();
+        let message = rejection("HuggingFaceShards(\"org/name\", \"abc123\", \"m.gguf\")");
 
         assert_eq!(
             message,
@@ -253,9 +245,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_shards_with_a_non_string_shard_is_rejected() {
-        let message = parse("HuggingFaceShards(\"org/name\", \"abc123\", [\"m.gguf\", 42])")
-            .expect_err("a non-string shard must fail")
-            .to_string();
+        let message = rejection("HuggingFaceShards(\"org/name\", \"abc123\", [\"m.gguf\", 42])");
 
         assert_eq!(
             message,
@@ -265,9 +255,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_shards_with_a_non_string_repo_is_rejected() {
-        let message = parse("HuggingFaceShards(42, \"abc123\", [\"a.gguf\", \"b.gguf\"])")
-            .expect_err("a non-string repo must fail")
-            .to_string();
+        let message = rejection("HuggingFaceShards(42, \"abc123\", [\"a.gguf\", \"b.gguf\"])");
 
         assert_eq!(
             message,
@@ -277,9 +265,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_shards_with_a_non_string_commit_is_rejected() {
-        let message = parse("HuggingFaceShards(\"org/name\", 42, [\"a.gguf\", \"b.gguf\"])")
-            .expect_err("a non-string commit must fail")
-            .to_string();
+        let message = rejection("HuggingFaceShards(\"org/name\", 42, [\"a.gguf\", \"b.gguf\"])");
 
         assert_eq!(
             message,
@@ -289,9 +275,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_shards_with_wrong_arity_is_rejected() {
-        let message = parse("HuggingFaceShards(\"org/name\", [\"a.gguf\", \"b.gguf\"])")
-            .expect_err("arity must fail")
-            .to_string();
+        let message = rejection("HuggingFaceShards(\"org/name\", [\"a.gguf\", \"b.gguf\"])");
 
         assert_eq!(
             message,
@@ -311,21 +295,14 @@ pub mod tests {
 
     #[test]
     fn unknown_variant_is_rejected() {
-        let message = parse("Mystery(\"a\", \"b\")")
-            .expect_err("unknown variant must fail")
-            .to_string();
+        let message = rejection("Mystery(\"a\", \"b\")");
 
-        assert_eq!(
-            message,
-            "unknown source variant `Mystery`; expected `HuggingFace`, `HuggingFaceShards` or `LocalPath`"
-        );
+        assert_eq!(message, UNKNOWN_VARIANT_MESSAGE);
     }
 
     #[test]
     fn non_call_expression_is_rejected() {
-        let message = parse("\"plain\"")
-            .expect_err("non-call must fail")
-            .to_string();
+        let message = rejection("\"plain\"");
 
         assert_eq!(
             message,
@@ -335,9 +312,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_with_wrong_arity_is_rejected() {
-        let message = parse("HuggingFace(\"only-one\")")
-            .expect_err("arity must fail")
-            .to_string();
+        let message = rejection("HuggingFace(\"only-one\")");
 
         assert_eq!(
             message,
@@ -347,9 +322,7 @@ pub mod tests {
 
     #[test]
     fn local_path_with_wrong_arity_is_rejected() {
-        let message = parse("LocalPath(\"a\", \"b\")")
-            .expect_err("arity must fail")
-            .to_string();
+        let message = rejection("LocalPath(\"a\", \"b\")");
 
         assert_eq!(
             message,
@@ -359,9 +332,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_with_non_string_first_argument_is_rejected() {
-        let message = parse("HuggingFace(42, \"file\")")
-            .expect_err("non-string arg must fail")
-            .to_string();
+        let message = rejection("HuggingFace(42, \"file\")");
 
         assert_eq!(
             message,
@@ -371,9 +342,7 @@ pub mod tests {
 
     #[test]
     fn huggingface_with_non_string_second_argument_is_rejected() {
-        let message = parse("HuggingFace(\"repo\", 42)")
-            .expect_err("non-string second arg must fail")
-            .to_string();
+        let message = rejection("HuggingFace(\"repo\", 42)");
 
         assert_eq!(
             message,
@@ -383,9 +352,7 @@ pub mod tests {
 
     #[test]
     fn local_path_with_non_string_argument_is_rejected() {
-        let message = parse("LocalPath(42)")
-            .expect_err("non-string LocalPath arg must fail")
-            .to_string();
+        let message = rejection("LocalPath(42)");
 
         assert_eq!(
             message,
@@ -395,9 +362,7 @@ pub mod tests {
 
     #[test]
     fn non_path_function_expression_is_rejected() {
-        let message = parse("(closure)(\"a\")")
-            .expect_err("non-path func must fail")
-            .to_string();
+        let message = rejection("(closure)(\"a\")");
 
         assert_eq!(
             message,
@@ -407,9 +372,7 @@ pub mod tests {
 
     #[test]
     fn qualified_path_variant_is_rejected() {
-        let message = parse("some::Other::HuggingFace(\"a\", \"b\")")
-            .expect_err("qualified path must fail")
-            .to_string();
+        let message = rejection("some::Other::HuggingFace(\"a\", \"b\")");
 
         assert_eq!(
             message,
