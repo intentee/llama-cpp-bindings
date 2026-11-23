@@ -125,7 +125,9 @@ fn memory_seq_cp_copies_a_whole_primed_sequence(fixture: &LlamaFixture<'_>) -> R
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn memory_seq_cp_accepts_an_explicit_range(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn memory_seq_cp_accepts_an_explicit_range_within_a_unified_kv_cache(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
     let mut context = two_sequence_context(fixture)?;
 
     prime_memory(fixture, &mut context)?;
