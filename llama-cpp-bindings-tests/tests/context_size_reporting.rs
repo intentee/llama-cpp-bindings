@@ -4,6 +4,7 @@ use anyhow::ensure;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
+const DEEPSEEK_V4_SLIDING_WINDOW: u32 = 128;
 const GEMMA_3_SLIDING_WINDOW: u32 = 1024;
 
 #[llama_test(
@@ -88,6 +89,32 @@ fn a_sliding_window_attention_context_limits_positions_by_the_window_its_cache_m
     let context = fixture.build_context()?;
 
     ensure!(context.limits().sliding_window == GEMMA_3_SLIDING_WINDOW);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFaceShards(
+        "unsloth/DeepSeek-V4-Flash-0731-GGUF",
+        "fbbb5b93fb787c21338159b0af3318bb3f4d9768",
+        [
+            "UD-IQ1_S/DeepSeek-V4-Flash-0731-UD-IQ1_S-00001-of-00003.gguf",
+            "UD-IQ1_S/DeepSeek-V4-Flash-0731-UD-IQ1_S-00002-of-00003.gguf",
+            "UD-IQ1_S/DeepSeek-V4-Flash-0731-UD-IQ1_S-00003-of-00003.gguf",
+        ]
+    ),
+    n_gpu_layers = 0,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn a_deepseek_v4_context_limits_positions_by_the_window_its_cache_masks_with(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let context = fixture.build_context()?;
+
+    ensure!(context.limits().sliding_window == DEEPSEEK_V4_SLIDING_WINDOW);
 
     Ok(())
 }
