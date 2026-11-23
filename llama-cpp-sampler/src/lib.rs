@@ -6,5 +6,7 @@ pub mod lazy_grammar_triggers;
 pub mod llama_sampler;
 mod llguidance_sampler_context;
 pub mod mask_outcome;
+#[cfg(test)]
+mod read_only_zeroed_logit_biases;
 pub mod sampler_error;
 pub mod sanitized_grammar;

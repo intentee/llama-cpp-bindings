@@ -1415,6 +1415,7 @@ dependencies = [
 name = "llama-cpp-sampler"
 version = "0.30.0"
 dependencies = [
+ "libc",
  "llama-cpp-bindings-sys",
  "llama-cpp-context",
  "llama-cpp-error-recorder",

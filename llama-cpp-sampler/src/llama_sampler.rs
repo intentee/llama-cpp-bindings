@@ -962,6 +962,7 @@ mod tests {
     use super::sampler_init_grammar_status_to_result;
     use super::sampler_init_status_to_result;
     use super::sampler_sample_status_to_result;
+    use crate::read_only_zeroed_logit_biases::ReadOnlyZeroedLogitBiases;
     use crate::sampler_error::SamplerError;
     use crate::sanitized_grammar::SanitizedGrammar;
 
@@ -1317,8 +1318,7 @@ mod tests {
     #[test]
     fn a_logit_bias_list_longer_than_a_c_int_is_refused() {
         let bias_count = usize::try_from(i32::MAX).unwrap() + 1;
-        let zeroed_biases =
-            unsafe { Box::<[LlamaLogitBias]>::new_zeroed_slice(bias_count).assume_init() };
+        let zeroed_biases = ReadOnlyZeroedLogitBiases::new(bias_count);
 
         assert_eq!(
             LlamaSampler::logit_bias(1, &zeroed_biases).err(),
