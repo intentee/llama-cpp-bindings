@@ -86,8 +86,11 @@ impl BuildContext {
 
 #[cfg(test)]
 pub mod tests {
+    use std::env;
     use std::ffi::OsStr;
+    use std::fs;
     use std::path::PathBuf;
+    use std::process;
 
     use enumflags2::BitFlags;
 
@@ -117,6 +120,12 @@ pub mod tests {
         ]
     }
 
+    pub const HOST_TRIPLE: &str = include_str!(concat!(env!("OUT_DIR"), "/host_triple"));
+
+    pub const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
+
+    pub const MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+
     pub fn android_overrides() -> [EnvironmentVariable; 4] {
         [
             variable("ANDROID_NDK_HOME", FIXTURE_ANDROID_NDK),
@@ -124,6 +133,16 @@ pub mod tests {
             variable("CARGO_CFG_TARGET_OS", "android"),
             variable("TARGET", "aarch64-linux-android"),
         ]
+    }
+
+    /// A fresh directory for the artifacts of the build named `name`.
+    pub fn build_root(name: &str) -> PathBuf {
+        let root =
+            env::temp_dir().join(format!("llama-cpp-bindings-build-{name}-{}", process::id()));
+
+        fs::create_dir_all(&root).unwrap();
+
+        root
     }
 
     /// The variables cargo sets for a build script building for x86-64 Linux, with `overrides`.

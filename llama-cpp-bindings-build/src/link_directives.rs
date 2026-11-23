@@ -289,6 +289,7 @@ mod tests {
 
     use super::LinkDirectives;
     use crate::build_context::BuildContext;
+    use crate::build_context::tests::FIXTURES;
     use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
     use crate::build_environment::BuildEnvironment;
@@ -298,8 +299,6 @@ mod tests {
     use crate::cargo_directive::CargoDirective;
     use crate::link_kind::LinkKind;
     use crate::native_library::NativeLibrary;
-
-    const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
 
     fn linked(environment: &BuildEnvironment) -> Vec<CargoDirective> {
         LinkDirectives::of(&BuildContext::of_linux_host(environment), environment)

@@ -91,21 +91,20 @@ impl PlannedBuild for NativeLibraryBuild {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
     use std::ffi::OsStr;
     use std::fs;
     use std::path::Path;
     use std::path::PathBuf;
-    use std::process;
 
     use enumflags2::BitFlags;
 
-    use llama_cpp_error_chain::error_chain::error_chain;
-
     use super::NativeLibraryBuild;
     use crate::build_context::BuildContext;
+    use crate::build_context::tests::FIXTURES;
+    use crate::build_context::tests::HOST_TRIPLE;
+    use crate::build_context::tests::MANIFEST;
+    use crate::build_context::tests::build_root;
     use crate::build_context::tests::cargo_environment;
-    use crate::build_environment::BuildEnvironment;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_build::CmakeBuild;
@@ -116,13 +115,8 @@ mod tests {
     use crate::openmp_linking::OpenmpLinking;
     use crate::openmp_runtime_source::OpenmpRuntimeSource;
     use crate::planned_build::PlannedBuild;
+    use crate::planned_build::tests::run_failure;
     use crate::target_os::TargetOs;
-
-    const HOST_TRIPLE: &str = include_str!(concat!(env!("OUT_DIR"), "/host_triple"));
-
-    const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
-
-    const MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
 
     fn fixture_build(root: &Path) -> NativeLibraryBuild {
         NativeLibraryBuild {
@@ -161,20 +155,6 @@ mod tests {
              cargo:rustc-link-lib=dylib:+verbatim=libfixture.a\n",
             root = root.display()
         )
-    }
-
-    fn build_root(name: &str) -> PathBuf {
-        let root = env::temp_dir().join(format!("llama-cpp-native-build-{name}-{}", process::id()));
-
-        fs::create_dir_all(&root).unwrap();
-
-        root
-    }
-
-    fn planning_failure(environment: &BuildEnvironment) -> Option<String> {
-        NativeLibraryBuild::from_environment(environment)
-            .err()
-            .map(|error| error_chain(&error))
     }
 
     #[test]
@@ -264,22 +244,20 @@ mod tests {
     fn a_cmake_build_that_cannot_create_its_directories_emits_no_directive() {
         let root = build_root("failed-cmake");
         let mut native_library_build = fixture_build(&root);
-        let mut output = Vec::new();
 
         native_library_build.cmake.required_directories =
             vec![PathBuf::from(MANIFEST).join("backends")];
 
         assert_eq!(
-            native_library_build
-                .run(&mut output)
-                .err()
-                .map(|error| error_chain(&error)),
-            Some(format!(
-                "filesystem operation failed for {MANIFEST}/backends: Not a directory (os error \
-                 20)"
-            ))
+            run_failure(native_library_build),
+            [
+                Some(format!(
+                    "filesystem operation failed for {MANIFEST}/backends: Not a directory (os error \
+                     20)"
+                )),
+                Some(String::new())
+            ]
         );
-        assert_eq!(output, Vec::<u8>::new());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -287,56 +265,62 @@ mod tests {
     fn an_apple_build_whose_ggml_needs_an_openmp_runtime_emits_no_directive() {
         let root = build_root("apple-openmp");
         let mut native_library_build = fixture_build(&root);
-        let mut output = Vec::new();
 
         native_library_build.openmp.target_os = TargetOs::Apple;
 
         assert_eq!(
-            native_library_build
-                .run(&mut output)
-                .err()
-                .map(|error| error_chain(&error)),
-            Some(format!(
-                "ggml needs the OpenMP runtime [{:?}], which Apple's linker cannot link by its \
-                 exact file name",
-                root.join("cmake/lib/libfixture.a")
-            ))
+            run_failure(native_library_build),
+            [
+                Some(format!(
+                    "ggml needs the OpenMP runtime [{:?}], which Apple's linker cannot link by its \
+                     exact file name",
+                    root.join("cmake/lib/libfixture.a")
+                )),
+                Some(String::new())
+            ]
         );
-        assert_eq!(output, Vec::<u8>::new());
         fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
-    fn a_failure_at_any_planning_stage_is_reported() {
+    fn a_failure_at_any_planning_stage_is_reported_and_nothing_is_emitted() {
         let mut without_target = cargo_environment(BitFlags::empty(), &[]);
 
         without_target.variables.remove(OsStr::new("TARGET"));
 
         assert_eq!(
             [
-                planning_failure(&without_target),
-                planning_failure(&cargo_environment(
-                    BitFlags::from(BuildFeature::SystemGgml),
-                    &[]
-                )),
-                planning_failure(&cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])),
+                without_target.build_failure::<NativeLibraryBuild>(),
+                cargo_environment(BitFlags::from(BuildFeature::SystemGgml), &[])
+                    .build_failure::<NativeLibraryBuild>(),
+                cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])
+                    .build_failure::<NativeLibraryBuild>(),
             ],
             [
-                Some(
-                    "environment variable TARGET could not be read: environment variable not \
-                     found"
-                        .to_owned()
-                ),
-                Some(
-                    "environment variable GGML_DIR could not be read: environment variable not \
-                     found"
-                        .to_owned()
-                ),
-                Some(
-                    "environment variable ROCM_PATH could not be read: environment variable not \
-                     found"
-                        .to_owned()
-                ),
+                [
+                    Some(
+                        "environment variable TARGET could not be read: environment variable not \
+                         found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
+                [
+                    Some(
+                        "environment variable GGML_DIR could not be read: environment variable \
+                         not found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
+                [
+                    Some(
+                        "environment variable ROCM_PATH could not be read: environment variable \
+                         not found"
+                            .to_owned()
+                    ),
+                    Some(String::new())
+                ],
             ]
         );
     }

@@ -2,8 +2,8 @@ use std::io::Write;
 use std::iter;
 use std::path::PathBuf;
 
-use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
-use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
+use llama_cpp_wrapper_sources::wrapper_header_paths::wrapper_header_paths;
+use llama_cpp_wrapper_sources::wrapper_source_paths::wrapper_source_paths;
 
 use crate::bindings_generation::BindingsGeneration;
 use crate::build_context::BuildContext;
@@ -42,12 +42,10 @@ impl PlannedBuild for BindingsBuild {
             wrappers: WrapperCompilation::of(context, environment, &llama_cpp_dir),
             directives: iter::once(context.build_script_trigger())
                 .chain(
-                    WRAPPER_HEADERS
-                        .iter()
-                        .chain(WRAPPER_SOURCES)
-                        .map(|wrapper_file| {
-                            CargoDirective::RerunIfChanged(context.manifest_dir.join(wrapper_file))
-                        }),
+                    wrapper_header_paths(&context.manifest_dir)
+                        .into_iter()
+                        .chain(wrapper_source_paths(&context.manifest_dir))
+                        .map(CargoDirective::RerunIfChanged),
                 )
                 .collect(),
             include_debug_messages: context.include_debug_messages,
@@ -75,38 +73,33 @@ impl PlannedBuild for BindingsBuild {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
     use std::fs;
     use std::iter;
     use std::path::Path;
     use std::path::PathBuf;
-    use std::process;
 
     use enumflags2::BitFlags;
 
-    use llama_cpp_error_chain::error_chain::error_chain;
-    use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
-    use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
+    use llama_cpp_wrapper_sources::wrapper_header_paths::wrapper_header_paths;
+    use llama_cpp_wrapper_sources::wrapper_source_paths::wrapper_source_paths;
 
     use super::BindingsBuild;
     use crate::bindings_generation::BindingsGeneration;
     use crate::build_context::BuildContext;
+    use crate::build_context::tests::FIXTURES;
+    use crate::build_context::tests::HOST_TRIPLE;
+    use crate::build_context::tests::MANIFEST;
+    use crate::build_context::tests::build_root;
     use crate::build_context::tests::cargo_environment;
-    use crate::build_environment::BuildEnvironment;
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_environment::tests::variable;
     use crate::cargo_directive::CargoDirective;
     use crate::planned_build::PlannedBuild;
+    use crate::planned_build::tests::run_failure;
     use crate::wrapper_compilation::WrapperCompilation;
-
-    const HOST_TRIPLE: &str = include_str!(concat!(env!("OUT_DIR"), "/host_triple"));
-
-    const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
 
     const FIXTURE_CMAKE_PROJECT: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/cmake_project");
-
-    const MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
 
     fn native_llama_cpp_dir() -> EnvironmentVariable {
         variable("DEP_LLAMA_ROOT", "/native/llama.cpp")
@@ -137,27 +130,6 @@ mod tests {
         }
     }
 
-    fn build_root(name: &str) -> PathBuf {
-        let root =
-            env::temp_dir().join(format!("llama-cpp-bindings-build-{name}-{}", process::id()));
-
-        fs::create_dir_all(&root).unwrap();
-
-        root
-    }
-
-    fn failure(environment: &BuildEnvironment) -> [Option<String>; 2] {
-        let mut output = Vec::new();
-
-        [
-            BindingsBuild::from_environment(environment)
-                .and_then(|bindings_build| bindings_build.run(&mut output))
-                .err()
-                .map(|error| error_chain(&error)),
-            String::from_utf8(output).ok(),
-        ]
-    }
-
     #[test]
     fn the_bindings_are_generated_against_the_native_llama_cpp_and_rebuilt_with_the_wrappers() {
         let environment = cargo_environment(BitFlags::empty(), &[native_llama_cpp_dir()]);
@@ -180,14 +152,10 @@ mod tests {
                     "/sys/build.rs"
                 )))
                 .chain(
-                    WRAPPER_HEADERS
-                        .iter()
-                        .chain(WRAPPER_SOURCES)
-                        .map(|wrapper_file| {
-                            CargoDirective::RerunIfChanged(PathBuf::from(format!(
-                                "/sys/{wrapper_file}"
-                            )))
-                        })
+                    wrapper_header_paths(Path::new("/sys"))
+                        .into_iter()
+                        .chain(wrapper_source_paths(Path::new("/sys")))
+                        .map(CargoDirective::RerunIfChanged)
                 )
                 .collect(),
                 include_debug_messages: false,
@@ -231,20 +199,19 @@ mod tests {
     fn a_failed_wrapper_compilation_emits_no_directive() {
         let root = build_root("failed-wrappers");
         let mut bindings_build = fixture_build(&root);
-        let mut output = Vec::new();
 
         bindings_build.wrappers.out_dir = PathBuf::from(MANIFEST);
 
         assert_eq!(
-            bindings_build
-                .run(&mut output)
-                .err()
-                .map(|error| error_chain(&error)),
-            Some(
-                "native wrapper compilation failed: IOError: File exists (os error 17)".to_owned()
-            )
+            run_failure(bindings_build),
+            [
+                Some(
+                    "native wrapper compilation failed: IOError: File exists (os error 17)"
+                        .to_owned()
+                ),
+                Some(String::new())
+            ]
         );
-        assert_eq!(output, Vec::<u8>::new());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -252,14 +219,15 @@ mod tests {
     fn a_missing_native_llama_cpp_dir_or_wrapper_header_is_reported_and_nothing_is_emitted() {
         assert_eq!(
             [
-                failure(&cargo_environment(BitFlags::empty(), &[])),
-                failure(&cargo_environment(
+                cargo_environment(BitFlags::empty(), &[]).build_failure::<BindingsBuild>(),
+                cargo_environment(
                     BitFlags::empty(),
                     &[
                         native_llama_cpp_dir(),
                         variable("CARGO_MANIFEST_DIR", FIXTURE_CMAKE_PROJECT)
                     ]
-                )),
+                )
+                .build_failure::<BindingsBuild>(),
             ],
             [
                 [

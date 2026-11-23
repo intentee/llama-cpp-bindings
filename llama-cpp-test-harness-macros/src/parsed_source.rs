@@ -181,7 +181,7 @@ impl ParsedSource {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use syn::parse_str;
 
     use super::ParsedSource;
@@ -190,6 +190,20 @@ mod tests {
         let expression: syn::Expr =
             parse_str(source).expect("the test source must be an expression");
         ParsedSource::parse(&expression, "model_source")
+    }
+
+    /// A model split into three shards, as `HuggingFaceShards` declares it.
+    #[must_use]
+    pub fn three_shard_source() -> ParsedSource {
+        ParsedSource::HuggingFaceShards {
+            repo: "org/name".to_owned(),
+            commit: "abc123".to_owned(),
+            first_shard: "m-00001-of-00003.gguf".to_owned(),
+            remaining_shards: vec![
+                "m-00002-of-00003.gguf".to_owned(),
+                "m-00003-of-00003.gguf".to_owned(),
+            ],
+        }
     }
 
     #[test]
@@ -210,18 +224,7 @@ mod tests {
         let parsed = parse("HuggingFaceShards(\"org/name\", \"abc123\", [\"m-00001-of-00003.gguf\", \"m-00002-of-00003.gguf\", \"m-00003-of-00003.gguf\"])")
             .expect("valid");
 
-        assert_eq!(
-            parsed,
-            ParsedSource::HuggingFaceShards {
-                repo: "org/name".to_owned(),
-                commit: "abc123".to_owned(),
-                first_shard: "m-00001-of-00003.gguf".to_owned(),
-                remaining_shards: vec![
-                    "m-00002-of-00003.gguf".to_owned(),
-                    "m-00003-of-00003.gguf".to_owned(),
-                ],
-            },
-        );
+        assert_eq!(parsed, three_shard_source());
     }
 
     #[test]

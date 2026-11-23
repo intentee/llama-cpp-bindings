@@ -303,6 +303,7 @@ mod tests {
     use crate::parsed_expected_failure::ParsedExpectedFailure;
     use crate::parsed_expected_outcome::ParsedExpectedOutcome;
     use crate::parsed_source::ParsedSource;
+    use crate::parsed_source::tests::three_shard_source;
 
     fn well_formed_attribute() -> TokenStream {
         quote! {
@@ -490,19 +491,10 @@ mod tests {
     #[test]
     fn a_huggingface_shards_model_source_emits_its_commit_and_every_shard() {
         assert_eq!(
-            build_source_literal(&ParsedSource::HuggingFaceShards {
-                repo: "r".to_owned(),
-                commit: "abc123".to_owned(),
-                first_shard: "m-00001-of-00003.gguf".to_owned(),
-                remaining_shards: vec![
-                    "m-00002-of-00003.gguf".to_owned(),
-                    "m-00003-of-00003.gguf".to_owned(),
-                ],
-            })
-            .to_string(),
+            build_source_literal(&three_shard_source()).to_string(),
             quote! {
                 ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFaceShards {
-                    repo: "r",
+                    repo: "org/name",
                     commit: "abc123",
                     first_shard: "m-00001-of-00003.gguf",
                     remaining_shards: &["m-00002-of-00003.gguf", "m-00003-of-00003.gguf"],

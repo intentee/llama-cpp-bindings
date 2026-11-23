@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use llama_cpp_wrapper_sources::constants::CPP_STANDARD;
 use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
 use llama_cpp_wrapper_sources::constants::WRAPPER_INCLUDE_DIRS;
-use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
 use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
+use llama_cpp_wrapper_sources::wrapper_source_paths::wrapper_source_paths;
 
 use crate::build_context::BuildContext;
 use crate::build_environment::BuildEnvironment;
@@ -49,10 +49,7 @@ impl WrapperCompilation {
         llama_cpp_dir: &Path,
     ) -> Self {
         Self {
-            sources: WRAPPER_SOURCES
-                .iter()
-                .map(|source| manifest_dir.join(source))
-                .collect(),
+            sources: wrapper_source_paths(manifest_dir),
             include_dirs: WRAPPER_INCLUDE_DIRS
                 .iter()
                 .map(|include_dir| manifest_dir.join(include_dir))
@@ -117,8 +114,8 @@ mod tests {
     use enumflags2::BitFlags;
 
     use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
-    use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
     use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
+    use llama_cpp_wrapper_sources::wrapper_source_paths::wrapper_source_paths;
 
     use super::WrapperCompilation;
     use crate::build_context::BuildContext;
@@ -142,10 +139,7 @@ mod tests {
 
     fn linux_compilation() -> WrapperCompilation {
         WrapperCompilation {
-            sources: WRAPPER_SOURCES
-                .iter()
-                .map(|source| PathBuf::from(format!("/sys/{source}")))
-                .collect(),
+            sources: wrapper_source_paths(Path::new("/sys")),
             include_dirs: vec![PathBuf::from("/sys/.")],
             flags: system_include_flags(Path::new("/sys"), Path::new("/native/llama.cpp")),
             cpp_standard: "c++17",

@@ -1,4 +1,6 @@
 use std::io;
+use std::io::Stderr;
+use std::io::Stdout;
 use std::io::Write;
 use std::process::ExitCode;
 
@@ -12,6 +14,22 @@ use crate::planned_build::PlannedBuild;
 pub struct BuildScript<TDirectives, TDiagnostics> {
     pub directives: TDirectives,
     pub diagnostics: TDiagnostics,
+}
+
+impl BuildScript<Stdout, Stderr> {
+    /// Plans and runs `TBuild` for the build script of the running process, writing the cargo
+    /// directives to standard output and the error chain of a failed build to standard error.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`io::Error`] of writing the error chain of a failed build to standard error.
+    pub fn run_in_process<TBuild: PlannedBuild>() -> Result<ExitCode, io::Error> {
+        Self {
+            directives: io::stdout(),
+            diagnostics: io::stderr(),
+        }
+        .run::<TBuild>(&BuildEnvironment::of_process())
+    }
 }
 
 impl<TDirectives: Write, TDiagnostics: Write> BuildScript<TDirectives, TDiagnostics> {

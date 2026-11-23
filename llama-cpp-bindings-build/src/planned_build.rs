@@ -33,3 +33,37 @@ pub trait PlannedBuild: Sized {
     /// Returns the [`BuildError`] of the first step that fails.
     fn run(self, output: &mut impl Write) -> Result<(), BuildError>;
 }
+
+#[cfg(test)]
+pub mod tests {
+    use llama_cpp_error_chain::error_chain::error_chain;
+
+    use super::PlannedBuild;
+    use crate::build_environment::BuildEnvironment;
+
+    /// The error chain of running the planned `build`, with what it wrote for cargo.
+    #[must_use]
+    pub fn run_failure<TBuild: PlannedBuild>(build: TBuild) -> [Option<String>; 2] {
+        let mut output = Vec::new();
+
+        [
+            build
+                .run(&mut output)
+                .err()
+                .map(|error| error_chain(&error)),
+            String::from_utf8(output).ok(),
+        ]
+    }
+
+    impl BuildEnvironment {
+        /// The error chain of planning and running `TBuild` for this environment, with what it
+        /// wrote for cargo.
+        #[must_use]
+        pub fn build_failure<TBuild: PlannedBuild>(&self) -> [Option<String>; 2] {
+            TBuild::from_environment(self).map_or_else(
+                |error| [Some(error_chain(&error)), Some(String::new())],
+                run_failure,
+            )
+        }
+    }
+}
