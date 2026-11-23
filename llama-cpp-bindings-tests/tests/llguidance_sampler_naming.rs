@@ -1,6 +1,7 @@
+use std::ffi::CStr;
+
 use anyhow::Result;
 use anyhow::ensure;
-use std::ffi::CStr;
 
 use llama_cpp_bindings_tests::yes_or_no_regex::YES_OR_NO_REGEX;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;

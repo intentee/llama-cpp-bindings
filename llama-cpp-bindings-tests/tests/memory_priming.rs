@@ -1,7 +1,8 @@
+use std::ffi::CString;
+
 use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
-use std::ffi::CString;
 
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_bindings_tests::prime_memory_with::prime_memory_with;

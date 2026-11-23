@@ -1,5 +1,3 @@
-use anyhow::Result;
-use anyhow::ensure;
 use std::env;
 use std::ffi::CString;
 use std::ffi::OsStr;
@@ -7,6 +5,9 @@ use std::fs;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
+
+use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::model_error::ModelError;

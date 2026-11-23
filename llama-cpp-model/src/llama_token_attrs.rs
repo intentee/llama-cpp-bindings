@@ -1,5 +1,6 @@
-use enumflags2::BitFlags;
 use std::ops::{Deref, DerefMut};
+
+use enumflags2::BitFlags;
 
 use crate::llama_token_attr::LlamaTokenAttr;
 use crate::model_error::ModelError;

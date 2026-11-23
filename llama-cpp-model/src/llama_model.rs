@@ -1,5 +1,3 @@
-use encoding_rs::CoderResult;
-use once_cell::sync::OnceCell;
 use std::cmp;
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -14,6 +12,9 @@ use std::path::Path;
 use std::ptr;
 use std::ptr::NonNull;
 use std::sync::Arc;
+
+use encoding_rs::CoderResult;
+use once_cell::sync::OnceCell;
 use toktrie::ApproximateTokEnv;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokRxInfo;

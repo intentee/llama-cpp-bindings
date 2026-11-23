@@ -1,7 +1,8 @@
+use std::ffi::CString;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
-use std::ffi::CString;
 
 use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;

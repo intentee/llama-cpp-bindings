@@ -1,5 +1,6 @@
-use hf_hub::api::sync::ApiError;
 use std::path::PathBuf;
+
+use hf_hub::api::sync::ApiError;
 
 use llama_cpp_model::model_error::ModelError;
 use llama_cpp_mtmd::mtmd_error::MtmdError;

@@ -1,7 +1,8 @@
+use std::ffi::CString;
+
 use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
-use std::ffi::CString;
 
 use llama_cpp_bindings_tests::media_question_chat_session::media_question_chat_session;
 use llama_cpp_bindings_tests::user_message::user_message;

@@ -1,10 +1,11 @@
-use llguidance::api::TopLevelGrammar;
-use llguidance::earley::SlicedBiasComputer;
 use std::ffi::c_char;
 use std::ffi::c_void;
 use std::ptr;
 use std::slice;
 use std::sync::Arc;
+
+use llguidance::api::TopLevelGrammar;
+use llguidance::earley::SlicedBiasComputer;
 use toktrie::ApproximateTokEnv;
 use toktrie::InferenceCapabilities;
 
@@ -199,6 +200,7 @@ impl LlguidanceSamplerContext {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+
     use toktrie::ApproximateTokEnv;
     use toktrie::INVALID_TOKEN;
     use toktrie::InferenceCapabilities;

@@ -1,9 +1,10 @@
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::ensure;
 use std::ffi::CString;
 use std::num::NonZeroU32;
 use std::sync::Arc;
+
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_mtmd::mtmd_context::MtmdContext;
 use llama_cpp_mtmd::mtmd_context_params::MtmdContextParams;

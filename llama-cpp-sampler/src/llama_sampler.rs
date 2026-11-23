@@ -7,6 +7,7 @@ use std::mem;
 use std::ptr;
 use std::ptr::NonNull;
 use std::sync::Arc;
+
 use toktrie::ApproximateTokEnv;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_sampler_accept_status;
@@ -928,6 +929,7 @@ mod tests {
     use std::ptr;
     use std::slice;
     use std::sync::Arc;
+
     use toktrie::ApproximateTokEnv;
     use toktrie::INVALID_TOKEN;
     use toktrie::TokRxInfo;

@@ -1,7 +1,8 @@
+use std::path::Path;
+
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::ensure;
-use std::path::Path;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokenizerEnv as _;
 

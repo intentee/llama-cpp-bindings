@@ -1,7 +1,8 @@
+use std::num::NonZeroU32;
+
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::ensure;
-use std::num::NonZeroU32;
 
 use llama_cpp_bindings::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
 use llama_cpp_bindings::llama_cpp_error::LlamaCppError;

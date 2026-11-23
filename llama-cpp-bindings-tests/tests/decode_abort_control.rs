@@ -1,7 +1,8 @@
-use anyhow::Result;
-use anyhow::ensure;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+
+use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_context::context_error::ContextError;
 use llama_cpp_context::llama_batch::LlamaBatch;

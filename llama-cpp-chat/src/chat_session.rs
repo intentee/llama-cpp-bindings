@@ -1,7 +1,8 @@
-use serde_json::Value;
 use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
+
+use serde_json::Value;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_grammar_trigger_type;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_create_status;
@@ -526,8 +527,9 @@ impl Drop for ChatSession {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
     use std::ptr;
+
+    use serde_json::json;
 
     use llama_cpp_bindings_sys::bindings::llama_rs_chat_grammar_trigger_type;
     use llama_cpp_bindings_sys::bindings::llama_rs_chat_session_create_status;

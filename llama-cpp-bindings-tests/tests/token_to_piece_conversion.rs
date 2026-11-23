@@ -1,9 +1,10 @@
+use std::ffi::c_int;
+use std::num::NonZeroU16;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
 use anyhow::ensure;
-use std::ffi::c_int;
-use std::num::NonZeroU16;
 
 use llama_cpp_bindings_tests::single_token::single_token;
 use llama_cpp_model::add_bos::AddBos;

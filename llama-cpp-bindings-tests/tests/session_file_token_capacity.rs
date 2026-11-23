@@ -1,7 +1,8 @@
-use anyhow::Result;
-use anyhow::ensure;
 use std::env;
 use std::fs;
+
+use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_context::llama_batch::LlamaBatch;
 use llama_cpp_context_state::context_state::ContextState;

@@ -1,7 +1,8 @@
+use std::ffi::CString;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
-use std::ffi::CString;
 
 use llama_cpp_bindings_tests::tokenize_prompt_with_synthetic_image::tokenize_prompt_with_synthetic_image;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;

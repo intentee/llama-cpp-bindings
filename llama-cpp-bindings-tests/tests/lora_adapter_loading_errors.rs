@@ -1,6 +1,3 @@
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::ensure;
 use std::env;
 use std::ffi::CString;
 use std::ffi::OsStr;
@@ -8,6 +5,10 @@ use std::fs;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
+
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::ensure;
 
 use llama_cpp_bindings_tests::freshly_loaded_model::freshly_loaded_model;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;

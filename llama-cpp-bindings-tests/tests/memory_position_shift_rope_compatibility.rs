@@ -1,7 +1,8 @@
+use std::num::NonZeroU8;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
-use std::num::NonZeroU8;
 
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
 use llama_cpp_context_memory::context_memory::ContextMemory;

@@ -1,4 +1,3 @@
-use enumflags2::BitFlags;
 use std::ffi::CString;
 use std::ffi::c_char;
 use std::num::NonZeroU32;
@@ -6,6 +5,8 @@ use std::path::PathBuf;
 use std::ptr;
 use std::ptr::NonNull;
 use std::sync::Arc;
+
+use enumflags2::BitFlags;
 
 use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_init_from_file_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
@@ -194,8 +195,9 @@ impl Drop for MtmdContext {
 
 #[cfg(test)]
 mod tests {
-    use enumflags2::BitFlags;
     use std::ptr;
+
+    use enumflags2::BitFlags;
 
     use llama_cpp_bindings_sys::bindings::llama_rs_mtmd_init_from_file_status;
 
