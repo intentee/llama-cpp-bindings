@@ -2,14 +2,16 @@ use std::ffi::CString;
 use std::num::NonZeroU32;
 use std::pin::pin;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::context::params::LlamaContextParams;
-use llama_cpp_bindings::max_devices::max_devices;
-use llama_cpp_bindings::model::params::LlamaModelParams;
-use llama_cpp_bindings::model::params::fit_extra_model::FitExtraModel;
-use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
-use llama_cpp_bindings::mtmd::mtmd_memory_usage::MtmdMemoryUsage;
+use llama_cpp_backend::max_devices::max_devices;
+use llama_cpp_mtmd::mtmd_context_params::MtmdContextParams;
+use llama_cpp_mtmd::mtmd_memory_usage::MtmdMemoryUsage;
+use llama_cpp_params::fit_extra_model::FitExtraModel;
+use llama_cpp_params::llama_context_params::LlamaContextParams;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
@@ -46,8 +48,10 @@ use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn fit_params_fits_a_nonzero_context_for_the_model(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model_path_c = CString::new(fixture.model_path.as_os_str().as_encoded_bytes())?;
+fn fit_params_fits_a_nonzero_context_for_the_model(
+    &LlamaFixture { model_path, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let model_path_c = CString::new(model_path.as_os_str().as_encoded_bytes())?;
 
     let mut params = pin!(LlamaModelParams::default());
     let mut context_params = LlamaContextParams::default();
@@ -59,11 +63,11 @@ fn fit_params_fits_a_nonzero_context_for_the_model(fixture: &LlamaFixture<'_>) -
         &mut margins,
         512,
         None,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
     );
 
     let fit = result?;
-    assert!(fit.n_ctx > 0);
+    ensure!(fit.n_ctx > 0);
 
     Ok(())
 }
@@ -77,21 +81,21 @@ fn fit_params_fits_a_nonzero_context_for_the_model(fixture: &LlamaFixture<'_>) -
     n_ubatch = 64,
 )]
 fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model_path, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model_path_c = CString::new(fixture.model_path.as_os_str().as_encoded_bytes())?;
+    let model_path_c = CString::new(model_path.as_os_str().as_encoded_bytes())?;
 
     let mut params = pin!(LlamaModelParams::default());
     let mut context_params = LlamaContextParams::default();
     let mut margins = vec![0usize; max_devices()];
 
     let unfittable_extra_n_ctx = NonZeroU32::MIN;
-    let mut extra_params = pin!(LlamaModelParams::default());
+    let mut extra_params = LlamaModelParams::default();
     let mut extra_context_params =
         LlamaContextParams::default().with_n_ctx(Some(unfittable_extra_n_ctx));
     let mut extra = FitExtraModel {
         model_path: &model_path_c,
-        model_params: extra_params.as_mut(),
+        model_params: &mut extra_params,
         context_params: &mut extra_context_params,
         shares_model: true,
     };
@@ -102,20 +106,16 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
         &mut margins,
         512,
         Some(&mut extra),
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
     );
 
     let fit = result?;
-    assert!(fit.n_ctx > 0);
-    assert_ne!(
-        extra_context_params.n_ctx(),
-        Some(unfittable_extra_n_ctx),
+    ensure!(fit.n_ctx > 0);
+    ensure!(
+        extra_context_params.n_ctx() != Some(unfittable_extra_n_ctx),
         "the llama.cpp fit must overwrite the extra model's context size"
     );
-    assert_eq!(
-        extra_context_params.context_params.n_ctx,
-        context_params.context_params.n_ctx
-    );
+    ensure!(extra_context_params.n_ctx() == context_params.n_ctx());
 
     Ok(())
 }
@@ -129,14 +129,14 @@ fn fit_params_aligns_the_extra_model_context_with_the_fitted_one(
     n_ubatch = 64,
 )]
 fn fit_params_fits_the_model_beside_the_projector_memory_reserved_on_its_device(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model_path, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mmproj_path = GgufSource::HuggingFace {
         repo: "unsloth/Qwen3.5-0.8B-GGUF",
         file: "mmproj-F16.gguf",
     }
     .resolve_path()?;
-    let model_path_c = CString::new(fixture.model_path.as_os_str().as_encoded_bytes())?;
+    let model_path_c = CString::new(model_path.as_os_str().as_encoded_bytes())?;
     let mmproj_path_c = CString::new(mmproj_path.as_os_str().as_encoded_bytes())?;
 
     let mut params = pin!(LlamaModelParams::default());
@@ -146,7 +146,10 @@ fn fit_params_fits_the_model_beside_the_projector_memory_reserved_on_its_device(
     MtmdMemoryUsage::measure(&mmproj_path_c, &MtmdContextParams::default())?
         .add_to_fit_margins(&mut margins);
 
-    assert_ne!(margins[0], 0, "{margins:?}");
+    ensure!(
+        *margins.first().context("margins has no element 0")? != 0,
+        "{margins:?}"
+    );
 
     let fit = params.as_mut().fit_params(
         &model_path_c,
@@ -154,10 +157,10 @@ fn fit_params_fits_the_model_beside_the_projector_memory_reserved_on_its_device(
         &mut margins,
         512,
         None,
-        llama_cpp_bindings_sys::GGML_LOG_LEVEL_NONE,
+        llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
     )?;
 
-    assert!(fit.n_ctx > 0);
+    ensure!(fit.n_ctx > 0);
 
     Ok(())
 }

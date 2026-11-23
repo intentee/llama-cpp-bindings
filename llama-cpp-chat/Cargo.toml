@@ -1,0 +1,21 @@
+[package]
+name = "llama-cpp-chat"
+description = "Chat sessions rendered by a llama.cpp model's chat template: the prompt, the grammar that constrains tool calls, and parsing the model's answer back into messages"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
+llama-cpp-model = { workspace = true }
+llama-cpp-sampler = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

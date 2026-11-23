@@ -1,7 +1,8 @@
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::model::vocabulary_token::VocabularyToken;
 use llama_cpp_bindings_tests::single_token::single_token;
+use llama_cpp_model::vocabulary_token::VocabularyToken;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -14,17 +15,16 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
 )]
 fn the_vocabulary_enumerates_each_token_at_its_id_with_its_piece(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let hello = single_token(model, "hello");
+    let hello = single_token(model, "hello")?;
 
-    assert_eq!(
-        model.tokens(false).nth(usize::try_from(hello.0)?),
-        Some(Ok(VocabularyToken {
-            token: hello,
-            piece: "hello".to_owned()
-        }))
+    ensure!(
+        model.tokens(false).nth(usize::try_from(hello.0)?)
+            == Some(Ok(VocabularyToken {
+                token: hello,
+                piece: "hello".to_owned()
+            }))
     );
 
     Ok(())

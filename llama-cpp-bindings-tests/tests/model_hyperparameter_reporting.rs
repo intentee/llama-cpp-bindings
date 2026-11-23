@@ -1,0 +1,52 @@
+use anyhow::Result;
+use anyhow::ensure;
+
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF", "DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/GLM-4.7-Flash-GGUF", "GLM-4.7-Flash-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn model_reports_positive_core_hyperparameters(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    ensure!(model.n_vocab() > 0);
+    ensure!(model.n_embd() > 0);
+    ensure!(model.n_params() > 0);
+    ensure!(model.n_ctx_train()? > 0);
+    ensure!(model.n_layer()? > 0);
+    ensure!(model.n_head()? > 0);
+    ensure!(model.n_head_kv()? > 0);
+    ensure!(model.size() > 0);
+
+    Ok(())
+}

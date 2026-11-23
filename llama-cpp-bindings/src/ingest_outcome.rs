@@ -1,4 +1,5 @@
-use crate::sampled_token::SampledToken;
+use llama_cpp_model::sampled_token::SampledToken;
+
 use crate::token_piece::TokenPiece;
 
 #[derive(Clone, Debug, Eq, PartialEq)]

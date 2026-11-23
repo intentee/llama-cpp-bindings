@@ -61,28 +61,6 @@ impl LogDecoder {
         }
     }
 
-    fn feed_orphan_cont(&mut self, text: &str) -> DecodeResult {
-        let level = self.previous_level;
-        if let Some(without_newline) = text.strip_suffix('\n') {
-            DecodeResult {
-                output: DecodeOutput::Line(LogLine {
-                    level,
-                    text: without_newline.to_owned(),
-                }),
-                anomaly: Some(DecodeAnomaly::OrphanCont),
-            }
-        } else {
-            self.buffered = Some(LogLine {
-                level,
-                text: text.to_owned(),
-            });
-            DecodeResult {
-                output: DecodeOutput::None,
-                anomaly: Some(DecodeAnomaly::OrphanCont),
-            }
-        }
-    }
-
     fn feed_non_cont(&mut self, level: LogLevel, text: &str) -> DecodeResult {
         self.previous_level = level;
         let stale = self.buffered.take();
@@ -141,6 +119,28 @@ impl LogDecoder {
                     output: DecodeOutput::None,
                     anomaly: None,
                 }
+            }
+        }
+    }
+
+    fn feed_orphan_cont(&mut self, text: &str) -> DecodeResult {
+        let level = self.previous_level;
+        if let Some(without_newline) = text.strip_suffix('\n') {
+            DecodeResult {
+                output: DecodeOutput::Line(LogLine {
+                    level,
+                    text: without_newline.to_owned(),
+                }),
+                anomaly: Some(DecodeAnomaly::OrphanCont),
+            }
+        } else {
+            self.buffered = Some(LogLine {
+                level,
+                text: text.to_owned(),
+            });
+            DecodeResult {
+                output: DecodeOutput::None,
+                anomaly: Some(DecodeAnomaly::OrphanCont),
             }
         }
     }

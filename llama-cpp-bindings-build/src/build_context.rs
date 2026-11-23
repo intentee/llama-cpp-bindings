@@ -11,7 +11,7 @@ use crate::target_os::TargetOs;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BuildContext {
     pub out_dir: PathBuf,
-    pub sys_dir: PathBuf,
+    pub manifest_dir: PathBuf,
     pub target_os: TargetOs,
     pub target_triple: String,
     pub host_triple: String,
@@ -37,7 +37,7 @@ impl BuildContext {
 
         Ok(Self {
             out_dir: PathBuf::from(environment.required("OUT_DIR")?),
-            sys_dir: PathBuf::from(environment.required("CARGO_MANIFEST_DIR")?),
+            manifest_dir: PathBuf::from(environment.required("CARGO_MANIFEST_DIR")?),
             target_os: TargetOs::detect(
                 environment,
                 &target_triple,
@@ -54,9 +54,10 @@ impl BuildContext {
         })
     }
 
+    /// The directive that runs the build script of the package being built again when it changes.
     #[must_use]
-    pub fn cmake_dir(&self) -> PathBuf {
-        self.out_dir.join("cmake")
+    pub fn build_script_trigger(&self) -> CargoDirective {
+        CargoDirective::RerunIfChanged(self.manifest_dir.join("build.rs"))
     }
 
     #[must_use]
@@ -65,15 +66,15 @@ impl BuildContext {
     }
 
     #[must_use]
-    pub fn llama_src(&self) -> PathBuf {
-        self.sys_dir.join("llama.cpp")
+    pub fn cmake_dir(&self) -> PathBuf {
+        self.out_dir.join("cmake")
     }
 
     #[must_use]
     pub fn debug_messages(&self) -> Vec<CargoDirective> {
         [
             format!("TARGET: {}", self.target_triple),
-            format!("CARGO_MANIFEST_DIR: {}", self.sys_dir.display()),
+            format!("CARGO_MANIFEST_DIR: {}", self.manifest_dir.display()),
             format!("OUT_DIR: {}", self.out_dir.display()),
             format!("CMAKE_DIR: {}", self.cmake_dir().display()),
             format!("BUILD_SHARED: {}", self.build_shared_libs),
@@ -85,10 +86,13 @@ impl BuildContext {
 
 #[cfg(test)]
 pub mod tests {
+    use std::env;
     use std::ffi::OsStr;
+    use std::fs;
     use std::path::PathBuf;
+    use std::process;
 
-    use enumflags2::BitFlags;
+    use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::BuildContext;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
@@ -96,7 +100,6 @@ pub mod tests {
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_environment::tests::environment_of;
     use crate::build_environment::tests::variable;
-    use crate::build_environment::tests::with_non_unicode;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::host_os::HostOs;
@@ -115,6 +118,12 @@ pub mod tests {
         ]
     }
 
+    pub const HOST_TRIPLE: &str = include_str!(concat!(env!("OUT_DIR"), "/host_triple"));
+
+    pub const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures");
+
+    pub const MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+
     pub fn android_overrides() -> [EnvironmentVariable; 4] {
         [
             variable("ANDROID_NDK_HOME", FIXTURE_ANDROID_NDK),
@@ -124,28 +133,41 @@ pub mod tests {
         ]
     }
 
+    /// A fresh directory for the artifacts of the build named `name`.
+    pub fn build_root(name: &str) -> PathBuf {
+        let root =
+            env::temp_dir().join(format!("llama-cpp-bindings-build-{name}-{}", process::id()));
+
+        fs::create_dir_all(&root).unwrap();
+
+        root
+    }
+
     /// The variables cargo sets for a build script building for x86-64 Linux, with `overrides`.
     pub fn cargo_environment(
-        features: BitFlags<BuildFeature>,
+        features: &[BuildFeature],
         overrides: &[EnvironmentVariable],
     ) -> BuildEnvironment {
         environment_of(features, &[&cargo_variables()[..], overrides].concat())
     }
 
-    pub fn context_of(environment: &BuildEnvironment) -> BuildContext {
-        BuildContext::from_environment(environment, HostOs::Linux).unwrap()
+    impl BuildContext {
+        #[must_use]
+        pub fn of_linux_host(environment: &BuildEnvironment) -> Self {
+            Self::from_environment(environment, HostOs::Linux).unwrap()
+        }
     }
 
     #[test]
     fn the_context_is_read_from_the_build_variables_and_the_dynamic_link_feature() {
         assert_eq!(
-            context_of(&cargo_environment(
-                BitFlags::from(BuildFeature::DynamicLink),
+            BuildContext::of_linux_host(&cargo_environment(
+                &[BuildFeature::DynamicLink],
                 &[variable("BUILD_DEBUG", "")]
             )),
             BuildContext {
                 out_dir: PathBuf::from("/out"),
-                sys_dir: PathBuf::from("/sys"),
+                manifest_dir: PathBuf::from("/sys"),
                 target_os: TargetOs::Linux,
                 target_triple: "x86_64-unknown-linux-gnu".to_owned(),
                 host_triple: "x86_64-unknown-linux-gnu".to_owned(),
@@ -161,13 +183,13 @@ pub mod tests {
     #[test]
     fn every_variable_cargo_sets_for_build_scripts_is_required() {
         let without = |name: &str| {
-            let mut environment = cargo_environment(BitFlags::empty(), &[]);
+            let mut environment = cargo_environment(&[], &[]);
 
             environment.variables.remove(OsStr::new(name));
 
             BuildContext::from_environment(&environment, HostOs::Linux)
                 .err()
-                .map(|error| error.to_string())
+                .map(|error| error_chain(&error))
         };
         let required = cargo_variables().map(|EnvironmentVariable { name, .. }| name);
 
@@ -183,11 +205,11 @@ pub mod tests {
     fn a_build_debug_request_that_is_not_unicode_is_refused() {
         assert_eq!(
             BuildContext::from_environment(
-                &with_non_unicode(cargo_environment(BitFlags::empty(), &[]), "BUILD_DEBUG"),
+                &cargo_environment(&[], &[]).with_non_unicode("BUILD_DEBUG"),
                 HostOs::Linux,
             )
             .err()
-            .map(|error| error.to_string()),
+            .map(|error| error_chain(&error)),
             Some(
                 "environment variable BUILD_DEBUG could not be read: environment variable was \
                  not valid unicode: \"\\xFF\""
@@ -199,7 +221,7 @@ pub mod tests {
     #[test]
     fn debug_messages_describe_where_the_build_happens() {
         assert_eq!(
-            context_of(&cargo_environment(BitFlags::empty(), &[])).debug_messages(),
+            BuildContext::of_linux_host(&cargo_environment(&[], &[])).debug_messages(),
             [
                 "TARGET: x86_64-unknown-linux-gnu",
                 "CARGO_MANIFEST_DIR: /sys",

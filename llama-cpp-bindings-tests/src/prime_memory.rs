@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_context::llama_context::LlamaContext;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 
 use crate::prime_memory_with::prime_memory_with;

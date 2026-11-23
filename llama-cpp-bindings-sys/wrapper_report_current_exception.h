@@ -11,9 +11,6 @@ auto llama_rs_report_exception_message(
     const char * message,
     TStatus reported_status,
     TStatus error_string_allocation_failed_status) noexcept -> TStatus {
-    if (out_error == nullptr) {
-        return reported_status;
-    }
     *out_error = llama_rs_dup_string(message);
     if (*out_error == nullptr) {
         return error_string_allocation_failed_status;

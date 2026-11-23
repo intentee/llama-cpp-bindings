@@ -1,8 +1,9 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 use bindgen::Builder;
 
-use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
+use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
 
 use crate::binding_callbacks::BindingCallbacks;
 use crate::build_context::BuildContext;
@@ -13,50 +14,6 @@ use crate::cargo_directive::CargoDirective;
 use crate::target_os::TargetOs;
 
 const DEPRECATED_FUNCTIONS: &[&str] = &[
-    "ggml_add1",
-    "ggml_add1_inplace",
-    "ggml_flash_attn_ext_set_prec",
-    "ggml_mul_mat_set_prec",
-    "ggml_rope_custom",
-    "ggml_rope_custom_inplace",
-    "ggml_type_sizef",
-    "ggml_upscale_ext",
-    "llama_add_bos_token",
-    "llama_add_eos_token",
-    "llama_copy_state_data",
-    "llama_free_model",
-    "llama_get_state_size",
-    "llama_load_model_from_file",
-    "llama_load_session_file",
-    "llama_n_ctx_train",
-    "llama_n_embd",
-    "llama_n_head",
-    "llama_n_layer",
-    "llama_n_vocab",
-    "llama_new_context_with_model",
-    "llama_sampler_init_grammar_lazy",
-    "llama_save_session_file",
-    "llama_set_state_data",
-    "llama_set_warmup",
-    "llama_token_bos",
-    "llama_token_cls",
-    "llama_token_eos",
-    "llama_token_eot",
-    "llama_token_fim_mid",
-    "llama_token_fim_pad",
-    "llama_token_fim_pre",
-    "llama_token_fim_rep",
-    "llama_token_fim_sep",
-    "llama_token_fim_suf",
-    "llama_token_get_attr",
-    "llama_token_get_score",
-    "llama_token_get_text",
-    "llama_token_is_control",
-    "llama_token_is_eog",
-    "llama_token_nl",
-    "llama_token_pad",
-    "llama_token_sep",
-    "llama_vocab_cls",
     "mtmd_encode",
     "mtmd_helper_model_can_chat",
     "mtmd_helper_support_video",
@@ -109,6 +66,7 @@ fn configured_builder() -> Builder {
         .allowlist_type("llama_.*")
         .allowlist_var("LLAMA_TOKEN_NULL")
         .allowlist_var("LLAMA_DRY_MAX_SEQ_BREAKERS")
+        .allowlist_var("LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY")
         .allowlist_function("mtmd_.*")
         .allowlist_type("mtmd_.*")
         .blocklist_function("ggml_fopen")
@@ -118,6 +76,10 @@ fn configured_builder() -> Builder {
         .blocklist_function("llama_model_load_from_file_ptr")
         .blocklist_type("FILE")
         .blocklist_type("_IO_.*")
+        .rustified_enum("llama_rs_.*_status")
+        .rustified_enum("llama_rs_chat_span_kind")
+        .rustified_enum("llama_rs_chat_grammar_trigger_type")
+        .rustified_enum("llama_rs_memory_kind")
         .prepend_enum_name(false);
 
     let builder = DEPRECATED_FUNCTIONS
@@ -137,9 +99,15 @@ fn fault_injection_args(environment: &BuildEnvironment) -> Vec<String> {
     }
 }
 
-fn target_args(context: &BuildContext) -> Vec<String> {
-    match &context.target_os {
-        TargetOs::Android(android_ndk) => android_ndk.clang_args(&context.target_triple),
+fn target_args(
+    BuildContext {
+        target_os,
+        target_triple,
+        ..
+    }: &BuildContext,
+) -> Vec<String> {
+    match target_os {
+        TargetOs::Android(android_ndk) => android_ndk.clang_args(target_triple),
         TargetOs::Apple | TargetOs::Linux => Vec::new(),
     }
 }
@@ -153,17 +121,21 @@ pub struct BindingsGeneration {
 }
 
 impl BindingsGeneration {
+    /// Plans the bindings of the wrapper header of the package being built, parsed against the
+    /// llama.cpp headers in `llama_cpp_dir`.
     #[must_use]
-    pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Self {
-        let llama_src = context.llama_src();
-
+    pub fn of(
+        context: &BuildContext,
+        environment: &BuildEnvironment,
+        llama_cpp_dir: &Path,
+    ) -> Self {
         Self {
-            header: context.sys_dir.join("wrapper.h"),
+            header: context.manifest_dir.join("wrapper.h"),
             clang_args: [
                 vec![
-                    format!("-I{}", llama_src.display()),
-                    format!("-I{}", llama_src.join("include").display()),
-                    format!("-I{}", llama_src.join("ggml/include").display()),
+                    format!("-I{}", llama_cpp_dir.display()),
+                    format!("-I{}", llama_cpp_dir.join("include").display()),
+                    format!("-I{}", llama_cpp_dir.join("ggml/include").display()),
                 ],
                 fault_injection_args(environment),
                 target_args(context),
@@ -207,37 +179,39 @@ impl BindingsGeneration {
 mod tests {
     use std::env;
     use std::fs;
+    use std::path::Path;
     use std::path::PathBuf;
     use std::process;
 
-    use enumflags2::BitFlags;
+    use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
 
-    use llama_cpp_wrapper_sources::fault_injection_define::FAULT_INJECTION_DEFINE;
+    use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::BindingsGeneration;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
+    use crate::build_context::BuildContext;
     use crate::build_context::tests::android_overrides;
     use crate::build_context::tests::cargo_environment;
-    use crate::build_context::tests::context_of;
     use crate::build_environment::tests::EnvironmentVariable;
     use crate::build_feature::BuildFeature;
 
     const FIXTURE_BINDINGS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/bindings");
 
-    fn planned(
-        features: BitFlags<BuildFeature>,
-        overrides: &[EnvironmentVariable],
-    ) -> BindingsGeneration {
+    fn planned(features: &[BuildFeature], overrides: &[EnvironmentVariable]) -> BindingsGeneration {
         let environment = cargo_environment(features, overrides);
 
-        BindingsGeneration::of(&context_of(&environment), &environment)
+        BindingsGeneration::of(
+            &BuildContext::of_linux_host(&environment),
+            &environment,
+            Path::new("/native/llama.cpp"),
+        )
     }
 
     fn llama_cpp_includes() -> Vec<String> {
         vec![
-            "-I/sys/llama.cpp".to_owned(),
-            "-I/sys/llama.cpp/include".to_owned(),
-            "-I/sys/llama.cpp/ggml/include".to_owned(),
+            "-I/native/llama.cpp".to_owned(),
+            "-I/native/llama.cpp/include".to_owned(),
+            "-I/native/llama.cpp/ggml/include".to_owned(),
         ]
     }
 
@@ -249,13 +223,13 @@ mod tests {
         }
         .generate()
         .err()
-        .map(|error| error.to_string())
+        .map(|error| error_chain(&error))
     }
 
     #[test]
     fn the_wrapper_header_is_parsed_against_the_llama_cpp_headers() {
         assert_eq!(
-            planned(BitFlags::empty(), &[]),
+            planned(&[], &[]),
             BindingsGeneration {
                 header: PathBuf::from("/sys/wrapper.h"),
                 clang_args: llama_cpp_includes(),
@@ -267,7 +241,7 @@ mod tests {
     #[test]
     fn fault_injection_adds_its_define_to_the_clang_arguments() {
         assert_eq!(
-            planned(BitFlags::from(BuildFeature::FaultInjection), &[]).clang_args,
+            planned(&[BuildFeature::FaultInjection], &[]).clang_args,
             [
                 llama_cpp_includes(),
                 vec![format!("-D{FAULT_INJECTION_DEFINE}")],
@@ -281,7 +255,7 @@ mod tests {
         let toolchain = format!("{FIXTURE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64");
 
         assert_eq!(
-            planned(BitFlags::empty(), &android_overrides()).clang_args,
+            planned(&[], &android_overrides()).clang_args,
             [
                 llama_cpp_includes(),
                 vec![
@@ -323,7 +297,7 @@ mod tests {
                 PathBuf::from("/out/bindings.rs")
             ),
             Some(
-                "bindgen never saw field llama_context_params::defrag_thold, so it can no longer \
+                "bindgen never saw field mtmd_context_params::image_marker, so it can no longer \
                  be kept private"
                     .to_owned()
             )

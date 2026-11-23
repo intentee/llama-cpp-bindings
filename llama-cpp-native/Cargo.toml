@@ -1,0 +1,86 @@
+[package]
+name = "llama-cpp-native"
+description = "llama.cpp built from its sources with CMake, the native library llama-cpp-bindings-sys links against"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+links = "llama"
+
+include = [
+    "build.rs",
+    "/src",
+
+    "/llama.cpp/common/**/*.h",
+    "/llama.cpp/common/**/*.hpp",
+    "/llama.cpp/common/**/*.cpp",
+    "/llama.cpp/ggml/include/*.h",
+    "/llama.cpp/ggml/src/*.h",
+    "/llama.cpp/ggml/src/*.c",
+    "/llama.cpp/ggml/src/*.cpp",
+    "/llama.cpp/src/*.h",
+    "/llama.cpp/src/*.cpp",
+    "/llama.cpp/src/models/*.h",
+    "/llama.cpp/src/models/*.cpp",
+    "/llama.cpp/tools/mtmd/*.h",
+    "/llama.cpp/tools/mtmd/*.cpp",
+    "/llama.cpp/tools/mtmd/debug/*.h",
+    "/llama.cpp/tools/mtmd/debug/*.cpp",
+    "/llama.cpp/tools/mtmd/models/*.h",
+    "/llama.cpp/tools/mtmd/models/*.cpp",
+    "/llama.cpp/tools/mtmd/CMakeLists.txt",
+
+    "/llama.cpp/convert_hf_to_gguf.py",
+    "/llama.cpp/conversion/**/*.py",
+    "/llama.cpp/gguf-py/gguf/**/*.py",
+    "/llama.cpp/gguf-py/LICENSE",
+    "/llama.cpp/common/build-info.cpp.in",
+    "/llama.cpp/ggml/src/ggml-version.h.in",
+    "/llama.cpp/src/llama-version.h.in",
+
+    "/llama.cpp/include/llama.h",
+    "/llama.cpp/include/llama-cpp.h",
+
+    "/llama.cpp/ggml/src/ggml-cpu/**/*",
+    "/llama.cpp/ggml/src/ggml-cuda/**/*",
+    "/llama.cpp/ggml/src/ggml-metal/**/*",
+    "/llama.cpp/ggml/src/ggml-vulkan/**/*",
+    "/llama.cpp/ggml/src/ggml-hip/**/*",
+
+    "/llama.cpp/pocs",
+    "/llama.cpp/vendor",
+
+    "/llama.cpp/CMakeLists.txt",
+    "/llama.cpp/LICENSE",
+    "/llama.cpp/common/CMakeLists.txt",
+    "/llama.cpp/common/parsers/sources.cmake",
+    "/llama.cpp/ggml/CMakeLists.txt",
+    "/llama.cpp/ggml/src/CMakeLists.txt",
+    "/llama.cpp/src/CMakeLists.txt",
+
+    "/llama.cpp/cmake",
+    "/llama.cpp/ggml/cmake",
+]
+
+[lib]
+doctest = false
+
+[build-dependencies]
+llama-cpp-bindings-build = { workspace = true }
+
+[features]
+cuda = []
+cuda-no-vmm = ["cuda"]
+metal = []
+dynamic-link = []
+dynamic-backends = ["dynamic-link"]
+vulkan = []
+openmp = []
+rocm = []
+shared-stdcxx = []
+static-stdcxx = []
+system-ggml = []
+system-ggml-static = ["system-ggml"]
+
+[lints]
+workspace = true

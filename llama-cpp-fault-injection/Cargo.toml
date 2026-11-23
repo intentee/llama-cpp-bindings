@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 llama-cpp-bindings-sys = { workspace = true, features = ["fault-injection"] }
 

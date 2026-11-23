@@ -1,18 +1,20 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::generation_progress::GenerationProgress;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
+
+const SAMPLED_TOKENS: u64 = 5;
 
 fn most_likely_token(context: &LlamaContext<'_>, token_index: i32) -> Result<LlamaToken> {
     Ok(context
@@ -61,19 +63,14 @@ fn most_likely_token(context: &LlamaContext<'_>, token_index: i32) -> Result<Lla
     n_ubatch = 128,
 )]
 fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let mut context = LlamaContext::from_model(
-        model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let prompt =
         "<|im_start|>user\nSay hello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n";
     let tokens = model.str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     batch.add_sequence(&tokens, 0, false)?;
 
@@ -83,38 +80,26 @@ fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut outcomes = Vec::new();
-    let mut sampled_count: u64 = 0;
-    let mut ended = false;
 
-    for (position, _) in (batch.n_tokens()..).zip(0..5) {
+    for (position, _) in (batch.n_tokens()..).zip(0..SAMPLED_TOKENS) {
         let turn = classifier.sample(&mut sampler, &context, -1, &mut outcomes)?;
 
-        if turn.progress == GenerationProgress::Ended {
-            ended = true;
-
-            break;
-        }
-
-        sampled_count += 1;
-
-        let raw_as_sampled = SampledToken::Content(turn.token);
+        ensure!(
+            turn.progress != GenerationProgress::Ended,
+            "the answer to \"Say hello\" must not end within {SAMPLED_TOKENS} tokens"
+        );
 
         batch.clear();
-        batch.add(&raw_as_sampled, position, &[0], true)?;
+        batch.add(SampledToken::Content(turn.token), position, &[0], true)?;
 
         context.decode(&batch)?;
     }
 
     classifier.finish(&mut outcomes)?;
 
-    assert!(
-        sampled_count > 0,
-        "Should produce at least one token without grammar"
-    );
-    assert_eq!(
-        classifier.into_usage().completion_tokens(),
-        sampled_count + u64::from(ended),
-        "completion_tokens must count every sample, the end of generation included"
+    ensure!(
+        classifier.into_usage().completion_tokens() == SAMPLED_TOKENS,
+        "completion_tokens must count every sampled token"
     );
 
     Ok(())
@@ -129,29 +114,23 @@ fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
     n_ubatch = 512,
 )]
 fn a_greedy_sampler_selects_the_most_likely_candidate_of_a_decoded_row(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-    let tokens = fixture
-        .model
-        .str_to_token("Hi", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut context = fixture.build_context()?;
+    let tokens = model.str_to_token("Hi", AddBos::Always, ParseSpecialTokens::Always)?;
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
 
-    let last_index = batch.n_tokens() - 1;
+    let last_index = batch
+        .n_tokens()
+        .checked_sub(1)
+        .context("`batch.n_tokens() - 1` must not overflow")?;
     let mut data_array = context.token_data_array_ith(last_index)?;
     let sampler = LlamaSampler::greedy()?;
     sampler.apply(&mut data_array)?;
 
-    assert_eq!(
-        data_array.selected_token(),
-        Some(most_likely_token(&context, last_index)?)
-    );
+    ensure!(data_array.selected_token() == Some(most_likely_token(&context, last_index)?));
 
     Ok(())
 }
@@ -197,26 +176,20 @@ fn a_greedy_sampler_selects_the_most_likely_candidate_of_a_decoded_row(
     n_ubatch = 512,
 )]
 fn sampling_the_last_decoded_row_with_a_greedy_chain_yields_its_most_likely_token(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-    let tokens = fixture
-        .model
-        .str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut context = fixture.build_context()?;
+    let tokens = model.str_to_token("Hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let mut batch = LlamaBatch::new(context.limits());
     batch.add_sequence(&tokens, 0, false)?;
     context.decode(&batch)?;
     let mut sampler = LlamaSampler::chain([LlamaSampler::temp(0.8)?, LlamaSampler::greedy()?])?;
-    let last_index = batch.n_tokens() - 1;
+    let last_index = batch
+        .n_tokens()
+        .checked_sub(1)
+        .context("`batch.n_tokens() - 1` must not overflow")?;
 
-    assert_eq!(
-        sampler.sample(&context, last_index)?,
-        most_likely_token(&context, last_index)?
-    );
+    ensure!(sampler.sample(&context, last_index)? == most_likely_token(&context, last_index)?);
 
     Ok(())
 }

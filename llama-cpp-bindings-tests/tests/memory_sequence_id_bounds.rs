@@ -1,13 +1,11 @@
 use std::num::NonZeroU8;
 
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
-use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
-use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
-use llama_cpp_bindings::error::memory_seq_pos_max_error::MemorySeqPosMaxError;
-use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
-use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
+use llama_cpp_context_memory::context_memory::ContextMemory;
+use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -48,14 +46,12 @@ fn memory_seq_pos_max_rejects_out_of_range_sequence(fixture: &LlamaFixture<'_>) 
 
     let result = context.memory_seq_pos_max(999);
 
-    assert_eq!(
-        result,
-        Err(MemorySeqPosMaxError::SequenceIdOutOfRange(
-            SequenceIdOutOfRange {
+    ensure!(
+        result
+            == Err(ContextMemoryError::SeqPosMaxSequenceIdOutOfRange {
                 seq_id: 999,
                 n_seq_max: 1
-            }
-        ))
+            })
     );
 
     Ok(())
@@ -94,15 +90,17 @@ fn memory_seq_pos_max_rejects_out_of_range_sequence(fixture: &LlamaFixture<'_>) 
     n_ubatch = 128,
 )]
 fn memory_seq_rm_rejects_sequence_id_exceeding_i32_max(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
     let result = context.memory_seq_rm(Some(u32::MAX), None, None);
 
-    assert_eq!(
-        result.unwrap_err(),
-        MemorySeqRmError::SeqIdTooLarge(
-            i32::try_from(u32::MAX).expect_err("u32::MAX does not fit into i32")
-        )
+    ensure!(
+        result.err().context("the operation must fail")?
+            == ContextMemoryError::SeqRmSequenceIdTooLarge(
+                i32::try_from(u32::MAX)
+                    .err()
+                    .context("u32::MAX does not fit into i32")?
+            )
     );
 
     Ok(())
@@ -119,16 +117,14 @@ fn memory_seq_rm_rejects_sequence_id_exceeding_i32_max(fixture: &LlamaFixture<'_
 fn memory_seq_cp_rejects_a_destination_outside_the_context_sequences(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
-    assert_eq!(
-        context.memory_seq_cp(0, 1, None, None),
-        Err(MemorySeqCpError::SequenceIdOutOfRange(
-            SequenceIdOutOfRange {
+    ensure!(
+        context.memory_seq_cp(0, 1, None, None)
+            == Err(ContextMemoryError::SeqCpSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
-            }
-        ))
+            })
     );
 
     Ok(())
@@ -145,14 +141,14 @@ fn memory_seq_cp_rejects_a_destination_outside_the_context_sequences(
 fn memory_seq_keep_rejects_a_sequence_outside_the_context_sequences(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
-    assert_eq!(
-        context.memory_seq_keep(1),
-        Err(SequenceIdOutOfRange {
-            seq_id: 1,
-            n_seq_max: 1
-        })
+    ensure!(
+        context.memory_seq_keep(1)
+            == Err(ContextMemoryError::SeqKeepSequenceIdOutOfRange {
+                seq_id: 1,
+                n_seq_max: 1
+            })
     );
 
     Ok(())
@@ -169,14 +165,12 @@ fn memory_seq_keep_rejects_a_sequence_outside_the_context_sequences(
 fn memory_seq_add_rejects_a_negative_sequence_id(fixture: &LlamaFixture<'_>) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    assert_eq!(
-        context.memory_seq_add(-1, None, None, 1),
-        Err(MemorySeqAddError::SequenceIdOutOfRange(
-            SequenceIdOutOfRange {
+    ensure!(
+        context.memory_seq_add(-1, None, None, 1)
+            == Err(ContextMemoryError::SeqAddSequenceIdOutOfRange {
                 seq_id: -1,
                 n_seq_max: 1
-            }
-        ))
+            })
     );
 
     Ok(())
@@ -195,14 +189,12 @@ fn memory_seq_div_rejects_a_sequence_outside_the_context_sequences(
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
 
-    assert_eq!(
-        context.memory_seq_div(1, None, None, NonZeroU8::MIN),
-        Err(MemorySeqDivError::SequenceIdOutOfRange(
-            SequenceIdOutOfRange {
+    ensure!(
+        context.memory_seq_div(1, None, None, NonZeroU8::MIN)
+            == Err(ContextMemoryError::SeqDivSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
-            }
-        ))
+            })
     );
 
     Ok(())
@@ -219,16 +211,14 @@ fn memory_seq_div_rejects_a_sequence_outside_the_context_sequences(
 fn memory_seq_rm_rejects_a_sequence_outside_the_context_sequences(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
-    assert_eq!(
-        context.memory_seq_rm(Some(1), None, None),
-        Err(MemorySeqRmError::SequenceIdOutOfRange(
-            SequenceIdOutOfRange {
+    ensure!(
+        context.memory_seq_rm(Some(1), None, None)
+            == Err(ContextMemoryError::SeqRmSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
-            }
-        ))
+            })
     );
 
     Ok(())
@@ -245,16 +235,14 @@ fn memory_seq_rm_rejects_a_sequence_outside_the_context_sequences(
 fn memory_seq_cp_rejects_a_source_outside_the_context_sequences(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = fixture.build_context()?;
+    let context = fixture.build_context()?;
 
-    assert_eq!(
-        context.memory_seq_cp(1, 0, None, None),
-        Err(MemorySeqCpError::SequenceIdOutOfRange(
-            SequenceIdOutOfRange {
+    ensure!(
+        context.memory_seq_cp(1, 0, None, None)
+            == Err(ContextMemoryError::SeqCpSequenceIdOutOfRange {
                 seq_id: 1,
                 n_seq_max: 1
-            }
-        ))
+            })
     );
 
     Ok(())

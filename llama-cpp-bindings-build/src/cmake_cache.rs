@@ -12,20 +12,25 @@ pub struct CmakeCache {
 impl CmakeCache {
     #[must_use]
     pub fn contains(&self, name: &str) -> bool {
-        self.entries.iter().any(|entry| entry.name == name)
+        self.entries.iter().any(
+            |CmakeCacheEntry {
+                 name: entry_name, ..
+             }| entry_name == name,
+        )
     }
 
+    /// The elements of the `CMake` list `name`, which `CMake` separates with semicolons and
+    /// writes as an empty value when the list has none.
+    ///
     /// # Errors
     ///
     /// Returns [`BuildError::CmakeCacheEntryMissing`] when the cache has no entry `name`.
-    pub fn value(&self, name: &str) -> Result<&str, BuildError> {
-        self.entries
-            .iter()
-            .find(|entry| entry.name == name)
-            .map(|entry| entry.value.as_str())
-            .ok_or_else(|| BuildError::CmakeCacheEntryMissing {
-                name: name.to_owned(),
-            })
+    pub fn list(&self, name: &str) -> Result<Vec<&str>, BuildError> {
+        Ok(self
+            .value(name)?
+            .split(';')
+            .filter(|element| !element.is_empty())
+            .collect())
     }
 
     /// The switch `name`, which the project writes into the cache as `ON` or `OFF`.
@@ -45,23 +50,28 @@ impl CmakeCache {
         }
     }
 
-    /// The elements of the `CMake` list `name`, which `CMake` separates with semicolons and
-    /// writes as an empty value when the list has none.
-    ///
     /// # Errors
     ///
     /// Returns [`BuildError::CmakeCacheEntryMissing`] when the cache has no entry `name`.
-    pub fn list(&self, name: &str) -> Result<Vec<&str>, BuildError> {
-        Ok(self
-            .value(name)?
-            .split(';')
-            .filter(|element| !element.is_empty())
-            .collect())
+    pub fn value(&self, name: &str) -> Result<&str, BuildError> {
+        self.entries
+            .iter()
+            .find(
+                |CmakeCacheEntry {
+                     name: entry_name, ..
+                 }| entry_name == name,
+            )
+            .map(|CmakeCacheEntry { value, .. }| value.as_str())
+            .ok_or_else(|| BuildError::CmakeCacheEntryMissing {
+                name: name.to_owned(),
+            })
     }
 }
 
 #[cfg(test)]
 pub mod tests {
+    use llama_cpp_error_chain::error_chain::error_chain;
+
     use super::CmakeCache;
     use crate::cmake_cache_entry::CmakeCacheEntry;
 
@@ -80,7 +90,7 @@ pub mod tests {
             }
             .switch("GGML_OPENMP_ENABLED")
             .err()
-            .map(|error| error.to_string()),
+            .map(|error| error_chain(&error)),
             Some(
                 "the CMake cache entry GGML_OPENMP_ENABLED is TRUE, neither ON nor OFF".to_owned()
             )

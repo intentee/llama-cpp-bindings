@@ -134,30 +134,41 @@ fn require<TValue>(value: Option<TValue>, field: &str, span: Span) -> syn::Resul
 }
 
 fn dispatch_field(
-    accumulator: &mut AttributeAccumulator,
+    AttributeAccumulator {
+        model_source,
+        mmproj_source,
+        n_gpu_layers,
+        load_mode,
+        n_ctx,
+        n_batch,
+        n_ubatch,
+        embeddings,
+        n_seq_max,
+        n_threads_batch,
+        expected_failure,
+    }: &mut AttributeAccumulator,
     identifier: &Ident,
     name: &str,
     value: &Expr,
 ) -> syn::Result<()> {
     match name {
         "model_source" => {
-            accumulator.model_source = Some(ParsedSource::parse(value, "model_source")?);
+            *model_source = Some(ParsedSource::parse(value, "model_source")?);
         }
         "mmproj_source" => {
-            accumulator.mmproj_source = Some(ParsedSource::parse(value, "mmproj_source")?);
+            *mmproj_source = Some(ParsedSource::parse(value, "mmproj_source")?);
         }
         "n_gpu_layers" => {
-            accumulator.n_gpu_layers = Some(require_i32_value(value, "n_gpu_layers")?);
+            *n_gpu_layers = Some(require_i32_value(value, "n_gpu_layers")?);
         }
         "n_ctx" => {
-            accumulator.n_ctx = Some(require_int_lit(literal_from_expression(value)?, "n_ctx")?);
+            *n_ctx = Some(require_int_lit(literal_from_expression(value)?, "n_ctx")?);
         }
         "n_batch" => {
-            accumulator.n_batch =
-                Some(require_int_lit(literal_from_expression(value)?, "n_batch")?);
+            *n_batch = Some(require_int_lit(literal_from_expression(value)?, "n_batch")?);
         }
         "n_ubatch" => {
-            accumulator.n_ubatch = Some(require_int_lit(
+            *n_ubatch = Some(require_int_lit(
                 literal_from_expression(value)?,
                 "n_ubatch",
             )?);
@@ -169,31 +180,31 @@ fn dispatch_field(
                     "expected a load-mode identifier",
                 ));
             };
-            let Some(load_mode) = path.path.get_ident() else {
+            let Some(load_mode_identifier) = path.path.get_ident() else {
                 return Err(syn::Error::new_spanned(
                     value,
                     "expected a load-mode identifier",
                 ));
             };
-            accumulator.load_mode = Some(ParsedLoadMode::parse(load_mode)?);
+            *load_mode = Some(ParsedLoadMode::parse(load_mode_identifier)?);
         }
         "embeddings" => {
-            accumulator.embeddings = Some(require_bool_lit(
+            *embeddings = Some(require_bool_lit(
                 literal_from_expression(value)?,
                 "embeddings",
             )?);
         }
         "n_seq_max" => {
-            accumulator.n_seq_max = Some(require_int_lit(
+            *n_seq_max = Some(require_int_lit(
                 literal_from_expression(value)?,
                 "n_seq_max",
             )?);
         }
         "n_threads_batch" => {
-            accumulator.n_threads_batch = Some(require_i32_value(value, "n_threads_batch")?);
+            *n_threads_batch = Some(require_i32_value(value, "n_threads_batch")?);
         }
         "expected_failure" => {
-            accumulator.expected_failure = Some(ParsedExpectedFailure::parse(value)?);
+            *expected_failure = Some(ParsedExpectedFailure::parse(value)?);
         }
         "repo" | "file" | "mmproj_file" => {
             return Err(syn::Error::new_spanned(
@@ -284,6 +295,7 @@ mod tests {
     use super::ParsedArgs;
     use crate::parsed_load_mode::ParsedLoadMode;
     use crate::parsed_source::ParsedSource;
+    use crate::parsed_source::tests::UNKNOWN_VARIANT_MESSAGE;
 
     const ALL_REQUIRED: &str = "\
         model_source = HuggingFace(\"foo\", \"bar.gguf\"), \
@@ -295,6 +307,29 @@ mod tests {
 
     fn parse(source: &str) -> syn::Result<ParsedArgs> {
         parse_str(source)
+    }
+
+    fn override_field(field: &str, replacement: &str) -> String {
+        let parts: [(&str, &str); 6] = [
+            ("model_source", "HuggingFace(\"foo\", \"bar.gguf\")"),
+            ("n_gpu_layers", "0"),
+            ("load_mode", "Mmap"),
+            ("n_ctx", "512"),
+            ("n_batch", "128"),
+            ("n_ubatch", "64"),
+        ];
+        parts
+            .iter()
+            .map(|(name, value)| {
+                let resolved = if *name == field { replacement } else { *value };
+                format!("{name} = {resolved}")
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    fn append_field(field: &str, value: &str) -> String {
+        format!("{ALL_REQUIRED}, {field} = {value}")
     }
 
     #[test]
@@ -796,29 +831,6 @@ mod tests {
         );
     }
 
-    fn override_field(field: &str, replacement: &str) -> String {
-        let parts: [(&str, &str); 6] = [
-            ("model_source", "HuggingFace(\"foo\", \"bar.gguf\")"),
-            ("n_gpu_layers", "0"),
-            ("load_mode", "Mmap"),
-            ("n_ctx", "512"),
-            ("n_batch", "128"),
-            ("n_ubatch", "64"),
-        ];
-        parts
-            .iter()
-            .map(|(name, value)| {
-                let resolved = if *name == field { replacement } else { *value };
-                format!("{name} = {resolved}")
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
-    }
-
-    fn append_field(field: &str, value: &str) -> String {
-        format!("{ALL_REQUIRED}, {field} = {value}")
-    }
-
     #[test]
     fn each_int_dispatch_arm_rejects_non_literal_value() {
         for field in ["n_gpu_layers", "n_ctx", "n_batch", "n_ubatch"] {
@@ -892,10 +904,7 @@ mod tests {
             .expect_err("mmproj_source unknown variant must fail")
             .to_string();
 
-        assert_eq!(
-            message,
-            "unknown source variant `Mystery`; expected `HuggingFace` or `LocalPath`"
-        );
+        assert_eq!(message, UNKNOWN_VARIANT_MESSAGE);
     }
 
     #[test]
@@ -911,10 +920,7 @@ mod tests {
             .expect_err("model_source unknown variant must fail")
             .to_string();
 
-        assert_eq!(
-            message,
-            "unknown source variant `Mystery`; expected `HuggingFace` or `LocalPath`"
-        );
+        assert_eq!(message, UNKNOWN_VARIANT_MESSAGE);
     }
 
     #[test]

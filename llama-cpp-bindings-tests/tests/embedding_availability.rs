@@ -1,6 +1,9 @@
-use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
-use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
+use anyhow::Result;
+use anyhow::ensure;
+
 use llama_cpp_bindings_tests::context_after_decoding_text::context_after_decoding_text;
+use llama_cpp_context::context_error::ContextError;
+use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -13,13 +16,12 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 512,
     embeddings = true,
 )]
-fn sequence_embeddings_need_a_pooling_context(fixture: &LlamaFixture<'_>) {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::None);
+fn sequence_embeddings_need_a_pooling_context(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::None)?;
 
-    assert_eq!(
-        context.embeddings_seq_ith(0),
-        Err(EmbeddingsError::NonePoolType)
-    );
+    ensure!(context.embeddings_seq_ith(0) == Err(ContextError::SequenceEmbeddingsRequirePooling));
+
+    Ok(())
 }
 
 #[llama_test(
@@ -31,15 +33,17 @@ fn sequence_embeddings_need_a_pooling_context(fixture: &LlamaFixture<'_>) {
     n_ubatch = 512,
     embeddings = true,
 )]
-fn token_embeddings_need_a_context_without_pooling(fixture: &LlamaFixture<'_>) {
-    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean);
+fn token_embeddings_need_a_context_without_pooling(fixture: &LlamaFixture<'_>) -> Result<()> {
+    let context = context_after_decoding_text(fixture, LlamaPoolingType::Mean)?;
 
-    assert_eq!(
-        context.embeddings_ith(0),
-        Err(EmbeddingsError::TokenEmbeddingsRequireNonePooling {
-            pooling_type: LlamaPoolingType::Mean,
-        })
+    ensure!(
+        context.embeddings_ith(0)
+            == Err(ContextError::TokenEmbeddingsRequireNonePooling {
+                pooling_type: LlamaPoolingType::Mean,
+            })
     );
+
+    Ok(())
 }
 
 #[llama_test(
@@ -51,10 +55,14 @@ fn token_embeddings_need_a_context_without_pooling(fixture: &LlamaFixture<'_>) {
     n_ubatch = 512,
     embeddings = true,
 )]
-fn disabling_embeddings_makes_token_embeddings_unavailable(fixture: &LlamaFixture<'_>) {
-    let mut context = context_after_decoding_text(fixture, LlamaPoolingType::None);
+fn disabling_embeddings_makes_token_embeddings_unavailable(
+    fixture: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = context_after_decoding_text(fixture, LlamaPoolingType::None)?;
 
     context.set_embeddings(false);
 
-    assert_eq!(context.embeddings_ith(-1), Err(EmbeddingsError::NotEnabled));
+    ensure!(context.embeddings_ith(-1) == Err(ContextError::EmbeddingsNotEnabled));
+
+    Ok(())
 }

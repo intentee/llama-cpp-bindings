@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::context::params::LlamaContextParams;
+use llama_cpp_params::llama_context_params::LlamaContextParams;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ContextParams {
@@ -40,7 +40,7 @@ impl ContextParams {
 mod tests {
     use std::num::NonZeroU32;
 
-    use llama_cpp_bindings::context::params::LlamaContextParams;
+    use llama_cpp_params::llama_context_params::LlamaContextParams;
 
     use super::ContextParams;
 
@@ -82,10 +82,7 @@ mod tests {
         }
         .into_llama_context_params();
 
-        assert_eq!(
-            params.context_params.n_threads_batch,
-            default_params.context_params.n_threads_batch
-        );
+        assert_eq!(params.n_threads_batch(), default_params.n_threads_batch());
     }
 
     #[test]

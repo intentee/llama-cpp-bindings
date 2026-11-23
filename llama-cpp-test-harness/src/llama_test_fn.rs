@@ -9,6 +9,12 @@ pub enum LlamaTestFn {
 }
 
 impl LlamaTestFn {
+    /// A test with an empty body, which passes whenever its phase sets up.
+    #[must_use]
+    pub const fn no_op() -> Self {
+        Self::Infallible(|_fixture| {})
+    }
+
     /// Runs the test against `fixture`; a test that cannot fail by returning an error succeeds
     /// whenever it returns.
     ///

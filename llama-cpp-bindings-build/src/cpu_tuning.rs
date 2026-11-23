@@ -108,7 +108,13 @@ impl CpuTuning {
     ///
     /// Returns [`BuildError::Environment`] when the rustflags or the target features are not
     /// Unicode.
-    pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Result<Self, BuildError> {
+    pub fn of(
+        BuildContext {
+            cargo_cfg_target_arch,
+            ..
+        }: &BuildContext,
+        environment: &BuildEnvironment,
+    ) -> Result<Self, BuildError> {
         if environment.has(BuildFeature::DynamicBackends) {
             return Ok(Self {
                 defines: vec![CmakeDefine::new("GGML_NATIVE", "OFF")],
@@ -137,7 +143,7 @@ impl CpuTuning {
         let enabled_features = target_features.split(',').collect::<Vec<&str>>();
         let mut defines = vec![CmakeDefine::new("GGML_NATIVE", "OFF")];
 
-        if matches!(context.cargo_cfg_target_arch.as_str(), "x86" | "x86_64") {
+        if matches!(cargo_cfg_target_arch.as_str(), "x86" | "x86_64") {
             defines.extend(
                 X86_GGML_SWITCHES
                     .iter()
@@ -155,8 +161,54 @@ impl CpuTuning {
 }
 
 #[cfg(test)]
-mod target_cpu_of_tests {
+mod tests {
+
+    use llama_cpp_error_chain::error_chain::error_chain;
+
+    use super::CpuTuning;
     use super::target_cpu_of;
+
+    use crate::build_context::BuildContext;
+
+    use crate::build_context::tests::cargo_environment;
+
+    use crate::build_environment::tests::EnvironmentVariable;
+
+    use crate::build_environment::tests::variable;
+
+    use crate::build_feature::BuildFeature;
+
+    use crate::cargo_directive::CargoDirective;
+
+    use crate::cmake_define::CmakeDefine;
+
+    fn tuned(features: &[BuildFeature], overrides: &[EnvironmentVariable]) -> CpuTuning {
+        let environment = cargo_environment(features, overrides);
+
+        CpuTuning::of(&BuildContext::of_linux_host(&environment), &environment).unwrap()
+    }
+
+    fn x86_switches(enabled: &[&'static str]) -> Vec<CmakeDefine> {
+        [
+            "GGML_SSE42",
+            "GGML_AVX",
+            "GGML_AVX_VNNI",
+            "GGML_AVX2",
+            "GGML_BMI2",
+            "GGML_FMA",
+            "GGML_F16C",
+            "GGML_AVX512",
+            "GGML_AVX512_VBMI",
+            "GGML_AVX512_VNNI",
+            "GGML_AVX512_BF16",
+            "GGML_AMX_TILE",
+            "GGML_AMX_INT8",
+            "GGML_AMX_BF16",
+        ]
+        .into_iter()
+        .map(|name| CmakeDefine::switch(name, enabled.contains(&name)))
+        .collect()
+    }
 
     #[test]
     fn an_attached_codegen_target_cpu_is_found() {
@@ -200,55 +252,12 @@ mod target_cpu_of_tests {
             None
         );
     }
-}
-
-#[cfg(test)]
-mod cpu_tuning_tests {
-    use enumflags2::BitFlags;
-
-    use super::CpuTuning;
-    use crate::build_context::tests::cargo_environment;
-    use crate::build_context::tests::context_of;
-    use crate::build_environment::tests::EnvironmentVariable;
-    use crate::build_environment::tests::variable;
-    use crate::build_environment::tests::with_non_unicode;
-    use crate::build_feature::BuildFeature;
-    use crate::cargo_directive::CargoDirective;
-    use crate::cmake_define::CmakeDefine;
-
-    fn tuned(features: BitFlags<BuildFeature>, overrides: &[EnvironmentVariable]) -> CpuTuning {
-        let environment = cargo_environment(features, overrides);
-
-        CpuTuning::of(&context_of(&environment), &environment).unwrap()
-    }
-
-    fn x86_switches(enabled: &[&'static str]) -> Vec<CmakeDefine> {
-        [
-            "GGML_SSE42",
-            "GGML_AVX",
-            "GGML_AVX_VNNI",
-            "GGML_AVX2",
-            "GGML_BMI2",
-            "GGML_FMA",
-            "GGML_F16C",
-            "GGML_AVX512",
-            "GGML_AVX512_VBMI",
-            "GGML_AVX512_VNNI",
-            "GGML_AVX512_BF16",
-            "GGML_AMX_TILE",
-            "GGML_AMX_INT8",
-            "GGML_AMX_BF16",
-        ]
-        .into_iter()
-        .map(|name| CmakeDefine::switch(name, enabled.contains(&name)))
-        .collect()
-    }
 
     #[test]
     fn a_native_target_cpu_lets_ggml_detect_the_cpu() {
         assert_eq!(
             tuned(
-                BitFlags::empty(),
+                &[],
                 &[
                     variable("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=native"),
                     variable("CARGO_CFG_TARGET_FEATURE", "avx2"),
@@ -267,7 +276,7 @@ mod cpu_tuning_tests {
     fn a_baseline_x86_build_turns_every_instruction_set_ggml_would_assume_off() {
         assert_eq!(
             tuned(
-                BitFlags::empty(),
+                &[],
                 &[variable("CARGO_CFG_TARGET_FEATURE", "fxsr,sse,sse2")]
             ),
             CpuTuning {
@@ -287,7 +296,7 @@ mod cpu_tuning_tests {
     fn a_named_target_cpu_switches_on_exactly_the_instruction_sets_its_target_features_enable() {
         assert_eq!(
             tuned(
-                BitFlags::empty(),
+                &[],
                 &[
                     variable("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-cpu=znver4"),
                     variable(
@@ -316,7 +325,7 @@ mod cpu_tuning_tests {
     fn an_aarch64_build_leaves_the_architecture_to_the_compiler_baseline() {
         assert_eq!(
             tuned(
-                BitFlags::empty(),
+                &[],
                 &[
                     variable("CARGO_CFG_TARGET_ARCH", "aarch64"),
                     variable("TARGET", "aarch64-unknown-linux-gnu"),
@@ -335,7 +344,7 @@ mod cpu_tuning_tests {
     fn dynamic_backends_build_every_cpu_variant_without_tuning() {
         assert_eq!(
             tuned(
-                BuildFeature::DynamicBackends | BuildFeature::DynamicLink,
+                &[BuildFeature::DynamicBackends, BuildFeature::DynamicLink],
                 &[
                     variable("CARGO_CFG_TARGET_ARCH", "aarch64"),
                     variable("TARGET", "aarch64-unknown-linux-gnu"),
@@ -353,16 +362,16 @@ mod cpu_tuning_tests {
 
     #[test]
     fn rustflags_or_target_features_that_are_not_unicode_are_refused() {
-        let context = context_of(&cargo_environment(BitFlags::empty(), &[]));
+        let context = BuildContext::of_linux_host(&cargo_environment(&[], &[]));
 
         assert_eq!(
             ["CARGO_ENCODED_RUSTFLAGS", "CARGO_CFG_TARGET_FEATURE"].map(|name| {
                 CpuTuning::of(
                     &context,
-                    &with_non_unicode(cargo_environment(BitFlags::empty(), &[]), name),
+                    &cargo_environment(&[], &[]).with_non_unicode(name),
                 )
                 .err()
-                .map(|error| error.to_string())
+                .map(|error| error_chain(&error))
             }),
             ["CARGO_ENCODED_RUSTFLAGS", "CARGO_CFG_TARGET_FEATURE"].map(|name| Some(format!(
                 "environment variable {name} could not be read: environment variable was not \

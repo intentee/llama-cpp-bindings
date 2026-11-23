@@ -13,7 +13,6 @@ fn aggregate_exit_code(conclusions: &[Conclusion]) -> ExitCode {
     }
 }
 
-#[must_use]
 pub fn run() -> ExitCode {
     match run_to_conclusions(Arguments::from_args()) {
         Ok(conclusions) => aggregate_exit_code(&conclusions),
@@ -31,7 +30,7 @@ mod tests {
 
     use libtest_mimic::Conclusion;
 
-    use llama_cpp_bindings::llama_backend::LlamaBackend;
+    use llama_cpp_backend::llama_backend::LlamaBackend;
     use llama_cpp_test_model_provisioning::backend_init_gate::BACKEND_INIT_GATE;
 
     use super::aggregate_exit_code;

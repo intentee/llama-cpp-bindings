@@ -3,24 +3,12 @@
 
 #include <src/llama-grammar.h>
 
-
 extern "C" auto llama_rs_validate_gbnf(
     const struct llama_vocab * vocab,
     const char * grammar_str,
     const char * grammar_root,
     char ** out_error) -> llama_rs_gbnf_validation_status {
-    if (out_error != nullptr) {
-        *out_error = nullptr;
-    }
-    if (grammar_str == nullptr) {
-        return LLAMA_RS_GBNF_VALIDATION_NULL_GRAMMAR_ARG;
-    }
-    if (grammar_root == nullptr) {
-        return LLAMA_RS_GBNF_VALIDATION_NULL_ROOT_ARG;
-    }
-    if (out_error == nullptr) {
-        return LLAMA_RS_GBNF_VALIDATION_NULL_OUT_ERROR_ARG;
-    }
+    *out_error = nullptr;
     try {
         llama_grammar_parser parser(vocab);
 

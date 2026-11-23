@@ -1,5 +1,5 @@
-use llama_cpp_bindings_sys::llama_pos;
-use llama_cpp_bindings_sys::llama_seq_id;
+use llama_cpp_bindings_sys::bindings::llama_pos;
+use llama_cpp_bindings_sys::bindings::llama_seq_id;
 
 /// Settings for one `eval_multimodal_chunks` call on a `SampledTokenClassifier`.
 #[derive(Clone, Copy, Debug)]

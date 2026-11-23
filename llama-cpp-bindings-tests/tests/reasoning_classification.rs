@@ -1,14 +1,14 @@
 use anyhow::Result;
 
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::chat_answer_generation::ChatAnswerGeneration;
 use llama_cpp_bindings_tests::closed_reasoning_chat_session::closed_reasoning_chat_session;
 use llama_cpp_bindings_tests::user_message::user_message;
 use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -28,14 +28,14 @@ const MAX_REASONING_ANSWER_TOKENS: i32 = 512;
 fn deepseek_r1_8b_answers_without_reasoning_after_its_reasoning_is_closed(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = closed_reasoning_chat_session(fixture.model, ARITHMETIC_QUESTION, &[]);
+    let session = closed_reasoning_chat_session(fixture.model, ARITHMETIC_QUESTION, &[])?;
     let answer = ChatAnswerGeneration {
         fixture,
         session,
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
     answer.assert_content_without_reasoning();
 
@@ -60,9 +60,9 @@ fn deepseek_r1_8b_reasoning_streams_match_the_parsed_answer_when_thinking_is_ena
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
-    answer.assert_reasoning_matches_parse("\n");
+    answer.assert_reasoning_matches_parse("\n")?;
 
     Ok(())
 }
@@ -85,7 +85,7 @@ fn gemma4_answers_without_reasoning_when_thinking_is_disabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
     answer.assert_content_without_reasoning();
 
@@ -123,9 +123,9 @@ fn gemma4_reasoning_streams_match_the_parsed_answer_when_reasoning_is_prefilled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
-    answer.assert_reasoning_matches_parse("The user wants one word.");
+    answer.assert_reasoning_matches_parse("The user wants one word.")?;
 
     Ok(())
 }
@@ -148,7 +148,7 @@ fn glm47_answers_without_reasoning_when_thinking_is_disabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
     answer.assert_content_without_reasoning();
 
@@ -173,9 +173,9 @@ fn glm47_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
-    answer.assert_reasoning_matches_parse("");
+    answer.assert_reasoning_matches_parse("")?;
 
     Ok(())
 }
@@ -191,14 +191,14 @@ fn glm47_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
 fn mistral3_answers_without_reasoning_after_its_reasoning_is_closed(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = closed_reasoning_chat_session(fixture.model, SINGLE_WORD_INSTRUCTION, &[]);
+    let session = closed_reasoning_chat_session(fixture.model, SINGLE_WORD_INSTRUCTION, &[])?;
     let answer = ChatAnswerGeneration {
         fixture,
         session,
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
     answer.assert_content_without_reasoning();
 
@@ -223,9 +223,9 @@ fn mistral3_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
-    answer.assert_reasoning_matches_parse("");
+    answer.assert_reasoning_matches_parse("")?;
 
     Ok(())
 }
@@ -248,7 +248,7 @@ fn qwen35_answers_without_reasoning_when_thinking_is_disabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
     answer.assert_content_without_reasoning();
 
@@ -273,9 +273,9 @@ fn qwen35_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
-    answer.assert_reasoning_matches_parse("");
+    answer.assert_reasoning_matches_parse("")?;
 
     Ok(())
 }
@@ -298,7 +298,7 @@ fn qwen36_answers_without_reasoning_when_thinking_is_disabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
     answer.assert_content_without_reasoning();
 
@@ -323,9 +323,9 @@ fn qwen36_reasoning_streams_match_the_parsed_answer_when_thinking_is_enabled(
         sampler: &mut LlamaSampler::greedy()?,
         max_generated_tokens: MAX_REASONING_ANSWER_TOKENS,
     }
-    .run();
+    .run()?;
 
-    answer.assert_reasoning_matches_parse("");
+    answer.assert_reasoning_matches_parse("")?;
 
     Ok(())
 }

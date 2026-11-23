@@ -1,3 +1,4 @@
+use proc_macro2::Literal;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -14,43 +15,29 @@ use crate::parsed_expected_failure::ParsedExpectedFailure;
 use crate::parsed_expected_outcome::ParsedExpectedOutcome;
 use crate::parsed_source::ParsedSource;
 
-struct StackedItems {
-    items: Vec<Item>,
-}
-
-impl Parse for StackedItems {
-    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        let mut items = Vec::new();
-        while !input.is_empty() {
-            items.push(input.parse()?);
-        }
-        Ok(Self { items })
-    }
-}
-
-fn validate_signature(item_fn: &ItemFn) -> syn::Result<()> {
-    if item_fn.sig.inputs.len() != 1 {
+fn validate_signature(ItemFn { sig: signature, .. }: &ItemFn) -> syn::Result<()> {
+    if signature.inputs.len() != 1 {
         return Err(syn::Error::new_spanned(
-            &item_fn.sig.inputs,
+            &signature.inputs,
             "llama_test functions must take exactly one argument: `&LlamaFixture<'_>`",
         ));
     }
-    if item_fn.sig.asyncness.is_some() {
+    if signature.asyncness.is_some() {
         return Err(syn::Error::new_spanned(
-            &item_fn.sig,
+            signature,
             "llama_test functions must be synchronous",
         ));
     }
-    if !item_fn.sig.generics.params.is_empty() {
+    if !signature.generics.params.is_empty() {
         return Err(syn::Error::new_spanned(
-            &item_fn.sig.generics,
+            &signature.generics,
             "llama_test functions must not be generic",
         ));
     }
     Ok(())
 }
 
-fn split_fn_and_pass_through(items: Vec<Item>) -> syn::Result<(ItemFn, Vec<Item>)> {
+fn split_fn_and_pass_through(items: Vec<Item>) -> syn::Result<SplitItems> {
     let mut found_fn: Option<ItemFn> = None;
     let mut pass_through: Vec<Item> = Vec::new();
     for parsed_item in items {
@@ -69,15 +56,31 @@ fn split_fn_and_pass_through(items: Vec<Item>) -> syn::Result<(ItemFn, Vec<Item>
     }
     let item_fn = found_fn
         .ok_or_else(|| syn::Error::new(Span::call_site(), "llama_test expects an fn definition"))?;
-    Ok((item_fn, pass_through))
+    Ok(SplitItems {
+        item_fn,
+        pass_through,
+    })
 }
 
-fn build_model_source_literal(source: &ParsedSource) -> TokenStream {
+fn build_source_literal(source: &ParsedSource) -> TokenStream {
     match source {
         ParsedSource::HuggingFace { repo, file } => quote! {
             ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
                 repo: #repo,
                 file: #file,
+            }
+        },
+        ParsedSource::HuggingFaceShards {
+            repo,
+            commit,
+            first_shard,
+            remaining_shards,
+        } => quote! {
+            ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFaceShards {
+                repo: #repo,
+                commit: #commit,
+                first_shard: #first_shard,
+                remaining_shards: &[#(#remaining_shards),*],
             }
         },
         ParsedSource::LocalPath(path) => quote! {
@@ -87,24 +90,24 @@ fn build_model_source_literal(source: &ParsedSource) -> TokenStream {
 }
 
 fn build_mmproj_source_literal(source: Option<&ParsedSource>) -> TokenStream {
-    match source {
-        None => quote! { ::core::option::Option::None },
-        Some(ParsedSource::HuggingFace { repo, file }) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
-                repo: #repo,
-                file: #file,
-            })
+    source.map_or_else(
+        || quote! { ::core::option::Option::None },
+        |mmproj_source| {
+            let source_literal = build_source_literal(mmproj_source);
+
+            quote! { ::core::option::Option::Some(#source_literal) }
         },
-        Some(ParsedSource::LocalPath(path)) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_model_provisioning::gguf_source::GgufSource::LocalPath(#path))
-        },
-    }
+    )
 }
 
-fn build_test_fn_literal(signature: &Signature) -> TokenStream {
-    let fn_name = &signature.ident;
-
-    match signature.output {
+fn build_test_fn_literal(
+    Signature {
+        ident: fn_name,
+        output,
+        ..
+    }: &Signature,
+) -> TokenStream {
+    match output {
         ReturnType::Default => {
             quote! { ::llama_cpp_test_harness::llama_test_fn::LlamaTestFn::Infallible(#fn_name) }
         }
@@ -157,9 +160,16 @@ fn build_expected_outcome_literal(expected_outcome: &ParsedExpectedOutcome) -> T
     }
 }
 
-fn trial_name(args: &ParsedArgs, signature: &Signature) -> String {
-    let mmproj = args
-        .mmproj_source
+fn trial_name(
+    ParsedArgs {
+        model_source,
+        mmproj_source,
+        context_params,
+        ..
+    }: &ParsedArgs,
+    Signature { ident: fn_name, .. }: &Signature,
+) -> String {
+    let mmproj = mmproj_source
         .as_ref()
         .map_or_else(String::new, |mmproj_source| {
             format!(" mmproj={}", mmproj_source.display_suffix())
@@ -167,19 +177,28 @@ fn trial_name(args: &ParsedArgs, signature: &Signature) -> String {
 
     format!(
         "{fn_name}[{model}{mmproj} n_ctx={n_ctx} n_batch={n_batch} n_ubatch={n_ubatch}]",
-        fn_name = signature.ident,
-        model = args.model_source.display_suffix(),
-        n_ctx = args.context_params.n_ctx,
-        n_batch = args.context_params.n_batch,
-        n_ubatch = args.context_params.n_ubatch,
+        model = model_source.display_suffix(),
+        n_ctx = context_params.n_ctx,
+        n_batch = context_params.n_batch,
+        n_ubatch = context_params.n_ubatch,
     )
+}
+
+fn signed_integer_literal(value: i32) -> TokenStream {
+    if value.is_negative() {
+        let magnitude = Literal::u32_unsuffixed(value.unsigned_abs());
+
+        quote! { -#magnitude }
+    } else {
+        quote! { #value }
+    }
 }
 
 fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
     let trial_name = trial_name(args, signature);
-    let model_source_literal = build_model_source_literal(&args.model_source);
+    let model_source_literal = build_source_literal(&args.model_source);
     let mmproj_source_literal = build_mmproj_source_literal(args.mmproj_source.as_ref());
-    let gpu_layers = args.model_load_params.n_gpu_layers;
+    let gpu_layers = signed_integer_literal(args.model_load_params.n_gpu_layers);
     let load_mode = args.model_load_params.load_mode.tokens();
     let context_size = args.context_params.n_ctx;
     let logical_batch = args.context_params.n_batch;
@@ -190,7 +209,11 @@ fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
     let expected_outcome = build_expected_outcome_literal(&args.expected_outcome);
     let threads_batch = args.context_params.n_threads_batch.map_or_else(
         || quote! { ::core::option::Option::None },
-        |value| quote! { ::core::option::Option::Some(#value) },
+        |value| {
+            let threads = signed_integer_literal(value);
+
+            quote! { ::core::option::Option::Some(#threads) }
+        },
     );
 
     quote! {
@@ -220,10 +243,32 @@ fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
     }
 }
 
+struct StackedItems {
+    items: Vec<Item>,
+}
+
+impl Parse for StackedItems {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let mut items = Vec::new();
+        while !input.is_empty() {
+            items.push(input.parse()?);
+        }
+        Ok(Self { items })
+    }
+}
+
+struct SplitItems {
+    item_fn: ItemFn,
+    pass_through: Vec<Item>,
+}
+
 pub fn expand(attribute: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let args: ParsedArgs = parse2(attribute)?;
     let StackedItems { items } = parse2(item)?;
-    let (item_fn, pass_through) = split_fn_and_pass_through(items)?;
+    let SplitItems {
+        item_fn,
+        pass_through,
+    } = split_fn_and_pass_through(items)?;
     validate_signature(&item_fn)?;
     validate_expected_outcome(&args.expected_outcome, &item_fn.sig)?;
 
@@ -249,14 +294,16 @@ mod tests {
     use super::StackedItems;
     use super::build_expected_outcome_literal;
     use super::build_mmproj_source_literal;
-    use super::build_model_source_literal;
+    use super::build_source_literal;
     use super::build_test_fn_literal;
     use super::expand;
+    use super::signed_integer_literal;
     use super::trial_name;
     use crate::parsed_args::ParsedArgs;
     use crate::parsed_expected_failure::ParsedExpectedFailure;
     use crate::parsed_expected_outcome::ParsedExpectedOutcome;
     use crate::parsed_source::ParsedSource;
+    use crate::parsed_source::tests::three_shard_source;
 
     fn well_formed_attribute() -> TokenStream {
         quote! {
@@ -304,7 +351,7 @@ mod tests {
                         mmproj_source: ::core::option::Option::None,
                         model_load_params: ::llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams {
                             n_gpu_layers: 0i32,
-                            load_mode: ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Mmap,
+                            load_mode: ::llama_cpp_params::llama_load_mode::LlamaLoadMode::Mmap,
                         },
                     },
                     context_params: ::llama_cpp_test_harness::context_params::ContextParams {
@@ -322,6 +369,14 @@ mod tests {
         };
 
         assert_eq!(expanded.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn a_negative_integer_is_emitted_as_a_minus_sign_and_its_magnitude() {
+        assert_eq!(
+            signed_integer_literal(i32::MIN).to_string(),
+            quote! { -2147483648 }.to_string()
+        );
     }
 
     #[test]
@@ -426,10 +481,26 @@ mod tests {
     #[test]
     fn a_local_path_model_source_emits_the_local_path_variant() {
         assert_eq!(
-            build_model_source_literal(&ParsedSource::LocalPath("/abs/local.gguf".to_owned()))
+            build_source_literal(&ParsedSource::LocalPath("/abs/local.gguf".to_owned()))
                 .to_string(),
             quote! { ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::LocalPath("/abs/local.gguf") }
                 .to_string()
+        );
+    }
+
+    #[test]
+    fn a_huggingface_shards_model_source_emits_its_commit_and_every_shard() {
+        assert_eq!(
+            build_source_literal(&three_shard_source()).to_string(),
+            quote! {
+                ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFaceShards {
+                    repo: "org/name",
+                    commit: "abc123",
+                    first_shard: "m-00001-of-00003.gguf",
+                    remaining_shards: &["m-00002-of-00003.gguf", "m-00003-of-00003.gguf"],
+                }
+            }
+            .to_string()
         );
     }
 

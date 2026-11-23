@@ -1,13 +1,14 @@
+use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
-use llama_cpp_bindings::sampled_token::SampledToken;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context::llama_context::LlamaContext;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_model::sampled_token::SampledToken;
+use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -15,10 +16,8 @@ const STATE: &str = "Shoes arrived two weeks late and in the wrong size.";
 const ROW: &str = " Which team should handle this ticket?";
 const OTHER_STATE: &str = "The weather in Oslo is cold, dark and windy all week.";
 
-fn tokenize(fixture: &LlamaFixture<'_>, text: &str) -> Result<Vec<LlamaToken>> {
-    Ok(fixture
-        .model
-        .str_to_token(text, AddBos::Never, ParseSpecialTokens::Never)?)
+fn tokenize(&LlamaFixture { model, .. }: &LlamaFixture<'_>, text: &str) -> Result<Vec<LlamaToken>> {
+    Ok(model.str_to_token(text, AddBos::Never, ParseSpecialTokens::Never)?)
 }
 
 fn add_tokens(
@@ -28,12 +27,17 @@ fn add_tokens(
     sequence_id: i32,
     output_on_last_token: bool,
 ) -> Result<()> {
-    let last_index = tokens.len() - 1;
+    let last_index = tokens
+        .len()
+        .checked_sub(1)
+        .context("`tokens.len() - 1` must not overflow")?;
 
     for (index, token) in tokens.iter().enumerate() {
         batch.add(
-            &SampledToken::Content(*token),
-            first_position + i32::try_from(index)?,
+            SampledToken::Content(*token),
+            first_position
+                .checked_add(i32::try_from(index)?)
+                .context("`first_position + i32::try_from(index)?` must not overflow")?,
             &[sequence_id],
             output_on_last_token && index == last_index,
         )?;
@@ -48,22 +52,30 @@ fn decode_tokens(
     first_position: i32,
     output_on_last_token: bool,
 ) -> Result<i32> {
-    let mut batch = LlamaBatch::new(ContextLimits::of(context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     add_tokens(&mut batch, tokens, first_position, 0, output_on_last_token)?;
     context.decode(&batch)?;
 
-    Ok(batch.n_tokens() - 1)
+    batch
+        .n_tokens()
+        .checked_sub(1)
+        .context("`batch.n_tokens() - 1` must not overflow")
 }
 
 fn final_hidden_state_context<'fixture>(
-    fixture: &'fixture LlamaFixture<'_>,
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &'fixture LlamaFixture<'_>,
     embeddings: bool,
 ) -> Result<LlamaContext<'fixture>> {
     Ok(LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
+        model,
+        backend,
+        (*context_params)
             .into_llama_context_params()
             .with_embeddings(embeddings)
             .with_pooling_type(LlamaPoolingType::None),
@@ -112,9 +124,8 @@ fn final_hidden_states_after_enabling_embeddings_for_a_row_equal_those_of_an_emb
         true,
     )?;
 
-    assert_eq!(
-        toggled_row_hidden_state.as_slice(),
-        embeddings_context.embeddings_ith(row_last_index)?,
+    ensure!(
+        toggled_row_hidden_state.as_slice() == embeddings_context.embeddings_ith(row_last_index)?
     );
 
     Ok(())
@@ -133,13 +144,13 @@ fn final_hidden_states_of_a_row_follow_the_state_decoded_before_it(
 ) -> Result<()> {
     let row = tokenize(fixture, ROW)?;
 
-    assert_ne!(
-        row_hidden_state_after_enabling_embeddings(fixture, &tokenize(fixture, STATE)?, &row)?,
-        row_hidden_state_after_enabling_embeddings(
-            fixture,
-            &tokenize(fixture, OTHER_STATE)?,
-            &row
-        )?,
+    ensure!(
+        row_hidden_state_after_enabling_embeddings(fixture, &tokenize(fixture, STATE)?, &row)?
+            != row_hidden_state_after_enabling_embeddings(
+                fixture,
+                &tokenize(fixture, OTHER_STATE)?,
+                &row
+            )?
     );
 
     Ok(())

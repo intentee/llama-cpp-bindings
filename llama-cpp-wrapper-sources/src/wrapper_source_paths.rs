@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::wrapper_sources::WRAPPER_SOURCES;
+use crate::constants::WRAPPER_SOURCES;
 
 #[must_use]
 pub fn wrapper_source_paths(sys_dir: &Path) -> Vec<PathBuf> {
@@ -17,7 +17,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::wrapper_source_paths;
-    use crate::wrapper_sources::WRAPPER_SOURCES;
+    use crate::constants::WRAPPER_SOURCES;
 
     #[test]
     fn every_wrapper_source_is_resolved_against_the_sys_dir() {

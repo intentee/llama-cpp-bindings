@@ -9,19 +9,21 @@ use crate::recorded_error::RecordedError;
 /// FFI call cannot leak an error into an outer one.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct ErrorScope;
+pub struct ErrorScope {
+    frame_index: usize,
+}
 
 impl ErrorScope {
     #[must_use]
     pub fn enter() -> Self {
-        FrameStack::push_frame();
-
-        Self
+        Self {
+            frame_index: FrameStack::push_frame(),
+        }
     }
 
     #[must_use]
     pub fn take(&self) -> Option<RecordedError> {
-        FrameStack::take_from_top()
+        FrameStack::take_from_frame(self.frame_index)
     }
 }
 
@@ -38,18 +40,6 @@ mod tests {
     use crate::recorded_error::RecordedError;
 
     #[test]
-    fn keeps_the_first_recorded_error() {
-        let scope = ErrorScope::enter();
-        record(RecordedError::new("first".to_string()));
-        record(RecordedError::new("second".to_string()));
-
-        assert_eq!(
-            scope.take().map(RecordedError::into_message),
-            Some("first".to_string())
-        );
-    }
-
-    #[test]
     fn take_without_a_recorded_error_is_none() {
         let scope = ErrorScope::enter();
 
@@ -59,7 +49,7 @@ mod tests {
     #[test]
     fn take_consumes_the_recorded_error() {
         let scope = ErrorScope::enter();
-        record(RecordedError::new("once".to_string()));
+        record("once".to_string());
 
         assert_eq!(
             scope.take().map(RecordedError::into_message),
@@ -73,7 +63,7 @@ mod tests {
         let outer = ErrorScope::enter();
         {
             let inner = ErrorScope::enter();
-            record(RecordedError::new("inner".to_string()));
+            record("inner".to_string());
 
             assert_eq!(
                 inner.take().map(RecordedError::into_message),
@@ -81,7 +71,7 @@ mod tests {
             );
         }
 
-        record(RecordedError::new("outer".to_string()));
+        record("outer".to_string());
 
         assert_eq!(
             outer.take().map(RecordedError::into_message),
@@ -90,11 +80,15 @@ mod tests {
     }
 
     #[test]
-    fn recording_without_an_active_scope_is_dropped() {
-        record(RecordedError::new("orphan".to_string()));
+    fn an_outer_scope_takes_its_own_error_while_an_inner_scope_is_alive() {
+        let outer = ErrorScope::enter();
+        record("outer".to_string());
+        let inner = ErrorScope::enter();
+        record("inner".to_string());
 
-        let scope = ErrorScope::enter();
-
-        assert!(scope.take().is_none());
+        assert_eq!(
+            [&outer, &inner].map(|scope| scope.take().map(RecordedError::into_message)),
+            [Some("outer".to_string()), Some("inner".to_string())]
+        );
     }
 }

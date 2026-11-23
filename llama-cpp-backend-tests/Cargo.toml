@@ -1,0 +1,34 @@
+[package]
+name = "llama-cpp-backend-tests"
+description = "Tests of llama-cpp-backend that change process-global llama.cpp state and so must run one at a time"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+autotests = false
+
+[lib]
+doctest = false
+
+[dependencies]
+llama-cpp-bindings-sys = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-backend = { workspace = true, default-features = true }
+llama-cpp-capturing-logger = { workspace = true }
+serial_test = { workspace = true }
+
+[[test]]
+name = "main"
+
+[features]
+cuda = ["llama-cpp-backend/cuda"]
+cuda-no-vmm = ["llama-cpp-backend/cuda-no-vmm"]
+metal = ["llama-cpp-backend/metal"]
+vulkan = ["llama-cpp-backend/vulkan"]
+rocm = ["llama-cpp-backend/rocm"]
+
+[lints]
+workspace = true

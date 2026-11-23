@@ -1,0 +1,13 @@
+[package]
+name = "llama-cpp-error-chain"
+description = "Renders an error together with every error in its source chain as one line"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true

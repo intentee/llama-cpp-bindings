@@ -147,11 +147,6 @@ impl AndroidNdk {
         format!("android-{}", self.api_level)
     }
 
-    #[must_use]
-    pub fn cmake_toolchain_file(&self) -> String {
-        format!("{}/build/cmake/android.toolchain.cmake", self.ndk_path)
-    }
-
     /// The clang arguments that parse headers the way the NDK compiles them for `target_triple`.
     #[must_use]
     pub fn clang_args(&self, target_triple: &str) -> Vec<String> {
@@ -172,6 +167,11 @@ impl AndroidNdk {
             format!("--target={target_triple}"),
         ]
     }
+
+    #[must_use]
+    pub fn cmake_toolchain_file(&self) -> String {
+        format!("{}/build/cmake/android.toolchain.cmake", self.ndk_path)
+    }
 }
 
 #[cfg(test)]
@@ -186,7 +186,7 @@ pub mod tests {
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
 
-    use enumflags2::BitFlags;
+    use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::AndroidNdk;
     use super::find_clang_builtin_includes;
@@ -195,9 +195,6 @@ pub mod tests {
     use crate::build_environment::tests::environment_of;
     use crate::build_environment::tests::variable;
     use crate::host_os::HostOs;
-
-    pub const FIXTURE_ANDROID_NDK: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/android_ndk");
 
     const FIXTURE_TOOLCHAIN: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -213,10 +210,7 @@ pub mod tests {
     }
 
     fn ndk_at(root: &Path) -> BuildEnvironment {
-        environment_of(
-            BitFlags::empty(),
-            &[variable("ANDROID_NDK_HOME", OsString::from(root))],
-        )
+        environment_of(&[], &[variable("ANDROID_NDK_HOME", OsString::from(root))])
     }
 
     fn detection_failure(
@@ -231,14 +225,17 @@ pub mod tests {
             host_os,
         )
         .err()
-        .map(|error| error.to_string())
+        .map(|error| error_chain(&error))
     }
+
+    pub const FIXTURE_ANDROID_NDK: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/android_ndk");
 
     #[test]
     fn an_installed_ndk_is_detected_with_the_platform_api_level() {
         let detected = AndroidNdk::detect(
             &environment_of(
-                BitFlags::empty(),
+                &[],
                 &[
                     variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
                     variable("ANDROID_PLATFORM", OsString::from("android-30")),
@@ -295,14 +292,14 @@ pub mod tests {
                 "aarch64",
                 HostOs::Linux,
             )
-            .map(|ndk| ndk.api_level)
+            .map(|AndroidNdk { api_level, .. }| api_level)
             .ok()
         };
 
         assert_eq!(
             [
                 api_level_of(&environment_of(
-                    BitFlags::empty(),
+                    &[],
                     &[
                         variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
                         variable("ANDROID_PLATFORM", OsString::from("33")),
@@ -322,7 +319,7 @@ pub mod tests {
         assert_eq!(
             [
                 detection_failure(
-                    &environment_of(BitFlags::empty(), &[]),
+                    &environment_of(&[], &[]),
                     "aarch64",
                     HostOs::Linux
                 ),
@@ -330,7 +327,7 @@ pub mod tests {
                 detection_failure(&ndk_at(fixture_ndk), "riscv64", HostOs::Linux),
                 detection_failure(
                     &environment_of(
-                        BitFlags::empty(),
+                        &[],
                         &[
                             variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
                             variable("ANDROID_PLATFORM", OsString::from_vec(vec![0xff])),
@@ -344,7 +341,8 @@ pub mod tests {
             ],
             [
                 Some(
-                    "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME."
+                    "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME.: \
+                     environment variable not found"
                         .to_owned()
                 ),
                 Some(format!(
@@ -374,7 +372,7 @@ pub mod tests {
         assert_eq!(
             validate_ndk_installation(root.to_str().unwrap())
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(format!(
                 "Android NDK toolchain file not found: {}",
                 root.join("build/cmake/android.toolchain.cmake").display()
@@ -411,7 +409,7 @@ pub mod tests {
         assert_eq!(
             find_clang_builtin_includes(toolchain.to_str().unwrap())
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(format!(
                 "Android NDK Clang version directory was not found at {}",
                 toolchain.join("lib/clang").display()
@@ -429,7 +427,7 @@ pub mod tests {
         assert_eq!(
             find_clang_builtin_includes(toolchain.to_str().unwrap())
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(format!(
                 "Android NDK Clang directory {} holds more than one version directory: {:?}",
                 toolchain.join("lib/clang").display(),
@@ -450,7 +448,7 @@ pub mod tests {
         assert_eq!(
             find_clang_builtin_includes(toolchain.to_str().unwrap())
                 .err()
-                .map(|error| error.to_string()),
+                .map(|error| error_chain(&error)),
             Some(format!(
                 "Android NDK Clang built-in include directory was not found at {}",
                 toolchain.join("lib/clang/20/include").display()

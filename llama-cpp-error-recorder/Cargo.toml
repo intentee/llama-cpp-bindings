@@ -6,8 +6,15 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 log = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-capturing-logger = { workspace = true }
 
 [lints]
 workspace = true

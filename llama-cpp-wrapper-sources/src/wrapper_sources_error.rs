@@ -4,19 +4,19 @@ use std::path::PathBuf;
 pub enum WrapperSourcesError {
     #[error("required command line argument <{name}> is missing")]
     MissingArgument { name: &'static str },
-    #[error("compilation database file {path} could not be created: {source}")]
+    #[error("compilation database file {path} could not be created")]
     Create {
         path: PathBuf,
         #[source]
         source: std::io::Error,
     },
-    #[error("wrapper source list could not be written to {path}: {source}")]
+    #[error("wrapper source list could not be written to {path}")]
     Write {
         path: PathBuf,
         #[source]
         source: std::io::Error,
     },
-    #[error("compilation database could not be written to {path}: {source}")]
+    #[error("compilation database could not be written to {path}")]
     Serialize {
         path: PathBuf,
         #[source]

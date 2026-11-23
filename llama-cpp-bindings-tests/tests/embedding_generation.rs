@@ -1,13 +1,11 @@
 use anyhow::Context;
 use anyhow::Result;
-
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
+use anyhow::ensure;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_context_memory::context_memory::ContextMemory;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -22,16 +20,11 @@ use llama_cpp_test_harness_macros::llama_test;
     embeddings = true,
 )]
 fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-
-    let mut ctx = LlamaContext::from_model(
-        model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )
-    .with_context(|| "unable to create context")?;
+    let mut ctx = fixture
+        .build_context()
+        .with_context(|| "unable to create context")?;
 
     let prompt = "Hello my name is";
     let tokens = model
@@ -40,7 +33,7 @@ fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
     let prompt_token_count = u64::try_from(tokens.len())?;
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
-    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
+    let mut batch = LlamaBatch::new(ctx.limits());
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     ctx.decode(&batch)
@@ -48,39 +41,8 @@ fn an_embedding_pass_records_its_prompt_tokens_and_no_completion_tokens(
     classifier.commit_prompt_tokens();
 
     let usage = classifier.into_usage();
-    assert_eq!(usage.prompt_tokens, prompt_token_count);
-    assert_eq!(usage.completion_tokens(), 0);
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 2048,
-    n_ubatch = 512,
-    embeddings = true,
-)]
-fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
-    fixture: &LlamaFixture<'_>,
-) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
-    batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&batch)?;
-
-    let embeddings = context.embeddings_seq_ith(0)?;
-
-    assert_eq!(embeddings.len(), usize::try_from(fixture.model.n_embd())?);
+    ensure!(usage.prompt == prompt_token_count);
+    ensure!(usage.completion_tokens() == 0);
 
     Ok(())
 }
@@ -96,13 +58,9 @@ fn a_sequence_embedding_is_as_wide_as_the_model_embedding(
     embeddings = true,
 )]
 fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let inputs = [
         "alpha is here",
@@ -110,13 +68,10 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
         "gamma waits",
         "delta jumps",
     ];
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
 
     for (sequence_index, text) in inputs.iter().enumerate() {
-        let tokens =
-            fixture
-                .model
-                .str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
+        let tokens = model.str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
         let sequence_id = i32::try_from(sequence_index)?;
 
         batch.add_sequence(&tokens, sequence_id, true)?;
@@ -124,16 +79,15 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
 
     context.decode(&batch)?;
 
-    let n_embd = usize::try_from(fixture.model.n_embd())?;
+    let n_embd = usize::try_from(model.n_embd())?;
     let mut collected: Vec<Vec<f32>> = Vec::with_capacity(inputs.len());
 
     for sequence_index in 0..inputs.len() {
         let sequence_id = i32::try_from(sequence_index)?;
         let embedding = context.embeddings_seq_ith(sequence_id)?;
 
-        assert_eq!(
-            embedding.len(),
-            n_embd,
+        ensure!(
+            embedding.len() == n_embd,
             "sequence {sequence_index} embedding length mismatch"
         );
 
@@ -141,10 +95,14 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
     }
 
     for (left_index, left) in collected.iter().enumerate() {
-        for (right_index, right) in collected.iter().enumerate().skip(left_index + 1) {
-            assert_ne!(
-                left, right,
-                "embedding for sequence {left_index} must differ from sequence {right_index}",
+        for (right_index, right) in collected.iter().enumerate().skip(
+            left_index
+                .checked_add(1)
+                .context("`left_index + 1` must not overflow")?,
+        ) {
+            ensure!(
+                left != right,
+                "embedding for sequence {left_index} must differ from sequence {right_index}"
             );
         }
     }
@@ -163,13 +121,9 @@ fn multi_sequence_embeddings_returns_one_embedding_per_sequence(
     embeddings = true,
 )]
 fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+    let mut context = fixture.build_context()?;
 
     let iterations = [
         [
@@ -182,16 +136,13 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
         ],
     ];
 
-    let n_embd = usize::try_from(fixture.model.n_embd())?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let n_embd = usize::try_from(model.n_embd())?;
+    let mut batch = LlamaBatch::new(context.limits());
     let mut collected: Vec<Vec<f32>> = Vec::new();
 
     for iteration_inputs in iterations {
         for (sequence_index, text) in iteration_inputs.iter().enumerate() {
-            let tokens =
-                fixture
-                    .model
-                    .str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
+            let tokens = model.str_to_token(text, AddBos::Always, ParseSpecialTokens::Always)?;
             let sequence_id = i32::try_from(sequence_index)?;
 
             batch.add_sequence(&tokens, sequence_id, true)?;
@@ -204,9 +155,8 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
             let sequence_id = i32::try_from(sequence_index)?;
             let embedding = context.embeddings_seq_ith(sequence_id)?;
 
-            assert_eq!(
-                embedding.len(),
-                n_embd,
+            ensure!(
+                embedding.len() == n_embd,
                 "iteration sequence {sequence_index} embedding length mismatch"
             );
 
@@ -216,52 +166,23 @@ fn embeddings_returns_distinct_values_when_reused_batch_has_extra_capacity(
         batch.clear();
     }
 
-    assert_eq!(
-        collected.len(),
-        iterations.iter().flatten().count(),
+    ensure!(
+        collected.len() == iterations.iter().flatten().count(),
         "expected one embedding per input across every iteration"
     );
 
     for (left_index, left) in collected.iter().enumerate() {
-        for (right_index, right) in collected.iter().enumerate().skip(left_index + 1) {
-            assert_ne!(
-                left, right,
-                "embedding {left_index} must differ from embedding {right_index} across reused-batch iterations",
+        for (right_index, right) in collected.iter().enumerate().skip(
+            left_index
+                .checked_add(1)
+                .context("`left_index + 1` must not overflow")?,
+        ) {
+            ensure!(
+                left != right,
+                "embedding {left_index} must differ from embedding {right_index} across reused-batch iterations"
             );
         }
     }
-
-    Ok(())
-}
-
-#[llama_test(
-    model_source = HuggingFace("Qwen/Qwen3-Embedding-0.6B-GGUF", "Qwen3-Embedding-0.6B-Q8_0.gguf"),
-    n_gpu_layers = -1,
-    load_mode = Mmap,
-    n_ctx = 512,
-    n_batch = 2048,
-    n_ubatch = 512,
-    embeddings = true,
-)]
-fn a_token_embedding_is_as_wide_as_the_model_embedding(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mut context = LlamaContext::from_model(
-        fixture.model,
-        fixture.backend,
-        (*fixture.context_params)
-            .into_llama_context_params()
-            .with_pooling_type(LlamaPoolingType::None),
-    )?;
-    let tokens = fixture
-        .model
-        .str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
-    let last_index = i32::try_from(tokens.len() - 1)?;
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
-    batch.add_sequence(&tokens, 0, false)?;
-    context.decode(&batch)?;
-
-    let embeddings = context.embeddings_ith(last_index)?;
-
-    assert_eq!(embeddings.len(), usize::try_from(fixture.model.n_embd())?);
 
     Ok(())
 }

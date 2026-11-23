@@ -2,12 +2,13 @@ use std::num::NonZeroU8;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::error::memory_seq_add_error::MemorySeqAddError;
-use llama_cpp_bindings::error::memory_seq_div_error::MemorySeqDivError;
-use llama_cpp_bindings::error::unknown_rope_type::UnknownRopeType;
 use llama_cpp_bindings_tests::prime_memory::prime_memory;
+use llama_cpp_context_memory::context_memory::ContextMemory;
+use llama_cpp_context_memory::context_memory_error::ContextMemoryError;
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
+use llama_cpp_model::model_error::ModelError;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -34,7 +35,10 @@ fn memory_seq_add_refuses_an_mrope_model(fixture: &LlamaFixture<'_>) -> Result<(
 
     let result = context.memory_seq_add(0, Some(0), None, 1);
 
-    assert_eq!(result.unwrap_err(), MemorySeqAddError::IncompatibleRopeType);
+    ensure!(
+        result.err().context("the operation must fail")?
+            == ContextMemoryError::SeqAddIncompatibleRopeType
+    );
 
     Ok(())
 }
@@ -63,7 +67,10 @@ fn memory_seq_div_refuses_an_mrope_model(fixture: &LlamaFixture<'_>) -> Result<(
     let divisor = NonZeroU8::new(2).context("2 is non-zero")?;
     let result = context.memory_seq_div(0, Some(0), None, divisor);
 
-    assert_eq!(result.unwrap_err(), MemorySeqDivError::IncompatibleRopeType);
+    ensure!(
+        result.err().context("the operation must fail")?
+            == ContextMemoryError::SeqDivIncompatibleRopeType
+    );
 
     Ok(())
 }
@@ -87,7 +94,12 @@ fn memory_seq_add_shifts_the_positions_of_a_standard_rope_model(
 
     context.memory_seq_add(0, Some(0), None, 1)?;
 
-    assert_eq!(context.memory_seq_pos_max(0)?, primed_position_max + 1);
+    ensure!(
+        context.memory_seq_pos_max(0)?
+            == primed_position_max
+                .checked_add(1)
+                .context("`primed_position_max + 1` must not overflow")?
+    );
 
     Ok(())
 }
@@ -112,9 +124,11 @@ fn memory_seq_div_divides_the_positions_of_a_standard_rope_model(
 
     context.memory_seq_div(0, Some(0), None, divisor)?;
 
-    assert_eq!(
-        context.memory_seq_pos_max(0)?,
-        primed_position_max / i32::from(divisor.get())
+    ensure!(
+        context.memory_seq_pos_max(0)?
+            == primed_position_max
+                .checked_div(i32::from(divisor.get()))
+                .context("`primed_position_max / i32::from(divisor.get())` must not overflow")?
     );
 
     Ok(())
@@ -132,13 +146,16 @@ fn memory_seq_add_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN);
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN);
 
-    assert_eq!(
-        context.memory_seq_add(0, None, None, 1),
-        Err(MemorySeqAddError::UnknownRopeType(UnknownRopeType(
-            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1
-        )))
+    ensure!(
+        context.memory_seq_add(0, None, None, 1)
+            == Err(ContextMemoryError::SeqAddUnknownRopeType(
+                ModelError::UnknownRopeType(
+                    llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_IMROPE + 1
+                )
+            ))
     );
 
     Ok(())
@@ -156,13 +173,16 @@ fn memory_seq_div_refuses_a_model_whose_rope_type_llama_cpp_does_not_define(
     fixture: &LlamaFixture<'_>,
 ) -> Result<()> {
     let mut context = fixture.build_context()?;
-    let _fault = ArmedFault::at(llama_cpp_bindings_sys::LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN);
+    let _fault =
+        ArmedFault::at(llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_ROPE_TYPE_UNKNOWN);
 
-    assert_eq!(
-        context.memory_seq_div(0, None, None, NonZeroU8::MIN),
-        Err(MemorySeqDivError::UnknownRopeType(UnknownRopeType(
-            llama_cpp_bindings_sys::LLAMA_ROPE_TYPE_IMROPE + 1
-        )))
+    ensure!(
+        context.memory_seq_div(0, None, None, NonZeroU8::MIN)
+            == Err(ContextMemoryError::SeqDivUnknownRopeType(
+                ModelError::UnknownRopeType(
+                    llama_cpp_bindings_sys::bindings::LLAMA_ROPE_TYPE_IMROPE + 1
+                )
+            ))
     );
 
     Ok(())

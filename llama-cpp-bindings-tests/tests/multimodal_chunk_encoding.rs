@@ -1,9 +1,11 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
-use llama_cpp_bindings::mtmd::mtmd_input_text::MtmdInputText;
+use llama_cpp_mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_mtmd::mtmd_input_chunk_type::MtmdInputChunkType;
+use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_mtmd::mtmd_input_text::MtmdInputText;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -25,10 +27,10 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 64,
     mmproj_source = HuggingFace("unsloth/Qwen3.6-35B-A3B-GGUF", "mmproj-F16.gguf"),
 )]
-fn encode_chunk_encodes_an_image_chunk(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let mtmd_ctx = fixture
-        .mtmd_context
-        .expect("mmproj_file declared in attribute");
+fn encode_chunk_encodes_an_image_chunk(
+    &LlamaFixture { mtmd_context, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mtmd_ctx = mtmd_context.context("mmproj_file declared in attribute")?;
     let image_data = vec![128u8; 64 * 64 * 3];
     let bitmap = MtmdBitmap::from_image_data(64, 64, &image_data)?;
     let input_text = MtmdInputText {
@@ -36,13 +38,14 @@ fn encode_chunk_encodes_an_image_chunk(fixture: &LlamaFixture<'_>) -> Result<()>
         add_special: true,
         parse_special: true,
     };
-    let chunks = mtmd_ctx.tokenize(input_text, &[&bitmap])?;
-    let image_chunk = (0..chunks.len())
-        .filter_map(|chunk_index| chunks.get(chunk_index))
+    let chunks = MtmdInputChunks::tokenize(mtmd_ctx, input_text, &[&bitmap])?;
+    let image_chunk = chunks
+        .chunks()
+        .into_iter()
         .find(|chunk| chunk.chunk_type() == Ok(MtmdInputChunkType::Image))
         .context("a prompt with an image must tokenize into an image chunk")?;
 
-    assert_eq!(mtmd_ctx.encode_chunk(&image_chunk), Ok(()));
+    ensure!(image_chunk.encode() == Ok(()));
 
     Ok(())
 }

@@ -1,0 +1,77 @@
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::ensure;
+
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_model::llama_token_data::LlamaTokenData;
+use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_test_harness::llama_fixture::LlamaFixture;
+use llama_cpp_test_harness_macros::llama_test;
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 2048,
+    n_ubatch = 512,
+)]
+fn a_token_data_array_holds_one_candidate_per_vocabulary_token(
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+    let tokens = model.str_to_token("hello", AddBos::Always, ParseSpecialTokens::Always)?;
+    let last_index = i32::try_from(
+        tokens
+            .len()
+            .checked_sub(1)
+            .context("`tokens.len() - 1` must not overflow")?,
+    )?;
+    let mut batch = LlamaBatch::new(context.limits());
+    batch.add_sequence(&tokens, 0, false)?;
+    context.decode(&batch)?;
+
+    let token_data_array = context.token_data_array_ith(last_index)?;
+
+    ensure!(token_data_array.data.len() == usize::try_from(model.n_vocab())?);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 256,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn qwen35_refilled_candidate_array_matches_a_freshly_built_one(
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
+    let prompt_tokens = model.str_to_token("Hello", AddBos::Never, ParseSpecialTokens::Always)?;
+    let mut batch = LlamaBatch::new(context.limits());
+
+    batch.add_sequence(&prompt_tokens, 0, false)?;
+    context.decode(&batch)?;
+
+    let last_index = batch
+        .n_tokens()
+        .checked_sub(1)
+        .context("`batch.n_tokens() - 1` must not overflow")?;
+    let mut reused_candidates = LlamaTokenDataArray::new(
+        vec![LlamaTokenData::new(LlamaToken::new(7), 1.0, 0.5)],
+        true,
+    );
+    reused_candidates.selected = Some(0);
+
+    context.fill_token_data_array_ith(last_index, &mut reused_candidates)?;
+
+    ensure!(reused_candidates == context.token_data_array_ith(last_index)?);
+
+    Ok(())
+}

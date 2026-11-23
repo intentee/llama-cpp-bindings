@@ -3,13 +3,12 @@ use std::process::ExitCode;
 use inventory::submit;
 use libtest_mimic::Arguments;
 
-use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+use llama_cpp_params::llama_load_mode::LlamaLoadMode;
 use llama_cpp_test_harness::context_params::ContextParams;
 use llama_cpp_test_harness::expected_outcome::ExpectedOutcome;
 use llama_cpp_test_harness::harness_run_error::HarnessRunError;
 use llama_cpp_test_harness::llama_test_fn::LlamaTestFn;
 use llama_cpp_test_harness::llama_test_registration::LlamaTestRegistration;
-use llama_cpp_test_harness::no_op::no_op;
 use llama_cpp_test_harness::run_to_conclusions::run_to_conclusions;
 use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
 use llama_cpp_test_model_provisioning::load_key::LoadKey;
@@ -35,7 +34,7 @@ const REGISTRATION: LlamaTestRegistration = LlamaTestRegistration {
         n_threads_batch: None,
         embeddings: false,
     },
-    func: LlamaTestFn::Infallible(no_op),
+    func: LlamaTestFn::no_op(),
     expected_outcome: ExpectedOutcome::Success,
 };
 

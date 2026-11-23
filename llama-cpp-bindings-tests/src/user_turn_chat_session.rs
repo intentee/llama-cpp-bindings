@@ -1,10 +1,12 @@
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::error::chat_session_error::ChatSessionError;
-use llama_cpp_bindings::model::LlamaModel;
+use anyhow::Context as _;
+use anyhow::Result;
+
 use llama_cpp_bindings_types::chat_tool::ChatTool;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
+use llama_cpp_model::llama_model::LlamaModel;
 
 use crate::user_message::user_message;
 
@@ -12,29 +14,29 @@ use crate::user_message::user_message;
 ///
 /// # Errors
 ///
-/// Forwards chat session errors.
-///
-/// # Panics
-///
-/// Panics when the model has no chat templates.
+/// Fails when the model has no chat templates or its template cannot serve the request.
 pub fn user_turn_chat_session(
     model: &LlamaModel,
     content: &str,
     tools: &[ChatTool],
     enable_thinking: bool,
-) -> Result<ChatSession, ChatSessionError> {
-    ChatSession::new(
-        model,
-        model
-            .chat_templates()
-            .expect("the model must have chat templates"),
-        &[user_message(content)],
-        tools,
-        &ChatSessionOptions {
-            assistant_turn: ChatAssistantTurn::New,
-            enable_thinking,
-            parallel_tool_calls: false,
-            tool_choice: ChatToolChoice::Auto,
-        },
-    )
+) -> Result<ChatSession> {
+    model
+        .chat_templates()
+        .context("the model must have chat templates")
+        .and_then(|chat_templates| {
+            ChatSession::new(
+                model,
+                chat_templates,
+                &[user_message(content)],
+                tools,
+                &ChatSessionOptions {
+                    assistant_turn: ChatAssistantTurn::New,
+                    enable_thinking,
+                    parallel_tool_calls: false,
+                    tool_choice: ChatToolChoice::Auto,
+                },
+            )
+            .context("the model's template must serve the user turn")
+        })
 }

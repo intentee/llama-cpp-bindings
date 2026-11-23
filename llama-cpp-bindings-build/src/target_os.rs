@@ -47,7 +47,7 @@ impl TargetOs {
 mod tests {
     use std::ffi::OsString;
 
-    use enumflags2::BitFlags;
+    use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::TargetOs;
     use crate::android_ndk::AndroidNdk;
@@ -58,7 +58,7 @@ mod tests {
 
     fn detected(cargo_cfg_target_os: &str) -> Result<TargetOs, String> {
         let environment = environment_of(
-            BitFlags::empty(),
+            &[],
             &[
                 variable("CARGO_CFG_TARGET_OS", OsString::from(cargo_cfg_target_os)),
                 variable("ANDROID_NDK_HOME", OsString::from(FIXTURE_ANDROID_NDK)),
@@ -71,7 +71,7 @@ mod tests {
             "aarch64",
             HostOs::Linux,
         )
-        .map_err(|error| error.to_string())
+        .map_err(|error| error_chain(&error))
     }
 
     #[test]
@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn android_is_not_mistaken_for_linux_and_carries_its_ndk() {
         let environment = environment_of(
-            BitFlags::empty(),
+            &[],
             &[variable(
                 "ANDROID_NDK_HOME",
                 OsString::from(FIXTURE_ANDROID_NDK),
@@ -121,17 +121,15 @@ mod tests {
     fn an_android_target_without_an_ndk_is_refused() {
         assert_eq!(
             TargetOs::detect(
-                &environment_of(
-                    BitFlags::empty(),
-                    &[variable("CARGO_CFG_TARGET_OS", "android")]
-                ),
+                &environment_of(&[], &[variable("CARGO_CFG_TARGET_OS", "android")]),
                 "aarch64-linux-android",
                 "aarch64",
                 HostOs::Linux
             )
-            .map_err(|error| error.to_string()),
+            .map_err(|error| error_chain(&error)),
             Err(
-                "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME."
+                "Android NDK not found for target aarch64-linux-android. Set ANDROID_NDK_HOME.: \
+                     environment variable not found"
                     .to_owned()
             )
         );

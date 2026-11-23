@@ -1,14 +1,7 @@
 use anyhow::Result;
+use anyhow::ensure;
 use serde_json::json;
 
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_message_parse_outcome::ChatMessageParseOutcome;
-use llama_cpp_bindings::chat_output::ChatOutput;
-use llama_cpp_bindings::chat_output_completeness::ChatOutputCompleteness;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::raw_chat_message::RawChatMessage;
 use llama_cpp_bindings_tests::get_weather_tools::get_weather_tools;
 use llama_cpp_bindings_tests::paris_weather_tool_call::paris_weather_tool_call;
 use llama_cpp_bindings_tests::recognized_answer::recognized_answer;
@@ -18,6 +11,14 @@ use llama_cpp_bindings_types::chat_tool::ChatTool;
 use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
 use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
 use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
+use llama_cpp_chat::chat_output::ChatOutput;
+use llama_cpp_chat::chat_output_completeness::ChatOutputCompleteness;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
+use llama_cpp_chat::raw_chat_message::RawChatMessage;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -62,12 +63,14 @@ fn negotiate_with_cat_tools() -> Vec<ChatTool> {
     }]
 }
 
-fn assert_parses_to_paris_weather_call(fixture: &LlamaFixture<'_>, answer: &str) -> Result<()> {
-    let session =
-        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
-    let parsed = recognized_answer(&session, answer, ChatOutputCompleteness::Finished);
+fn assert_parses_to_paris_weather_call(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+    answer: &str,
+) -> Result<()> {
+    let session = user_turn_chat_session(model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+    let parsed = recognized_answer(&session, answer, ChatOutputCompleteness::Finished)?;
 
-    assert_eq!(parsed.tool_calls, [paris_weather_tool_call()]);
+    ensure!(parsed.tool_calls == [paris_weather_tool_call()]);
 
     Ok(())
 }
@@ -138,10 +141,10 @@ fn qwen35_parses_its_tool_call_format(fixture: &LlamaFixture<'_>) -> Result<()> 
     n_ubatch = 64,
 )]
 fn qwen35_parses_tool_call_arguments_into_their_schema_types(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
     let session = user_turn_chat_session(
-        fixture.model,
+        model,
         "Get the cat off the keyboard.",
         &negotiate_with_cat_tools(),
         false,
@@ -162,19 +165,19 @@ tuna\n\
 </function>\n\
 </tool_call>",
         ChatOutputCompleteness::Finished,
-    );
+    )?;
 
-    assert_eq!(
-        parsed.tool_calls,
-        [ParsedToolCall::new(
-            ParsedToolCallId::NotProvidedByModel,
-            "negotiate_with_cat".to_owned(),
-            ToolCallArguments::ValidJson(json!({
-                "bribe": "tuna",
-                "desperation_level": 8,
-                "topic": "get off the keyboard",
-            })),
-        )]
+    ensure!(
+        parsed.tool_calls
+            == [ParsedToolCall::new(
+                ParsedToolCallId::NotProvidedByModel,
+                "negotiate_with_cat".to_owned(),
+                ToolCallArguments::ValidJson(json!({
+                    "bribe": "tuna",
+                    "desperation_level": 8,
+                    "topic": "get off the keyboard",
+                })),
+            )]
     );
 
     Ok(())
@@ -189,23 +192,22 @@ tuna\n\
     n_ubatch = 64,
 )]
 fn qwen35_parses_a_tool_call_cut_inside_its_arguments_as_a_named_call(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session =
-        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+    let session = user_turn_chat_session(model, WEATHER_QUESTION, &get_weather_tools(), false)?;
     let parsed = recognized_answer(
         &session,
         "<tool_call>\n<function=get_weather>\n<parameter=lo",
         ChatOutputCompleteness::Partial,
-    );
+    )?;
 
-    assert_eq!(
+    ensure!(
         parsed
             .tool_calls
             .iter()
             .map(|tool_call| tool_call.name.as_str())
-            .collect::<Vec<&str>>(),
-        ["get_weather"]
+            .collect::<Vec<&str>>()
+            == ["get_weather"]
     );
 
     Ok(())
@@ -219,10 +221,12 @@ fn qwen35_parses_a_tool_call_cut_inside_its_arguments_as_a_named_call(
     n_batch = 128,
     n_ubatch = 64,
 )]
-fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> Result<()> {
+fn qwen35_parses_consecutive_tool_calls_in_order(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
     let session = ChatSession::new(
-        fixture.model,
-        fixture.model.chat_templates()?,
+        model,
+        model.chat_templates()?,
         &[user_message("What is the weather in Paris and in Berlin?")],
         &get_weather_tools(),
         &ChatSessionOptions {
@@ -239,18 +243,18 @@ fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> 
             QWEN_XML_PARIS_WEATHER_CALL.replace("Paris", "Berlin")
         ),
         ChatOutputCompleteness::Finished,
-    );
+    )?;
 
-    assert_eq!(
-        parsed.tool_calls,
-        [
-            paris_weather_tool_call(),
-            ParsedToolCall::new(
-                ParsedToolCallId::NotProvidedByModel,
-                "get_weather".to_owned(),
-                ToolCallArguments::ValidJson(json!({"location": "Berlin"})),
-            ),
-        ]
+    ensure!(
+        parsed.tool_calls
+            == [
+                paris_weather_tool_call(),
+                ParsedToolCall::new(
+                    ParsedToolCallId::NotProvidedByModel,
+                    "get_weather".to_owned(),
+                    ToolCallArguments::ValidJson(json!({"location": "Berlin"})),
+                ),
+            ]
     );
 
     Ok(())
@@ -273,17 +277,16 @@ fn qwen35_parses_consecutive_tool_calls_in_order(fixture: &LlamaFixture<'_>) -> 
     n_ubatch = 64,
 )]
 fn plain_content_answering_a_tool_request_parses_without_tool_calls(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session =
-        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+    let session = user_turn_chat_session(model, WEATHER_QUESTION, &get_weather_tools(), false)?;
     let parsed = recognized_answer(
         &session,
         PLAIN_CONTENT_REFUSAL,
         ChatOutputCompleteness::Finished,
-    );
+    )?;
 
-    assert_eq!(parsed.tool_calls, []);
+    ensure!(parsed.tool_calls == []);
 
     Ok(())
 }
@@ -297,12 +300,12 @@ fn plain_content_answering_a_tool_request_parses_without_tool_calls(
     n_ubatch = 64,
 )]
 fn deepseek_r1_8b_plain_content_without_tools_parses_without_tool_calls(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session = user_turn_chat_session(fixture.model, "Hello!", &[], false)?;
-    let parsed = recognized_answer(&session, "Hello there.", ChatOutputCompleteness::Finished);
+    let session = user_turn_chat_session(model, "Hello!", &[], false)?;
+    let parsed = recognized_answer(&session, "Hello there.", ChatOutputCompleteness::Finished)?;
 
-    assert_eq!(parsed.tool_calls, []);
+    ensure!(parsed.tool_calls == []);
 
     Ok(())
 }
@@ -316,23 +319,22 @@ fn deepseek_r1_8b_plain_content_without_tools_parses_without_tool_calls(
     n_ubatch = 64,
 )]
 fn qwen35_reports_a_finished_tool_call_its_parser_stops_short_of_with_the_format_it_expected(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let session =
-        user_turn_chat_session(fixture.model, WEATHER_QUESTION, &get_weather_tools(), false)?;
+    let session = user_turn_chat_session(model, WEATHER_QUESTION, &get_weather_tools(), false)?;
 
-    assert_eq!(
+    ensure!(
         session
             .read(
                 &ChatOutput::from(MALFORMED_QWEN_XML_TOOL_CALL),
                 ChatOutputCompleteness::Finished
             )?
-            .parse(),
-        Ok(&ChatMessageParseOutcome::Unrecognized(RawChatMessage {
-            text: MALFORMED_QWEN_XML_TOOL_CALL.to_owned(),
-            completeness: ChatOutputCompleteness::Finished,
-            expected_format: "peg-native".to_owned(),
-        }))
+            .parse()
+            == Ok(&ChatMessageParseOutcome::Unrecognized(RawChatMessage {
+                text: MALFORMED_QWEN_XML_TOOL_CALL.to_owned(),
+                completeness: ChatOutputCompleteness::Finished,
+                expected_format: "peg-native".to_owned(),
+            }))
     );
 
     Ok(())

@@ -1,21 +1,24 @@
-use std::env;
-use std::fs;
-use std::process;
+use std::path::Path;
 
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::ensure;
 use toktrie::INVALID_TOKEN;
 use toktrie::TokenizerEnv as _;
 
-use llama_cpp_bindings::gguf_context::GgufContext;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::params::LlamaModelParams;
-use llama_cpp_bindings::token::LlamaToken;
+use llama_cpp_model::llama_model::LlamaModel;
+use llama_cpp_model::llama_token::LlamaToken;
+use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
+const WORDPIECE_VOCABULARY_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../llama-cpp-gguf/fixtures/ggml-vocab-bert-bge.gguf"
+);
+
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("Xiaojian9992024/t5-small-GGUF", "t5-small.bf16.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -24,23 +27,17 @@ use llama_cpp_test_harness_macros::llama_test;
     embeddings = true,
 )]
 fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
-    fixture: &LlamaFixture<'_>,
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let LlamaToken(eos) = fixture
-        .model
-        .token_eos()
-        .context("model declares an EOS token")?;
+    let LlamaToken(eos) = model.token_eos().context("model declares an EOS token")?;
 
-    assert_eq!(
-        fixture.model.approximate_tok_env()?.tok_trie().eos_token(),
-        eos.cast_unsigned()
-    );
+    ensure!(model.approximate_tok_env()?.tok_trie().eos_token() == eos.cast_unsigned());
 
     Ok(())
 }
 
 #[llama_test(
-    model_source = HuggingFace("nomic-ai/nomic-embed-text-v1.5-GGUF", "nomic-embed-text-v1.5.Q4_K_M.gguf"),
+    model_source = HuggingFace("Xiaojian9992024/t5-small-GGUF", "t5-small.bf16.gguf"),
     n_gpu_layers = -1,
     load_mode = Mmap,
     n_ctx = 512,
@@ -48,32 +45,21 @@ fn approximate_tok_env_falls_back_to_eos_when_eot_unavailable(
     n_ubatch = 64,
     embeddings = true,
 )]
-fn approximate_tok_env_of_a_model_without_eot_and_eos_has_no_eos(
-    fixture: &LlamaFixture<'_>,
+fn approximate_tok_env_of_a_vocabulary_without_eot_and_eos_has_no_eos(
+    &LlamaFixture { backend, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model_without_eos_path = env::temp_dir().join(format!(
-        "llama_cpp_bindings_{}_model_without_eos.gguf",
-        process::id()
-    ));
-    let mut gguf_context = GgufContext::from_file(fixture.model_path)?;
-
-    gguf_context.remove_key("tokenizer.ggml.eos_token_id")?;
-    gguf_context.write_to_file(&model_without_eos_path)?;
-
     let model_without_eos = LlamaModel::load_from_file(
-        fixture.backend,
-        &model_without_eos_path,
-        &LlamaModelParams::default(),
+        backend,
+        Path::new(WORDPIECE_VOCABULARY_PATH),
+        &LlamaModelParams::default().with_vocab_only(true),
     )?;
 
-    fs::remove_file(&model_without_eos_path)?;
-
-    assert_eq!(
+    ensure!(
         model_without_eos
             .approximate_tok_env()?
             .tok_trie()
-            .eos_token(),
-        INVALID_TOKEN
+            .eos_token()
+            == INVALID_TOKEN
     );
 
     Ok(())

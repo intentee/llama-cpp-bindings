@@ -1,0 +1,16 @@
+#[must_use]
+pub fn max_devices() -> usize {
+    unsafe { llama_cpp_bindings_sys::bindings::llama_max_devices() }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::max_devices::max_devices;
+
+    #[test]
+    fn at_least_one_device_is_supported() {
+        let device_count = max_devices();
+
+        assert!(device_count >= 1);
+    }
+}

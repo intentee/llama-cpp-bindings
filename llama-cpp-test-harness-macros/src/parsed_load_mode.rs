@@ -31,22 +31,22 @@ impl ParsedLoadMode {
     pub fn tokens(self) -> TokenStream {
         match self {
             Self::Auto => {
-                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Auto }
+                quote! { ::llama_cpp_params::llama_load_mode::LlamaLoadMode::Auto }
             }
             Self::None => {
-                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::None }
+                quote! { ::llama_cpp_params::llama_load_mode::LlamaLoadMode::None }
             }
             Self::Mmap => {
-                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Mmap }
+                quote! { ::llama_cpp_params::llama_load_mode::LlamaLoadMode::Mmap }
             }
             Self::Mlock => {
-                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::Mlock }
+                quote! { ::llama_cpp_params::llama_load_mode::LlamaLoadMode::Mlock }
             }
             Self::MmapMlock => {
-                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::MmapMlock }
+                quote! { ::llama_cpp_params::llama_load_mode::LlamaLoadMode::MmapMlock }
             }
             Self::DirectIo => {
-                quote! { ::llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode::DirectIo }
+                quote! { ::llama_cpp_params::llama_load_mode::LlamaLoadMode::DirectIo }
             }
         }
     }
@@ -77,9 +77,7 @@ mod tests {
             assert_eq!(parsed, expected);
             assert_eq!(
                 parsed.tokens().to_string(),
-                format!(
-                    ":: llama_cpp_bindings :: model :: llama_load_mode :: LlamaLoadMode :: {identifier}"
-                ),
+                format!(":: llama_cpp_params :: llama_load_mode :: LlamaLoadMode :: {identifier}"),
             );
         }
     }

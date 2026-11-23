@@ -1,19 +1,18 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::ensure;
 
-use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
-use llama_cpp_bindings::chat_session::ChatSession;
-use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
-use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
-use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::context_limits::ContextLimits;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::add_bos::AddBos;
-use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
-use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings_tests::classify_sample_loop::ClassifySampleLoop;
 use llama_cpp_bindings_tests::user_message::user_message;
+use llama_cpp_chat::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_chat::chat_session::ChatSession;
+use llama_cpp_chat::chat_session_options::ChatSessionOptions;
+use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
+use llama_cpp_context::llama_batch::LlamaBatch;
+use llama_cpp_model::add_bos::AddBos;
+use llama_cpp_model::parse_special_tokens::ParseSpecialTokens;
+use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
@@ -50,16 +49,11 @@ use llama_cpp_test_harness_macros::llama_test;
     n_ubatch = 128,
 )]
 fn raw_prompt_completion_usage_matches_the_classified_tokens(
-    fixture: &LlamaFixture<'_>,
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mut ctx = LlamaContext::from_model(
-        model,
-        backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )
-    .with_context(|| "unable to create context")?;
+    let mut ctx = fixture
+        .build_context()
+        .with_context(|| "unable to create context")?;
 
     let prompt = "Hello my name is";
     let max_generated_tokens: i32 = 64;
@@ -70,7 +64,7 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
         .context(format!("failed to tokenize {prompt}"))?;
     let prompt_token_count = u64::try_from(tokens_list.len())?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&ctx));
+    let mut batch = LlamaBatch::new(ctx.limits());
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens_list, 0, false)?;
 
     ctx.decode(&batch)
@@ -88,48 +82,47 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
         initial_position,
         max_generated_tokens,
     }
-    .run();
+    .run()?;
     let total_observed =
-        outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable;
+        outcome.observed_content.checked_add(outcome.observed_reasoning).context("`outcome.observed_content + outcome.observed_reasoning` must not overflow")?.checked_add(outcome.observed_undeterminable).context("`outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable` must not overflow")?;
 
-    assert!(
+    ensure!(
         !outcome.generated.text().is_empty(),
         "model should generate at least one token"
     );
-    assert_eq!(
-        outcome.observed_tool_call, 0,
+    ensure!(
+        outcome.observed_tool_call == 0,
         "raw prompt without tool-call markers must not produce ToolCall tokens; \
          outcome={outcome:?}"
     );
-    assert!(
+    ensure!(
         total_observed > 0,
         "model must produce at least one classified token; outcome={outcome:?}"
     );
 
     let usage = classifier.into_usage();
-    assert_eq!(
-        usage.prompt_tokens, prompt_token_count,
+    ensure!(
+        usage.prompt == prompt_token_count,
         "prompt_tokens must equal the tokenizer's prompt length"
     );
-    assert_eq!(
-        usage.content_tokens, outcome.observed_content,
+    ensure!(
+        usage.content == outcome.observed_content,
         "content_tokens must equal observed Content variants"
     );
-    assert_eq!(
-        usage.reasoning_tokens, outcome.observed_reasoning,
+    ensure!(
+        usage.reasoning == outcome.observed_reasoning,
         "reasoning_tokens must equal observed Reasoning variants"
     );
-    assert_eq!(
-        usage.undeterminable_tokens, outcome.observed_undeterminable,
+    ensure!(
+        usage.undeterminable == outcome.observed_undeterminable,
         "undeterminable_tokens must equal observed Undeterminable variants"
     );
-    assert_eq!(
-        usage.tool_call_tokens, outcome.observed_tool_call,
+    ensure!(
+        usage.tool_call == outcome.observed_tool_call,
         "tool_call_tokens must equal observed ToolCall variants"
     );
-    assert_eq!(
-        usage.completion_tokens(),
-        total_observed,
+    ensure!(
+        usage.completion_tokens() == total_observed,
         "completion_tokens must equal Content + Reasoning + Undeterminable"
     );
 
@@ -168,14 +161,10 @@ fn raw_prompt_completion_usage_matches_the_classified_tokens(
     n_batch = 512,
     n_ubatch = 128,
 )]
-fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_>) -> Result<()> {
-    let model = fixture.model;
-    let backend = fixture.backend;
-    let mut context = LlamaContext::from_model(
-        model,
-        backend,
-        (*fixture.context_params).into_llama_context_params(),
-    )?;
+fn chat_completion_usage_matches_the_classified_tokens(
+    fixture @ &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let mut context = fixture.build_context()?;
 
     let messages = [user_message("Hello! How are you?")];
     let session = ChatSession::new(
@@ -191,11 +180,11 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         },
     )?;
 
-    let tokens = session.tokenize_prompt(fixture.model)?;
-    let mut classifier = SampledTokenClassifier::for_chat_session(fixture.model, session)?;
+    let tokens = session.tokenize_prompt(model)?;
+    let mut classifier = SampledTokenClassifier::for_chat_session(model, session)?;
     let prompt_token_count = u64::try_from(tokens.len())?;
 
-    let mut batch = LlamaBatch::new(ContextLimits::of(&context));
+    let mut batch = LlamaBatch::new(context.limits());
     classifier.feed_prompt_sequence_to_batch(&mut batch, &tokens, 0, false)?;
 
     context.decode(&batch)?;
@@ -212,48 +201,47 @@ fn chat_completion_usage_matches_the_classified_tokens(fixture: &LlamaFixture<'_
         initial_position,
         max_generated_tokens: 512,
     }
-    .run();
+    .run()?;
 
-    assert!(
+    ensure!(
         !outcome.generated.text().is_empty(),
         "model should generate at least one token"
     );
     let total_observed =
-        outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable;
-    assert!(
+        outcome.observed_content.checked_add(outcome.observed_reasoning).context("`outcome.observed_content + outcome.observed_reasoning` must not overflow")?.checked_add(outcome.observed_undeterminable).context("`outcome.observed_content + outcome.observed_reasoning + outcome.observed_undeterminable` must not overflow")?;
+    ensure!(
         total_observed > 0,
         "model must produce at least one classified token; outcome={outcome:?}"
     );
-    assert_eq!(
-        outcome.observed_tool_call, 0,
+    ensure!(
+        outcome.observed_tool_call == 0,
         "chat without tool definitions must not produce ToolCall tokens; outcome={outcome:?}"
     );
 
     let usage = classifier.into_usage();
 
-    assert_eq!(
-        usage.prompt_tokens, prompt_token_count,
+    ensure!(
+        usage.prompt == prompt_token_count,
         "prompt_tokens must equal the tokenizer's prompt length"
     );
-    assert_eq!(
-        usage.content_tokens, outcome.observed_content,
+    ensure!(
+        usage.content == outcome.observed_content,
         "content_tokens must equal observed Content variants"
     );
-    assert_eq!(
-        usage.reasoning_tokens, outcome.observed_reasoning,
+    ensure!(
+        usage.reasoning == outcome.observed_reasoning,
         "reasoning_tokens must equal observed Reasoning variants"
     );
-    assert_eq!(
-        usage.undeterminable_tokens, outcome.observed_undeterminable,
+    ensure!(
+        usage.undeterminable == outcome.observed_undeterminable,
         "undeterminable_tokens must equal observed Undeterminable variants"
     );
-    assert_eq!(
-        usage.completion_tokens(),
-        total_observed,
+    ensure!(
+        usage.completion_tokens() == total_observed,
         "completion_tokens must equal Content + Reasoning + Undeterminable"
     );
-    assert_eq!(
-        usage.tool_call_tokens, outcome.observed_tool_call,
+    ensure!(
+        usage.tool_call == outcome.observed_tool_call,
         "tool_call_tokens must equal observed ToolCall variants"
     );
 

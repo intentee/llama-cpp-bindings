@@ -5,7 +5,7 @@ use std::sync::Arc;
 use libtest_mimic::Arguments;
 use libtest_mimic::Conclusion;
 
-use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_backend::llama_backend::LlamaBackend;
 
 use crate::execution_phase::ExecutionPhase;
 use crate::harness_run_error::HarnessRunError;
@@ -17,15 +17,15 @@ fn refuse_duplicate_trial_names(
 ) -> Result<(), HarnessRunError> {
     let mut trial_names = BTreeSet::new();
 
-    registrations.iter().try_for_each(|registration| {
-        if trial_names.insert(registration.name) {
-            Ok(())
-        } else {
-            Err(HarnessRunError::DuplicateTrialName {
-                name: registration.name,
-            })
-        }
-    })
+    registrations
+        .iter()
+        .try_for_each(|&&LlamaTestRegistration { name, .. }| {
+            if trial_names.insert(name) {
+                Ok(())
+            } else {
+                Err(HarnessRunError::DuplicateTrialName { name })
+            }
+        })
 }
 
 fn collect_inventory_registrations() -> Vec<&'static LlamaTestRegistration> {
@@ -41,6 +41,13 @@ pub struct ExecutionPlan {
 impl ExecutionPlan {
     /// # Errors
     ///
+    /// Returns the [`HarnessRunError`] of [`Self::from_registrations`] for every registered trial.
+    pub fn from_inventory() -> Result<Self, HarnessRunError> {
+        Self::from_registrations(&collect_inventory_registrations())
+    }
+
+    /// # Errors
+    ///
     /// Returns [`HarnessRunError::DuplicateTrialName`] when two registrations share a trial name,
     /// since their results could not be told apart.
     pub fn from_registrations(
@@ -51,23 +58,16 @@ impl ExecutionPlan {
         let mut by_key: BTreeMap<_, Vec<&'static LlamaTestRegistration>> = BTreeMap::new();
         for registration in registrations {
             by_key
-                .entry(registration.key)
+                .entry(registration.key.model_key())
                 .or_default()
                 .push(*registration);
         }
         let mut phases = Vec::with_capacity(by_key.len());
         for (key, mut registrations) in by_key {
-            registrations.sort_by_key(|registration| registration.name);
+            registrations.sort_by_key(|&&LlamaTestRegistration { name, .. }| name);
             phases.push(ExecutionPhase { key, registrations });
         }
         Ok(Self { phases })
-    }
-
-    /// # Errors
-    ///
-    /// Returns the [`HarnessRunError`] of [`Self::from_registrations`] for every registered trial.
-    pub fn from_inventory() -> Result<Self, HarnessRunError> {
-        Self::from_registrations(&collect_inventory_registrations())
     }
 
     #[must_use]
@@ -93,7 +93,7 @@ impl ExecutionPlan {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::model::llama_load_mode::LlamaLoadMode;
+    use llama_cpp_params::llama_load_mode::LlamaLoadMode;
     use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
     use llama_cpp_test_model_provisioning::load_key::LoadKey;
     use llama_cpp_test_model_provisioning::model_load_params::ModelLoadParams;
@@ -103,7 +103,6 @@ mod tests {
     use crate::expected_outcome::ExpectedOutcome;
     use crate::llama_test_fn::LlamaTestFn;
     use crate::llama_test_registration::LlamaTestRegistration;
-    use crate::no_op::no_op;
 
     const TRIVIAL_CONTEXT_PARAMS: ContextParams = ContextParams {
         n_ctx: 1,
@@ -137,7 +136,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_BETA_B: LlamaTestRegistration = LlamaTestRegistration {
@@ -154,7 +153,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_ALPHA_Z: LlamaTestRegistration = LlamaTestRegistration {
@@ -171,7 +170,7 @@ mod tests {
             },
         },
         context_params: TRIVIAL_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
     static REG_BETA_DIFFERENT_CONTEXT: LlamaTestRegistration = LlamaTestRegistration {
@@ -188,7 +187,45 @@ mod tests {
             },
         },
         context_params: ALTERNATE_CONTEXT_PARAMS,
-        func: LlamaTestFn::Infallible(no_op),
+        func: LlamaTestFn::no_op(),
+        expected_outcome: ExpectedOutcome::Success,
+    };
+
+    static REG_BETA_WITH_MMPROJ: LlamaTestRegistration = LlamaTestRegistration {
+        name: "delta",
+        key: LoadKey {
+            model_source: GgufSource::HuggingFace {
+                repo: "beta",
+                file: "f",
+            },
+            mmproj_source: Some(GgufSource::HuggingFace {
+                repo: "beta",
+                file: "mmproj",
+            }),
+            model_load_params: ModelLoadParams {
+                n_gpu_layers: 0,
+                load_mode: LlamaLoadMode::Mmap,
+            },
+        },
+        context_params: TRIVIAL_CONTEXT_PARAMS,
+        func: LlamaTestFn::no_op(),
+        expected_outcome: ExpectedOutcome::Success,
+    };
+    static REG_BETA_ON_ANOTHER_DEVICE: LlamaTestRegistration = LlamaTestRegistration {
+        name: "echo",
+        key: LoadKey {
+            model_source: GgufSource::HuggingFace {
+                repo: "beta",
+                file: "f",
+            },
+            mmproj_source: None,
+            model_load_params: ModelLoadParams {
+                n_gpu_layers: -1,
+                load_mode: LlamaLoadMode::Mmap,
+            },
+        },
+        context_params: TRIVIAL_CONTEXT_PARAMS,
+        func: LlamaTestFn::no_op(),
         expected_outcome: ExpectedOutcome::Success,
     };
 
@@ -220,7 +257,24 @@ mod tests {
             .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
-        assert_eq!(plan.phases[0].registrations.len(), 2);
+        assert_eq!(plan.phases.first().unwrap().registrations.len(), 2);
+    }
+
+    #[test]
+    fn registrations_differing_only_in_their_mmproj_share_the_phase_of_their_model() {
+        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_WITH_MMPROJ, &REG_BETA_A])
+            .expect("registrations with distinct names form a plan");
+
+        assert_eq!(plan.phases.len(), 1);
+        assert_eq!(plan.phases.first().unwrap().registrations.len(), 2);
+    }
+
+    #[test]
+    fn registrations_loading_one_model_with_different_load_params_form_separate_phases() {
+        let plan = ExecutionPlan::from_registrations(&[&REG_BETA_ON_ANOTHER_DEVICE, &REG_BETA_A])
+            .expect("registrations with distinct names form a plan");
+
+        assert_eq!(plan.phases.len(), 2);
     }
 
     #[test]
@@ -230,14 +284,14 @@ mod tests {
 
         assert_eq!(plan.phases.len(), 2);
         assert_eq!(
-            plan.phases[0].key.model_source,
+            plan.phases.first().unwrap().key.model_source,
             GgufSource::HuggingFace {
                 repo: "alpha",
                 file: "f"
             }
         );
         assert_eq!(
-            plan.phases[1].key.model_source,
+            plan.phases.get(1).unwrap().key.model_source,
             GgufSource::HuggingFace {
                 repo: "beta",
                 file: "f"
@@ -251,8 +305,26 @@ mod tests {
             .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
-        assert_eq!(plan.phases[0].registrations[0].name, "alpha");
-        assert_eq!(plan.phases[0].registrations[1].name, "bravo");
+        assert_eq!(
+            plan.phases
+                .first()
+                .unwrap()
+                .registrations
+                .first()
+                .unwrap()
+                .name,
+            "alpha"
+        );
+        assert_eq!(
+            plan.phases
+                .first()
+                .unwrap()
+                .registrations
+                .get(1)
+                .unwrap()
+                .name,
+            "bravo"
+        );
     }
 
     #[test]
@@ -261,11 +333,14 @@ mod tests {
             .expect("registrations with distinct names form a plan");
 
         assert_eq!(plan.phases.len(), 1);
-        assert_eq!(plan.phases[0].registrations.len(), 2);
-        let context_lengths: Vec<u32> = plan.phases[0]
+        assert_eq!(plan.phases.first().unwrap().registrations.len(), 2);
+        let context_lengths: Vec<u32> = plan
+            .phases
+            .first()
+            .unwrap()
             .registrations
             .iter()
-            .map(|registration| registration.context_params.n_ctx)
+            .map(|LlamaTestRegistration { context_params, .. }| context_params.n_ctx)
             .collect();
         assert!(context_lengths.contains(&1));
         assert!(context_lengths.contains(&4096));
