@@ -62,12 +62,25 @@ fn split_fn_and_pass_through(items: Vec<Item>) -> syn::Result<SplitItems> {
     })
 }
 
-fn build_model_source_literal(source: &ParsedSource) -> TokenStream {
+fn build_source_literal(source: &ParsedSource) -> TokenStream {
     match source {
         ParsedSource::HuggingFace { repo, file } => quote! {
             ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
                 repo: #repo,
                 file: #file,
+            }
+        },
+        ParsedSource::HuggingFaceShards {
+            repo,
+            commit,
+            first_shard,
+            remaining_shards,
+        } => quote! {
+            ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFaceShards {
+                repo: #repo,
+                commit: #commit,
+                first_shard: #first_shard,
+                remaining_shards: &[#(#remaining_shards),*],
             }
         },
         ParsedSource::LocalPath(path) => quote! {
@@ -77,18 +90,14 @@ fn build_model_source_literal(source: &ParsedSource) -> TokenStream {
 }
 
 fn build_mmproj_source_literal(source: Option<&ParsedSource>) -> TokenStream {
-    match source {
-        None => quote! { ::core::option::Option::None },
-        Some(ParsedSource::HuggingFace { repo, file }) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFace {
-                repo: #repo,
-                file: #file,
-            })
+    source.map_or_else(
+        || quote! { ::core::option::Option::None },
+        |mmproj_source| {
+            let source_literal = build_source_literal(mmproj_source);
+
+            quote! { ::core::option::Option::Some(#source_literal) }
         },
-        Some(ParsedSource::LocalPath(path)) => quote! {
-            ::core::option::Option::Some(::llama_cpp_test_model_provisioning::gguf_source::GgufSource::LocalPath(#path))
-        },
-    }
+    )
 }
 
 fn build_test_fn_literal(
@@ -187,7 +196,7 @@ fn signed_integer_literal(value: i32) -> TokenStream {
 
 fn build_registration(args: &ParsedArgs, signature: &Signature) -> TokenStream {
     let trial_name = trial_name(args, signature);
-    let model_source_literal = build_model_source_literal(&args.model_source);
+    let model_source_literal = build_source_literal(&args.model_source);
     let mmproj_source_literal = build_mmproj_source_literal(args.mmproj_source.as_ref());
     let gpu_layers = signed_integer_literal(args.model_load_params.n_gpu_layers);
     let load_mode = args.model_load_params.load_mode.tokens();
@@ -285,7 +294,7 @@ mod tests {
     use super::StackedItems;
     use super::build_expected_outcome_literal;
     use super::build_mmproj_source_literal;
-    use super::build_model_source_literal;
+    use super::build_source_literal;
     use super::build_test_fn_literal;
     use super::expand;
     use super::signed_integer_literal;
@@ -471,10 +480,35 @@ mod tests {
     #[test]
     fn a_local_path_model_source_emits_the_local_path_variant() {
         assert_eq!(
-            build_model_source_literal(&ParsedSource::LocalPath("/abs/local.gguf".to_owned()))
+            build_source_literal(&ParsedSource::LocalPath("/abs/local.gguf".to_owned()))
                 .to_string(),
             quote! { ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::LocalPath("/abs/local.gguf") }
                 .to_string()
+        );
+    }
+
+    #[test]
+    fn a_huggingface_shards_model_source_emits_its_commit_and_every_shard() {
+        assert_eq!(
+            build_source_literal(&ParsedSource::HuggingFaceShards {
+                repo: "r".to_owned(),
+                commit: "abc123".to_owned(),
+                first_shard: "m-00001-of-00003.gguf".to_owned(),
+                remaining_shards: vec![
+                    "m-00002-of-00003.gguf".to_owned(),
+                    "m-00003-of-00003.gguf".to_owned(),
+                ],
+            })
+            .to_string(),
+            quote! {
+                ::llama_cpp_test_model_provisioning::gguf_source::GgufSource::HuggingFaceShards {
+                    repo: "r",
+                    commit: "abc123",
+                    first_shard: "m-00001-of-00003.gguf",
+                    remaining_shards: &["m-00002-of-00003.gguf", "m-00003-of-00003.gguf"],
+                }
+            }
+            .to_string()
         );
     }
 

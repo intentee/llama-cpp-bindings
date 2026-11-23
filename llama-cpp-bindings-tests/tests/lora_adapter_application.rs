@@ -14,15 +14,16 @@ use llama_cpp_model::llama_model::LlamaModel;
 use llama_cpp_model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
-use llama_cpp_test_model_provisioning::download_model::download_model;
+use llama_cpp_test_model_provisioning::gguf_source::GgufSource;
 
 const LLAMA_CONTEXT_LOG_TARGET: &str = "llama_cpp_context::llama_context";
 
 fn model_with_the_deepthink_reasoning_adapter(fixture: &LlamaFixture<'_>) -> Result<LlamaModel> {
-    let adapter_path = download_model(
-        "ggml-org/LoRA-Deepthink-Reasoning-Qwen2.5-7B-Instruct-Q8_0-GGUF",
-        "Deepthink-Reasoning-Adapter-q8_0.gguf",
-    )?;
+    let adapter_path = GgufSource::HuggingFace {
+        repo: "ggml-org/LoRA-Deepthink-Reasoning-Qwen2.5-7B-Instruct-Q8_0-GGUF",
+        file: "Deepthink-Reasoning-Adapter-q8_0.gguf",
+    }
+    .resolve_path()?;
     let mut model = freshly_loaded_model(fixture)?;
 
     model.load_lora_adapter(&adapter_path)?;

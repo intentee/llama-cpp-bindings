@@ -905,7 +905,7 @@ mod tests {
 
         assert_eq!(
             message,
-            "unknown source variant `Mystery`; expected `HuggingFace` or `LocalPath`"
+            "unknown source variant `Mystery`; expected `HuggingFace`, `HuggingFaceShards` or `LocalPath`"
         );
     }
 
@@ -924,7 +924,7 @@ mod tests {
 
         assert_eq!(
             message,
-            "unknown source variant `Mystery`; expected `HuggingFace` or `LocalPath`"
+            "unknown source variant `Mystery`; expected `HuggingFace`, `HuggingFaceShards` or `LocalPath`"
         );
     }
 
