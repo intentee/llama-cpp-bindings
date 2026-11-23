@@ -171,16 +171,10 @@ mod tests {
         root
     }
 
-    fn failure(environment: &BuildEnvironment) -> [Option<String>; 2] {
-        let mut output = Vec::new();
-
-        [
-            NativeLibraryBuild::from_environment(environment)
-                .and_then(|native_library_build| native_library_build.run(&mut output))
-                .err()
-                .map(|error| error_chain(&error)),
-            String::from_utf8(output).ok(),
-        ]
+    fn planning_failure(environment: &BuildEnvironment) -> Option<String> {
+        NativeLibraryBuild::from_environment(environment)
+            .err()
+            .map(|error| error_chain(&error))
     }
 
     #[test]
@@ -313,45 +307,36 @@ mod tests {
     }
 
     #[test]
-    fn a_failure_at_any_planning_stage_is_reported_and_nothing_is_emitted() {
+    fn a_failure_at_any_planning_stage_is_reported() {
         let mut without_target = cargo_environment(BitFlags::empty(), &[]);
 
         without_target.variables.remove(OsStr::new("TARGET"));
 
         assert_eq!(
             [
-                failure(&without_target),
-                failure(&cargo_environment(
+                planning_failure(&without_target),
+                planning_failure(&cargo_environment(
                     BitFlags::from(BuildFeature::SystemGgml),
                     &[]
                 )),
-                failure(&cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])),
+                planning_failure(&cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])),
             ],
             [
-                [
-                    Some(
-                        "environment variable TARGET could not be read: environment variable not \
-                         found"
-                            .to_owned()
-                    ),
-                    Some(String::new())
-                ],
-                [
-                    Some(
-                        "environment variable GGML_DIR could not be read: environment variable \
-                         not found"
-                            .to_owned()
-                    ),
-                    Some(String::new())
-                ],
-                [
-                    Some(
-                        "environment variable ROCM_PATH could not be read: environment variable \
-                         not found"
-                            .to_owned()
-                    ),
-                    Some(String::new())
-                ],
+                Some(
+                    "environment variable TARGET could not be read: environment variable not \
+                     found"
+                        .to_owned()
+                ),
+                Some(
+                    "environment variable GGML_DIR could not be read: environment variable not \
+                     found"
+                        .to_owned()
+                ),
+                Some(
+                    "environment variable ROCM_PATH could not be read: environment variable not \
+                     found"
+                        .to_owned()
+                ),
             ]
         );
     }
