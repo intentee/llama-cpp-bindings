@@ -1,8 +1,9 @@
+use std::fs;
+use std::path::PathBuf;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
-use std::fs;
-use std::path::PathBuf;
 
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use llama_cpp_bindings_tests::get_weather_tools::get_weather_tools;

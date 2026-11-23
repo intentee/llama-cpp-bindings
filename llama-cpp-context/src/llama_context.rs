@@ -1,4 +1,3 @@
-use log::debug;
 use std::ffi::c_char;
 use std::ffi::c_void;
 use std::fmt;
@@ -11,6 +10,8 @@ use std::slice;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+
+use log::debug;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_bindings_sys::bindings::llama_rs_batch_ext_init_status;

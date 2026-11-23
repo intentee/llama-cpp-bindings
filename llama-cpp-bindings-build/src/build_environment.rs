@@ -1,10 +1,11 @@
-use find_cuda_helper::find_cuda_lib_dirs;
 use std::collections::BTreeMap;
 use std::env;
 use std::env::VarError;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::path::PathBuf;
+
+use find_cuda_helper::find_cuda_lib_dirs;
 
 use crate::build_error::BuildError;
 use crate::build_feature::BuildFeature;
@@ -70,10 +71,11 @@ impl BuildEnvironment {
 
 #[cfg(test)]
 pub mod tests {
-    use find_cuda_helper::find_cuda_lib_dirs;
     use std::collections::BTreeMap;
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
+
+    use find_cuda_helper::find_cuda_lib_dirs;
 
     use llama_cpp_error_chain::error_chain::error_chain;
 
