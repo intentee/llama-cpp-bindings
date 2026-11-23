@@ -2,14 +2,9 @@ pub const CPP_STANDARD: &str = "c++17";
 
 pub const FAULT_INJECTION_DEFINE: &str = "LLAMA_RS_FAULT_INJECTION";
 
-pub const VENDORED_INCLUDE_DIRS: &[&str] = &[
-    "GSL/include",
-    "llama.cpp",
-    "llama.cpp/common",
-    "llama.cpp/include",
-    "llama.cpp/ggml/include",
-    "llama.cpp/vendor",
-];
+pub const GSL_INCLUDE_DIR: &str = "GSL/include";
+
+pub const LLAMA_CPP_INCLUDE_DIRS: &[&str] = &["common", "include", "ggml/include", "vendor"];
 
 pub const WRAPPER_HEADERS: &[&str] = &[
     "wrapper.h",

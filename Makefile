@@ -37,10 +37,11 @@ WRAPPER_SOURCES_CRATE_FILES = \
 	$(wildcard $(WRAPPER_SOURCES_CRATE)/src/*.rs)
 
 EMIT_WRAPPER_BUILD_INPUTS = cargo run --quiet --package $(WRAPPER_SOURCES_CRATE) -- \
-	$(CURDIR)/llama-cpp-bindings-sys $(COMPILE_COMMANDS) $(WRAPPER_SOURCES_RESPONSE_FILE)
+	$(CURDIR)/llama-cpp-bindings-sys $(CURDIR)/llama-cpp-native/llama.cpp \
+	$(COMPILE_COMMANDS) $(WRAPPER_SOURCES_RESPONSE_FILE)
 
 LLAMA_CPP_AND_GSL_SUPPRESSIONS = \
-	--suppress='*:*llama-cpp-bindings-sys/llama.cpp/*' \
+	--suppress='*:*llama-cpp-native/llama.cpp/*' \
 	--suppress='*:*llama-cpp-bindings-sys/GSL/*'
 
 lint-tools/clang-tidy-venv/bin/clang-tidy: requirements-lint.txt
@@ -128,8 +129,8 @@ test.harness: clippy
 		-p llama-cpp-test-model-provisioning $(DEVICE_FEATURE)
 
 .PHONY: test.llms
-test.llms: clippy test.harness test.unit
-	cargo test --no-fail-fast -p llama-cpp-bindings-tests $(DEVICE_FEATURE)
+test.llms: clippy
+	cargo test --no-fail-fast --workspace $(DEVICE_FEATURE)
 
 .PHONY: test.unit
 test.unit: clippy

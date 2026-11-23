@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 use llama_cpp_wrapper_sources::constants::CPP_STANDARD;
@@ -14,7 +15,8 @@ use crate::target_os::TargetOs;
 
 const WRAPPER_LIBRARY: &str = "llama_cpp_bindings_sys_common_wrapper";
 
-/// Compiles the C++ wrapper sources into the static wrapper library in `out_dir`.
+/// Compiles the C++ wrapper sources into the static wrapper library in `out_dir`, against the
+/// llama.cpp headers of the native package.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WrapperCompilation {
     pub sources: Vec<PathBuf>,
@@ -34,7 +36,7 @@ impl WrapperCompilation {
     #[must_use]
     pub fn of(
         BuildContext {
-            sys_dir,
+            manifest_dir,
             target_os,
             target_triple,
             host_triple,
@@ -44,17 +46,18 @@ impl WrapperCompilation {
             ..
         }: &BuildContext,
         environment: &BuildEnvironment,
+        llama_cpp_dir: &Path,
     ) -> Self {
         Self {
             sources: WRAPPER_SOURCES
                 .iter()
-                .map(|source| sys_dir.join(source))
+                .map(|source| manifest_dir.join(source))
                 .collect(),
             include_dirs: WRAPPER_INCLUDE_DIRS
                 .iter()
-                .map(|include_dir| sys_dir.join(include_dir))
+                .map(|include_dir| manifest_dir.join(include_dir))
                 .collect(),
-            flags: system_include_flags(sys_dir),
+            flags: system_include_flags(manifest_dir, llama_cpp_dir),
             cpp_standard: CPP_STANDARD,
             defines: if environment.has(BuildFeature::FaultInjection) {
                 vec![FAULT_INJECTION_DEFINE]
@@ -130,7 +133,11 @@ mod tests {
     ) -> WrapperCompilation {
         let environment = cargo_environment(features, overrides);
 
-        WrapperCompilation::of(&BuildContext::of_linux_host(&environment), &environment)
+        WrapperCompilation::of(
+            &BuildContext::of_linux_host(&environment),
+            &environment,
+            Path::new("/native/llama.cpp"),
+        )
     }
 
     fn linux_compilation() -> WrapperCompilation {
@@ -140,7 +147,7 @@ mod tests {
                 .map(|source| PathBuf::from(format!("/sys/{source}")))
                 .collect(),
             include_dirs: vec![PathBuf::from("/sys/.")],
-            flags: system_include_flags(Path::new("/sys")),
+            flags: system_include_flags(Path::new("/sys"), Path::new("/native/llama.cpp")),
             cpp_standard: "c++17",
             defines: Vec::new(),
             cpp_stdlib_linked_separately: false,

@@ -1,8 +1,5 @@
 use std::path::PathBuf;
 
-use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
-use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
-
 use crate::build_environment::BuildEnvironment;
 use crate::build_error::BuildError;
 use crate::build_feature::BuildFeature;
@@ -14,7 +11,7 @@ use crate::target_os::TargetOs;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BuildContext {
     pub out_dir: PathBuf,
-    pub sys_dir: PathBuf,
+    pub manifest_dir: PathBuf,
     pub target_os: TargetOs,
     pub target_triple: String,
     pub host_triple: String,
@@ -40,7 +37,7 @@ impl BuildContext {
 
         Ok(Self {
             out_dir: PathBuf::from(environment.required("OUT_DIR")?),
-            sys_dir: PathBuf::from(environment.required("CARGO_MANIFEST_DIR")?),
+            manifest_dir: PathBuf::from(environment.required("CARGO_MANIFEST_DIR")?),
             target_os: TargetOs::detect(
                 environment,
                 &target_triple,
@@ -57,6 +54,12 @@ impl BuildContext {
         })
     }
 
+    /// The directive that runs the build script of the package being built again when it changes.
+    #[must_use]
+    pub fn build_script_trigger(&self) -> CargoDirective {
+        CargoDirective::RerunIfChanged(self.manifest_dir.join("build.rs"))
+    }
+
     #[must_use]
     pub fn cmake_build_dir(&self) -> PathBuf {
         self.cmake_dir().join("build")
@@ -71,38 +74,13 @@ impl BuildContext {
     pub fn debug_messages(&self) -> Vec<CargoDirective> {
         [
             format!("TARGET: {}", self.target_triple),
-            format!("CARGO_MANIFEST_DIR: {}", self.sys_dir.display()),
+            format!("CARGO_MANIFEST_DIR: {}", self.manifest_dir.display()),
             format!("OUT_DIR: {}", self.out_dir.display()),
             format!("CMAKE_DIR: {}", self.cmake_dir().display()),
             format!("BUILD_SHARED: {}", self.build_shared_libs),
         ]
         .map(CargoDirective::Debug)
         .to_vec()
-    }
-
-    #[must_use]
-    pub fn llama_src(&self) -> PathBuf {
-        self.sys_dir.join("llama.cpp")
-    }
-
-    /// The files and variables whose change makes cargo run the native build again.
-    #[must_use]
-    pub fn rebuild_triggers(&self) -> Vec<CargoDirective> {
-        [
-            CargoDirective::RerunIfChanged(self.sys_dir.join("build.rs")),
-            CargoDirective::RerunIfEnvChanged("CUDAARCHS".to_owned()),
-        ]
-        .into_iter()
-        .chain(
-            WRAPPER_HEADERS
-                .iter()
-                .chain(WRAPPER_SOURCES)
-                .map(|wrapper_file| {
-                    CargoDirective::RerunIfChanged(self.sys_dir.join(wrapper_file))
-                }),
-        )
-        .chain([CargoDirective::RerunIfChanged(self.llama_src())])
-        .collect()
     }
 }
 
@@ -112,9 +90,6 @@ pub mod tests {
     use std::path::PathBuf;
 
     use enumflags2::BitFlags;
-
-    use llama_cpp_wrapper_sources::constants::WRAPPER_HEADERS;
-    use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
 
     use llama_cpp_error_chain::error_chain::error_chain;
 
@@ -175,7 +150,7 @@ pub mod tests {
             )),
             BuildContext {
                 out_dir: PathBuf::from("/out"),
-                sys_dir: PathBuf::from("/sys"),
+                manifest_dir: PathBuf::from("/sys"),
                 target_os: TargetOs::Linux,
                 target_triple: "x86_64-unknown-linux-gnu".to_owned(),
                 host_triple: "x86_64-unknown-linux-gnu".to_owned(),
@@ -239,35 +214,6 @@ pub mod tests {
                 "BUILD_SHARED: false",
             ]
             .map(|message| CargoDirective::Debug(message.to_owned()))
-        );
-    }
-
-    #[test]
-    fn the_build_script_cuda_architectures_every_wrapper_file_and_llama_cpp_trigger_a_rebuild() {
-        let triggers = BuildContext::of_linux_host(&cargo_environment(BitFlags::empty(), &[]))
-            .rebuild_triggers();
-
-        assert_eq!(
-            triggers,
-            [
-                vec![
-                    CargoDirective::RerunIfChanged(PathBuf::from("/sys/build.rs")),
-                    CargoDirective::RerunIfEnvChanged("CUDAARCHS".to_owned()),
-                ],
-                WRAPPER_HEADERS
-                    .iter()
-                    .chain(WRAPPER_SOURCES)
-                    .map(|wrapper_file| {
-                        CargoDirective::RerunIfChanged(PathBuf::from(format!(
-                            "/sys/{wrapper_file}"
-                        )))
-                    })
-                    .collect(),
-                vec![CargoDirective::RerunIfChanged(PathBuf::from(
-                    "/sys/llama.cpp"
-                ))],
-            ]
-            .concat()
         );
     }
 }

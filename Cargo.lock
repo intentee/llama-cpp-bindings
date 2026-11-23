@@ -1220,6 +1220,7 @@ name = "llama-cpp-bindings-sys"
 version = "0.29.0"
 dependencies = [
  "llama-cpp-bindings-build",
+ "llama-cpp-native",
 ]
 
 [[package]]
@@ -1386,6 +1387,13 @@ dependencies = [
  "llama-cpp-fault-injection",
  "llama-cpp-model",
  "thiserror",
+]
+
+[[package]]
+name = "llama-cpp-native"
+version = "0.29.0"
+dependencies = [
+ "llama-cpp-bindings-build",
 ]
 
 [[package]]

@@ -24,7 +24,7 @@ fi
 echo "Device: $DEVICE"
 ```
 
-`$DEVICE` selects the backend feature for every suite in Step 2, including `test.unit`. Passing the same device through every target keeps the cmake hash stable, so llama.cpp is compiled once and reused across all suites.
+`$DEVICE` selects the backend feature for every suite in Step 2. `make coverage` runs every suite in a single instrumented `cargo llvm-cov --workspace` invocation, after cleaning the instrumented build so no stale artifact is measured.
 
 ## Step 2: run the suites
 

@@ -19,6 +19,7 @@ fn absolute_path(directory: &Path, relative: &str) -> String {
 pub struct CompileCommandsFile {
     pub output_path: PathBuf,
     pub sys_dir: PathBuf,
+    pub llama_cpp_dir: PathBuf,
 }
 
 impl CompileCommandsFile {
@@ -37,7 +38,7 @@ impl CompileCommandsFile {
                     arguments.push(format!("-I{}", absolute_path(&self.sys_dir, include_dir)));
                 }
 
-                arguments.extend(system_include_flags(&self.sys_dir));
+                arguments.extend(system_include_flags(&self.sys_dir, &self.llama_cpp_dir));
 
                 arguments.push("-c".to_owned());
                 arguments.push(file.display().to_string());
@@ -87,6 +88,7 @@ mod tests {
         CompileCommandsFile {
             output_path: PathBuf::from(output_path),
             sys_dir: PathBuf::from("/repo/llama-cpp-bindings-sys"),
+            llama_cpp_dir: PathBuf::from("/repo/llama-cpp-native/llama.cpp"),
         }
     }
 
@@ -143,7 +145,10 @@ mod tests {
                     .collect::<Vec<String>>())
                 .collect::<Vec<Vec<String>>>(),
             vec![
-                system_include_flags(Path::new("/repo/llama-cpp-bindings-sys"));
+                system_include_flags(
+                    Path::new("/repo/llama-cpp-bindings-sys"),
+                    Path::new("/repo/llama-cpp-native/llama.cpp")
+                );
                 wrapper_source_paths(Path::new("/repo/llama-cpp-bindings-sys")).len()
             ]
         );

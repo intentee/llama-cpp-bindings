@@ -1,6 +1,5 @@
 use std::io::Write;
 
-use crate::bindings_generation::BindingsGeneration;
 use crate::build_context::BuildContext;
 use crate::build_environment::BuildEnvironment;
 use crate::build_error::BuildError;
@@ -8,52 +7,41 @@ use crate::cargo_directive::CargoDirective;
 use crate::cmake_build::CmakeBuild;
 use crate::cmake_configuration::CmakeConfiguration;
 use crate::cmake_file_api::CmakeFileApi;
+use crate::constants::LLAMA_CPP_DIR;
+use crate::constants::LLAMA_CPP_ROOT_METADATA_KEY;
 use crate::emit_directives::emit_directives;
-use crate::host_os::HostOs;
 use crate::link_directives::LinkDirectives;
 use crate::openmp_linking::OpenmpLinking;
-use crate::wrapper_compilation::WrapperCompilation;
+use crate::planned_build::PlannedBuild;
 
-/// Every step of the native build, decided before any of them runs.
+/// Every step of building the llama.cpp sources of the native package with `CMake`, decided before
+/// any of them runs.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NativeBuild {
-    pub bindings: BindingsGeneration,
-    pub wrappers: WrapperCompilation,
+pub struct NativeLibraryBuild {
     pub cmake: CmakeBuild,
     pub directives: Vec<CargoDirective>,
     pub openmp: OpenmpLinking,
     pub include_debug_messages: bool,
 }
 
-impl NativeBuild {
-    /// Plans the native build of the build script run `environment` describes, on the host the
-    /// build script runs on.
+impl PlannedBuild for NativeLibraryBuild {
+    /// Plans the `CMake` build of the llama.cpp sources under the package, and hands their
+    /// directory to the build scripts of the packages that depend on it.
     ///
-    /// # Errors
-    ///
-    /// Returns the [`BuildError`] of [`BuildContext::from_environment`] or [`Self::of`].
-    pub fn from_environment(environment: &BuildEnvironment) -> Result<Self, BuildError> {
-        Self::of(
-            &BuildContext::from_environment(environment, HostOs::current())?,
-            environment,
-        )
-    }
-
     /// # Errors
     ///
     /// Returns the [`BuildError`] of [`CmakeConfiguration::of`] or [`LinkDirectives::of`].
-    pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Result<Self, BuildError> {
+    fn of(context: &BuildContext, environment: &BuildEnvironment) -> Result<Self, BuildError> {
         let CmakeConfiguration {
             defines,
             required_directories,
             directives: cmake_directives,
         } = CmakeConfiguration::of(context, environment)?;
+        let llama_cpp_dir = context.manifest_dir.join(LLAMA_CPP_DIR);
 
         Ok(Self {
-            bindings: BindingsGeneration::of(context, environment),
-            wrappers: WrapperCompilation::of(context, environment),
             cmake: CmakeBuild {
-                source_dir: context.llama_src(),
+                source_dir: llama_cpp_dir.clone(),
                 out_dir: context.cmake_dir(),
                 file_api: CmakeFileApi {
                     build_dir: context.cmake_build_dir(),
@@ -65,9 +53,17 @@ impl NativeBuild {
             },
             directives: [
                 context.debug_messages(),
-                context.rebuild_triggers(),
+                vec![
+                    context.build_script_trigger(),
+                    CargoDirective::RerunIfEnvChanged("CUDAARCHS".to_owned()),
+                    CargoDirective::RerunIfChanged(llama_cpp_dir.clone()),
+                ],
                 cmake_directives,
                 LinkDirectives::of(context, environment)?.directives,
+                vec![CargoDirective::LinksMetadata {
+                    key: LLAMA_CPP_ROOT_METADATA_KEY,
+                    value: llama_cpp_dir,
+                }],
             ]
             .concat(),
             openmp: OpenmpLinking::of(context, environment),
@@ -75,23 +71,18 @@ impl NativeBuild {
         })
     }
 
-    /// Generates the bindings, compiles the wrappers, builds llama.cpp, and only then writes the
-    /// cargo directives to `output`, with the OpenMP runtime `CMake` resolved linked after every
-    /// planned library.
+    /// Builds llama.cpp, and only then writes the cargo directives to `output`, with the OpenMP
+    /// runtime `CMake` resolved linked after every planned library.
     ///
     /// # Errors
     ///
     /// Returns the [`BuildError`] of the first step that fails.
-    pub fn run(self, output: &mut impl Write) -> Result<(), BuildError> {
-        let bindings_directives = self.bindings.generate()?;
-
-        self.wrappers.compile()?;
-
+    fn run(self, output: &mut impl Write) -> Result<(), BuildError> {
         let cmake_cache = self.cmake.build()?;
         let openmp_directives = self.openmp.directives(&cmake_cache)?;
 
         emit_directives(
-            &[self.directives, openmp_directives, bindings_directives].concat(),
+            &[self.directives, openmp_directives].concat(),
             self.include_debug_messages,
             output,
         )
@@ -111,11 +102,10 @@ mod tests {
 
     use llama_cpp_error_chain::error_chain::error_chain;
 
-    use super::NativeBuild;
-    use crate::bindings_generation::BindingsGeneration;
+    use super::NativeLibraryBuild;
+    use crate::build_context::BuildContext;
     use crate::build_context::tests::cargo_environment;
     use crate::build_environment::BuildEnvironment;
-    use crate::build_environment::tests::variable;
     use crate::build_feature::BuildFeature;
     use crate::cargo_directive::CargoDirective;
     use crate::cmake_build::CmakeBuild;
@@ -125,8 +115,8 @@ mod tests {
     use crate::native_library::NativeLibrary;
     use crate::openmp_linking::OpenmpLinking;
     use crate::openmp_runtime_source::OpenmpRuntimeSource;
+    use crate::planned_build::PlannedBuild;
     use crate::target_os::TargetOs;
-    use crate::wrapper_compilation::WrapperCompilation;
 
     const HOST_TRIPLE: &str = include_str!(concat!(env!("OUT_DIR"), "/host_triple"));
 
@@ -134,26 +124,8 @@ mod tests {
 
     const MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
 
-    fn fixture_build(root: &Path) -> NativeBuild {
-        NativeBuild {
-            bindings: BindingsGeneration {
-                header: PathBuf::from(FIXTURES).join("bindings/wrapper.h"),
-                clang_args: Vec::new(),
-                output: root.join("bindings.rs"),
-            },
-            wrappers: WrapperCompilation {
-                sources: vec![PathBuf::from(FIXTURES).join("wrapper/wrapper_fixture.cpp")],
-                include_dirs: vec![PathBuf::from(FIXTURES).join("wrapper")],
-                flags: vec![format!("-isystem{FIXTURES}/wrapper/vendor")],
-                cpp_standard: "c++17",
-                defines: vec!["WRAPPER_FIXTURE_DEFINE"],
-                cpp_stdlib_linked_separately: false,
-                target_triple: HOST_TRIPLE.to_owned(),
-                host_triple: HOST_TRIPLE.to_owned(),
-                opt_level: "0".to_owned(),
-                debug_info: "false".to_owned(),
-                out_dir: root.join("wrapper"),
-            },
+    fn fixture_build(root: &Path) -> NativeLibraryBuild {
+        NativeLibraryBuild {
             cmake: CmakeBuild {
                 source_dir: PathBuf::from(FIXTURES).join("cmake_project"),
                 out_dir: root.join("cmake"),
@@ -186,33 +158,25 @@ mod tests {
             "cargo:rustc-link-search=native={root}/cmake/lib\n\
              cargo:rustc-link-lib=static=fixture\n\
              cargo:rustc-link-search=native={root}/cmake/lib\n\
-             cargo:rustc-link-lib=dylib:+verbatim=libfixture.a\n\
-             cargo:rerun-if-env-changed=TARGET\n\
-             cargo:rerun-if-env-changed=BINDGEN_EXTRA_CLANG_ARGS\n\
-             cargo:rerun-if-changed={FIXTURES}/bindings/wrapper.h\n\
-             cargo:rerun-if-changed={FIXTURES}/bindings/llama_types.h\n",
+             cargo:rustc-link-lib=dylib:+verbatim=libfixture.a\n",
             root = root.display()
         )
     }
 
     fn build_root(name: &str) -> PathBuf {
-        let root =
-            env::temp_dir().join(format!("llama-cpp-bindings-build-{name}-{}", process::id()));
+        let root = env::temp_dir().join(format!("llama-cpp-native-build-{name}-{}", process::id()));
 
         fs::create_dir_all(&root).unwrap();
 
         root
     }
 
-    const FIXTURE_CMAKE_PROJECT: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/cmake_project");
-
     fn failure(environment: &BuildEnvironment) -> [Option<String>; 2] {
         let mut output = Vec::new();
 
         [
-            NativeBuild::from_environment(environment)
-                .and_then(|native_build| native_build.run(&mut output))
+            NativeLibraryBuild::from_environment(environment)
+                .and_then(|native_library_build| native_library_build.run(&mut output))
                 .err()
                 .map(|error| error_chain(&error)),
             String::from_utf8(output).ok(),
@@ -220,39 +184,65 @@ mod tests {
     }
 
     #[test]
-    fn a_successful_build_writes_every_artifact_whoever_links_the_cxx_runtime_then_the_directives()
-    {
-        for cpp_stdlib_linked_separately in [false, true] {
-            let root = build_root(&format!("successful-{cpp_stdlib_linked_separately}"));
-            let mut native_build = fixture_build(&root);
-            let mut output = Vec::new();
+    fn llama_cpp_is_built_from_the_package_and_its_directory_is_handed_to_dependents() {
+        let environment = cargo_environment(BitFlags::empty(), &[]);
+        let native_library_build =
+            NativeLibraryBuild::of(&BuildContext::of_linux_host(&environment), &environment)
+                .unwrap();
 
-            native_build.wrappers.cpp_stdlib_linked_separately = cpp_stdlib_linked_separately;
-            native_build.run(&mut output).unwrap();
+        assert_eq!(
+            native_library_build.cmake.source_dir,
+            PathBuf::from("/sys/llama.cpp")
+        );
+        assert_eq!(
+            native_library_build
+                .directives
+                .into_iter()
+                .filter(|directive| matches!(
+                    directive,
+                    CargoDirective::RerunIfChanged(_)
+                        | CargoDirective::RerunIfEnvChanged(_)
+                        | CargoDirective::LinksMetadata { .. }
+                ))
+                .collect::<Vec<CargoDirective>>(),
+            [
+                CargoDirective::RerunIfChanged(PathBuf::from("/sys/build.rs")),
+                CargoDirective::RerunIfEnvChanged("CUDAARCHS".to_owned()),
+                CargoDirective::RerunIfChanged(PathBuf::from("/sys/llama.cpp")),
+                CargoDirective::LinksMetadata {
+                    key: "root",
+                    value: PathBuf::from("/sys/llama.cpp"),
+                },
+            ]
+        );
+    }
 
-            assert_eq!(
-                String::from_utf8(output).unwrap(),
-                successful_directives(&root)
-            );
-            assert_eq!(
-                [
-                    root.join("bindings.rs").is_file(),
-                    root.join("wrapper/libllama_cpp_bindings_sys_common_wrapper.a")
-                        .is_file(),
-                    root.join("cmake/lib/libfixture.a").is_file(),
-                    root.join("cmake/backends").is_dir(),
-                ],
-                [true; 4]
-            );
-            fs::remove_dir_all(root).unwrap();
-        }
+    #[test]
+    fn a_successful_build_writes_the_libraries_then_the_directives() {
+        let root = build_root("successful");
+        let mut output = Vec::new();
+
+        fixture_build(&root).run(&mut output).unwrap();
+
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            successful_directives(&root)
+        );
+        assert_eq!(
+            [
+                root.join("cmake/lib/libfixture.a").is_file(),
+                root.join("cmake/backends").is_dir(),
+            ],
+            [true; 2]
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn a_build_tree_left_by_a_relocated_source_still_reports_the_cmake_cache() {
         let root = build_root("relocated-source");
         let relocated_source = root.join("relocated_cmake_project");
-        let mut native_build = fixture_build(&root);
+        let mut native_library_build = fixture_build(&root);
         let mut output = Vec::new();
 
         fixture_build(&root).run(&mut Vec::new()).unwrap();
@@ -266,8 +256,8 @@ mod tests {
             )
             .unwrap();
         }
-        native_build.cmake.source_dir = relocated_source;
-        native_build.run(&mut output).unwrap();
+        native_library_build.cmake.source_dir = relocated_source;
+        native_library_build.run(&mut output).unwrap();
 
         assert_eq!(
             String::from_utf8(output).unwrap(),
@@ -277,39 +267,16 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_wrapper_compilation_stops_the_build_before_cmake_and_any_directive() {
-        let root = build_root("failed-wrappers");
-        let mut native_build = fixture_build(&root);
-        let mut output = Vec::new();
-
-        native_build.wrappers.out_dir = PathBuf::from(MANIFEST);
-
-        assert_eq!(
-            native_build
-                .run(&mut output)
-                .err()
-                .map(|error| error_chain(&error)),
-            Some(
-                "native wrapper compilation failed: IOError: File exists (os error 17)".to_owned()
-            )
-        );
-        assert_eq!(
-            [output.is_empty(), root.join("cmake").exists()],
-            [true, false]
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
     fn a_cmake_build_that_cannot_create_its_directories_emits_no_directive() {
         let root = build_root("failed-cmake");
-        let mut native_build = fixture_build(&root);
+        let mut native_library_build = fixture_build(&root);
         let mut output = Vec::new();
 
-        native_build.cmake.required_directories = vec![PathBuf::from(MANIFEST).join("backends")];
+        native_library_build.cmake.required_directories =
+            vec![PathBuf::from(MANIFEST).join("backends")];
 
         assert_eq!(
-            native_build
+            native_library_build
                 .run(&mut output)
                 .err()
                 .map(|error| error_chain(&error)),
@@ -325,13 +292,13 @@ mod tests {
     #[test]
     fn an_apple_build_whose_ggml_needs_an_openmp_runtime_emits_no_directive() {
         let root = build_root("apple-openmp");
-        let mut native_build = fixture_build(&root);
+        let mut native_library_build = fixture_build(&root);
         let mut output = Vec::new();
 
-        native_build.openmp.target_os = TargetOs::Apple;
+        native_library_build.openmp.target_os = TargetOs::Apple;
 
         assert_eq!(
-            native_build
+            native_library_build
                 .run(&mut output)
                 .err()
                 .map(|error| error_chain(&error)),
@@ -346,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn a_failure_at_any_stage_is_reported_and_nothing_is_emitted() {
+    fn a_failure_at_any_planning_stage_is_reported_and_nothing_is_emitted() {
         let mut without_target = cargo_environment(BitFlags::empty(), &[]);
 
         without_target.variables.remove(OsStr::new("TARGET"));
@@ -359,10 +326,6 @@ mod tests {
                     &[]
                 )),
                 failure(&cargo_environment(BitFlags::from(BuildFeature::Rocm), &[])),
-                failure(&cargo_environment(
-                    BitFlags::empty(),
-                    &[variable("CARGO_MANIFEST_DIR", FIXTURE_CMAKE_PROJECT)]
-                )),
             ],
             [
                 [
@@ -387,12 +350,6 @@ mod tests {
                          not found"
                             .to_owned()
                     ),
-                    Some(String::new())
-                ],
-                [
-                    Some(format!(
-                        "bindgen failed: header '{FIXTURE_CMAKE_PROJECT}/wrapper.h' does not exist."
-                    )),
                     Some(String::new())
                 ],
             ]

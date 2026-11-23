@@ -1,6 +1,6 @@
 [package]
 name = "llama-cpp-bindings-build"
-description = "Build system for llama-cpp-bindings-sys FFI bindings"
+description = "Build scripts of llama-cpp-native, which builds llama.cpp with CMake, and llama-cpp-bindings-sys, which generates the bindings and compiles the C++ wrapper"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -23,21 +23,6 @@ thiserror = { workspace = true }
 
 [build-dependencies]
 thiserror = { workspace = true }
-
-[features]
-cuda = []
-cuda-no-vmm = ["cuda"]
-metal = []
-dynamic-link = []
-dynamic-backends = ["dynamic-link"]
-fault-injection = []
-vulkan = []
-openmp = []
-rocm = []
-shared-stdcxx = []
-static-stdcxx = []
-system-ggml = []
-system-ggml-static = ["system-ggml"]
 
 [lints]
 workspace = true

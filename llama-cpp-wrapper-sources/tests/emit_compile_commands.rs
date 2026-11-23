@@ -9,6 +9,7 @@ use llama_cpp_wrapper_sources::constants::WRAPPER_SOURCES;
 
 const EMITTER: &str = env!("CARGO_BIN_EXE_llama-cpp-wrapper-sources");
 const SYS_DIR: &str = "/repo/llama-cpp-bindings-sys";
+const LLAMA_CPP_DIR: &str = "/repo/llama-cpp-native/llama.cpp";
 
 fn emitter_exit_code(arguments: &[&str]) -> io::Result<Option<i32>> {
     Ok(Command::new(EMITTER).args(arguments).status()?.code())
@@ -29,6 +30,7 @@ fn the_binary_emits_one_entry_and_one_response_line_per_wrapper_source() {
     assert_eq!(
         emitter_exit_code(&[
             SYS_DIR,
+            LLAMA_CPP_DIR,
             &database_path.display().to_string(),
             &response_file_path.display().to_string(),
         ])
@@ -55,6 +57,7 @@ fn the_binary_fails_when_the_database_cannot_be_written() {
     assert_eq!(
         emitter_exit_code(&[
             SYS_DIR,
+            LLAMA_CPP_DIR,
             "/nonexistent-directory/compile_commands.json",
             "/nonexistent-directory/wrapper_sources.rsp",
         ])
@@ -71,9 +74,10 @@ fn the_binary_requires_every_argument() {
         [
             emitter_exit_code(&[]).expect("the emitter binary must run"),
             emitter_exit_code(&[SYS_DIR]).expect("the emitter binary must run"),
-            emitter_exit_code(&[SYS_DIR, &database_path.display().to_string()])
+            emitter_exit_code(&[SYS_DIR, LLAMA_CPP_DIR]).expect("the emitter binary must run"),
+            emitter_exit_code(&[SYS_DIR, LLAMA_CPP_DIR, &database_path.display().to_string()])
                 .expect("the emitter binary must run"),
         ],
-        [Some(1), Some(1), Some(1)]
+        [Some(1), Some(1), Some(1), Some(1)]
     );
 }

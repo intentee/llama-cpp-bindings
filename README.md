@@ -36,8 +36,9 @@ The API is split per llama.cpp handle family. Each crate has one concern and one
 | `llama-cpp-error-chain` | Rendering an error with its source chain as one line | |
 | `llama-cpp-error-recorder` | Capturing an error raised inside an FFI callback for the Rust code that drove the call | |
 | `llama-cpp-log-decoder` | Decoding the llama.cpp / ggml log callback stream | |
-| `llama-cpp-bindings-sys` | Raw FFI bindings, and the owner of strings the C++ side allocates | |
-| `llama-cpp-bindings-build` | Build system | `BuildError` |
+| `llama-cpp-bindings-sys` | Raw FFI bindings generated against llama.cpp, the C++ wrapper they call, and the owner of strings the C++ side allocates | |
+| `llama-cpp-native` | llama.cpp built from its sources with CMake, linked as the native library the bindings call into | |
+| `llama-cpp-bindings-build` | Build scripts of `llama-cpp-native` and `llama-cpp-bindings-sys` | `BuildError` |
 
 Every item is imported from the module named after it, for example:
 

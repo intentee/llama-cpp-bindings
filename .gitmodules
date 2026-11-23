@@ -1,5 +1,5 @@
-[submodule "llama-cpp-bindings-sys/llama.cpp"]
-	path = llama-cpp-bindings-sys/llama.cpp
+[submodule "llama-cpp-native/llama.cpp"]
+	path = llama-cpp-native/llama.cpp
 	url = https://github.com/ggml-org/llama.cpp
 [submodule "llama-cpp-bindings-sys/GSL"]
 	path = llama-cpp-bindings-sys/GSL

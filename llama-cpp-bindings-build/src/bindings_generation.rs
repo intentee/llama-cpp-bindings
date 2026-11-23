@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 use bindgen::Builder;
@@ -120,17 +121,21 @@ pub struct BindingsGeneration {
 }
 
 impl BindingsGeneration {
+    /// Plans the bindings of the wrapper header of the package being built, parsed against the
+    /// llama.cpp headers in `llama_cpp_dir`.
     #[must_use]
-    pub fn of(context: &BuildContext, environment: &BuildEnvironment) -> Self {
-        let llama_src = context.llama_src();
-
+    pub fn of(
+        context: &BuildContext,
+        environment: &BuildEnvironment,
+        llama_cpp_dir: &Path,
+    ) -> Self {
         Self {
-            header: context.sys_dir.join("wrapper.h"),
+            header: context.manifest_dir.join("wrapper.h"),
             clang_args: [
                 vec![
-                    format!("-I{}", llama_src.display()),
-                    format!("-I{}", llama_src.join("include").display()),
-                    format!("-I{}", llama_src.join("ggml/include").display()),
+                    format!("-I{}", llama_cpp_dir.display()),
+                    format!("-I{}", llama_cpp_dir.join("include").display()),
+                    format!("-I{}", llama_cpp_dir.join("ggml/include").display()),
                 ],
                 fault_injection_args(environment),
                 target_args(context),
@@ -174,6 +179,7 @@ impl BindingsGeneration {
 mod tests {
     use std::env;
     use std::fs;
+    use std::path::Path;
     use std::path::PathBuf;
     use std::process;
 
@@ -199,14 +205,18 @@ mod tests {
     ) -> BindingsGeneration {
         let environment = cargo_environment(features, overrides);
 
-        BindingsGeneration::of(&BuildContext::of_linux_host(&environment), &environment)
+        BindingsGeneration::of(
+            &BuildContext::of_linux_host(&environment),
+            &environment,
+            Path::new("/native/llama.cpp"),
+        )
     }
 
     fn llama_cpp_includes() -> Vec<String> {
         vec![
-            "-I/sys/llama.cpp".to_owned(),
-            "-I/sys/llama.cpp/include".to_owned(),
-            "-I/sys/llama.cpp/ggml/include".to_owned(),
+            "-I/native/llama.cpp".to_owned(),
+            "-I/native/llama.cpp/include".to_owned(),
+            "-I/native/llama.cpp/ggml/include".to_owned(),
         ]
     }
 

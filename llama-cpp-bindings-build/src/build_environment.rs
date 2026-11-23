@@ -12,8 +12,9 @@ use crate::build_error::BuildError;
 use crate::build_feature::BuildFeature;
 use crate::enabled_build_features::enabled_build_features;
 
-/// Everything the native build reads from outside: the environment variables, the cargo features
-/// this crate was compiled with, and the CUDA library directories installed on the host.
+/// Everything a build script reads from outside: the environment variables, the cargo features of
+/// the package the build script belongs to, and the CUDA library directories installed on the
+/// host.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BuildEnvironment {
     pub variables: BTreeMap<OsString, OsString>,
@@ -25,9 +26,11 @@ impl BuildEnvironment {
     /// The environment of the running build script.
     #[must_use]
     pub fn of_process() -> Self {
+        let variables = env::vars_os().collect();
+
         Self {
-            variables: env::vars_os().collect(),
-            features: enabled_build_features(),
+            features: enabled_build_features(&variables),
+            variables,
             cuda_library_dirs: find_cuda_lib_dirs(),
         }
     }
@@ -140,7 +143,10 @@ pub mod tests {
             environment.var("CARGO_MANIFEST_DIR"),
             Ok(env!("CARGO_MANIFEST_DIR").to_owned())
         );
-        assert_eq!(environment.features, enabled_build_features());
+        assert_eq!(
+            environment.features,
+            enabled_build_features(&environment.variables)
+        );
         assert_eq!(environment.cuda_library_dirs, find_cuda_lib_dirs());
     }
 

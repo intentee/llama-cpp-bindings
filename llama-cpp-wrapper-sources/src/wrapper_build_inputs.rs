@@ -20,8 +20,8 @@ pub struct WrapperBuildInputs {
 }
 
 impl WrapperBuildInputs {
-    /// Reads `<sys-dir> <compile-commands-path> <response-file-path>` from the command line
-    /// arguments that follow the program name.
+    /// Reads `<sys-dir> <llama-cpp-dir> <compile-commands-path> <response-file-path>` from the
+    /// command line arguments that follow the program name.
     ///
     /// # Errors
     ///
@@ -30,6 +30,7 @@ impl WrapperBuildInputs {
         mut arguments: impl Iterator<Item = String>,
     ) -> Result<Self, WrapperSourcesError> {
         let sys_dir = PathBuf::from(required_argument(&mut arguments, "sys-dir")?);
+        let llama_cpp_dir = PathBuf::from(required_argument(&mut arguments, "llama-cpp-dir")?);
         let compile_commands_path = required_argument(&mut arguments, "compile-commands-path")?;
         let response_file_path = required_argument(&mut arguments, "response-file-path")?;
 
@@ -37,6 +38,7 @@ impl WrapperBuildInputs {
             compile_commands_file: CompileCommandsFile {
                 output_path: PathBuf::from(compile_commands_path),
                 sys_dir: sys_dir.clone(),
+                llama_cpp_dir,
             },
             response_file: WrapperSourcesResponseFile {
                 output_path: PathBuf::from(response_file_path),
@@ -61,8 +63,9 @@ mod tests {
 
     use super::WrapperBuildInputs;
 
-    const ARGUMENTS: [&str; 3] = [
+    const ARGUMENTS: [&str; 4] = [
         "/repo/llama-cpp-bindings-sys",
+        "/repo/llama-cpp-native/llama.cpp",
         "/repo/target/compile_commands.json",
         "/repo/target/wrapper_sources.rsp",
     ];
@@ -80,10 +83,12 @@ mod tests {
                 missing_argument_message(&ARGUMENTS[..0]),
                 missing_argument_message(&ARGUMENTS[..1]),
                 missing_argument_message(&ARGUMENTS[..2]),
+                missing_argument_message(&ARGUMENTS[..3]),
                 missing_argument_message(&ARGUMENTS),
             ],
             [
                 Some("required command line argument <sys-dir> is missing".to_owned()),
+                Some("required command line argument <llama-cpp-dir> is missing".to_owned()),
                 Some(
                     "required command line argument <compile-commands-path> is missing".to_owned()
                 ),
@@ -94,7 +99,7 @@ mod tests {
     }
 
     #[test]
-    fn both_files_are_written_for_the_sys_dir_at_the_paths_given_in_order() {
+    fn both_files_are_written_for_the_sys_and_llama_cpp_dirs_at_the_paths_given_in_order() {
         let inputs = WrapperBuildInputs::from_arguments(
             ARGUMENTS.iter().map(|argument| (*argument).to_owned()),
         )
@@ -103,6 +108,7 @@ mod tests {
         assert_eq!(
             [
                 &inputs.compile_commands_file.sys_dir,
+                &inputs.compile_commands_file.llama_cpp_dir,
                 &inputs.compile_commands_file.output_path,
                 &inputs.response_file.sys_dir,
                 &inputs.response_file.output_path,
@@ -110,8 +116,9 @@ mod tests {
             [
                 &PathBuf::from(ARGUMENTS[0]),
                 &PathBuf::from(ARGUMENTS[1]),
-                &PathBuf::from(ARGUMENTS[0]),
                 &PathBuf::from(ARGUMENTS[2]),
+                &PathBuf::from(ARGUMENTS[0]),
+                &PathBuf::from(ARGUMENTS[3]),
             ]
         );
     }
