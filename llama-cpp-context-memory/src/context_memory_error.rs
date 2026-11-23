@@ -2,6 +2,7 @@ use std::ffi::c_int;
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
 
+use llama_cpp_bindings_sys::bindings::llama_rs_memory_kind;
 use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
 use llama_cpp_model::model_error::ModelError;
 
@@ -49,6 +50,24 @@ pub enum ContextMemoryError {
     SeqCpEndPositionTooLarge(#[source] TryFromIntError),
     #[error("the context has no memory module attached")]
     SeqCpMemoryHandleUnavailable,
+    #[error(
+        "sequences {src} and {dest} keep separate KV streams, which llama.cpp copies between only whole, but positions [{p0}, {p1}) leave part of the {cache_size}-cell cache out"
+    )]
+    SeqCpPartialCopyAcrossKvStreams {
+        src: i32,
+        dest: i32,
+        p0: i32,
+        p1: i32,
+        cache_size: u32,
+    },
+    #[error(
+        "the {memory_kind:?} memory copies only whole sequences, but positions [{p0}, {p1}) were asked for"
+    )]
+    SeqCpPartialCopyOfWholeSequenceMemory {
+        memory_kind: llama_rs_memory_kind,
+        p0: i32,
+        p1: i32,
+    },
     #[error("sequence id {seq_id} names no sequence of a context with {n_seq_max} sequences")]
     SeqCpSequenceIdOutOfRange { seq_id: i32, n_seq_max: u32 },
     #[error(
@@ -57,6 +76,8 @@ pub enum ContextMemoryError {
     SeqCpStartPositionPastMax { p0: i32, max_position: i32 },
     #[error("provided start position is too large for an i32")]
     SeqCpStartPositionTooLarge(#[source] TryFromIntError),
+    #[error("the context memory is of a kind these bindings do not know how llama.cpp copies in")]
+    SeqCpUnrecognizedMemoryKind,
     #[error("provided end position is too large for an i32")]
     SeqDivEndPositionTooLarge(#[source] TryFromIntError),
     #[error("model rope type is incompatible with sequence position arithmetic")]

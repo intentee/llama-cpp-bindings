@@ -11,6 +11,8 @@ use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_context::llama_context::LlamaContext;
 
 use crate::context_memory_error::ContextMemoryError;
+use crate::memory_layout::MemoryLayout;
+use crate::sequence_copy::SequenceCopy;
 
 fn open_ended_position(position: Option<u32>) -> Result<i32, TryFromIntError> {
     position.map_or(Ok(-1), i32::try_from)
@@ -137,8 +139,9 @@ pub trait ContextMemory {
 
     /// # Errors
     /// If either sequence id names no sequence of the context, either position exceeds
-    /// [`i32::MAX`] or [`llama_cpp_context::context_limits::ContextLimits::max_position`], or the
-    /// context has no memory module.
+    /// [`i32::MAX`] or [`llama_cpp_context::context_limits::ContextLimits::max_position`], the
+    /// context has no memory module, or the copy is one llama.cpp aborts the process on (see
+    /// [`MemoryLayout::check_copy`]).
     fn memory_seq_cp(
         &self,
         src: i32,
@@ -292,6 +295,14 @@ impl ContextMemory for LlamaContext<'_> {
         let mem = self
             .memory()
             .ok_or(ContextMemoryError::SeqCpMemoryHandleUnavailable)?;
+
+        MemoryLayout {
+            kind: unsafe { llama_cpp_bindings_sys::bindings::llama_rs_memory_kind_of(mem) },
+            kv_unified: self.kv_unified(),
+            cache_size: self.n_ctx_seq(),
+        }
+        .check_copy(&SequenceCopy { src, dest, p0, p1 })?;
+
         unsafe { llama_cpp_bindings_sys::bindings::llama_memory_seq_cp(mem, src, dest, p0, p1) };
 
         Ok(())

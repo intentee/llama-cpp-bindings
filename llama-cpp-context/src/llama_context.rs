@@ -466,6 +466,14 @@ impl<'model> LlamaContext<'model> {
         unsafe { logits_slice(row, self.model.n_vocab()) }
     }
 
+    /// Whether the sequences of this context share one KV stream instead of each keeping its own.
+    #[must_use]
+    pub fn kv_unified(&self) -> bool {
+        unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_context_kv_unified(self.context.as_ptr())
+        }
+    }
+
     /// The limits a batch must respect to be decoded or encoded on this context.
     #[must_use]
     pub const fn limits(&self) -> ContextLimits {

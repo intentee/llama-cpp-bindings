@@ -56,6 +56,7 @@ mod logits_retrieval;
 mod lora_adapter_application;
 mod lora_adapter_loading_errors;
 mod memory_availability;
+mod memory_copy_across_kv_streams;
 mod memory_occupancy;
 mod memory_position_bounds;
 mod memory_position_shift_rope_compatibility;

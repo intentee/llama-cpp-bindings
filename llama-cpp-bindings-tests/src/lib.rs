@@ -26,6 +26,7 @@ pub mod system_message;
 pub mod tokenize_prompt_with_synthetic_image;
 pub mod tokenize_question_about_llamas;
 pub mod two_sequence_context;
+pub mod two_stream_context;
 pub mod user_message;
 pub mod user_turn_chat_session;
 pub mod visible_text_in;
