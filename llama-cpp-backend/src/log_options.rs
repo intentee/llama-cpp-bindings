@@ -490,7 +490,7 @@ mod tests {
                     .unwrap_or_else(PoisonError::into_inner);
                 let _second_guard = source.decoder.try_lock().expect("intentional poison");
             });
-            let _ = handle.join();
+            assert!(handle.join().is_err());
         });
 
         assert!(source.decoder.is_poisoned());

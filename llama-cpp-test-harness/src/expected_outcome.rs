@@ -77,9 +77,12 @@ mod tests {
     }
 
     fn verdict(expected_outcome: ExpectedOutcome, outcome: TrialOutcome<'_>) -> Result<(), String> {
-        expected_outcome
-            .judge(outcome)
-            .map_err(|failed| failed.message().unwrap_or_default().to_owned())
+        expected_outcome.judge(outcome).map_err(|failed| {
+            failed
+                .message()
+                .expect("a judged failure carries its message")
+                .to_owned()
+        })
     }
 
     #[test]

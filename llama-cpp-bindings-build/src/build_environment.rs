@@ -131,7 +131,7 @@ pub mod tests {
     }
 
     #[test]
-    fn the_process_environment_holds_the_variables_features_and_cuda_lookup_of_the_process() {
+    fn the_process_environment_holds_the_variables_and_cuda_lookup_of_the_process() {
         let environment = BuildEnvironment::of_process();
 
         assert_eq!(
