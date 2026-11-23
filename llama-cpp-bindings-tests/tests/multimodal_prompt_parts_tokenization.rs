@@ -1,7 +1,8 @@
+use std::ffi::CString;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
-use std::ffi::CString;
 
 use llama_cpp_fault_injection::armed_fault::ArmedFault;
 use llama_cpp_fault_injection::injected_fault_message::injected_fault_message;
@@ -35,9 +36,11 @@ fn tokens_of_text_chunks(chunks: &MtmdInputChunks) -> Result<Vec<LlamaToken>> {
             .get(chunk_index)
             .context(format!("missing chunk at index {chunk_index}"))?;
 
-        if let Some(chunk_tokens) = chunk.text_tokens_of(chunk.chunk_type()?) {
-            tokens.extend_from_slice(chunk_tokens);
-        }
+        tokens.extend_from_slice(
+            chunk
+                .text_tokens_of(chunk.chunk_type()?)
+                .context(format!("chunk {chunk_index} is not a text chunk"))?,
+        );
     }
 
     Ok(tokens)

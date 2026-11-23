@@ -14,6 +14,8 @@ use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_test_harness::llama_fixture::LlamaFixture;
 use llama_cpp_test_harness_macros::llama_test;
 
+const SAMPLED_TOKENS: u64 = 5;
+
 fn most_likely_token(context: &LlamaContext<'_>, token_index: i32) -> Result<LlamaToken> {
     Ok(context
         .candidates_ith(token_index)?
@@ -78,26 +80,17 @@ fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
 
     let mut classifier = SampledTokenClassifier::undeterminable(model);
     let mut outcomes = Vec::new();
-    let mut sampled_count: u64 = 0;
-    let mut ended = false;
 
-    for (position, _) in (batch.n_tokens()..).zip(0..5) {
+    for (position, _) in (batch.n_tokens()..).zip(0..SAMPLED_TOKENS) {
         let turn = classifier.sample(&mut sampler, &context, -1, &mut outcomes)?;
 
-        if turn.progress == GenerationProgress::Ended {
-            ended = true;
-
-            break;
-        }
-
-        sampled_count = sampled_count
-            .checked_add(1)
-            .context("`sampled_count += 1` must not overflow")?;
-
-        let raw_as_sampled = SampledToken::Content(turn.token);
+        ensure!(
+            turn.progress != GenerationProgress::Ended,
+            "the answer to \"Say hello\" must not end within {SAMPLED_TOKENS} tokens"
+        );
 
         batch.clear();
-        batch.add(raw_as_sampled, position, &[0], true)?;
+        batch.add(SampledToken::Content(turn.token), position, &[0], true)?;
 
         context.decode(&batch)?;
     }
@@ -105,15 +98,8 @@ fn sampling_without_a_grammar_counts_every_sampled_token_as_completion(
     classifier.finish(&mut outcomes)?;
 
     ensure!(
-        sampled_count > 0,
-        "Should produce at least one token without grammar"
-    );
-    ensure!(
-        classifier.into_usage().completion_tokens()
-            == sampled_count
-                .checked_add(u64::from(ended))
-                .context("`sampled_count + u64::from(ended)` must not overflow")?,
-        "completion_tokens must count every sample, the end of generation included"
+        classifier.into_usage().completion_tokens() == SAMPLED_TOKENS,
+        "completion_tokens must count every sampled token"
     );
 
     Ok(())
