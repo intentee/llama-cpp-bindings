@@ -29,6 +29,11 @@ include = [
     "/llama.cpp/tools/mtmd/models/*.h",
     "/llama.cpp/tools/mtmd/models/*.cpp",
     "/llama.cpp/tools/mtmd/CMakeLists.txt",
+    "/llama.cpp/tools/server/server-common.cpp",
+    "/llama.cpp/tools/server/server-common.h",
+    "/llama.cpp/tools/server/server-decision.cpp",
+    "/llama.cpp/tools/server/server-decision.h",
+    "/llama.cpp/tools/server/server-task.h",
 
     "/llama.cpp/convert_hf_to_gguf.py",
     "/llama.cpp/conversion/**/*.py",

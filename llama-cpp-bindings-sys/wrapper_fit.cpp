@@ -5,8 +5,23 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 
+#include <common/common.h>
 #include <common/fit.h>
+
+extern "C" auto llama_rs_fit_defaults() -> llama_rs_fit_defaults_values {
+    try {
+        const common_params llama_cpp_defaults{};
+
+        return llama_rs_fit_defaults_values{
+            llama_cpp_defaults.fit_params_target.front(),
+            static_cast<uint32_t>(llama_cpp_defaults.fit_params_min_ctx),
+        };
+    } catch (...) {
+        std::abort();
+    }
+}
 
 extern "C" auto llama_rs_fit_params(
     const char * path_model,

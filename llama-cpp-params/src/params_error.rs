@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::string::FromUtf8Error;
 
 use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ParamsError {
@@ -15,12 +16,16 @@ pub enum ParamsError {
     },
     #[error("parameter fitting aborted")]
     FitAborted,
+    #[error("the extra model path cannot be passed to llama.cpp")]
+    FitExtraModelPathInvalid(#[source] PathCStringError),
     #[error("the llama.cpp library ran out of memory")]
     FitLlamaCppOutOfMemory,
     #[error("{actual} memory margins were given, one per device needs exactly {expected}")]
     FitMarginsDeviceCountMismatch { expected: usize, actual: usize },
     #[error("not enough memory")]
     FitNotEnoughMemory,
+    #[error("the model path cannot be passed to llama.cpp")]
+    FitModelPathInvalid(#[source] PathCStringError),
     #[error("{message}")]
     FitReported { message: String },
     #[error("Max devices exceeded. Max devices is {0}")]

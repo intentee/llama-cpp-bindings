@@ -80,6 +80,8 @@ fn configured_builder() -> Builder {
         .rustified_enum("llama_rs_chat_span_kind")
         .rustified_enum("llama_rs_chat_grammar_trigger_type")
         .rustified_enum("llama_rs_memory_kind")
+        .rustified_enum("llama_rs_decision_model_output")
+        .rustified_enum("llama_rs_decision_order")
         .prepend_enum_name(false);
 
     let builder = DEPRECATED_FUNCTIONS

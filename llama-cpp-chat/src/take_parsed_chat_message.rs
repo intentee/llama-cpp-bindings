@@ -1,6 +1,7 @@
 use std::ffi::c_char;
 use std::ptr::NonNull;
 
+use llama_cpp_bindings_sys::cpp_text_view::cpp_text_view;
 use llama_cpp_bindings_types::model_provided_tool_call_id::ModelProvidedToolCallId;
 use llama_cpp_bindings_types::model_provided_tool_call_id_error::ModelProvidedToolCallIdError;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
@@ -9,7 +10,6 @@ use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
 use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 
 use crate::chat_error::ChatError;
-use crate::cpp_text_view::cpp_text_view;
 
 fn parsed_text(read: impl FnOnce(*mut usize) -> *const c_char) -> Result<String, ChatError> {
     let mut length = 0;

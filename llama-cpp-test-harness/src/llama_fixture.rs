@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use llama_cpp_backend::llama_backend::LlamaBackend;
 use llama_cpp_context::context_error::ContextError;
@@ -9,7 +10,7 @@ use llama_cpp_mtmd::mtmd_context::MtmdContext;
 use crate::context_params::ContextParams;
 
 pub struct LlamaFixture<'fixture> {
-    pub model: &'fixture LlamaModel,
+    pub model: &'fixture Arc<LlamaModel>,
     pub backend: &'fixture LlamaBackend,
     pub context_params: &'fixture ContextParams,
     pub mtmd_context: Option<&'fixture MtmdContext>,

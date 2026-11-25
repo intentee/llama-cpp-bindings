@@ -14,6 +14,7 @@ encoding_rs = { workspace = true }
 enumflags2 = { workspace = true }
 llama-cpp-backend = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
 llama-cpp-params = { workspace = true }
 llama-cpp-path-c-string = { workspace = true }
 once_cell = { workspace = true }

@@ -25,6 +25,7 @@ use llama_cpp_bindings_sys::bindings::llama_rs_load_model_from_file_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_model_decision_type_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_tokenize_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
+use llama_cpp_bindings_types::sampling_defaults::SamplingDefaults;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
 
@@ -723,6 +724,26 @@ impl LlamaModel {
         RopeType::try_from(unsafe {
             llama_cpp_bindings_sys::bindings::llama_rs_model_rope_type(self.model.as_ptr())
         })
+    }
+
+    /// The sampling defaults llama.cpp serves this model with: the model's own
+    /// `general.sampling.*` values, and llama.cpp's defaults for the ones it does not declare.
+    #[must_use]
+    pub fn sampling_defaults(&self) -> SamplingDefaults {
+        let defaults = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_model_sampling_defaults(self.model.as_ptr())
+        };
+
+        SamplingDefaults {
+            min_p: defaults.min_p,
+            penalty_frequency: defaults.penalty_frequency,
+            penalty_last_n: defaults.penalty_last_n,
+            penalty_presence: defaults.penalty_presence,
+            penalty_repeat: defaults.penalty_repeat,
+            temperature: defaults.temperature,
+            top_k: defaults.top_k,
+            top_p: defaults.top_p,
+        }
     }
 
     #[must_use]

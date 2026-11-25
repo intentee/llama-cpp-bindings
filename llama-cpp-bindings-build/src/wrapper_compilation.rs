@@ -5,6 +5,7 @@ use llama_cpp_wrapper_sources::constants::CPP_STANDARD;
 use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
 use llama_cpp_wrapper_sources::constants::WRAPPER_INCLUDE_DIRS;
 use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
+use llama_cpp_wrapper_sources::vendored_source_paths::vendored_source_paths;
 use llama_cpp_wrapper_sources::wrapper_source_paths::wrapper_source_paths;
 
 use crate::build_context::BuildContext;
@@ -49,7 +50,10 @@ impl WrapperCompilation {
         llama_cpp_dir: &Path,
     ) -> Self {
         Self {
-            sources: wrapper_source_paths(manifest_dir),
+            sources: wrapper_source_paths(manifest_dir)
+                .into_iter()
+                .chain(vendored_source_paths(llama_cpp_dir))
+                .collect(),
             include_dirs: WRAPPER_INCLUDE_DIRS
                 .iter()
                 .map(|include_dir| manifest_dir.join(include_dir))
@@ -113,6 +117,7 @@ mod tests {
 
     use llama_cpp_wrapper_sources::constants::FAULT_INJECTION_DEFINE;
     use llama_cpp_wrapper_sources::system_include_flags::system_include_flags;
+    use llama_cpp_wrapper_sources::vendored_source_paths::vendored_source_paths;
     use llama_cpp_wrapper_sources::wrapper_source_paths::wrapper_source_paths;
 
     use super::WrapperCompilation;
@@ -134,7 +139,10 @@ mod tests {
 
     fn linux_compilation() -> WrapperCompilation {
         WrapperCompilation {
-            sources: wrapper_source_paths(Path::new("/sys")),
+            sources: wrapper_source_paths(Path::new("/sys"))
+                .into_iter()
+                .chain(vendored_source_paths(Path::new("/native/llama.cpp")))
+                .collect(),
             include_dirs: vec![PathBuf::from("/sys/.")],
             flags: system_include_flags(Path::new("/sys"), Path::new("/native/llama.cpp")),
             cpp_standard: "c++17",
@@ -149,7 +157,8 @@ mod tests {
     }
 
     #[test]
-    fn the_wrappers_compile_as_cxx17_with_the_vendored_headers_as_system_includes() {
+    fn the_wrappers_and_the_vendored_server_sources_compile_as_cxx17_with_the_vendored_headers_as_system_includes()
+     {
         assert_eq!(planned(&[], &[]), linux_compilation());
     }
 

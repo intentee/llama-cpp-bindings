@@ -742,9 +742,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.16.1"
+version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+checksum = "735eaa21a6a5ffb2e84362faaeb90c05ba8e19797ca30428478cb6ea3a4921bc"
 
 [[package]]
 name = "heck"
@@ -1009,12 +1009,12 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.13.0"
+version = "2.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7714e70437a7dc3ac8eb7e6f8df75fd8eb422675fc7678aff7364301092b1017"
+checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
 dependencies = [
  "equivalent",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.2",
  "serde",
  "serde_core",
 ]
@@ -1227,8 +1227,11 @@ name = "llama-cpp-bindings-tests"
 version = "0.31.0"
 dependencies = [
  "anyhow",
+ "base64",
  "encoding_rs",
  "enumflags2",
+ "hf-hub",
+ "indexmap",
  "inventory",
  "llama-cpp-backend",
  "llama-cpp-bindings",
@@ -1239,9 +1242,12 @@ dependencies = [
  "llama-cpp-context",
  "llama-cpp-context-memory",
  "llama-cpp-context-state",
+ "llama-cpp-decision",
  "llama-cpp-fault-injection",
  "llama-cpp-gbnf",
+ "llama-cpp-gguf",
  "llama-cpp-model",
+ "llama-cpp-model-capabilities",
  "llama-cpp-mtmd",
  "llama-cpp-params",
  "llama-cpp-path-c-string",
@@ -1259,6 +1265,7 @@ dependencies = [
 name = "llama-cpp-bindings-types"
 version = "0.31.0"
 dependencies = [
+ "indexmap",
  "serde",
  "serde_json",
  "thiserror",
@@ -1318,6 +1325,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "llama-cpp-decision"
+version = "0.31.0"
+dependencies = [
+ "indexmap",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-bindings-types",
+ "llama-cpp-context",
+ "llama-cpp-model",
+ "llama-cpp-mtmd",
+ "llama-cpp-params",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "llama-cpp-error-chain"
 version = "0.31.0"
 
@@ -1367,12 +1389,27 @@ dependencies = [
  "enumflags2",
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
+ "llama-cpp-bindings-types",
  "llama-cpp-gguf",
  "llama-cpp-params",
  "llama-cpp-path-c-string",
  "once_cell",
  "thiserror",
  "toktrie",
+]
+
+[[package]]
+name = "llama-cpp-model-capabilities"
+version = "0.31.0"
+dependencies = [
+ "enumflags2",
+ "llama-cpp-bindings-sys",
+ "llama-cpp-bindings-types",
+ "llama-cpp-decision",
+ "llama-cpp-model",
+ "llama-cpp-mtmd",
+ "llama-cpp-params",
+ "thiserror",
 ]
 
 [[package]]
@@ -1401,6 +1438,7 @@ version = "0.31.0"
 dependencies = [
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
+ "llama-cpp-path-c-string",
  "thiserror",
 ]
 

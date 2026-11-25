@@ -21,12 +21,19 @@ typedef enum llama_rs_fit_params_status {
     LLAMA_RS_FIT_PARAMS_LLAMA_CPP_THREW_CXX_EXCEPTION,
 } llama_rs_fit_params_status;
 
+typedef struct llama_rs_fit_defaults_values {
+    size_t margin_per_device;
+    uint32_t n_ctx_min;
+} llama_rs_fit_defaults_values;
+
 typedef struct llama_rs_fit_extra_model {
     const char * path_model;
     struct llama_model_params * mparams;
     struct llama_context_params * cparams;
     bool shares_model;
 } llama_rs_fit_extra_model;
+
+llama_rs_fit_defaults_values llama_rs_fit_defaults(void);
 
 llama_rs_fit_params_status llama_rs_fit_params(
     const char * path_model,

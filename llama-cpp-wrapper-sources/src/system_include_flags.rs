@@ -40,6 +40,8 @@ mod tests {
                 "-isystem/repo/llama-cpp-native/llama.cpp/include",
                 "-isystem/repo/llama-cpp-native/llama.cpp/ggml/include",
                 "-isystem/repo/llama-cpp-native/llama.cpp/vendor",
+                "-isystem/repo/llama-cpp-native/llama.cpp/tools/mtmd",
+                "-isystem/repo/llama-cpp-native/llama.cpp/tools/server",
             ]
         );
     }

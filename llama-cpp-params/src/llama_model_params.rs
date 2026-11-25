@@ -5,6 +5,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::num::NonZeroU32;
+use std::path::Path;
 use std::pin::Pin;
 use std::ptr;
 use std::ptr::null;
@@ -13,6 +14,7 @@ use llama_cpp_backend::backend_device_index::backend_device_index;
 use llama_cpp_backend::max_devices::max_devices;
 use llama_cpp_bindings_sys::bindings::llama_rs_fit_params_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
+use llama_cpp_path_c_string::path_c_string::path_c_string;
 
 use crate::constants::EMPTY_KV_OVERRIDE;
 use crate::fit_extra_model::FitExtraModel;
@@ -333,11 +335,13 @@ impl LlamaModelParams {
 impl LlamaModelParams {
     /// # Errors
     ///
-    /// Returns [`ParamsError::FitMarginsDeviceCountMismatch`] when `margins` does not hold one
-    /// entry per device, or the variant naming how llama.cpp failed to fit the parameters.
+    /// Returns [`ParamsError::FitModelPathInvalid`] or [`ParamsError::FitExtraModelPathInvalid`]
+    /// when a model path cannot be passed to llama.cpp,
+    /// [`ParamsError::FitMarginsDeviceCountMismatch`] when `margins` does not hold one entry per
+    /// device, or the variant naming how llama.cpp failed to fit the parameters.
     pub fn fit_params(
         self: Pin<&mut Self>,
-        model_path: &CStr,
+        model_path: &Path,
         context_params: &mut LlamaContextParams,
         margins: &mut [usize],
         n_ctx_min: u32,
@@ -347,6 +351,13 @@ impl LlamaModelParams {
         let max_devices = unsafe { llama_cpp_bindings_sys::bindings::llama_max_devices() };
         let max_buft =
             unsafe { llama_cpp_bindings_sys::bindings::llama_max_tensor_buft_overrides() };
+
+        let model_path = path_c_string(model_path).map_err(ParamsError::FitModelPathInvalid)?;
+        let extra_model_path = extra
+            .as_ref()
+            .map(|extra_model| path_c_string(extra_model.model_path))
+            .transpose()
+            .map_err(ParamsError::FitExtraModelPathInvalid)?;
 
         if margins.len() != max_devices {
             return Err(ParamsError::FitMarginsDeviceCountMismatch {
@@ -380,13 +391,16 @@ impl LlamaModelParams {
         let mut out_unrecognized_status_code: i32 = 0;
         let mut out_error: *mut c_char = ptr::null_mut();
 
-        let mut extra_ffi = extra.map(
-            |FitExtraModel {
-                 model_path: extra_model_path,
-                 model_params: extra_model_params,
-                 context_params: extra_context_params,
-                 shares_model,
-             }| llama_cpp_bindings_sys::bindings::llama_rs_fit_extra_model {
+        let mut extra_ffi = extra.zip(extra_model_path.as_ref()).map(
+            |(
+                FitExtraModel {
+                    model_params: extra_model_params,
+                    context_params: extra_context_params,
+                    shares_model,
+                    ..
+                },
+                extra_model_path,
+            )| llama_cpp_bindings_sys::bindings::llama_rs_fit_extra_model {
                 path_model: extra_model_path.as_ptr(),
                 mparams: &raw mut extra_model_params.params,
                 cparams: extra_context_params.as_mut_ffi(),
@@ -450,6 +464,7 @@ impl Default for LlamaModelParams {
 mod tests {
     use std::ffi::CStr;
     use std::ffi::CString;
+    use std::path::Path;
     use std::pin::pin;
     use std::ptr;
 
@@ -460,6 +475,7 @@ mod tests {
     use super::LlamaModelParams;
     use super::fit_params_status_to_result;
     use crate::constants::KV_OVERRIDE_TEXT_CAPACITY;
+    use crate::fit_extra_model::FitExtraModel;
     use crate::kv_override_entry::KvOverrideEntry;
     use crate::llama_context_params::LlamaContextParams;
     use crate::llama_lazy_mode::LlamaLazyMode;
@@ -843,9 +859,8 @@ mod tests {
         let mut context_params = LlamaContextParams::default();
         let mut margins = vec![0usize; max_devices()];
 
-        let bogus_path = c"/nonexistent/path/to/model.gguf";
         let result = params.as_mut().fit_params(
-            bogus_path,
+            Path::new("/nonexistent/path/to/model.gguf"),
             &mut context_params,
             &mut margins,
             512,
@@ -863,7 +878,7 @@ mod tests {
         let mut margins = vec![0usize; max_devices() + 1];
 
         let result = params.as_mut().fit_params(
-            c"/nonexistent/path/to/model.gguf",
+            Path::new("/nonexistent/path/to/model.gguf"),
             &mut context_params,
             &mut margins,
             512,
@@ -878,6 +893,52 @@ mod tests {
                 actual: max_devices() + 1,
             })
         );
+    }
+
+    #[test]
+    fn fit_params_refuses_a_model_path_llama_cpp_cannot_read() {
+        let mut params = pin!(LlamaModelParams::default());
+        let mut context_params = LlamaContextParams::default();
+        let mut margins = vec![0usize; max_devices()];
+
+        let result = params.as_mut().fit_params(
+            Path::new("/models/deci\0sion.gguf"),
+            &mut context_params,
+            &mut margins,
+            512,
+            None,
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
+        );
+
+        assert!(matches!(result, Err(ParamsError::FitModelPathInvalid(_))));
+    }
+
+    #[test]
+    fn fit_params_refuses_an_extra_model_path_llama_cpp_cannot_read() {
+        let mut params = pin!(LlamaModelParams::default());
+        let mut extra_model_params = LlamaModelParams::default();
+        let mut context_params = LlamaContextParams::default();
+        let mut extra_context_params = LlamaContextParams::default();
+        let mut margins = vec![0usize; max_devices()];
+
+        let result = params.as_mut().fit_params(
+            Path::new("/models/target.gguf"),
+            &mut context_params,
+            &mut margins,
+            512,
+            Some(&mut FitExtraModel {
+                model_path: Path::new("/models/dra\0ft.gguf"),
+                model_params: &mut extra_model_params,
+                context_params: &mut extra_context_params,
+                shares_model: false,
+            }),
+            llama_cpp_bindings_sys::bindings::GGML_LOG_LEVEL_NONE,
+        );
+
+        assert!(matches!(
+            result,
+            Err(ParamsError::FitExtraModelPathInvalid(_))
+        ));
     }
 
     #[test]

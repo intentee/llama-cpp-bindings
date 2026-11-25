@@ -1,4 +1,5 @@
 pub mod constants;
+pub mod fit_defaults;
 pub mod fit_extra_model;
 pub mod fit_result;
 pub mod kv_cache_type;

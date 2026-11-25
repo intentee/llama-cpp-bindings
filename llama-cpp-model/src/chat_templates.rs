@@ -3,8 +3,11 @@ use std::ffi::c_char;
 use std::ptr;
 use std::ptr::NonNull;
 
+use llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_capabilities_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_init_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
+use llama_cpp_bindings_types::chat_template_capabilities::ChatTemplateCapabilities;
+use llama_cpp_bindings_types::tool_calling_capability::ToolCallingCapability;
 
 use crate::llama_chat_template::LlamaChatTemplate;
 use crate::model_error::ModelError;
@@ -36,6 +39,47 @@ unsafe fn chat_templates_init_status_to_result(
             Err(unsafe { CppAllocatedString::from_raw(out_error) }
                 .into_reported_error("llama_rs_chat_templates_init", |message| {
                     ModelError::ChatTemplatesReported { message }
+                }))
+        }
+    }
+}
+
+const fn tool_calling_of(
+    capabilities: llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_capabilities,
+) -> ToolCallingCapability {
+    match (
+        capabilities.supports_tools && capabilities.supports_tool_calls,
+        capabilities.supports_parallel_tool_calls,
+    ) {
+        (false, _) => ToolCallingCapability::Unsupported,
+        (true, false) => ToolCallingCapability::OneCallPerTurn,
+        (true, true) => ToolCallingCapability::ParallelCalls,
+    }
+}
+
+unsafe fn chat_templates_capabilities_status_to_result(
+    status: llama_rs_chat_templates_capabilities_status,
+    capabilities: llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_capabilities,
+    out_error: *mut c_char,
+) -> Result<ChatTemplateCapabilities, ModelError> {
+    match status {
+        llama_rs_chat_templates_capabilities_status::LLAMA_RS_CHAT_TEMPLATES_CAPABILITIES_OK => {
+            Ok(ChatTemplateCapabilities {
+                system_role: capabilities.supports_system_role,
+                thinking: capabilities.supports_thinking,
+                tool_calling: tool_calling_of(capabilities),
+            })
+        }
+        llama_rs_chat_templates_capabilities_status::LLAMA_RS_CHAT_TEMPLATES_CAPABILITIES_ERROR_STRING_ALLOCATION_FAILED => {
+            Err(ModelError::ChatTemplateCapabilitiesNotEnoughMemory)
+        }
+        llama_rs_chat_templates_capabilities_status::LLAMA_RS_CHAT_TEMPLATES_CAPABILITIES_LLAMA_CPP_OUT_OF_MEMORY => {
+            Err(ModelError::ChatTemplateCapabilitiesLlamaCppOutOfMemory)
+        }
+        llama_rs_chat_templates_capabilities_status::LLAMA_RS_CHAT_TEMPLATES_CAPABILITIES_LLAMA_CPP_THREW_CXX_EXCEPTION => {
+            Err(unsafe { CppAllocatedString::from_raw(out_error) }
+                .into_reported_error("llama_rs_chat_templates_capabilities_of", |message| {
+                    ModelError::ChatTemplateCapabilitiesReported { message }
                 }))
         }
     }
@@ -117,6 +161,33 @@ impl ChatTemplates {
     pub const fn as_ptr(&self) -> llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_handle {
         self.templates.as_ptr()
     }
+
+    /// What the templates can render, as llama.cpp reads it from the templates themselves.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::ChatTemplateCapabilitiesReported`] when llama.cpp fails while
+    /// reading them.
+    pub fn capabilities(&self) -> Result<ChatTemplateCapabilities, ModelError> {
+        let mut capabilities =
+            llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_capabilities {
+                supports_parallel_tool_calls: false,
+                supports_system_role: false,
+                supports_thinking: false,
+                supports_tool_calls: false,
+                supports_tools: false,
+            };
+        let mut out_error: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_capabilities_of(
+                self.templates.as_ptr(),
+                &raw mut capabilities,
+                &raw mut out_error,
+            )
+        };
+
+        unsafe { chat_templates_capabilities_status_to_result(status, capabilities, out_error) }
+    }
 }
 
 impl Drop for ChatTemplates {
@@ -132,8 +203,11 @@ mod tests {
     use std::ffi::c_char;
     use std::ptr;
 
+    use llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_capabilities;
+    use llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_capabilities_status;
     use llama_cpp_bindings_sys::bindings::llama_rs_chat_templates_init_status;
 
+    use super::chat_templates_capabilities_status_to_result;
     use super::chat_templates_init_status_to_result;
     use crate::model_error::ModelError;
 
@@ -174,5 +248,52 @@ mod tests {
                 }),
             ]
         );
+    }
+
+    fn capabilities_error(
+        status: llama_rs_chat_templates_capabilities_status,
+        out_error: *mut c_char,
+    ) -> Option<ModelError> {
+        unsafe {
+            chat_templates_capabilities_status_to_result(
+                status,
+                llama_rs_chat_templates_capabilities {
+                    supports_parallel_tool_calls: false,
+                    supports_system_role: false,
+                    supports_thinking: false,
+                    supports_tool_calls: false,
+                    supports_tools: false,
+                },
+                out_error,
+            )
+        }
+        .err()
+    }
+
+    #[test]
+    fn reading_template_capabilities_maps_every_failure_status() {
+        assert!(matches!(
+            [
+                capabilities_error(
+                    llama_rs_chat_templates_capabilities_status::LLAMA_RS_CHAT_TEMPLATES_CAPABILITIES_ERROR_STRING_ALLOCATION_FAILED,
+                    ptr::null_mut()
+                ),
+                capabilities_error(
+                    llama_rs_chat_templates_capabilities_status::LLAMA_RS_CHAT_TEMPLATES_CAPABILITIES_LLAMA_CPP_OUT_OF_MEMORY,
+                    ptr::null_mut()
+                ),
+                capabilities_error(
+                    llama_rs_chat_templates_capabilities_status::LLAMA_RS_CHAT_TEMPLATES_CAPABILITIES_LLAMA_CPP_THREW_CXX_EXCEPTION,
+                    unsafe {
+                        llama_cpp_bindings_sys::bindings::llama_rs_string_dup(c"threw".as_ptr())
+                    }
+                ),
+            ],
+            [
+                Some(ModelError::ChatTemplateCapabilitiesNotEnoughMemory),
+                Some(ModelError::ChatTemplateCapabilitiesLlamaCppOutOfMemory),
+                Some(ModelError::ChatTemplateCapabilitiesReported { .. }),
+            ]
+        ));
     }
 }

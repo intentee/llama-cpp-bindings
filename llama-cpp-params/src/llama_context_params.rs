@@ -94,6 +94,18 @@ impl LlamaContextParams {
     }
 
     #[must_use]
+    pub const fn with_n_outputs_max(mut self, n_outputs_max: u32) -> Self {
+        self.context_params.n_outputs_max = n_outputs_max;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_n_outputs_max_per_seq(mut self, n_outputs_max_per_seq: u32) -> Self {
+        self.context_params.n_outputs_max_per_seq = n_outputs_max_per_seq;
+        self
+    }
+
+    #[must_use]
     pub const fn with_n_seq_max(mut self, n_seq_max: u32) -> Self {
         self.context_params.n_seq_max = n_seq_max;
         self

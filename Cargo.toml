@@ -13,6 +13,7 @@ members = [
   "llama-cpp-context",
   "llama-cpp-context-memory",
   "llama-cpp-context-state",
+  "llama-cpp-decision",
   "llama-cpp-error-chain",
   "llama-cpp-error-recorder",
   "llama-cpp-fault-injection",
@@ -20,6 +21,7 @@ members = [
   "llama-cpp-gguf",
   "llama-cpp-log-decoder",
   "llama-cpp-model",
+  "llama-cpp-model-capabilities",
   "llama-cpp-mtmd",
   "llama-cpp-native",
   "llama-cpp-params",
@@ -40,6 +42,7 @@ repository = "https://github.com/intentee/llama-cpp-bindings"
 
 [workspace.dependencies]
 anyhow = "1.0"
+base64 = "0.22"
 bindgen = "0.72"
 cc = { version = "1.2", features = ["parallel"] }
 cmake = "0.1"
@@ -47,6 +50,7 @@ encoding_rs = "0.8"
 enumflags2 = "0.7"
 find_cuda_helper = "0.2"
 hf-hub = "0.5"
+indexmap = { version = "2.14", features = ["serde"] }
 inventory = "0.3"
 libc = "0.2"
 libtest-mimic = "0.8"
@@ -60,12 +64,14 @@ llama-cpp-chat = { path = "llama-cpp-chat", version = "0.31" }
 llama-cpp-context = { path = "llama-cpp-context", version = "0.31" }
 llama-cpp-context-memory = { path = "llama-cpp-context-memory", version = "0.31" }
 llama-cpp-context-state = { path = "llama-cpp-context-state", version = "0.31" }
+llama-cpp-decision = { path = "llama-cpp-decision", version = "0.31" }
 llama-cpp-error-chain = { path = "llama-cpp-error-chain", version = "0.31" }
 llama-cpp-error-recorder = { path = "llama-cpp-error-recorder", version = "0.31" }
 llama-cpp-gbnf = { path = "llama-cpp-gbnf", version = "0.31" }
 llama-cpp-gguf = { path = "llama-cpp-gguf", version = "0.31" }
 llama-cpp-log-decoder = { path = "llama-cpp-log-decoder", version = "0.31" }
 llama-cpp-model = { path = "llama-cpp-model", version = "0.31" }
+llama-cpp-model-capabilities = { path = "llama-cpp-model-capabilities", version = "0.31" }
 llama-cpp-mtmd = { path = "llama-cpp-mtmd", version = "0.31" }
 llama-cpp-native = { path = "llama-cpp-native", version = "0.31" }
 llama-cpp-params = { path = "llama-cpp-params", version = "0.31" }

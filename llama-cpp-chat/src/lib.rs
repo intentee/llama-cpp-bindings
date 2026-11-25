@@ -15,6 +15,5 @@ pub mod chat_span_kind;
 mod chat_span_segment;
 pub mod chat_spans;
 pub mod chat_tool_choice;
-pub mod cpp_text_view;
 pub mod raw_chat_message;
 pub mod take_parsed_chat_message;
