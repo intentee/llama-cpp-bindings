@@ -325,6 +325,8 @@ extern "C" auto llama_rs_tokenize(
     *out_error = nullptr;
     *out_returned_count = 0;
     try {
+        llama_rs_throw_if_fault_injected(LLAMA_RS_FAULT_POINT_TOKENIZE_THROWS);
+
         int32_t const count = llama_tokenize(
             vocab, text, text_len, tokens, n_tokens_max, add_special, parse_special);
         *out_returned_count = count;

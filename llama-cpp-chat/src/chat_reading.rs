@@ -138,9 +138,8 @@ fn parsed_message_of(
 
 /// One reading of the model's answer by the template's parser.
 ///
-/// It classifies the answer's bytes right away and builds the parsed message the first time it
-/// is asked for: a partial answer's message comes from the same parse, and a finished answer's
-/// message comes from llama.cpp completing it as llama.cpp completes every finished message.
+/// It classifies the answer's bytes right away and maps the same parse into the parsed message
+/// the first time it is asked for.
 pub struct ChatReading {
     reading: NonNull<llama_cpp_bindings_sys::bindings::llama_rs_chat_reading>,
     classification: ChatClassification,

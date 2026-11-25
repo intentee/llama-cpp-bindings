@@ -39,7 +39,6 @@ struct llama_rs_chat_session {
 
 struct llama_rs_chat_reading {
     std::shared_ptr<const common_chat_session> session;
-    bool is_partial = false;
     size_t generation_prompt_length = 0;
     common_peg_parse_context context;
     common_peg_parse_result result;
@@ -143,27 +142,6 @@ auto chat_input_of(
     input.tokens.insert(input.tokens.end(), tokens.begin(), tokens.end());
 
     return input;
-}
-
-auto finished_output_of(const llama_rs_chat_reading & reading) -> common_chat_input {
-    common_chat_input output;
-    output.text = reading.context.input.substr(reading.generation_prompt_length);
-    output.tokens.assign(
-        reading.context.tokens.begin() + static_cast<std::ptrdiff_t>(reading.generation_prompt_length),
-        reading.context.tokens.end());
-
-    return output;
-}
-
-auto finished_output_parser_params_of(const llama_rs_chat_reading & reading) -> common_chat_parser_params {
-    common_chat_parser_params parser_params;
-    parser_params.format = reading.session->format();
-    parser_params.generation_prompt.text = reading.context.input.substr(0, reading.generation_prompt_length);
-    parser_params.generation_prompt.tokens.assign(
-        reading.context.tokens.begin(),
-        reading.context.tokens.begin() + static_cast<std::ptrdiff_t>(reading.generation_prompt_length));
-
-    return parser_params;
 }
 
 auto mapper_of(common_chat_format format, common_chat_msg & message) -> std::unique_ptr<common_chat_peg_mapper> {
@@ -372,7 +350,6 @@ extern "C" auto llama_rs_chat_session_read(
         auto reading = std::make_unique<llama_rs_chat_reading>();
 
         reading->session = session->session;
-        reading->is_partial = is_partial;
         reading->generation_prompt_length = generation_prompt_length;
         reading->context.input = std::move(parse_input.text);
         reading->context.tokens = std::move(parse_input.tokens);
@@ -445,12 +422,7 @@ extern "C" auto llama_rs_chat_reading_parse(
         auto parsed = std::make_unique<llama_rs_parsed_chat>();
         parsed->message.role = "assistant";
 
-        if (reading->is_partial) {
-            mapper_of(reading->session->format(), parsed->message)->from_ast(reading->context.ast, reading->result);
-        } else {
-            parsed->message = common_chat_peg_parse(
-                reading->session->parser(), finished_output_of(*reading), false, finished_output_parser_params_of(*reading));
-        }
+        mapper_of(reading->session->format(), parsed->message)->from_ast(reading->context.ast, reading->result);
 
         *out_handle = parsed.release();
 

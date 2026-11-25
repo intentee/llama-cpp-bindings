@@ -1,4 +1,3 @@
-use std::cmp;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::c_char;
@@ -750,14 +749,15 @@ impl LlamaModel {
             ParseSpecialTokens::Never => false,
         };
 
-        let tokens_estimation = cmp::max(8, (str.len() / 2).saturating_add(usize::from(add_bos)));
+        let bos_and_eos_tokens: usize = if add_bos { 2 } else { 0 };
+        let capacity_for_a_token_per_byte = str.len().saturating_add(bos_and_eos_tokens);
         let TokenizerInput {
             text: c_string,
             length: c_string_len,
         } = cstring_with_validated_len(str)?;
         let vocab = self.vocab_ptr();
 
-        tokenize_into_buffer(tokens_estimation, |tokens, n_tokens_max| {
+        tokenize_into_buffer(capacity_for_a_token_per_byte, |tokens, n_tokens_max| {
             invoke_rs_tokenize(
                 vocab,
                 c_string.as_ptr(),

@@ -20,6 +20,7 @@ use llama_cpp_mtmd::mtmd_input_chunks::MtmdInputChunks;
 use llama_cpp_sampler::llama_sampler::LlamaSampler;
 use llama_cpp_token_usage::token_usage::TokenUsage;
 
+use crate::chat_output_reading::ChatOutputReading;
 use crate::chat_session_attribution::ChatSessionAttribution;
 use crate::classified_sample::ClassifiedSample;
 use crate::eval_multimodal_chunks_params::EvalMultimodalChunksParams;
@@ -66,9 +67,9 @@ impl<'model> SampledTokenClassifier<'model> {
         session: ChatSession,
     ) -> Result<Self, LlamaCppError> {
         let output = ChatOutput::default();
-        let latest_reading = session
-            .read(&output, ChatOutputCompleteness::Partial)
-            .map_err(LlamaCppError::EmptyAnswerReading)?;
+        let latest_reading =
+            ChatOutputReading::read(&session, &output, ChatOutputCompleteness::Partial)
+                .map_err(LlamaCppError::EmptyAnswerReading)?;
 
         Ok(Self {
             model,
@@ -291,7 +292,7 @@ impl<'model> SampledTokenClassifier<'model> {
     pub fn latest_reading(&self) -> Option<&ChatReading> {
         match &self.attribution {
             TokenAttribution::Undeterminable => None,
-            TokenAttribution::ChatSession(attribution) => Some(&attribution.latest_reading),
+            TokenAttribution::ChatSession(attribution) => Some(&attribution.latest_reading.reading),
         }
     }
 
@@ -353,11 +354,18 @@ impl<'model> SampledTokenClassifier<'model> {
         let TokenAttribution::ChatSession(attribution) = &mut self.attribution else {
             return Ok(());
         };
-        let reading = attribution
-            .session
-            .read(&attribution.output, completeness)
-            .map_err(LlamaCppError::Classify)?;
-        let classification = reading.classification();
+        let attribution = &mut **attribution;
+
+        if !attribution
+            .latest_reading
+            .has_read(&attribution.output, completeness)
+        {
+            attribution.latest_reading =
+                ChatOutputReading::read(&attribution.session, &attribution.output, completeness)
+                    .map_err(LlamaCppError::Classify)?;
+        }
+
+        let classification = attribution.latest_reading.reading.classification();
         let mut released = Vec::new();
 
         while let Some(pending_piece) = attribution.pending_pieces.pop_front() {
@@ -368,8 +376,6 @@ impl<'model> SampledTokenClassifier<'model> {
 
             released.push(outcome_of(pending_piece.token, role, pending_piece.piece));
         }
-
-        attribution.latest_reading = reading;
 
         for outcome in released {
             self.section = outcome.sampled_token.section();

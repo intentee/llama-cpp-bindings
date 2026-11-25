@@ -9,6 +9,7 @@ use llama_cpp_bindings_tests::user_turn_chat_session::user_turn_chat_session;
 use llama_cpp_bindings_tests::weather_chat_session::weather_chat_session;
 use llama_cpp_bindings_types::parsed_chat_message::ParsedChatMessage;
 use llama_cpp_chat::chat_error::ChatError;
+use llama_cpp_chat::chat_message_parse_outcome::ChatMessageParseOutcome;
 use llama_cpp_chat::chat_output::ChatOutput;
 use llama_cpp_chat::chat_output_completeness::ChatOutputCompleteness;
 use llama_cpp_chat::chat_tool_choice::ChatToolChoice;
@@ -319,6 +320,35 @@ fn a_reading_maps_its_parse_once_and_keeps_it(
     );
 
     ensure!(reading.parse().cloned() == first_parse);
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 512,
+    n_batch = 128,
+    n_ubatch = 64,
+)]
+fn a_finished_answer_is_mapped_from_its_reading_without_reading_it_again(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let reading = user_turn_chat_session(model, "hello", &[], false)?.read(
+        &ChatOutput::from("Hello there."),
+        ChatOutputCompleteness::Finished,
+    )?;
+    let _fault = ArmedFault::at(
+        llama_cpp_bindings_sys::bindings::LLAMA_RS_FAULT_POINT_CHAT_SESSION_READ_THROWS,
+    );
+
+    ensure!(
+        reading.parse()
+            == Ok(&ChatMessageParseOutcome::Recognized(
+                ParsedChatMessage::new("Hello there.".to_owned(), String::new(), Vec::new())
+            ))
+    );
 
     Ok(())
 }

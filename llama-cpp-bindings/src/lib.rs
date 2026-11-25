@@ -1,3 +1,4 @@
+mod chat_output_reading;
 mod chat_session_attribution;
 pub mod classified_sample;
 pub mod eval_multimodal_chunks_params;
