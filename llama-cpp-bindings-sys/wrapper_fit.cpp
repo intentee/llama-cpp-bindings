@@ -1,4 +1,5 @@
 #include "wrapper_fit.h"
+#include "wrapper_context.h"
 #include <llama.h>
 #include <ggml.h>
 #include "wrapper_report_current_exception.h"
@@ -21,6 +22,28 @@ extern "C" auto llama_rs_fit_defaults() -> llama_rs_fit_defaults_values {
     } catch (...) {
         std::abort();
     }
+}
+
+extern "C" auto llama_rs_fit_model_traits_of(
+    const char * path_model,
+    struct llama_model_params mparams,
+    llama_rs_fit_model_traits * out_traits) -> llama_rs_fit_model_traits_status {
+    mparams.no_alloc = true;
+    mparams.load_mode = LLAMA_LOAD_MODE_NONE;
+
+    llama_model * model = llama_model_load_from_file(path_model, mparams);
+    if (model == nullptr) {
+        return LLAMA_RS_FIT_MODEL_TRAITS_MODEL_UNLOADABLE;
+    }
+
+    *out_traits = llama_rs_fit_model_traits{
+        llama_rs_model_causal_attn(model),
+        llama_model_has_encoder(model),
+        static_cast<uint32_t>(llama_model_n_ctx_train(model)),
+    };
+    llama_model_free(model);
+
+    return LLAMA_RS_FIT_MODEL_TRAITS_READ;
 }
 
 extern "C" auto llama_rs_fit_params(

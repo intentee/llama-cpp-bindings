@@ -18,6 +18,13 @@ pub enum ParamsError {
     FitAborted,
     #[error("the extra model path cannot be passed to llama.cpp")]
     FitExtraModelPathInvalid(#[source] PathCStringError),
+    #[error(
+        "the extra model context has {n_seq_max} sequences that need an output each, but a batch holds at most {output_capacity} outputs"
+    )]
+    FitExtraModelSequencesExceedOutputCapacity {
+        n_seq_max: u32,
+        output_capacity: u32,
+    },
     #[error("the llama.cpp library ran out of memory")]
     FitLlamaCppOutOfMemory,
     #[error("{actual} memory margins were given, one per device needs exactly {expected}")]
@@ -28,6 +35,13 @@ pub enum ParamsError {
     FitModelPathInvalid(#[source] PathCStringError),
     #[error("{message}")]
     FitReported { message: String },
+    #[error(
+        "{n_seq_max} sequences need an output each, but a batch holds at most {output_capacity} outputs"
+    )]
+    FitSequencesExceedOutputCapacity {
+        n_seq_max: u32,
+        output_capacity: u32,
+    },
     #[error("Max devices exceeded. Max devices is {0}")]
     MaxDevicesExceeded(usize),
     #[error("No available slot in override vector")]

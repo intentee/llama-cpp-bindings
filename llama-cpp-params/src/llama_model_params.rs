@@ -12,6 +12,8 @@ use std::ptr::null;
 
 use llama_cpp_backend::backend_device_index::backend_device_index;
 use llama_cpp_backend::max_devices::max_devices;
+use llama_cpp_bindings_sys::bindings::llama_rs_fit_model_traits;
+use llama_cpp_bindings_sys::bindings::llama_rs_fit_model_traits_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_fit_params_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
@@ -24,8 +26,11 @@ use crate::llama_context_params::LlamaContextParams;
 use crate::llama_lazy_mode::LlamaLazyMode;
 use crate::llama_load_mode::LlamaLoadMode;
 use crate::llama_split_mode::LlamaSplitMode;
+use crate::model_output_traits::ModelOutputTraits;
 use crate::param_override_value::ParamOverrideValue;
 use crate::params_error::ParamsError;
+use crate::sequence_output::SequenceOutput;
+use crate::sequence_output_capacity::SequenceOutputCapacity;
 
 /// # Safety
 ///
@@ -61,6 +66,43 @@ unsafe fn fit_params_status_to_result(
                     ParamsError::FitReported { message }
                 }))
         }
+    }
+}
+
+fn refuse_sequences_llama_cpp_cannot_output(
+    model_path: &CStr,
+    model_params: llama_cpp_bindings_sys::bindings::llama_model_params,
+    context_params: &LlamaContextParams,
+    exceeding_sequences_error: fn(u32, u32) -> ParamsError,
+) -> Result<(), ParamsError> {
+    let mut model_traits = llama_rs_fit_model_traits {
+        causal_attention: false,
+        has_encoder: false,
+        n_ctx_train: 0,
+    };
+
+    match unsafe {
+        llama_cpp_bindings_sys::bindings::llama_rs_fit_model_traits_of(
+            model_path.as_ptr(),
+            model_params,
+            &raw mut model_traits,
+        )
+    } {
+        llama_rs_fit_model_traits_status::LLAMA_RS_FIT_MODEL_TRAITS_READ => {
+            match (SequenceOutputCapacity {
+                context_params,
+                model_output_traits: ModelOutputTraits::from(model_traits),
+            })
+            .sequence_output()?
+            {
+                SequenceOutput::ExceedsCapacity {
+                    n_seq_max,
+                    output_capacity,
+                } => Err(exceeding_sequences_error(n_seq_max, output_capacity)),
+                SequenceOutput::FitsCapacity => Ok(()),
+            }
+        }
+        llama_rs_fit_model_traits_status::LLAMA_RS_FIT_MODEL_TRAITS_MODEL_UNLOADABLE => Ok(()),
     }
 }
 
@@ -338,7 +380,11 @@ impl LlamaModelParams {
     /// Returns [`ParamsError::FitModelPathInvalid`] or [`ParamsError::FitExtraModelPathInvalid`]
     /// when a model path cannot be passed to llama.cpp,
     /// [`ParamsError::FitMarginsDeviceCountMismatch`] when `margins` does not hold one entry per
-    /// device, or the variant naming how llama.cpp failed to fit the parameters.
+    /// device, [`ParamsError::FitSequencesExceedOutputCapacity`] or
+    /// [`ParamsError::FitExtraModelSequencesExceedOutputCapacity`] when llama.cpp could not give
+    /// every sequence of the measured context an output, [`ParamsError::UnknownAttentionType`]
+    /// when the context params hold an attention type llama.cpp does not define, or the variant
+    /// naming how llama.cpp failed to fit the parameters.
     pub fn fit_params(
         self: Pin<&mut Self>,
         model_path: &Path,
@@ -364,6 +410,31 @@ impl LlamaModelParams {
                 expected: max_devices,
                 actual: margins.len(),
             });
+        }
+
+        refuse_sequences_llama_cpp_cannot_output(
+            &model_path,
+            self.params,
+            context_params,
+            |n_seq_max, output_capacity| ParamsError::FitSequencesExceedOutputCapacity {
+                n_seq_max,
+                output_capacity,
+            },
+        )?;
+
+        if let Some((extra_model, extra_model_path)) = extra.as_ref().zip(extra_model_path.as_ref())
+        {
+            refuse_sequences_llama_cpp_cannot_output(
+                extra_model_path,
+                extra_model.model_params.params,
+                extra_model.context_params,
+                |n_seq_max, output_capacity| {
+                    ParamsError::FitExtraModelSequencesExceedOutputCapacity {
+                        n_seq_max,
+                        output_capacity,
+                    }
+                },
+            )?;
         }
 
         let Self {

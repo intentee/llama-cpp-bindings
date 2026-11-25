@@ -270,6 +270,11 @@ impl LlamaContextParams {
     }
 
     #[must_use]
+    pub const fn n_outputs_max(&self) -> u32 {
+        self.context_params.n_outputs_max
+    }
+
+    #[must_use]
     pub const fn n_seq_max(&self) -> u32 {
         self.context_params.n_seq_max
     }
