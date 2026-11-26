@@ -215,6 +215,7 @@ impl DetectedModelCapabilities {
                 DetectedDecisions::Supported(decision_model) => {
                     DecisionsCapability::Supported(DecisionCapabilities {
                         reads_images: decision_model.can_use_images() && self.input_media.image,
+                        shares_prompt_prefix: decision_model.shares_prompt_prefix(),
                     })
                 }
                 DetectedDecisions::Unsupported(reason) => DecisionsCapability::Unsupported(*reason),

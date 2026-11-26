@@ -134,6 +134,11 @@ impl DecisionModel {
             }
         }
     }
+
+    #[must_use]
+    pub fn shares_prompt_prefix(&self) -> bool {
+        !self.is_joint() && self.can_share_prompt()
+    }
 }
 
 #[cfg(test)]

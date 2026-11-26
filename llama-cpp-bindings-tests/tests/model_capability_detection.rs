@@ -417,6 +417,56 @@ fn an_encoder_decoder_model_generates_no_text(
     n_batch = 2048,
     n_ubatch = 2048,
 )]
+fn a_decision_model_whose_prompts_begin_alike_shares_their_prefix(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let capabilities = reported(model, None)?;
+
+    ensure!(
+        capabilities.decisions
+            == DecisionsCapability::Supported(DecisionCapabilities {
+                reads_images: false,
+                shares_prompt_prefix: true,
+            }),
+        "capabilities were {capabilities:?}"
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("ggml-org/Laya-GGUF", "Laya-Q8_0.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 2048,
+    n_ubatch = 2048,
+)]
+fn a_decision_model_that_cannot_share_its_prompts_shares_no_prefix(
+    &LlamaFixture { model, .. }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let capabilities = reported(model, None)?;
+
+    ensure!(
+        capabilities.decisions
+            == DecisionsCapability::Supported(DecisionCapabilities {
+                reads_images: false,
+                shares_prompt_prefix: false,
+            }),
+        "capabilities were {capabilities:?}"
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace("ggml-org/Kev-0.8B-GGUF", "Kev-0.8B-BF16.gguf"),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 2048,
+    n_ubatch = 2048,
+)]
 fn a_decision_model_serves_decisions_and_generates_no_text(
     &LlamaFixture { model, .. }: &LlamaFixture<'_>,
 ) -> Result<()> {
@@ -659,7 +709,10 @@ fn a_decision_model_with_a_projector_that_sees_reads_images(
 
     ensure!(
         capabilities.decisions
-            == DecisionsCapability::Supported(DecisionCapabilities { reads_images: true }),
+            == DecisionsCapability::Supported(DecisionCapabilities {
+                reads_images: true,
+                shares_prompt_prefix: false,
+            }),
         "capabilities were {capabilities:?}"
     );
 

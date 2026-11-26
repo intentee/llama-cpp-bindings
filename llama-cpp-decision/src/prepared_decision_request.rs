@@ -250,7 +250,7 @@ impl PreparedDecisionRequest {
                     .map(move |variant| self.question_prompt(question_index, variant, projector))
             })
             .collect::<Result<Vec<DecisionPrompt>, DecisionError>>()?;
-        let shared_prefix_length = if self.decision_model.can_share_prompt() {
+        let shared_prefix_length = if self.decision_model.shares_prompt_prefix() {
             shared_prefix_length_of(&prompts)?
         } else {
             0
