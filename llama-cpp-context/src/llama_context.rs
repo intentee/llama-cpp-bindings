@@ -26,7 +26,7 @@ use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use llama_cpp_model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_params::llama_context_params::LlamaContextParams;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
-use llama_cpp_params::model_output_traits::ModelOutputTraits;
+use llama_cpp_params::model_context_traits::ModelContextTraits;
 use llama_cpp_params::sequence_output::SequenceOutput;
 use llama_cpp_params::sequence_output_capacity::SequenceOutputCapacity;
 
@@ -190,7 +190,7 @@ impl<'model> LlamaContext<'model> {
         _backend: &LlamaBackend,
         params: LlamaContextParams,
     ) -> Result<Self, ContextError> {
-        let model_output_traits = ModelOutputTraits {
+        let model_context_traits = ModelContextTraits {
             causal_attention: unsafe {
                 llama_cpp_bindings_sys::bindings::llama_rs_model_causal_attn(model.as_ptr())
             },
@@ -200,7 +200,7 @@ impl<'model> LlamaContext<'model> {
             }
             .cast_unsigned(),
         };
-        let params = model_output_traits.context_params(params);
+        let params = model_context_traits.context_params(params);
         let context_params = params.as_ffi();
         let embeddings = params.embeddings();
 
@@ -209,7 +209,7 @@ impl<'model> LlamaContext<'model> {
             output_capacity,
         } = (SequenceOutputCapacity {
             context_params: &params,
-            model_output_traits,
+            model_context_traits,
         })
         .sequence_output()?
         {

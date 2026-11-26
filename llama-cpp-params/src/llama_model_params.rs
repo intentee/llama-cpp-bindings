@@ -26,7 +26,7 @@ use crate::llama_context_params::LlamaContextParams;
 use crate::llama_lazy_mode::LlamaLazyMode;
 use crate::llama_load_mode::LlamaLoadMode;
 use crate::llama_split_mode::LlamaSplitMode;
-use crate::model_output_traits::ModelOutputTraits;
+use crate::model_context_traits::ModelContextTraits;
 use crate::param_override_value::ParamOverrideValue;
 use crate::params_error::ParamsError;
 use crate::sequence_output::SequenceOutput;
@@ -89,13 +89,13 @@ fn prepare_sequences_llama_cpp_can_create(
         )
     } {
         llama_rs_fit_model_traits_status::LLAMA_RS_FIT_MODEL_TRAITS_READ => {
-            let model_output_traits = ModelOutputTraits::from(model_traits);
+            let model_context_traits = ModelContextTraits::from(model_traits);
 
-            *context_params = model_output_traits.context_params(*context_params);
+            *context_params = model_context_traits.context_params(*context_params);
 
             match (SequenceOutputCapacity {
                 context_params,
-                model_output_traits,
+                model_context_traits,
             })
             .sequence_output()?
             {

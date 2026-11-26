@@ -4,13 +4,13 @@ use llama_cpp_bindings_sys::bindings::llama_rs_fit_model_traits;
 use crate::llama_context_params::LlamaContextParams;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ModelOutputTraits {
+pub struct ModelContextTraits {
     pub causal_attention: bool,
     pub has_encoder: bool,
     pub n_ctx_train: u32,
 }
 
-impl ModelOutputTraits {
+impl ModelContextTraits {
     #[must_use]
     pub const fn context_params(self, context_params: LlamaContextParams) -> LlamaContextParams {
         if self.has_encoder && context_params.n_seq_max() > 1 {
@@ -23,7 +23,7 @@ impl ModelOutputTraits {
     }
 }
 
-impl From<llama_rs_fit_model_traits> for ModelOutputTraits {
+impl From<llama_rs_fit_model_traits> for ModelContextTraits {
     fn from(
         llama_rs_fit_model_traits {
             causal_attention,

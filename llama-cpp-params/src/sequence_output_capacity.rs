@@ -2,13 +2,13 @@ use std::num::NonZeroU32;
 
 use crate::llama_attention_type::LlamaAttentionType;
 use crate::llama_context_params::LlamaContextParams;
-use crate::model_output_traits::ModelOutputTraits;
+use crate::model_context_traits::ModelContextTraits;
 use crate::params_error::ParamsError;
 use crate::sequence_output::SequenceOutput;
 
 pub struct SequenceOutputCapacity<'params> {
     pub context_params: &'params LlamaContextParams,
-    pub model_output_traits: ModelOutputTraits,
+    pub model_context_traits: ModelContextTraits,
 }
 
 impl SequenceOutputCapacity<'_> {
@@ -22,8 +22,8 @@ impl SequenceOutputCapacity<'_> {
     pub fn sequence_output(&self) -> Result<SequenceOutput, ParamsError> {
         let Self {
             context_params,
-            model_output_traits:
-                ModelOutputTraits {
+            model_context_traits:
+                ModelContextTraits {
                     causal_attention,
                     has_encoder,
                     n_ctx_train,
@@ -65,7 +65,7 @@ mod tests {
     use super::SequenceOutputCapacity;
     use crate::llama_attention_type::LlamaAttentionType;
     use crate::llama_context_params::LlamaContextParams;
-    use crate::model_output_traits::ModelOutputTraits;
+    use crate::model_context_traits::ModelContextTraits;
     use crate::sequence_output::SequenceOutput;
 
     const TWO_SEQUENCES_PAST_ONE_OUTPUT: SequenceOutput = SequenceOutput::ExceedsCapacity {
@@ -73,7 +73,7 @@ mod tests {
         output_capacity: 1,
     };
 
-    const A_NON_CAUSAL_MODEL: ModelOutputTraits = ModelOutputTraits {
+    const A_NON_CAUSAL_MODEL: ModelContextTraits = ModelContextTraits {
         causal_attention: false,
         has_encoder: false,
         n_ctx_train: 4096,
@@ -89,11 +89,11 @@ mod tests {
 
     fn sequence_output_of(
         context_params: &LlamaContextParams,
-        model_output_traits: ModelOutputTraits,
+        model_context_traits: ModelContextTraits,
     ) -> SequenceOutput {
         SequenceOutputCapacity {
             context_params,
-            model_output_traits,
+            model_context_traits,
         }
         .sequence_output()
         .unwrap()
@@ -123,7 +123,7 @@ mod tests {
         assert_eq!(
             sequence_output_of(
                 &two_sequences().with_n_batch(1).with_n_outputs_max(2),
-                ModelOutputTraits {
+                ModelContextTraits {
                     has_encoder: true,
                     ..A_NON_CAUSAL_MODEL
                 }
@@ -150,7 +150,7 @@ mod tests {
         assert_eq!(
             sequence_output_of(
                 &two_sequences().with_n_ctx(NonZeroU32::new(1)),
-                ModelOutputTraits {
+                ModelContextTraits {
                     causal_attention: true,
                     ..A_NON_CAUSAL_MODEL
                 }
@@ -166,7 +166,7 @@ mod tests {
                 &two_sequences()
                     .with_attention_type(LlamaAttentionType::Unspecified)
                     .with_n_ctx(NonZeroU32::new(1)),
-                ModelOutputTraits {
+                ModelContextTraits {
                     causal_attention: true,
                     ..A_NON_CAUSAL_MODEL
                 }
@@ -182,7 +182,7 @@ mod tests {
                 &two_sequences()
                     .with_attention_type(LlamaAttentionType::Causal)
                     .with_n_ctx(None),
-                ModelOutputTraits {
+                ModelContextTraits {
                     n_ctx_train: 1,
                     ..A_NON_CAUSAL_MODEL
                 }
