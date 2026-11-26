@@ -69,10 +69,10 @@ unsafe fn fit_params_status_to_result(
     }
 }
 
-fn refuse_sequences_llama_cpp_cannot_output(
+fn prepare_sequences_llama_cpp_can_create(
     model_path: &CStr,
     model_params: llama_cpp_bindings_sys::bindings::llama_model_params,
-    context_params: &LlamaContextParams,
+    context_params: &mut LlamaContextParams,
     exceeding_sequences_error: fn(u32, u32) -> ParamsError,
 ) -> Result<(), ParamsError> {
     let mut model_traits = llama_rs_fit_model_traits {
@@ -89,9 +89,13 @@ fn refuse_sequences_llama_cpp_cannot_output(
         )
     } {
         llama_rs_fit_model_traits_status::LLAMA_RS_FIT_MODEL_TRAITS_READ => {
+            let model_output_traits = ModelOutputTraits::from(model_traits);
+
+            *context_params = model_output_traits.context_params(*context_params);
+
             match (SequenceOutputCapacity {
                 context_params,
-                model_output_traits: ModelOutputTraits::from(model_traits),
+                model_output_traits,
             })
             .sequence_output()?
             {
@@ -391,7 +395,7 @@ impl LlamaModelParams {
         context_params: &mut LlamaContextParams,
         margins: &mut [usize],
         n_ctx_min: u32,
-        extra: Option<&mut FitExtraModel<'_, Self>>,
+        mut extra: Option<&mut FitExtraModel<'_, Self>>,
         log_level: llama_cpp_bindings_sys::bindings::ggml_log_level,
     ) -> Result<FitResult, ParamsError> {
         let max_devices = unsafe { llama_cpp_bindings_sys::bindings::llama_max_devices() };
@@ -412,7 +416,7 @@ impl LlamaModelParams {
             });
         }
 
-        refuse_sequences_llama_cpp_cannot_output(
+        prepare_sequences_llama_cpp_can_create(
             &model_path,
             self.params,
             context_params,
@@ -422,9 +426,9 @@ impl LlamaModelParams {
             },
         )?;
 
-        if let Some((extra_model, extra_model_path)) = extra.as_ref().zip(extra_model_path.as_ref())
+        if let Some((extra_model, extra_model_path)) = extra.as_mut().zip(extra_model_path.as_ref())
         {
-            refuse_sequences_llama_cpp_cannot_output(
+            prepare_sequences_llama_cpp_can_create(
                 extra_model_path,
                 extra_model.model_params.params,
                 extra_model.context_params,

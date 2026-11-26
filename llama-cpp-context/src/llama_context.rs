@@ -190,6 +190,17 @@ impl<'model> LlamaContext<'model> {
         _backend: &LlamaBackend,
         params: LlamaContextParams,
     ) -> Result<Self, ContextError> {
+        let model_output_traits = ModelOutputTraits {
+            causal_attention: unsafe {
+                llama_cpp_bindings_sys::bindings::llama_rs_model_causal_attn(model.as_ptr())
+            },
+            has_encoder: model.has_encoder(),
+            n_ctx_train: unsafe {
+                llama_cpp_bindings_sys::bindings::llama_model_n_ctx_train(model.as_ptr())
+            }
+            .cast_unsigned(),
+        };
+        let params = model_output_traits.context_params(params);
         let context_params = params.as_ffi();
         let embeddings = params.embeddings();
 
@@ -198,16 +209,7 @@ impl<'model> LlamaContext<'model> {
             output_capacity,
         } = (SequenceOutputCapacity {
             context_params: &params,
-            model_output_traits: ModelOutputTraits {
-                causal_attention: unsafe {
-                    llama_cpp_bindings_sys::bindings::llama_rs_model_causal_attn(model.as_ptr())
-                },
-                has_encoder: model.has_encoder(),
-                n_ctx_train: unsafe {
-                    llama_cpp_bindings_sys::bindings::llama_model_n_ctx_train(model.as_ptr())
-                }
-                .cast_unsigned(),
-            },
+            model_output_traits,
         })
         .sequence_output()?
         {

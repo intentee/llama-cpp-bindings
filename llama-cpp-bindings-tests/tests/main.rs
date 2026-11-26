@@ -39,6 +39,7 @@ mod embedding_row_width;
 mod embedding_similarity_ranking;
 mod embeddings_toggling;
 mod encode_batch_rejection;
+mod encoder_decoder_sequences;
 mod encoder_requirement;
 mod end_of_generation_token_detection;
 mod generation_end_classification;
