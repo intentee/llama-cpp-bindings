@@ -26,6 +26,7 @@ pub mod prime_memory_with;
 pub mod prompt_question;
 pub mod recognized_answer;
 pub mod single_token;
+pub mod snowy_weather_and_freezing_decision_request;
 pub mod snowy_weather_decision_request;
 pub mod system_message;
 pub mod tokenize_prompt_with_synthetic_image;

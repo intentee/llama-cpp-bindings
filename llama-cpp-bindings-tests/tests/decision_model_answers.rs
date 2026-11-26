@@ -13,6 +13,7 @@ use serde_json::json;
 
 use llama_cpp_bindings_tests::answered_decisions::answered_decisions;
 use llama_cpp_bindings_tests::fixtures_dir::fixtures_dir;
+use llama_cpp_bindings_tests::snowy_weather_and_freezing_decision_request::snowy_weather_and_freezing_decision_request;
 use llama_cpp_bindings_tests::snowy_weather_decision_request::snowy_weather_decision_request;
 use llama_cpp_bindings_types::decision_answer::DecisionAnswer;
 use llama_cpp_bindings_types::decision_question::DecisionQuestion;
@@ -165,27 +166,60 @@ fn a_model_answering_every_question_in_one_prompt_answers_each_of_them(
         ..
     }: &LlamaFixture<'_>,
 ) -> Result<()> {
-    let mut request = snowy_weather_decision_request();
-
-    request.questions.insert(
-        "freezing".to_owned(),
-        DecisionQuestion::Noul {
-            criteria: IndexMap::new(),
-            instructions: json!("Is it below freezing outside?"),
-        },
-    );
-
     let answers = answered_decisions(
         model,
         backend,
         (*context_params).into_llama_context_params(),
-        &request,
+        &snowy_weather_and_freezing_decision_request(),
         None,
     )?;
 
     ensure!(chose_snowing(&answers), "answers were {answers:?}");
     ensure!(
         matches!(answers.get("freezing"), Some(DecisionAnswer::Noul { noul }) if *noul > 0.5),
+        "answers were {answers:?}"
+    );
+
+    Ok(())
+}
+
+#[llama_test(
+    model_source = HuggingFace(
+        "ggml-org-dev/tiny-Decision-2.0-Kai-0.6B-for-testing-GGUF",
+        "tiny-Decision-2.0-Kai-0.6B-for-testing-Q4_0.gguf"
+    ),
+    n_gpu_layers = -1,
+    load_mode = Mmap,
+    n_ctx = 2048,
+    n_batch = 2048,
+    n_ubatch = 2048,
+)]
+fn a_model_reading_each_question_from_its_own_joint_prompt_answers_each_of_them(
+    &LlamaFixture {
+        model,
+        backend,
+        context_params,
+        ..
+    }: &LlamaFixture<'_>,
+) -> Result<()> {
+    let answers = answered_decisions(
+        model,
+        backend,
+        (*context_params).into_llama_context_params(),
+        &snowy_weather_and_freezing_decision_request(),
+        None,
+    )?;
+
+    ensure!(
+        matches!(
+            answers.get("weather"),
+            Some(DecisionAnswer::Choice { probabilities, .. })
+                if probabilities.keys().eq(["sunny", "raining", "snowing"])
+        ),
+        "answers were {answers:?}"
+    );
+    ensure!(
+        matches!(answers.get("freezing"), Some(DecisionAnswer::Noul { .. })),
         "answers were {answers:?}"
     );
 
