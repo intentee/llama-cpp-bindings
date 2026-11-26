@@ -151,7 +151,7 @@ fn mistral3_classifier_emits_reasoning_for_multimodal_thinking_prompt(
     ];
     let session = ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &messages,
         &[],
         &ChatSessionOptions {

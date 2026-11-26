@@ -105,7 +105,7 @@ fn gemma4_reasoning_streams_match_the_parsed_answer_when_reasoning_is_prefilled(
 ) -> Result<()> {
     let session = ChatSession::new(
         fixture.model,
-        fixture.model.chat_templates()?,
+        fixture.model.chat_templates()?.as_ref(),
         &[user_message(SINGLE_WORD_INSTRUCTION)],
         &[],
         &ChatSessionOptions {

@@ -397,7 +397,7 @@ pub struct LlamaModel {
     vocab: *const llama_cpp_bindings_sys::bindings::llama_vocab,
     n_vocab: i32,
     tok_env: OnceCell<Arc<ApproximateTokEnv>>,
-    chat_templates: OnceCell<ChatTemplates>,
+    chat_templates: OnceCell<Arc<ChatTemplates>>,
     lora_adapters: Vec<NonNull<llama_cpp_bindings_sys::bindings::llama_adapter_lora>>,
 }
 
@@ -1006,9 +1006,10 @@ impl LlamaModel {
     ///
     /// Returns [`ModelError`] when the model has no chat template or llama.cpp cannot prepare
     /// it.
-    pub fn chat_templates(&self) -> Result<&ChatTemplates, ModelError> {
+    pub fn chat_templates(&self) -> Result<Arc<ChatTemplates>, ModelError> {
         self.chat_templates
-            .get_or_try_init(|| unsafe { ChatTemplates::new(self.model) })
+            .get_or_try_init(|| unsafe { ChatTemplates::new(self.model) }.map(Arc::new))
+            .map(Arc::clone)
     }
 
     /// `template` in place of the model's own chat templates, the way llama.cpp serves a model

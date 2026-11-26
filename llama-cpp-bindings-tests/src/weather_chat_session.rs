@@ -26,7 +26,7 @@ pub fn weather_chat_session(
         .and_then(|chat_templates| {
             ChatSession::new(
                 model,
-                chat_templates,
+                &chat_templates,
                 &[user_message("What is the weather in Paris?")],
                 &get_weather_tools(),
                 &ChatSessionOptions {

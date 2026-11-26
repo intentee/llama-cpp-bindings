@@ -50,7 +50,7 @@ fn tokenizing_a_prompt_whose_reasoning_prefill_holds_a_nul_character_is_refused(
 ) -> Result<()> {
     let session = ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &[user_message("hello")],
         &[],
         &ChatSessionOptions {
@@ -91,7 +91,7 @@ fn a_conversation_the_template_raises_on_is_refused_with_the_template_message(
 ) -> Result<()> {
     let result = ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &[user_message("hello"), user_message("are you there?")],
         &[],
         &ChatSessionOptions {
