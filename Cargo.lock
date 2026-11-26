@@ -1163,7 +1163,7 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llama-cpp-backend"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-capturing-logger",
@@ -1175,7 +1175,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-backend-tests"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
@@ -1186,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "encoding_rs",
  "llama-cpp-bindings-sys",
@@ -1201,7 +1201,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "bindgen",
  "cc",
@@ -1216,7 +1216,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-bindings-build",
  "llama-cpp-native",
@@ -1224,7 +1224,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-tests"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -1263,7 +1263,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-types"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "indexmap",
  "serde",
@@ -1273,14 +1273,14 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-capturing-logger"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "log",
 ]
 
 [[package]]
 name = "llama-cpp-chat"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
@@ -1292,7 +1292,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-context"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
@@ -1304,7 +1304,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-context-memory"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-context",
@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-context-state"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "enumflags2",
  "llama-cpp-bindings-sys",
@@ -1326,7 +1326,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-decision"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "indexmap",
  "llama-cpp-bindings-sys",
@@ -1341,11 +1341,11 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-error-chain"
-version = "0.34.0"
+version = "0.35.0"
 
 [[package]]
 name = "llama-cpp-error-recorder"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-capturing-logger",
  "log",
@@ -1354,14 +1354,14 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-fault-injection"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-bindings-sys",
 ]
 
 [[package]]
 name = "llama-cpp-gbnf"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-bindings-sys",
  "thiserror",
@@ -1369,7 +1369,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-gguf"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-error-chain",
@@ -1379,11 +1379,11 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-log-decoder"
-version = "0.34.0"
+version = "0.35.0"
 
 [[package]]
 name = "llama-cpp-model"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -1400,7 +1400,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-model-capabilities"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "enumflags2",
  "llama-cpp-bindings-sys",
@@ -1414,7 +1414,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-mtmd"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "enumflags2",
  "llama-cpp-backend",
@@ -1427,14 +1427,14 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-native"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
 
 [[package]]
 name = "llama-cpp-params"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-backend",
  "llama-cpp-bindings-sys",
@@ -1444,14 +1444,14 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-path-c-string"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "llama-cpp-sampler"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "libc",
  "llama-cpp-bindings-sys",
@@ -1467,7 +1467,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-test-harness"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "anyhow",
  "inventory",
@@ -1484,7 +1484,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-test-harness-macros"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1493,7 +1493,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-test-model-provisioning"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "hf-hub",
  "llama-cpp-backend",
@@ -1505,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-token-usage"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "serde",
  "thiserror",
@@ -1513,7 +1513,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-wrapper-sources"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "llama-cpp-error-chain",
  "serde",
