@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::string::FromUtf8Error;
 
 use llama_cpp_bindings_sys::exception_message_error::ExceptionMessageError;
+use llama_cpp_path_c_string::path_c_string_error::PathCStringError;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ParamsError {
@@ -15,14 +16,32 @@ pub enum ParamsError {
     },
     #[error("parameter fitting aborted")]
     FitAborted,
+    #[error("the extra model path cannot be passed to llama.cpp")]
+    FitExtraModelPathInvalid(#[source] PathCStringError),
+    #[error(
+        "the extra model context has {n_seq_max} sequences that need an output each, but a batch holds at most {output_capacity} outputs"
+    )]
+    FitExtraModelSequencesExceedOutputCapacity {
+        n_seq_max: u32,
+        output_capacity: u32,
+    },
     #[error("the llama.cpp library ran out of memory")]
     FitLlamaCppOutOfMemory,
     #[error("{actual} memory margins were given, one per device needs exactly {expected}")]
     FitMarginsDeviceCountMismatch { expected: usize, actual: usize },
     #[error("not enough memory")]
     FitNotEnoughMemory,
+    #[error("the model path cannot be passed to llama.cpp")]
+    FitModelPathInvalid(#[source] PathCStringError),
     #[error("{message}")]
     FitReported { message: String },
+    #[error(
+        "{n_seq_max} sequences need an output each, but a batch holds at most {output_capacity} outputs"
+    )]
+    FitSequencesExceedOutputCapacity {
+        n_seq_max: u32,
+        output_capacity: u32,
+    },
     #[error("Max devices exceeded. Max devices is {0}")]
     MaxDevicesExceeded(usize),
     #[error("No available slot in override vector")]

@@ -137,7 +137,7 @@ test.unit: clippy
 	cargo test -p llama-cpp-backend -p llama-cpp-backend-tests -p llama-cpp-bindings \
 		-p llama-cpp-bindings-build -p llama-cpp-bindings-sys -p llama-cpp-bindings-types -p llama-cpp-capturing-logger \
 		-p llama-cpp-chat -p llama-cpp-context -p llama-cpp-context-memory -p llama-cpp-context-state \
-		-p llama-cpp-error-chain -p llama-cpp-error-recorder -p llama-cpp-gbnf -p llama-cpp-gguf \
+		-p llama-cpp-decision -p llama-cpp-error-chain -p llama-cpp-error-recorder -p llama-cpp-gbnf -p llama-cpp-gguf \
 		-p llama-cpp-log-decoder -p llama-cpp-model -p llama-cpp-mtmd -p llama-cpp-params \
 		-p llama-cpp-path-c-string -p llama-cpp-sampler -p llama-cpp-token-usage \
 		-p llama-cpp-wrapper-sources \

@@ -1,4 +1,5 @@
 pub mod constants;
+pub mod fit_defaults;
 pub mod fit_extra_model;
 pub mod fit_result;
 pub mod kv_cache_type;
@@ -12,6 +13,9 @@ pub mod llama_load_mode;
 pub mod llama_model_params;
 pub mod llama_pooling_type;
 pub mod llama_split_mode;
+pub mod model_context_traits;
 pub mod param_override_value;
 pub mod params_error;
 pub mod rope_scaling_type;
+pub mod sequence_output;
+pub mod sequence_output_capacity;

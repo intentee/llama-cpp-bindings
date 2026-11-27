@@ -34,7 +34,7 @@ fn describe_image_and_audio_chat_session(model: &LlamaModel) -> Result<ChatSessi
 
     Ok(ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &messages,
         &[],
         &ChatSessionOptions {

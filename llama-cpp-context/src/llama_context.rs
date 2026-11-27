@@ -26,13 +26,15 @@ use llama_cpp_model::llama_token_data_array::LlamaTokenDataArray;
 use llama_cpp_model::lora_adapter_scale::LoraAdapterScale;
 use llama_cpp_params::llama_context_params::LlamaContextParams;
 use llama_cpp_params::llama_pooling_type::LlamaPoolingType;
+use llama_cpp_params::model_context_traits::ModelContextTraits;
+use llama_cpp_params::sequence_output::SequenceOutput;
+use llama_cpp_params::sequence_output_capacity::SequenceOutputCapacity;
 
 use crate::context_error::ContextError;
 use crate::context_limits::ContextLimits;
 use crate::decoded_output_rows::DecodedOutputRows;
 use crate::decoded_outputs::DecodedOutputs;
 use crate::llama_batch::LlamaBatch;
-use crate::sequence_output_capacity::SequenceOutputCapacity;
 
 const fn check_lora_adapters_result(err_code: i32) -> Result<(), ContextError> {
     if err_code != 0 {
@@ -188,25 +190,34 @@ impl<'model> LlamaContext<'model> {
         _backend: &LlamaBackend,
         params: LlamaContextParams,
     ) -> Result<Self, ContextError> {
-        let context_params = params.as_ffi();
-        let embeddings = params.embeddings();
-
-        SequenceOutputCapacity {
-            attention_type: params.attention_type()?,
-            model_causal_attention: unsafe {
+        let model_context_traits = ModelContextTraits {
+            causal_attention: unsafe {
                 llama_cpp_bindings_sys::bindings::llama_rs_model_causal_attn(model.as_ptr())
             },
-            model_has_encoder: model.has_encoder(),
-            model_n_ctx_train: unsafe {
+            has_encoder: model.has_encoder(),
+            n_ctx_train: unsafe {
                 llama_cpp_bindings_sys::bindings::llama_model_n_ctx_train(model.as_ptr())
             }
             .cast_unsigned(),
-            n_batch: context_params.n_batch,
-            n_ctx: context_params.n_ctx,
-            n_outputs_max: context_params.n_outputs_max,
-            n_seq_max: context_params.n_seq_max,
+        };
+        let params = model_context_traits.context_params(params);
+        let context_params = params.as_ffi();
+        let embeddings = params.embeddings();
+
+        if let SequenceOutput::ExceedsCapacity {
+            n_seq_max,
+            output_capacity,
+        } = (SequenceOutputCapacity {
+            context_params: &params,
+            model_context_traits,
+        })
+        .sequence_output()?
+        {
+            return Err(ContextError::SequencesExceedOutputCapacity {
+                n_seq_max,
+                output_capacity,
+            });
         }
-        .validate()?;
 
         let mut out_ctx: *mut llama_cpp_bindings_sys::bindings::llama_context = ptr::null_mut();
         let mut out_error: *mut c_char = ptr::null_mut();

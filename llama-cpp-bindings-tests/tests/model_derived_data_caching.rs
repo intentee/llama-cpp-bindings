@@ -1,4 +1,3 @@
-use std::ptr;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -40,7 +39,7 @@ fn chat_templates_are_prepared_once_per_model(
     let first = model.chat_templates()?;
     let second = model.chat_templates()?;
 
-    ensure!(ptr::eq(first, second));
+    ensure!(Arc::ptr_eq(&first, &second));
 
     Ok(())
 }

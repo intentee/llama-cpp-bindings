@@ -23,6 +23,7 @@ fn base_defines() -> Vec<CmakeDefine> {
         CmakeDefine::new("LLAMA_BUILD_MTMD", "ON"),
         CmakeDefine::new("MTMD_VIDEO", "OFF"),
         CmakeDefine::new("LLAMA_OPENSSL", "OFF"),
+        CmakeDefine::new("LLAMA_SUBPROCESS", "OFF"),
     ]
 }
 
@@ -212,6 +213,7 @@ mod tests {
     use llama_cpp_error_chain::error_chain::error_chain;
 
     use super::CmakeConfiguration;
+    use super::base_defines;
     use crate::android_ndk::tests::FIXTURE_ANDROID_NDK;
     use crate::build_context::BuildContext;
     use crate::build_context::tests::android_overrides;
@@ -243,7 +245,7 @@ mod tests {
         let cpu_defines = CpuTuning::of(&context, &environment).unwrap().defines;
         let mut configuration = CmakeConfiguration::of(&context, &environment).unwrap();
 
-        configuration.defines.drain(..9);
+        configuration.defines.drain(..base_defines().len());
         configuration.defines.drain(..cpu_defines.len());
 
         configuration
@@ -275,6 +277,7 @@ mod tests {
                     CmakeDefine::new("LLAMA_BUILD_MTMD", "ON"),
                     CmakeDefine::new("MTMD_VIDEO", "OFF"),
                     CmakeDefine::new("LLAMA_OPENSSL", "OFF"),
+                    CmakeDefine::new("LLAMA_SUBPROCESS", "OFF"),
                     CmakeDefine::new("GGML_NATIVE", "OFF"),
                     CmakeDefine::new("GGML_SSE42", "OFF"),
                     CmakeDefine::new("GGML_AVX", "OFF"),

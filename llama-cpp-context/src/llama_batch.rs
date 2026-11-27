@@ -104,6 +104,23 @@ impl LlamaBatch {
         seq_ids: &[llama_seq_id],
         logits: bool,
     ) -> Result<(), ContextError> {
+        self.add_with_decision_order(sampled_token, pos, seq_ids, logits, DecisionOrder::None)
+    }
+
+    /// [`Self::add`] for a token of a decision prompt that llama.cpp lays out with a decision
+    /// order.
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`ContextError`] of [`Self::add`].
+    pub fn add_with_decision_order(
+        &mut self,
+        sampled_token: SampledToken,
+        pos: llama_pos,
+        seq_ids: &[llama_seq_id],
+        logits: bool,
+        decision_order: DecisionOrder,
+    ) -> Result<(), ContextError> {
         if self.n_tokens.unsigned_abs() >= self.limits.batch {
             return Err(ContextError::BatchFull {
                 n_batch: self.limits.batch,
@@ -161,7 +178,7 @@ impl LlamaBatch {
             seq_ids_offset: self.seq_ids.len(),
             seq_ids_count: seq_ids.len(),
             output: logits,
-            decision_order: DecisionOrder::None.to_raw(),
+            decision_order: decision_order.to_raw(),
         });
         self.seq_ids.extend_from_slice(seq_ids);
 
@@ -332,7 +349,7 @@ mod tests {
                     seq_ids_offset: 0,
                     seq_ids_count: 1,
                     output: false,
-                    decision_order: llama_cpp_bindings_sys::bindings::LLAMA_RS_DECISION_ORDER_NONE,
+                    decision_order: llama_cpp_bindings_sys::bindings::llama_rs_decision_order::LLAMA_RS_DECISION_ORDER_NONE,
                 },
                 llama_rs_batch_entry {
                     token: 2,
@@ -340,7 +357,7 @@ mod tests {
                     seq_ids_offset: 1,
                     seq_ids_count: 2,
                     output: true,
-                    decision_order: llama_cpp_bindings_sys::bindings::LLAMA_RS_DECISION_ORDER_NONE,
+                    decision_order: llama_cpp_bindings_sys::bindings::llama_rs_decision_order::LLAMA_RS_DECISION_ORDER_NONE,
                 },
             ]
         );
@@ -365,8 +382,8 @@ mod tests {
                 .map(|entry| entry.decision_order)
                 .collect::<Vec<_>>(),
             [
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_DECISION_ORDER_NONE,
-                llama_cpp_bindings_sys::bindings::LLAMA_RS_DECISION_ORDER_OPTION,
+                llama_cpp_bindings_sys::bindings::llama_rs_decision_order::LLAMA_RS_DECISION_ORDER_NONE,
+                llama_cpp_bindings_sys::bindings::llama_rs_decision_order::LLAMA_RS_DECISION_ORDER_OPTION,
             ]
         );
     }
@@ -529,7 +546,7 @@ mod tests {
                 seq_ids_offset: 2,
                 seq_ids_count: 1,
                 output: true,
-                decision_order: llama_cpp_bindings_sys::bindings::LLAMA_RS_DECISION_ORDER_NONE,
+                decision_order: llama_cpp_bindings_sys::bindings::llama_rs_decision_order::LLAMA_RS_DECISION_ORDER_NONE,
             })
         );
     }

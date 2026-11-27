@@ -226,7 +226,7 @@ fn qwen35_parses_consecutive_tool_calls_in_order(
 ) -> Result<()> {
     let session = ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &[user_message("What is the weather in Paris and in Berlin?")],
         &get_weather_tools(),
         &ChatSessionOptions {

@@ -178,6 +178,16 @@ impl GgufContext {
         }
     }
 
+    pub fn set_val_bool(&mut self, key: &CStr, value: bool) {
+        unsafe {
+            llama_cpp_bindings_sys::bindings::gguf_set_val_bool(
+                self.context.as_ptr(),
+                key.as_ptr(),
+                value,
+            );
+        }
+    }
+
     pub fn set_val_str(&mut self, key: &CStr, value: &CStr) {
         unsafe {
             llama_cpp_bindings_sys::bindings::gguf_set_val_str(

@@ -15,6 +15,16 @@ use crate::llama_token::LlamaToken;
 pub enum ModelError {
     #[error("the llama.cpp sampler grew the token data array beyond its capacity")]
     CandidatesGrownBeyondCapacity { size: usize, capacity: usize },
+    #[error(
+        "the llama.cpp library ran out of memory while reading the chat template's capabilities"
+    )]
+    ChatTemplateCapabilitiesLlamaCppOutOfMemory,
+    #[error(
+        "not enough memory to report how llama.cpp failed to read the chat template's capabilities"
+    )]
+    ChatTemplateCapabilitiesNotEnoughMemory,
+    #[error("llama.cpp failed to read the chat template's capabilities: {message}")]
+    ChatTemplateCapabilitiesReported { message: String },
     #[error("chat template not found - returned null pointer")]
     ChatTemplateMissing,
     #[error("null byte in string")]

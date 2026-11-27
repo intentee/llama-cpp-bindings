@@ -25,6 +25,7 @@ use llama_cpp_bindings_sys::bindings::llama_rs_load_model_from_file_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_model_decision_type_status;
 use llama_cpp_bindings_sys::bindings::llama_rs_tokenize_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
+use llama_cpp_bindings_types::sampling_defaults::SamplingDefaults;
 use llama_cpp_params::llama_model_params::LlamaModelParams;
 use llama_cpp_path_c_string::path_c_string::path_c_string;
 
@@ -396,7 +397,7 @@ pub struct LlamaModel {
     vocab: *const llama_cpp_bindings_sys::bindings::llama_vocab,
     n_vocab: i32,
     tok_env: OnceCell<Arc<ApproximateTokEnv>>,
-    chat_templates: OnceCell<ChatTemplates>,
+    chat_templates: OnceCell<Arc<ChatTemplates>>,
     lora_adapters: Vec<NonNull<llama_cpp_bindings_sys::bindings::llama_adapter_lora>>,
 }
 
@@ -725,6 +726,26 @@ impl LlamaModel {
         })
     }
 
+    /// The sampling defaults llama.cpp serves this model with: the model's own
+    /// `general.sampling.*` values, and llama.cpp's defaults for the ones it does not declare.
+    #[must_use]
+    pub fn sampling_defaults(&self) -> SamplingDefaults {
+        let defaults = unsafe {
+            llama_cpp_bindings_sys::bindings::llama_rs_model_sampling_defaults(self.model.as_ptr())
+        };
+
+        SamplingDefaults {
+            min_p: defaults.min_p,
+            penalty_frequency: defaults.penalty_frequency,
+            penalty_last_n: defaults.penalty_last_n,
+            penalty_presence: defaults.penalty_presence,
+            penalty_repeat: defaults.penalty_repeat,
+            temperature: defaults.temperature,
+            top_k: defaults.top_k,
+            top_p: defaults.top_p,
+        }
+    }
+
     #[must_use]
     pub fn size(&self) -> u64 {
         unsafe { llama_cpp_bindings_sys::bindings::llama_model_size(self.model.as_ptr()) }
@@ -985,9 +1006,10 @@ impl LlamaModel {
     ///
     /// Returns [`ModelError`] when the model has no chat template or llama.cpp cannot prepare
     /// it.
-    pub fn chat_templates(&self) -> Result<&ChatTemplates, ModelError> {
+    pub fn chat_templates(&self) -> Result<Arc<ChatTemplates>, ModelError> {
         self.chat_templates
-            .get_or_try_init(|| unsafe { ChatTemplates::new(self.model) })
+            .get_or_try_init(|| unsafe { ChatTemplates::new(self.model) }.map(Arc::new))
+            .map(Arc::clone)
     }
 
     /// `template` in place of the model's own chat templates, the way llama.cpp serves a model

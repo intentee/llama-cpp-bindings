@@ -7,6 +7,7 @@ use std::slice;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_free;
 use llama_cpp_bindings_sys::bindings::llama_rs_chat_reading_parse_status;
 use llama_cpp_bindings_sys::cpp_allocated_string::CppAllocatedString;
+use llama_cpp_bindings_sys::cpp_text_view::cpp_text_view;
 
 use crate::chat_classification::ChatClassification;
 use crate::chat_error::ChatError;
@@ -16,7 +17,6 @@ use crate::chat_output_completeness::ChatOutputCompleteness;
 use crate::chat_span::ChatSpan;
 use crate::chat_span_kind::ChatSpanKind;
 use crate::chat_spans::ChatSpans;
-use crate::cpp_text_view::cpp_text_view;
 use crate::raw_chat_message::RawChatMessage;
 use crate::take_parsed_chat_message::take_parsed_chat_message;
 

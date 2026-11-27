@@ -4,7 +4,14 @@ pub const FAULT_INJECTION_DEFINE: &str = "LLAMA_RS_FAULT_INJECTION";
 
 pub const GSL_INCLUDE_DIR: &str = "GSL/include";
 
-pub const LLAMA_CPP_INCLUDE_DIRS: &[&str] = &["common", "include", "ggml/include", "vendor"];
+pub const LLAMA_CPP_INCLUDE_DIRS: &[&str] = &[
+    "common",
+    "include",
+    "ggml/include",
+    "vendor",
+    "tools/mtmd",
+    "tools/server",
+];
 
 pub const WRAPPER_HEADERS: &[&str] = &[
     "wrapper.h",
@@ -15,9 +22,11 @@ pub const WRAPPER_HEADERS: &[&str] = &[
     "wrapper_common.h",
     "wrapper_context.h",
     "wrapper_decision.h",
+    "wrapper_decision_model.h",
     "wrapper_fault_injection.h",
     "wrapper_fit.h",
     "wrapper_gbnf.h",
+    "wrapper_model_capabilities.h",
     "wrapper_mtmd.h",
     "wrapper_parsed_chat.h",
     "wrapper_parsed_chat_handle.h",
@@ -36,11 +45,18 @@ pub const WRAPPER_SOURCES: &[&str] = &[
     "wrapper_common.cpp",
     "wrapper_context.cpp",
     "wrapper_decision.cpp",
+    "wrapper_decision_model.cpp",
     "wrapper_fault_injection.cpp",
     "wrapper_fit.cpp",
     "wrapper_gbnf.cpp",
+    "wrapper_model_capabilities.cpp",
     "wrapper_mtmd.cpp",
     "wrapper_parsed_chat.cpp",
     "wrapper_sampler_init.cpp",
     "wrapper_state.cpp",
+];
+
+pub const VENDORED_SOURCES: &[&str] = &[
+    "tools/server/server-common.cpp",
+    "tools/server/server-decision.cpp",
 ];

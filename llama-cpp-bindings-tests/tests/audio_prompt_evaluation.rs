@@ -56,7 +56,7 @@ fn evaluate_audio_prompt<'model, TOutcome>(
     ];
     let session = ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &messages,
         &[],
         &ChatSessionOptions {

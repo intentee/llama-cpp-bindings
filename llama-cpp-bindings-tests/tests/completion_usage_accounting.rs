@@ -169,7 +169,7 @@ fn chat_completion_usage_matches_the_classified_tokens(
     let messages = [user_message("Hello! How are you?")];
     let session = ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &messages,
         &[],
         &ChatSessionOptions {

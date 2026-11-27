@@ -153,7 +153,7 @@ fn qwen35_omitted_assistant_turn_renders_only_the_messages(
 ) -> Result<()> {
     let session = ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &[user_message("hello")],
         &[],
         &ChatSessionOptions {
@@ -182,7 +182,7 @@ fn qwen35_renders_a_tool_call_history_with_its_reasoning_and_tool_response(
 ) -> Result<()> {
     let session = ChatSession::new(
         model,
-        model.chat_templates()?,
+        model.chat_templates()?.as_ref(),
         &[
             user_message("What is the weather in Paris?"),
             ChatMessage::AssistantToolCalls {

@@ -12,7 +12,10 @@ doctest = false
 
 [dependencies]
 anyhow = { workspace = true }
+base64 = { workspace = true }
 encoding_rs = { workspace = true }
+hf-hub = { workspace = true }
+indexmap = { workspace = true }
 enumflags2 = { workspace = true }
 inventory = { workspace = true }
 llama-cpp-backend = { workspace = true }
@@ -21,7 +24,9 @@ llama-cpp-bindings-sys = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 llama-cpp-chat = { workspace = true }
 llama-cpp-context = { workspace = true }
+llama-cpp-decision = { workspace = true }
 llama-cpp-gbnf = { workspace = true }
+llama-cpp-gguf = { workspace = true }
 llama-cpp-model = { workspace = true }
 llama-cpp-mtmd = { workspace = true }
 llama-cpp-params = { workspace = true }
@@ -34,6 +39,7 @@ serde_json = { workspace = true }
 toktrie = { workspace = true }
 
 [dev-dependencies]
+llama-cpp-model-capabilities = { workspace = true }
 llama-cpp-capturing-logger = { workspace = true }
 llama-cpp-context-memory = { workspace = true }
 llama-cpp-context-state = { workspace = true }
